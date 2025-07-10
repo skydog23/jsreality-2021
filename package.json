@@ -1,0 +1,21 @@
+{
+  "name": "jsreality",
+  "version": "0.1.0",
+  "description": "JavaScript port of jReality's core mathematical libraries",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "keywords": [
+    "geometry",
+    "mathematics",
+    "projective-geometry",
+    "linear-algebra"
+  ],
+  "author": "",
+  "license": "BSD-3-Clause",
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+} 
