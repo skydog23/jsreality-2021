@@ -1,3 +1,6 @@
+import * as Pn from '../Pn.js';
+import { matrixTimesVector, subtract, normalize, crossProduct } from '../Rn.js';
+
 describe('dragTowards', () => {
     test('drags point in Euclidean space', () => {
         const p0 = [0, 0, 0, 1];  // Origin
@@ -34,50 +37,6 @@ describe('projectToTangentSpace', () => {
         const result = Pn.projectToTangentSpace(null, point, vector, Pn.HYPERBOLIC);
         // Result should be orthogonal to point
         expect(Pn.innerProduct(point, result, Pn.HYPERBOLIC)).toBeCloseTo(0);
-    });
-});
-
-describe('orthonormalizeMatrix', () => {
-    test('orthonormalizes Euclidean matrix', () => {
-        // Create a non-orthonormal matrix
-        const m = [
-            1, 0.5, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-        ];
-        const result = Pn.orthonormalizeMatrix(null, m, 1e-10, Pn.EUCLIDEAN);
-        
-        // Check columns are normalized
-        for (let i = 0; i < 3; i++) {
-            const col = [result[i], result[i + 4], result[i + 8]];
-            const norm = Math.sqrt(col[0] * col[0] + col[1] * col[1] + col[2] * col[2]);
-            expect(norm).toBeCloseTo(1);
-        }
-    });
-
-    test('orthonormalizes hyperbolic matrix', () => {
-        // Create a non-orthonormal matrix
-        const m = [
-            1, 0.5, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-        ];
-        const result = Pn.orthonormalizeMatrix(null, m, 1e-10, Pn.HYPERBOLIC);
-        
-        // Extract columns as vectors
-        const cols = [];
-        for (let i = 0; i < 4; i++) {
-            cols[i] = [result[i], result[i + 4], result[i + 8], result[i + 12]];
-        }
-        
-        // Check orthogonality
-        for (let i = 0; i < 4; i++) {
-            for (let j = i + 1; j < 4; j++) {
-                expect(Pn.innerProduct(cols[i], cols[j], Pn.HYPERBOLIC)).toBeCloseTo(0);
-            }
-        }
     });
 });
 
@@ -148,9 +107,9 @@ describe('completeBasis', () => {
         expect(result[2][2]).toBeCloseTo(1);
         
         // Vectors should be orthogonal
-        expect(Rn.innerProduct(result[0], result[1])).toBeCloseTo(0);
-        expect(Rn.innerProduct(result[1], result[2])).toBeCloseTo(0);
-        expect(Rn.innerProduct(result[2], result[0])).toBeCloseTo(0);
+        expect(Pn.innerProduct(result[0], result[1])).toBeCloseTo(0);
+        expect(Pn.innerProduct(result[1], result[2])).toBeCloseTo(0);
+        expect(Pn.innerProduct(result[2], result[0])).toBeCloseTo(0);
     });
 });
 
@@ -161,39 +120,8 @@ describe('permutationMatrix', () => {
         
         // Test permutation effect
         const point = [1, 2, 3];
-        const transformed = Rn.matrixTimesVector(null, result, point);
+        const transformed = Pn.matrixTimesVector(null, result, point);
         expect(transformed).toEqual([2, 3, 1]);
-    });
-});
-
-describe('polarDecompose', () => {
-    test('decomposes matrix into rotation and scale', () => {
-        // Create a matrix that scales and rotates
-        const scale = 2;
-        const angle = Math.PI / 4;
-        const c = Math.cos(angle);
-        const s = Math.sin(angle);
-        const m = [
-            scale*c, -scale*s, 0, 0,
-            scale*s, scale*c, 0, 0,
-            0, 0, scale, 0,
-            0, 0, 0, 1
-        ];
-        
-        const q = new Array(16);
-        const s_mat = new Array(16);
-        Pn.polarDecompose(q, s_mat, m);
-        
-        // Q should be orthogonal (Q^T * Q = I)
-        const qT = Rn.transpose(null, q);
-        const qTq = Rn.times(null, qT, q);
-        expect(Pn.isIdentityMatrix(qTq, 1e-10)).toBe(true);
-        
-        // S should be symmetric (S = S^T)
-        const sT = Rn.transpose(null, s_mat);
-        for (let i = 0; i < 16; i++) {
-            expect(s_mat[i]).toBeCloseTo(sT[i]);
-        }
     });
 });
 

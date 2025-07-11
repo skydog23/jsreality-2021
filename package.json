@@ -3,9 +3,16 @@
   "version": "0.1.0",
   "description": "JavaScript port of jReality's core mathematical libraries",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src-core/de/jreality/index.js",
+  "files": [
+    "src-core/de/jreality/**/*.js",
+    "!src-core/de/jreality/**/__tests__/**",
+    "!src-core/de/jreality/**/*.test.js"
+  ],
   "scripts": {
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "keywords": [
     "geometry",

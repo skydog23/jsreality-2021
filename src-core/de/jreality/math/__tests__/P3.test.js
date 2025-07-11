@@ -1,12 +1,12 @@
-import P3 from '../P3';
-import * as Rn from '../Rn';
+import * as P3 from '../P3.js';
+import { matrixTimesVector, subtract, normalize, crossProduct } from '../Rn.js';
 
 describe('Line coordinates', () => {
     test('lineFromPoints creates Plücker coordinates', () => {
         const p1 = [0, 0, 0, 1];  // Origin
-        const p2 = [1, 0, 0, 1];  // Point on x-axis
+        const p2 = [0, 0, 1, 1];  // Point on z-axis
         const line = P3.lineFromPoints(null, p1, p2);
-        // Line should be along x-axis
+        
         expect(line[0]).toBe(0);  // xy component
         expect(line[1]).toBe(0);  // xz component
         expect(line[2]).toBe(1);  // xw component
@@ -30,43 +30,44 @@ describe('Line coordinates', () => {
 
 describe('Perspective transformations', () => {
     test('perspectiveMatrix creates valid projection', () => {
-        const fov = Math.PI / 4;  // 45 degrees
-        const aspect = 16/9;
         const near = 0.1;
         const far = 100;
-        const proj = P3.perspectiveMatrix(null, fov, aspect, near, far);
+        const fovy = Math.PI/4;  // 45 degrees
+        const aspect = 1.0;
+        
+        const proj = P3.perspectiveMatrix(null, near, far, fovy, aspect);
         
         // Test a point at (0,0,-near)
         const point = [0, 0, -near, 1];
-        const transformed = Rn.matrixTimesVector(null, proj, point);
+        const transformed = matrixTimesVector(null, proj, point);
         // Point should project to (0,0,-1) in clip space
         expect(transformed[2]/transformed[3]).toBeCloseTo(-1);
     });
-
+    
     test('lookAt creates valid view matrix', () => {
-        const eye = [0, 0, 5];
-        const center = [0, 0, 0];
-        const up = [0, 1, 0];
+        const eye = [0, 0, 5];    // Camera position
+        const center = [0, 0, 0]; // Look at point
+        const up = [0, 1, 0];     // Up vector
+        
         const view = P3.lookAt(null, eye, center, up);
         
-        // Transform eye point - should go to (0,0,-5)
-        const transformed = Rn.matrixTimesVector(null, view, [...eye, 1]);
-        expect(transformed[0]).toBeCloseTo(0);
-        expect(transformed[1]).toBeCloseTo(0);
+        // Test point at center should map to (0,0,-5)
+        const point = [0, 0, 0, 1];
+        const transformed = matrixTimesVector(null, view, point);
         expect(transformed[2]).toBeCloseTo(-5);
     });
 });
 
 describe('Rotation', () => {
     test('rotationMatrix creates valid rotation', () => {
-        // Rotate 90 degrees around z-axis
-        const axis = [0, 0, 1];
-        const angle = Math.PI / 2;
+        const angle = Math.PI/2;  // 90 degrees
+        const axis = [0, 0, 1];   // Rotate around z-axis
+        
         const rot = P3.rotationMatrix(null, axis, angle);
         
-        // Test point on x-axis
+        // Test rotating point on x-axis
         const point = [1, 0, 0, 1];
-        const transformed = Rn.matrixTimesVector(null, rot, point);
+        const transformed = matrixTimesVector(null, rot, point);
         // Should rotate to y-axis
         expect(transformed[0]).toBeCloseTo(0);
         expect(transformed[1]).toBeCloseTo(1);

@@ -1,4 +1,5 @@
-import Quat from '../Quat';
+import * as Quat from '../Quat.js';
+import * as Rn from '../Rn.js';
 
 describe('Quaternion operations', () => {
     test('add', () => {
