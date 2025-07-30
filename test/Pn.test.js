@@ -1,4 +1,8 @@
-import { Pn } from '../src/Pn.js';
+// Import the Pn module
+require('../src-core/de/jreality/math/Pn.js');
+
+// Use globalThis.Pn for all tests
+const Pn = globalThis.Pn;
 
 describe('Pn (Projective Geometry)', () => {
     describe('Constants', () => {

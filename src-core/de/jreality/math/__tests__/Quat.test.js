@@ -1,5 +1,10 @@
-import * as Quat from '../Quat.js';
-import * as Rn from '../Rn.js';
+// Import the required modules
+require('../Quat.js');
+require('../Rn.js');
+
+// Use globalThis for accessing the modules
+const Quat = globalThis.Quat;
+const Rn = globalThis.Rn;
 
 describe('Quaternion operations', () => {
     test('add', () => {

@@ -1,5 +1,10 @@
-import * as Pn from '../Pn.js';
-import { matrixTimesVector, subtract, normalize, crossProduct } from '../Rn.js';
+// Import the required modules
+require('../Pn.js');
+require('../Rn.js');
+
+// Use globalThis for accessing the modules
+const Pn = globalThis.Pn;
+const { matrixTimesVector, subtract, normalize, crossProduct } = globalThis.Rn;
 
 describe('dragTowards', () => {
     test('drags point in Euclidean space', () => {

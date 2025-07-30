@@ -1,4 +1,8 @@
-import { Rn } from '../src/Rn.js';
+// Import the Rn module
+require('../src-core/de/jreality/math/Rn.js');
+
+// Use globalThis.Rn for all tests
+const Rn = globalThis.Rn;
 
 describe('Rn (Euclidean Vector Space)', () => {
     describe('identityMatrix', () => {
@@ -247,3 +251,104 @@ describe('Rn (Euclidean Vector Space)', () => {
         });
     });
 }); 
+
+// Test file for the newly added Rn.js functions
+// Run this in Node.js or browser console
+
+// Load the Rn.js module (adjust path as needed)
+// In browser: just include the script tag
+// In Node.js: require('./src-core/de/jreality/math/Rn.js')
+
+function testInverseFunction() {
+    console.log('Testing Rn.inverse()...');
+    
+    // Test 2x2 matrix inverse
+    const mat2x2 = [1, 2, 3, 4]; // [[1,2],[3,4]]
+    const inv2x2 = Rn.inverse(null, mat2x2);
+    console.log('2x2 matrix:', mat2x2);
+    console.log('2x2 inverse:', inv2x2);
+    
+    // Verify: mat * inv = identity
+    const identity2 = Rn.timesMatrix(null, mat2x2, inv2x2);
+    console.log('2x2 verification (should be identity):', identity2);
+    
+    // Test 3x3 matrix inverse
+    const mat3x3 = [
+        1, 0, 0,
+        0, 2, 0, 
+        0, 0, 3
+    ]; // diagonal matrix
+    const inv3x3 = Rn.inverse(null, mat3x3);
+    console.log('3x3 diagonal matrix:', mat3x3);
+    console.log('3x3 inverse:', inv3x3);
+    
+    const identity3 = Rn.timesMatrix(null, mat3x3, inv3x3);
+    console.log('3x3 verification (should be identity):', identity3);
+}
+
+function testCofactorFunction() {
+    console.log('\nTesting Rn.cofactor()...');
+    
+    // Test 3x3 matrix cofactor
+    const mat = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    console.log('3x3 matrix:', mat);
+    
+    // Calculate some cofactors
+    const cof00 = Rn.cofactor(mat, 0, 0);
+    const cof01 = Rn.cofactor(mat, 0, 1);
+    const cof11 = Rn.cofactor(mat, 1, 1);
+    
+    console.log('Cofactor(0,0):', cof00);
+    console.log('Cofactor(0,1):', cof01);
+    console.log('Cofactor(1,1):', cof11);
+}
+
+function testAdjointFunction() {
+    console.log('\nTesting Rn.adjoint()...');
+    
+    // Test 2x2 matrix adjoint
+    const mat = [1, 2, 3, 4];
+    const adj = Rn.adjoint(null, mat);
+    console.log('2x2 matrix:', mat);
+    console.log('2x2 adjoint:', adj);
+    
+    // For 2x2 matrix [[a,b],[c,d]], adjoint should be [[d,-b],[-c,a]]
+    const expected = [4, -2, -3, 1];
+    console.log('Expected adjoint:', expected);
+    console.log('Match:', Rn.equals(adj, expected, 1e-10));
+}
+
+function testPermutationMatrix() {
+    console.log('\nTesting Rn.permutationMatrix()...');
+    
+    // Test permutation [1, 0, 2] (swaps first two elements)
+    const perm = [1, 0, 2];
+    const permMat = Rn.permutationMatrix(null, perm);
+    console.log('Permutation:', perm);
+    console.log('Permutation matrix:', permMat);
+    console.log('Matrix formatted:');
+    console.log(Rn.matrixToString(permMat));
+}
+
+function runAllTests() {
+    console.log('=== Testing newly added Rn.js functions ===\n');
+    
+    try {
+        testCofactorFunction();
+        testAdjointFunction();
+        testInverseFunction();
+        testPermutationMatrix();
+        
+        console.log('\n=== All tests completed ===');
+    } catch (error) {
+        console.error('Test failed:', error);
+    }
+}
+
+// Export for Node.js or run immediately in browser
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { runAllTests };
+} else {
+    // Browser environment - run tests
+    runAllTests();
+} 

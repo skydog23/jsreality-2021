@@ -1,12 +1,14 @@
 /** @type {import('jest').Config} */
-export default {
-    transform: {},
+module.exports = {
     testEnvironment: 'node',
     testMatch: [
+        '**/test/**/*.test.js',
         '**/src-core/**/__tests__/**/*.js',
         '**/src-core/**/*.test.js'
     ],
-    moduleNameMapper: {
-        '^(\\.{1,2}/.*)\\.js$': '$1'
-    }
+    collectCoverageFrom: [
+        'src-core/**/*.js',
+        '!src-core/**/__tests__/**',
+        '!src-core/**/*.test.js'
+    ]
 }; 

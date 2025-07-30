@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jReality JavaScript Demo</title>
+</head>
+<body>
+    <h1>jReality Math Library Demo</h1>
+    <div id="output"></div>
+
+    <!-- Load JavaScript files from subfolders using relative paths -->
+    <script src="src-core/de/jreality/math/Rn.js"></script>
+    
+    <script>
+        // Now you can use the Rn library
+        const Rn = globalThis.Rn;
+        
+        // Example: Create identity matrix
+        const identity = Rn.identityMatrix(3);
+        console.log('3x3 Identity Matrix:', identity);
+        
+        // Example: Vector operations
+        const v1 = [1, 2, 3];
+        const v2 = [4, 5, 6];
+        const sum = Rn.add(null, v1, v2);
+        console.log('Vector sum:', sum);
+        
+        // Example: Matrix inverse
+        const matrix = [2, 0, 0, 1]; // 2x2 matrix
+        const inverse = Rn.inverse(null, matrix);
+        console.log('Matrix inverse:', inverse);
+        
+        // Display results on the page
+        const output = document.getElementById('output');
+        output.innerHTML = `
+            <h2>Results:</h2>
+            <p><strong>3x3 Identity:</strong> [${identity.join(', ')}]</p>
+            <p><strong>Vector Sum:</strong> [${sum.join(', ')}]</p>
+            <p><strong>Matrix Inverse:</strong> [${inverse.join(', ')}]</p>
+        `;
+    </script>
+</body>
+</html> 

@@ -1,5 +1,10 @@
-import * as P3 from '../P3.js';
-import { matrixTimesVector, subtract, normalize, crossProduct } from '../Rn.js';
+// Import the required modules
+require('../P3.js');
+require('../Rn.js');
+
+// Use globalThis for accessing the modules
+const P3 = globalThis.P3;
+const { matrixTimesVector, subtract, normalize, crossProduct } = globalThis.Rn;
 
 describe('Line coordinates', () => {
     test('lineFromPoints creates Plücker coordinates', () => {
