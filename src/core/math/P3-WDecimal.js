@@ -1,9 +1,9 @@
-// @ts-check
-import * as Pn from './Pn.js';
-import * as Rn from './Rn.js';
+import * as Pn from 'jsreality-math/Pn.js';
+import * as Rn from 'jsreality-math/Rn.js';
+import { Decimal } from '../node_modules/decimal.js/decimal.mjs';
 
-/** @typedef {number[]} Vec */
-/** @typedef {number[]} Matrix */
+// Configure Decimal for high precision
+Decimal.set({ precision: 40 });  // Adjust precision as needed
 
 // Constants
 export const p3involution = [-1, -1, -1, -1];
@@ -17,6 +17,32 @@ export const yaxis = [0, 1, 0];
 export const zaxis = [0, 0, -1];
 export const hzaxis = [0, 0, 1, 1];
 
+// Helper functions for Decimal operations
+function toDecimal(x) {
+    return new Decimal(x);
+}
+
+function fromDecimal(d) {
+    return d.toNumber();
+}
+
+function decimalInnerProduct(v1, v2, length = 3) {
+    let sum = new Decimal(0);
+    for (let i = 0; i < length; i++) {
+        sum = sum.plus(toDecimal(v1[i]).times(v2[i]));
+    }
+    return fromDecimal(sum);
+}
+
+function decimalNormalize(vec) {
+    let sum = new Decimal(0);
+    for (let i = 0; i < vec.length; i++) {
+        sum = sum.plus(toDecimal(vec[i]).times(vec[i]));
+    }
+    const norm = Decimal.sqrt(sum);
+    return vec.map(x => fromDecimal(toDecimal(x).dividedBy(norm)));
+}
+
 /**
  * Calculate a translation matrix which carries the origin (0,0,0,1) to 
  * the point to.
@@ -24,14 +50,6 @@ export const hzaxis = [0, 0, 1, 1];
  * @param {number[]} to - Target point
  * @param {number} metric - Metric type (EUCLIDEAN, HYPERBOLIC, ELLIPTIC)
  * @returns {number[]} Translation matrix
- */
-/**
- * Make translation matrix carrying origin to point `to` for given metric.
- * Mirrors P3.makeTranslationMatrix in Java.
- * @param {Matrix|null} mat
- * @param {Vec} to
- * @param {number} metric
- * @returns {Matrix}
  */
 export function makeTranslationMatrix(mat, to, metric) {
     if (!mat) mat = new Array(16);
@@ -44,13 +62,6 @@ export function makeTranslationMatrix(mat, to, metric) {
  * @param {number[]} p - Target point
  * @param {number} metric - Metric type
  * @returns {number[]} Translation matrix
- */
-/**
- * Internal helper that implements translation construction (signature-compatible).
- * @param {Matrix|null} mat
- * @param {Vec} p
- * @param {number} metric
- * @returns {Matrix}
  */
 function makeTranslationMatrixOld(mat, p, metric) {
     let tmp = new Array(4);
@@ -75,9 +86,8 @@ function makeTranslationMatrixOld(mat, p, metric) {
         case Pn.EUCLIDEAN:
             Rn.setIdentityMatrix(m);
             if (point.length === 4) {
-                // Dehomogenize and ensure w=1
-                point = Pn.dehomogenize([], point);
-                if (point.length < 4) point[3] = 1.0;
+                point = Pn.dehomogenize(null, point);
+                if (toDecimal(point[3]).equals(0)) point[3] = 1.0;
             }
             for (let i = 0; i < 3; ++i) {
                 m[i * 4 + 3] = point[i];
@@ -85,18 +95,24 @@ function makeTranslationMatrixOld(mat, p, metric) {
             break;
 
         case Pn.HYPERBOLIC:
-            if (Pn.innerProduct(point, point, Pn.HYPERBOLIC) > 0.0) {
-                let k = (point[3] * point[3] - 0.0001) / Rn.innerProductN(point, point, 3);
-                k = Math.sqrt(k);
-                for (let i = 0; i < 3; ++i) point[i] *= k;
+            const hyperbolicInnerProduct = decimalInnerProduct(point, point);
+            if (toDecimal(hyperbolicInnerProduct).greaterThan(0)) {
+                const k = Decimal.sqrt(
+                    toDecimal(point[3]).times(point[3])
+                    .minus(0.0001)
+                    .dividedBy(decimalInnerProduct(point, point, 3))
+                );
+                for (let i = 0; i < 3; ++i) {
+                    point[i] = fromDecimal(toDecimal(point[i]).times(k));
+                }
             }
         // falls through to ELLIPTIC case
         case Pn.ELLIPTIC:
             Rn.setIdentityMatrix(mtmp);
             tmp = Pn.normalize(tmp, point, metric);
             for (let i = 0; i < 3; ++i) foo[i] = tmp[i];
-            let d = Rn.innerProduct(foo, foo);
-            mtmp[11] = Math.sqrt(d);
+            let d = decimalInnerProduct(foo, foo);
+            mtmp[11] = fromDecimal(Decimal.sqrt(toDecimal(d)));
             if (metric === Pn.ELLIPTIC) {
                 mtmp[14] = -mtmp[11];
             } else {
@@ -124,15 +140,6 @@ function makeTranslationMatrixOld(mat, p, metric) {
  * @param {number} metric - Metric type
  * @returns {number[]} Translation matrix
  */
-/**
- * Make translation matrix that carries `from` to `to` along their joining axis.
- * Mirrors P3.makeTranslationMatrix2.
- * @param {Matrix|null} dst
- * @param {Vec} from
- * @param {Vec} to
- * @param {number} metric
- * @returns {Matrix}
- */
 export function makeTranslationMatrix2(dst, from, to, metric) {
     if (!dst) dst = new Array(16);
     let TP = makeTranslationMatrix(null, from, metric);
@@ -150,39 +157,32 @@ export function makeTranslationMatrix2(dst, from, to, metric) {
  * @param {number} angle - Rotation angle
  * @returns {number[]} Rotation matrix
  */
-/**
- * Rotation matrix about axis with angle (fixing origin), mirrors P3.makeRotationMatrix.
- * @param {Matrix|null} m
- * @param {Vec} axis length >=3
- * @param {number} angle
- * @returns {Matrix}
- */
 export function makeRotationMatrix(m, axis, angle) {
     if (!m) m = new Array(16);
     if (axis.length < 3) {
         throw new Error("Axis is wrong size");
     }
     
-    let u = new Array(3);
-    for (let i = 0; i < 3; i++) u[i] = axis[i];
-    Rn.normalize(u, u);
+    let u = decimalNormalize(axis.slice(0, 3));
     
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    const v = 1.0 - c;
+    const c = Decimal.cos(toDecimal(angle));
+    const s = Decimal.sin(toDecimal(angle));
+    const v = toDecimal(1).minus(c);
     
     Rn.setIdentityMatrix(m);
-    m[0] = u[0] * u[0] * v + c;
-    m[4] = u[0] * u[1] * v + u[2] * s;
-    m[8] = u[0] * u[2] * v - u[1] * s;
+    
+    // Calculate matrix elements using Decimal arithmetic
+    m[0] = fromDecimal(toDecimal(u[0]).times(u[0]).times(v).plus(c));
+    m[4] = fromDecimal(toDecimal(u[0]).times(u[1]).times(v).plus(toDecimal(u[2]).times(s)));
+    m[8] = fromDecimal(toDecimal(u[0]).times(u[2]).times(v).minus(toDecimal(u[1]).times(s)));
 
-    m[1] = u[1] * u[0] * v - u[2] * s;
-    m[5] = u[1] * u[1] * v + c;
-    m[9] = u[1] * u[2] * v + u[0] * s;
+    m[1] = fromDecimal(toDecimal(u[1]).times(u[0]).times(v).minus(toDecimal(u[2]).times(s)));
+    m[5] = fromDecimal(toDecimal(u[1]).times(u[1]).times(v).plus(c));
+    m[9] = fromDecimal(toDecimal(u[1]).times(u[2]).times(v).plus(toDecimal(u[0]).times(s)));
 
-    m[2] = u[2] * u[0] * v + u[1] * s;
-    m[6] = u[2] * u[1] * v - u[0] * s;
-    m[10] = u[2] * u[2] * v + c;
+    m[2] = fromDecimal(toDecimal(u[2]).times(u[0]).times(v).plus(toDecimal(u[1]).times(s)));
+    m[6] = fromDecimal(toDecimal(u[2]).times(u[1]).times(v).minus(toDecimal(u[0]).times(s)));
+    m[10] = fromDecimal(toDecimal(u[2]).times(u[2]).times(v).plus(c));
     
     return m;
 }
@@ -194,28 +194,19 @@ export function makeRotationMatrix(m, axis, angle) {
  * @param {number[]} to - Target vector (3D)
  * @returns {number[]} Rotation matrix
  */
-/**
- * Rotation matrix taking vector `from` to `to` (fixing origin), mirrors P3.makeRotationAxisMatrix.
- * @param {Matrix|null} m
- * @param {Vec} from length >=3
- * @param {Vec} to length >=3
- * @returns {Matrix}
- */
 export function makeRotationAxisMatrix(m, from, to) {
     if (!m) m = new Array(16);
     if (from.length < 3 || to.length < 3) {
         throw new Error("Input vectors too short");
     }
 
-    // Create vectors array and normalize input vectors
-    /** @type {number[]} */
-    const v1 = Rn.normalize(null, from.slice(0, 3));
-    /** @type {number[]} */
-    const v2 = Rn.normalize(null, to.slice(0, 3));
+    // Create vectors array and normalize input vectors using Decimal
+    const v1 = decimalNormalize(from.slice(0, 3));
+    const v2 = decimalNormalize(to.slice(0, 3));
 
-    // Calculate angle between vectors
-    const cosAngle = Rn.innerProduct(v1, v2);
-    const angle = Math.acos(cosAngle);
+    // Calculate angle between vectors using Decimal
+    const cosAngle = decimalInnerProduct(v1, v2);
+    const angle = fromDecimal(Decimal.acos(toDecimal(cosAngle)));
     
     // Handle numerical precision issues
     if (isNaN(angle)) {
@@ -223,8 +214,8 @@ export function makeRotationAxisMatrix(m, from, to) {
     }
 
     // Calculate rotation axis using cross product and normalize
-    const axis = Rn.crossProduct(null, /** @type {number[]} */(v1), /** @type {number[]} */(v2));
-    const normalizedAxis = Rn.normalize(null, axis);
+    const axis = Rn.crossProduct(null, v1, v2);
+    const normalizedAxis = decimalNormalize(axis);
 
     // Generate rotation matrix around this axis
     return makeRotationMatrix(m, normalizedAxis, angle);

@@ -2,6 +2,10 @@
  * JavaScript port of jReality's Pn class.
  * Static methods for n-dimensional real projective space RP^n.
  * Points and vectors are represented in homogeneous coordinates by arrays of length n+1.
+ * @ts-check
+ *
+ * @typedef {number[]} Vec
+ * @typedef {number[]} Matrix
  */
 
 import { innerProduct as RnInnerProduct, normalize as RnNormalize } from './Rn.js';
@@ -709,7 +713,7 @@ export function equals(m1, m2, tol = 1e-8) {
     
     for (let i = 0; i < m1.length; i++) {
         if (Math.abs(m1[i] - m2[i]) > tol) return false;
-    }
+        }
     
     return true;
 }
