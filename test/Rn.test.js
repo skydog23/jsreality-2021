@@ -303,18 +303,18 @@ function testCofactorFunction() {
     console.log('Cofactor(1,1):', cof11);
 }
 
-function testAdjointFunction() {
-    console.log('\nTesting Rn.adjoint()...');
+function testadjugateFunction() {
+    console.log('\nTesting Rn.adjugate()...');
     
-    // Test 2x2 matrix adjoint
+    // Test 2x2 matrix adjugate
     const mat = [1, 2, 3, 4];
-    const adj = Rn.adjoint(null, mat);
+    const adj = Rn.adjugate(null, mat);
     console.log('2x2 matrix:', mat);
-    console.log('2x2 adjoint:', adj);
+    console.log('2x2 adjugate:', adj);
     
-    // For 2x2 matrix [[a,b],[c,d]], adjoint should be [[d,-b],[-c,a]]
+    // For 2x2 matrix [[a,b],[c,d]], adjugate should be [[d,-b],[-c,a]]
     const expected = [4, -2, -3, 1];
-    console.log('Expected adjoint:', expected);
+    console.log('Expected adjugate:', expected);
     console.log('Match:', Rn.equals(adj, expected, 1e-10));
 }
 
@@ -335,7 +335,7 @@ function runAllTests() {
     
     try {
         testCofactorFunction();
-        testAdjointFunction();
+        testadjugateFunction();
         testInverseFunction();
         testPermutationMatrix();
         
