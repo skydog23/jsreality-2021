@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene Graph Traversal Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .description {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .controls button {
+            margin: 5px;
+            padding: 8px 16px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover {
+            background: #1976d2;
+        }
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        .hierarchy {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #ff9800;
+        }
+        .hierarchy h4 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        .hierarchy pre {
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Scene Graph Traversal Test</h1>
+        
+        <div class="description">
+            <h3>Testing the Scene Graph Visitor Pattern</h3>
+            <p>This test demonstrates proper scene graph traversal using the visitor pattern with <code>childrenAccept()</code>.</p>
+            <p>The scene has a hierarchical structure that should be properly traversed and rendered.</p>
+        </div>
+
+        <div class="hierarchy">
+            <h4>Expected Scene Hierarchy:</h4>
+            <pre>
+root
+├── cameraNode (translated back -15)
+│   └── mainCamera
+└── group1 (translated right +2)
+    ├── group2 (translated up +1)
+    │   └── hierarchicalPoints (4 points at center)
+    └── directGeometry
+        └── directPoints (3 points on left)
+            </pre>
+        </div>
+
+        <div id="error-container"></div>
+        <div id="info-container" class="info"></div>
+    </div>
+
+    <script type="module">
+        import { testSceneGraphTraversal } from '../src/core/scene/__tests__/SceneGraphTraversalTest.js';
+        
+        try {
+            // Redirect console.log to show info on page
+            const infoContainer = document.getElementById('info-container');
+            const originalLog = console.log;
+            
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                const message = args.join(' ');
+                infoContainer.innerHTML += message + '<br>';
+                infoContainer.scrollTop = infoContainer.scrollHeight;
+            };
+
+            // Run the test
+            const result = testSceneGraphTraversal();
+            
+            console.log('---');
+            console.log('Test completed successfully!');
+            console.log('Check the canvas above and the logged scene structure.');
+            
+        } catch (error) {
+            console.error('Test failed:', error);
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `
+                <div style="background: #ffebee; color: #c62828; padding: 15px; border-radius: 4px; margin: 20px 0; border: 1px solid #ef5350;">
+                    <h4>Test Failed</h4>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre style="font-size: 12px; margin-top: 10px;">${error.stack}</pre>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

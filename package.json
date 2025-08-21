@@ -2,6 +2,7 @@
   "name": "jsreality",
   "version": "0.1.0",
   "description": "JavaScript port of jReality's core mathematical libraries",
+  "type": "module",
   "main": "src-core/de/jreality/index.js",
   "files": [
     "src-core/de/jreality/**/*.js",
