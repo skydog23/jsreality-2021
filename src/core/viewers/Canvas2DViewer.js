@@ -10,6 +10,7 @@ import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import * as P3 from '../math/P3.js';
 import { Camera, Rectangle2D } from '../scene/Camera.js';
+import { INHERITED } from '../scene/Appearance.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -41,7 +42,7 @@ export class Canvas2DViewer extends Viewer {
   #autoResize = true;
 
   /** @type {number} */
-  #pixelRatio = 1;
+  _pixelRatio = 1;
 
 
 
@@ -67,10 +68,8 @@ export class Canvas2DViewer extends Viewer {
     }
 
     this.#autoResize = options.autoResize !== false;
-    this.#pixelRatio = options.pixelRatio || window.devicePixelRatio || 1;
+    this._pixelRatio = options.pixelRatio || window.devicePixelRatio || 1;
 
-
-    
     // Setup canvas
     this.#setupCanvas();
     
@@ -87,7 +86,7 @@ export class Canvas2DViewer extends Viewer {
   #setupCanvas() {
     const canvas = this.#canvas;
     const context = this.#context;
-    const ratio = this.#pixelRatio;
+    const ratio = this._pixelRatio;
 
     // Get display size
     const displayWidth = canvas.clientWidth;
@@ -97,8 +96,8 @@ export class Canvas2DViewer extends Viewer {
     canvas.width = displayWidth * ratio;
     canvas.height = displayHeight * ratio;
 
-    // Scale the drawing context down
-    context.scale(ratio, ratio);
+    // Scale the drawing context so that 1 canvas unit = 1 CSS pixel
+    this.#context.scale(ratio, ratio);
 
     // Set CSS size to maintain correct display size
     canvas.style.width = displayWidth + 'px';
@@ -145,54 +144,23 @@ export class Canvas2DViewer extends Viewer {
   }
 
   render() {
-    if (!this.#sceneRoot || !this.#cameraPath) {
-      // Clear canvas with default background when no scene
-      const ctx = this.#context;
-      ctx.fillStyle = '#f0f0f0';
-      ctx.fillRect(0, 0, this.#canvas.clientWidth, this.#canvas.clientHeight);
-      return;
-    }
-
+  
     // Note: Canvas is now cleared by renderer after appearance setup
 
     // Setup projection
-    const camera = this.#getCamera();
+    const camera = this._getCamera();
     if (!camera) {
       console.warn('No camera found in camera path');
       return;
     }
 
     // Create rendering visitor
-    const renderer = new Canvas2DRenderer(this.#context, this.#canvas, camera);
+    const renderer = new Canvas2DRenderer(this);
 
-    // Get world-to-camera transformation
-    const cameraMatrix = this.#cameraPath.getInverseMatrix();
-    const cam2ndcMatrix = this.#computeCam2NDCMatrix(camera);
-    const ndc2screenMatrix = this.#computeNDC2ScreenMatrix();
-
-    renderer.setTransformation(cameraMatrix, cam2ndcMatrix);
-
-    // Render the scene
-    try {
-      // Push root scene's appearance if it exists
-      const rootAppearance = this.#sceneRoot.getAppearance();
-      if (rootAppearance) {
-        renderer._pushRootAppearance(rootAppearance);
-      }
-      
-      // Clear canvas with proper background color
-      renderer._clearCanvas();
-      
-      this.#sceneRoot.accept(renderer);
-      
-      // Pop root appearance
-      if (rootAppearance) {
-        renderer._popRootAppearance();
-      }
-    } catch (error) {
-      console.error('Rendering error:', error);
+    renderer.render();
+    
     }
-  }
+
 
   hasViewingComponent() {
     return true;
@@ -203,7 +171,7 @@ export class Canvas2DViewer extends Viewer {
   }
 
   getViewingComponentSize() {
-    return new Dimension(this.#canvas.clientWidth, this.#canvas.clientHeight);
+    return new Dimension(this.#canvas.width, this.#canvas.height);
   }
 
   canRenderAsync() {
@@ -224,7 +192,7 @@ export class Canvas2DViewer extends Viewer {
    * @param {number} ratio - The pixel ratio
    */
   setPixelRatio(ratio) {
-    this.#pixelRatio = ratio;
+    this._pixelRatio = ratio;
     this.#setupCanvas();
   }
 
@@ -244,10 +212,10 @@ export class Canvas2DViewer extends Viewer {
 
   /**
    * Get camera from camera path
-   * @private
+   * @protected - Internal method for use by related classes
    * @returns {Camera|null}
    */
-  #getCamera() {
+  _getCamera() {
     if (!this.#cameraPath || this.#cameraPath.getLength() === 0) {
       return null;
     }
@@ -257,12 +225,21 @@ export class Canvas2DViewer extends Viewer {
   }
 
   /**
+   * Get the viewing component (canvas)
+   * @protected - Internal method for use by related classes
+   * @returns {HTMLCanvasElement}
+   */
+  _getViewingComponent() {
+    return this.#canvas;
+  }
+
+  /**
    * Compute projection matrix for the camera
    * @private
    * @param {Camera} camera
    * @returns {number[]} 4x4 projection matrix
    */
-  #computeCam2NDCMatrix(camera) {
+_computeCam2NDCMatrix(camera) {
     const canvas = this.#canvas;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -279,41 +256,21 @@ export class Canvas2DViewer extends Viewer {
       P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
     } else {
       // Orthographic projection
-      const size = 10; // Default orthographic size
-      const left = -size * aspect;
-      const right = size * aspect;
+      const size = 5; //camera.getViewPort().width; 
+      const left = -size; // * aspect;
+      const right = size; // * aspect;
       const bottom = -size;
       const top = size;
       const near = camera.getNear();
       const far = camera.getFar();
-      const vp = new Rectangle2D(left, bottom, right, top);
+      const vp = new Rectangle2D(left, bottom, right - left, top - bottom);
       P3.makeOrthographicProjectionMatrix(projMatrix, vp, near, far);
     }
 
     return projMatrix;
   }
 
-  #computeNDC2ScreenMatrix() {
-    const canvas = this.#canvas;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-
-    // NDC to Screen transformation matrix
-    // NDC space: [-1,1] x [-1,1] -> Screen space: [0,width] x [0,height] 
-    // Note: Y axis is flipped (NDC +Y is up, Screen +Y is down)
-    const ndc2screenMatrix = new Array(16);
-    Rn.setIdentityMatrix(ndc2screenMatrix);
-    
-    // Scale: NDC [-1,1] to [0,width] and [0,height]
-    ndc2screenMatrix[0] = width / 2;   // X scale
-    ndc2screenMatrix[5] = -height / 2; // Y scale (flipped)
-    
-    // Translate: NDC [0,0] to screen center
-    ndc2screenMatrix[3] = width / 2;   // X translation
-    ndc2screenMatrix[7] = height / 2;  // Y translation
-    
-    return ndc2screenMatrix;
-  }
+  
 
  }
 
@@ -324,6 +281,9 @@ export class Canvas2DViewer extends Viewer {
  */
 class Canvas2DRenderer extends SceneGraphVisitor {
 
+  /** @type {Canvas2DViewer} */
+  #viewer;
+
   /** @type {CanvasRenderingContext2D} */
   #context;
 
@@ -333,8 +293,6 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   /** @type {Camera} */
   #camera;
 
-
-
   /** @type {Appearance[]} Stack of appearances for hierarchical attribute resolution */
   #appearanceStack = [];
 
@@ -342,63 +300,131 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   #transformationStack = [];
 
   /** @type {number[]} World-to-camera transformation matrix */
-  #cameraMatrix;
+  #world2Cam;
 
   /** @type {number[]} Camera-to-NDC transformation matrix */
-  #cam2ndcMatrix;
+  #cam2ndc;
 
   /** @type {number[]} NDC-to-screen transformation matrix */
-  #ndc2screenMatrix;
+  #ndc2screen;
 
   /** @type {number[]} Combined world-to-NDC transformation matrix */
-  #world2ndcMatrix;
+  #world2ndc;
 
-  constructor(context, canvas, camera) {
+  /**
+   * Create a new Canvas2D renderer
+   * @param {Canvas2DViewer} viewer - The viewer
+   */
+  constructor(viewer) {
     super();
-    this.#context = context;
-    this.#canvas = canvas;
-    this.#camera = camera;
-    this.#world2ndcMatrix = new Array(16);
+    this.#viewer = viewer;
+    this.#context = viewer._getViewingComponent().getContext('2d');
+    this.#canvas = viewer._getViewingComponent();
+    this.#camera = viewer._getCamera();
+    this.#world2ndc = new Array(16);
   }
 
-  setTransformation(cameraMatrix, cam2ndcMatrix) {
-    this.#cameraMatrix = cameraMatrix;
-    this.#cam2ndcMatrix = cam2ndcMatrix;
+  render() {
+    const cameraPath = this.#viewer.getCameraPath();
+    const sceneRoot = this.#viewer.getSceneRoot();
+
+    if (!cameraPath || !sceneRoot) {
+      return;
+    }
+
+    // Get world-to-camera transformation
+    const world2Cam = cameraPath.getInverseMatrix();
+    const cam2ndc = this.#viewer._computeCam2NDCMatrix(this.#camera);
+    Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
+    console.log('world2ndc', this.#world2ndc);
+    console.log('world2Cam', world2Cam);
+    console.log('cam2ndc', cam2ndc);
+    // Initialize transformation stack with the world-to-NDC matrix
+    this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
+
+    this._setupCanvasTransform();
+    // Clear canvas with proper background color
+    this._clearCanvas();
+
+      // Render the scene
+    try {
+      
+      sceneRoot.accept(this);
+ 
+    } catch (error) {
+      console.error('Rendering error:', error);
+    }
+  }
+
+  initializeMatrixStack(cameraMatrix, cam2ndcMatrix) {
+    this.#world2Cam = cameraMatrix;
+    this.#cam2ndc = cam2ndcMatrix;
     
     // Combine world-to-camera and camera-to-NDC transformations
-    Rn.timesMatrix(this.#world2ndcMatrix, cam2ndcMatrix, cameraMatrix);
+    Rn.timesMatrix(this.#world2ndc, this.#cam2ndc, this.#world2Cam);
     
     // Initialize transformation stack with the world-to-NDC matrix
-    this.#transformationStack = [this.#world2ndcMatrix.slice()]; // Clone the matrix
+    this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
     
-    // Set up Canvas 2D transform for NDC-to-screen conversion
-    this.#setupCanvasTransform();
+    }
+
+  /**
+   * Get the current transformation matrix from the top of the stack
+   * @returns {number[]} The current transformation matrix
+   */
+  getCurrentTransformation() {
+    return this.#transformationStack[this.#transformationStack.length - 1];
   }
 
+ 
   /**
    * Set up the Canvas 2D context transform to convert from NDC to screen coordinates
    * @private
    */
-  #setupCanvasTransform() {
+  _setupCanvasTransform() {
     const canvas = this.#canvas;
     const ctx = this.#context;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
+    const ratio = this.#viewer._pixelRatio;
     
-    // Reset transform to identity
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Reset transform to identity, then reapply pixel ratio scaling
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     
     // Apply NDC-to-screen transformation:
     // NDC space [-1,1] x [-1,1] -> Screen space [0,width] x [0,height]
     // with Y-axis flip (NDC +Y up, Screen +Y down)
+    // Note: width/height are in CSS pixels, context is already scaled by ratio
+    const aspect  = height / width;
     ctx.transform(
-      width / 2,   // X scale: [-1,1] -> [0,width]
+      aspect * width / 2,   // X scale: [-1,1] -> [0,width]
       0,           // XY skew
       0,           // YX skew  
       -height / 2, // Y scale: [-1,1] -> [0,height] (flipped)
       width / 2,   // X translation: 0 -> center
       height / 2   // Y translation: 0 -> center
     );
+  }
+
+  /**
+   * Internal method to clear canvas with appearance-based background color
+   * @private
+   */
+  _clearCanvas() {
+    const ctx = this.#context;
+    const canvas = this.#canvas;
+    
+    // Temporarily reset transform to identity for clearing
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+    // Get background color from appearance stack, fall back to default
+    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, '#00c000');
+    ctx.fillStyle = this.toCSSColor(backgroundColor);
+    // Clear using the full bitmap dimensions
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Restore the NDC-to-screen transform
+    this._setupCanvasTransform();
   }
 
   /**
@@ -420,9 +446,21 @@ class Canvas2DRenderer extends SceneGraphVisitor {
         transformation.accept(this);
       }
       
+       // Push root scene's appearance if it exists
+       const appearance = component.getAppearance();
+       if (appearance ) {
+         appearance.accept(this);
+       }
+       
+     
       // Continue traversal to all children (sub-components, geometry, etc.)
       component.childrenAccept(this);
     } finally {
+
+      if (component.getAppearance) {
+        this.#appearanceStack.pop();
+      }
+
       // Pop the transformation from the stack if we pushed one
       if (hasTransformation) {
         this.#transformationStack.pop();
@@ -440,38 +478,21 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   visitTransformation(transformation) {
     // Get the current transformation matrix from the top of the stack
     const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
-    
     // Get the transformation matrix from the transformation object
     const transformMatrix = transformation.getMatrix();
-    
     // Multiply current transformation on the right: newMatrix = currentMatrix * transformMatrix
     const newMatrix = new Array(16);
     Rn.timesMatrix(newMatrix, currentMatrix, transformMatrix);
-    
     // Push the new combined transformation onto the stack
     this.#transformationStack.push(newMatrix);
   }
 
-  /**
-   * Get the current transformation matrix from the top of the stack
-   * @returns {number[]} The current transformation matrix
-   */
-  getCurrentTransformation() {
-    return this.#transformationStack[this.#transformationStack.length - 1];
-  }
-
-  /**
+   /**
    * Visit an Appearance node - push it onto the appearance stack
    * @param {Appearance} appearance
    */
   visitAppearance(appearance) {
     this.#appearanceStack.push(appearance);
-    try {
-      // Appearances don't have children to traverse
-      // The appearance will be used by subsequent geometry rendering
-    } finally {
-      this.#appearanceStack.pop();
-    }
   }
 
   /**
@@ -490,14 +511,14 @@ class Canvas2DRenderer extends SceneGraphVisitor {
       if (prefix) {
         const namespacedKey = prefix + '.' + attribute;
         const namespacedValue = appearance.getAttribute(namespacedKey);
-        if (namespacedValue !== undefined) {
+        if (namespacedValue !== INHERITED) {
           return namespacedValue;
         }
       }
       
       // Then try base attribute (e.g., "diffuseColor")
       const baseValue = appearance.getAttribute(attribute);
-      if (baseValue !== undefined) {
+      if (baseValue !== INHERITED) {
         return baseValue;
       }
     }
@@ -535,44 +556,8 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    * @returns {number}
    */
   getNumericAttribute(attribute, defaultValue) {
-    return Number(this.getAppearanceAttribute(null, attribute, defaultValue));
-  }
-
-  /**
-   * Internal method to push root appearance (called by Canvas2DViewer)
-   * @param {Appearance} appearance
-   * @private
-   */
-  _pushRootAppearance(appearance) {
-    this.#appearanceStack.push(appearance);
-  }
-
-  /**
-   * Internal method to pop root appearance (called by Canvas2DViewer)
-   * @private
-   */
-  _popRootAppearance() {
-    this.#appearanceStack.pop();
-  }
-
-  /**
-   * Internal method to clear canvas with appearance-based background color
-   * @private
-   */
-  _clearCanvas() {
-    const ctx = this.#context;
-    const canvas = this.#canvas;
-    
-    // Temporarily reset transform to identity for clearing
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    
-    // Get background color from appearance stack, fall back to default
-    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, '#f0f0f0');
-    ctx.fillStyle = this.toCSSColor(backgroundColor);
-    ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    
-    // Restore the NDC-to-screen transform
-    this.#setupCanvasTransform();
+    const ret = this.getAppearanceAttribute(null, attribute, defaultValue);
+     return Number(ret);
   }
 
   visitPointSet(pointSet) {
@@ -606,7 +591,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = geometry.getVertexAttribute(GeometryAttribute.COORDINATES);
+    const vertices = geometry.getVertexCoordinates();
     if (!vertices) return;
 
     const ctx = this.#context;
@@ -636,30 +621,29 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   /**
    * Helper method to render edges as lines for indexed geometries
    * @private
-   * @param {*} geometry - The geometry object (IndexedLineSet or IndexedFaceSet)
+   * @param {IndexedLineSet} geometry - The geometry object (IndexedLineSet or IndexedFaceSet)
    */
   #renderEdgesAsLines(geometry) {
     if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
       return;
     }
 
-    const vertices = geometry.getVertexAttribute(GeometryAttribute.COORDINATES);
+    const vertices = geometry.getVertexCoordinates();
     let indices = null;
     
-    // Get appropriate edge indices
-    if (geometry.getEdgeAttributes().size > 0) {
-      indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES);
-    } //else if (geometry.getFaceAttribute) {
-    //   // For face sets, we need to extract edges from faces
-    //   const faceIndices = geometry.getFaceAttribute(GeometryAttribute.INDICES);
-    //   if (faceIndices) {
-    //     indices = this.#extractEdgesFromFaces(faceIndices, geometry.getNumFaces());
-    //   }
-    // }
+    // Get appropriate edge indices - try both convenience method and direct attribute access
+    if (geometry.getEdgeIndices) {
+      indices = geometry.getEdgeIndices();
+    }
     
-    if (!vertices || !indices) return;
-    console.log('geometry',geometry.getGeometryAttributes());
-    console.log('indices', indices.shape);
+    // Fallback: try getting indices directly from edge attributes
+    if (!indices && geometry.getEdgeAttributes().size > 0) {
+      indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES) || 
+                geometry.getEdgeAttribute('indices');
+    }
+    
+    // console.log('geometry',vertices, ' shape: ', vertices.shape);
+    // console.log('indices', indices, ' shape: ', indices.rows.length);
     const ctx = this.#context;
     
     // Get line appearance attributes with namespace fallback
@@ -672,9 +656,9 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const currentMatrix = this.getCurrentTransformation();
 
     // Render all edges
-    if (indices.shape && indices.shape.length === 2) {
+    if (indices) {
       // 2D array of edge indices
-      for (let i = 0; i < indices.shape[0]; i++) {
+      for (let i = 0; i < indices.rows.length; i++) {
         const edgeIndices = indices.getRow(i);
         this.#drawPolyline(vertices, edgeIndices, currentMatrix);
       }
@@ -694,9 +678,8 @@ class Canvas2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = geometry.getVertexAttribute(GeometryAttribute.COORDINATES);
-    const indices = geometry.getFaceAttribute ? geometry.getFaceAttribute(GeometryAttribute.INDICES) : null;
-    
+    const vertices = geometry.getVertexCoordinates();
+    const indices = geometry.getFaceIndices();
     if (!vertices || !indices) return;
 
     const ctx = this.#context;
@@ -727,30 +710,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     return faceIndices;
   }
 
-  /**
-   * Get current transformation matrix from the path (DEPRECATED - use stack version)
-   * @private
-   * @returns {number[]}
-   */
-  getCurrentTransformationOld() {
-    // Compute the cumulative transformation from the current path
-    const pathMatrix = new Array(16);
-    Rn.setIdentityMatrix(pathMatrix);
-    
-    // Multiply transformations along the path
-    for (const node of this.getCurrentPath()) {
-      if (node.constructor.name === 'SceneGraphComponent') {
-        const transformation = node.getTransformation();
-        if (transformation) {
-          Rn.timesMatrix(pathMatrix, pathMatrix, transformation.getMatrix());
-        }
-      }
-    }
-    
-    const combined = new Array(16);
-    Rn.timesMatrix(combined, this.#world2ndcMatrix, pathMatrix);
-    return combined;
-  }
+ 
 
   /**
    * Project a 3D point to 2D NDC coordinates
@@ -769,7 +729,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const ndcZ = tvertex[2];
 
     // Clip check - reject points outside NDC cube
-    if (ndcZ < -1 || ndcZ > 1) return null;
+    // if (ndcZ < -1 || ndcZ > 1) return null;
 
     // Return NDC coordinates - Canvas transform will handle screen conversion
     return { x: ndcX, y: ndcY };
@@ -783,7 +743,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    */
   #drawPoint(x, y) {
     const ctx = this.#context;
-    const size = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 3);
+    const size = this.getNumericAttribute(CommonAttributes.POINT_SIZE, .03);
     ctx.beginPath();
     ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
     ctx.fill();

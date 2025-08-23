@@ -248,7 +248,7 @@ export class PointSet extends Geometry {
    * @param {Array|Array<Array>} coordinates - Vertex coordinates (flat or nested)
    * @param {number} [coordsPerVertex=3] - Number of coordinates per vertex
    */
-  setVertexCoordinates(coordinates, coordsPerVertex = 3) {
+  setVertexCoordinates(coordinates, coordsPerVertex = 4) {
     const coordList = createVertexList(coordinates, coordsPerVertex);
     this.setVertexCountAndAttribute(GeometryAttribute.COORDINATES, coordList);
   }

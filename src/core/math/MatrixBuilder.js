@@ -381,10 +381,10 @@ export class MatrixBuilder {
    * Reset to identity matrix
    * @returns {MatrixBuilder}
    */
-  reset() {
-    this.#Rn.setIdentityMatrix();
-    return this;
-  }
+  // reset() {
+  //   this.#matrix = Rn.identityMatrix(4);
+  //   return this;
+  // }
 
   /**
    * Get the underlying Matrix

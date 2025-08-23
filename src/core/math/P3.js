@@ -78,7 +78,7 @@ function makeTranslationMatrixOld(mat, p, metric) {
             Rn.setIdentityMatrix(m);
             if (point.length === 4) {
                 // Dehomogenize and ensure w=1
-                point = Pn.dehomogenize([], point);
+                point = Pn.dehomogenize(point, point);
                 if (point.length < 4) point[3] = 1.0;
             }
             for (let i = 0; i < 3; ++i) {
