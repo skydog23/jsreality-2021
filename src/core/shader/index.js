@@ -1,4 +1,5 @@
-// Shader and material system for jsReality
-// Port of de.jreality.shader package
+/**
+ * Shader-related classes and constants for jReality JavaScript translation
+ */
 
-// Export shader-related classes and functions here 
+export * from './CommonAttributes.js';

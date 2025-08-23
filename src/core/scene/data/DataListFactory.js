@@ -10,7 +10,7 @@ import { VariableDataList } from './VariableDataList.js';
  * @param {number} [coordsPerVertex=3] - Number of coordinates per vertex (2D=2, 3D=3, 4D=4)
  * @returns {DataList}
  */
-export function createVertexList(vertices, coordsPerVertex = 3) {
+export function createVertexList(vertices, coordsPerVertex = 4) {
   const flatData = Array.isArray(vertices[0]) ? vertices.flat() : vertices;
   const numVertices = flatData.length / coordsPerVertex;
   

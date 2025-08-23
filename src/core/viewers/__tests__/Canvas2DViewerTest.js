@@ -1,11 +1,13 @@
 // Test and demo for Canvas2DViewer
 
 import { Canvas2DViewer } from '../Canvas2DViewer.js';
-import { SceneGraphComponent, SceneGraphPath } from '../../scene/index.js';
+import { SceneGraphComponent, SceneGraphPath, Appearance } from '../../scene/index.js';
 import { Camera } from '../../scene/Camera.js';
 import { PointSet, IndexedLineSet, IndexedFaceSet } from '../../scene/index.js';
 import { Transformation } from '../../scene/Transformation.js';
 import { createVertexList, createPolylineList, createPolygonList } from '../../scene/data/index.js';
+import * as CommonAttributes from '../../shader/CommonAttributes.js';
+import { Color } from '../../util/Color.js';
 import { Matrix } from '../../math/Matrix.js';
 import * as Rn from '../../math/Rn.js';
 
@@ -14,9 +16,34 @@ import * as Rn from '../../math/Rn.js';
  * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath}}
  */
 function createTestScene() {
-  // Create scene root
+  // Create scene root 
   const sceneRoot = new SceneGraphComponent();
   sceneRoot.setName('root');
+
+  // Create and configure appearance with namespaced attributes
+  const rootAppearance = new Appearance('rootAppearance');
+  
+  // Background color
+  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(240, 240, 240));
+  
+  // Point rendering attributes
+  rootAppearance.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
+  rootAppearance.setAttribute(CommonAttributes.POINT_SIZE, 3);
+  rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+  
+  // Line rendering attributes  
+  rootAppearance.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 255)); // Black lines
+  rootAppearance.setAttribute(CommonAttributes.LINE_WIDTH, 1);
+  rootAppearance.setAttribute(CommonAttributes.EDGE_DRAW, true);
+  
+  // Polygon/face rendering attributes
+  rootAppearance.setAttribute('polygon.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0, 220)); // Light gray faces
+  rootAppearance.setAttribute(CommonAttributes.FACE_DRAW, true);
+  
+  // General rendering settings
+  rootAppearance.setAttribute(CommonAttributes.LIGHTING_ENABLED, false); // Disable lighting for 2D
+  
+  sceneRoot.setAppearance(rootAppearance);
 
   // Create camera
   const camera = new Camera();
@@ -24,6 +51,7 @@ function createTestScene() {
   camera.setFieldOfView(60);
   camera.setNear(0.1);
   camera.setFar(100);
+  camera.setPerspective(false);
   
   // Position camera back from origin
   const cameraComponent = new SceneGraphComponent();
@@ -34,7 +62,7 @@ function createTestScene() {
   const cameraMatrix = new Array(16);
   Rn.setIdentityMatrix(cameraMatrix);
   // Translate camera back 10 units
-  cameraMatrix[14] = -10;
+  cameraMatrix[11] = -10;
   cameraTransform.setMatrix(cameraMatrix);
   cameraComponent.setTransformation(cameraTransform);
   
@@ -62,11 +90,11 @@ function createTestPoints(parent) {
   
   // Create vertex data: 5 points in 3D
   const vertices = createVertexList([
-    [0, 0, 0],      // Center
-    [2, 0, 0],      // Right
-    [-2, 0, 0],     // Left  
-    [0, 2, 0],      // Up
-    [0, -2, 0]      // Down
+    [0, 0, 0,1],      // Center
+    [2, 0, 0,1],      // Right
+    [-2, 0, 0,1],     // Left  
+    [0, 2, 0,1],      // Up
+    [0, -2, 0,1]      // Down
   ]);
   
   pointSet.setVertexAttribute('coordinates', vertices);
@@ -77,7 +105,7 @@ function createTestPoints(parent) {
   const matrix = new Array(16);
   Rn.setIdentityMatrix(matrix);
   // Translate points to the left
-  matrix[12] = -3;
+  matrix[3] = -3;
   transform.setMatrix(matrix);
   pointsComponent.setTransformation(transform);
 
@@ -93,10 +121,10 @@ function createTestLines(parent) {
 
   // Create vertices for a simple cross pattern
   const vertices = createVertexList([
-    [-1, -1, 0],    // 0: bottom-left
-    [1, 1, 0],      // 1: top-right
-    [-1, 1, 0],     // 2: top-left
-    [1, -1, 0]      // 3: bottom-right
+    [-1, -1, 0,1],    // 0: bottom-left
+    [1, 1, 0,1],      // 1: top-right
+    [-1, 1, 0,1],     // 2: top-left
+    [1, -1, 0,1]      // 3: bottom-right
   ]);
 
   // Create edge indices for two lines forming an X
@@ -130,9 +158,9 @@ function createTestTriangle(parent) {
 
   // Create vertices for a triangle
   const vertices = createVertexList([
-    [0, 1, 0],      // 0: top
-    [-1, -1, 0],    // 1: bottom-left
-    [1, -1, 0]      // 2: bottom-right
+    [0, 1, 0,1],      // 0: top
+    [-1, -1, 0,1],    // 1: bottom-left
+    [1, -1, 0,1]      // 2: bottom-right
   ]);
 
   // Create face indices
@@ -143,14 +171,14 @@ function createTestTriangle(parent) {
   const faceSet = new IndexedFaceSet(3, 1);
   faceSet.setVertexAttribute('coordinates', vertices);
   faceSet.setFaceAttribute('indices', faces);
+  faceSet.setEdgeAttribute('indices', faces);
   triangleComponent.setGeometry(faceSet);
 
   // Position triangle to the right
   const transform = new Transformation();
-  const matrix = new Array(16);
-  Rn.setIdentityMatrix(matrix);
+  const matrix = Rn.identityMatrix(4);
   // Translate triangle to the right
-  matrix[12] = 3;
+  matrix[3] = 4;
   transform.setMatrix(matrix);
   triangleComponent.setTransformation(transform);
 
@@ -194,16 +222,6 @@ export function runCanvas2DTest() {
     viewer.setCameraPath(cameraPath);
     console.log('✓ Scene and camera set');
 
-    // Configure render settings
-    const settings = viewer.getRenderSettings();
-    settings.pointSize = 6;
-    settings.lineWidth = 2;
-    settings.pointColor = '#ff0000';
-    settings.lineColor = '#0000ff';
-    settings.faceColor = '#00ff0080'; // Semi-transparent green
-    settings.wireframe = false;
-    console.log('✓ Render settings configured');
-
     // Initial render
     viewer.render();
     console.log('✓ Initial render complete');
@@ -245,12 +263,25 @@ function setupInteractiveControls(viewer, canvas) {
   controls.style.textAlign = 'center';
   controls.style.margin = '10px';
 
-  // Wireframe toggle
-  const wireframeBtn = document.createElement('button');
-  wireframeBtn.textContent = 'Toggle Wireframe';
-  wireframeBtn.addEventListener('click', () => {
-    const settings = viewer.getRenderSettings();
-    settings.wireframe = !settings.wireframe;
+  // Show/hide points
+  const pointsBtn = document.createElement('button');
+  pointsBtn.textContent = 'Toggle Points';
+  pointsBtn.addEventListener('click', () => {
+    const sceneRoot = viewer.getSceneRoot();
+    const appearance = sceneRoot.getAppearance();
+    const currentVertexDraw = appearance.getAttribute(CommonAttributes.VERTEX_DRAW);
+    appearance.setAttribute(CommonAttributes.VERTEX_DRAW, !currentVertexDraw);
+    viewer.render();
+  });
+
+ // Edges toggle
+  const edgesBtn = document.createElement('button');
+  edgesBtn.textContent = 'Toggle Edges';
+  edgesBtn.addEventListener('click', () => {
+    const sceneRoot = viewer.getSceneRoot();
+    const appearance = sceneRoot.getAppearance();
+    const currentEdgeDraw = appearance.getAttribute(CommonAttributes.EDGE_DRAW) || false;
+    appearance.setAttribute(CommonAttributes.EDGE_DRAW, !currentEdgeDraw);
     viewer.render();
   });
 
@@ -258,20 +289,14 @@ function setupInteractiveControls(viewer, canvas) {
   const facesBtn = document.createElement('button');
   facesBtn.textContent = 'Toggle Faces';
   facesBtn.addEventListener('click', () => {
-    const settings = viewer.getRenderSettings();
-    settings.showFaces = !settings.showFaces;
+    const sceneRoot = viewer.getSceneRoot();
+    const appearance = sceneRoot.getAppearance();
+    const currentFaceDraw = appearance.getAttribute(CommonAttributes.FACE_DRAW);
+    appearance.setAttribute(CommonAttributes.FACE_DRAW, !currentFaceDraw);
     viewer.render();
   });
 
-  // Show/hide points
-  const pointsBtn = document.createElement('button');
-  pointsBtn.textContent = 'Toggle Points';
-  pointsBtn.addEventListener('click', () => {
-    const settings = viewer.getRenderSettings();
-    settings.showPoints = !settings.showPoints;
-    viewer.render();
-  });
-
+ 
   // Export image
   const exportBtn = document.createElement('button');
   exportBtn.textContent = 'Export Image';
@@ -283,9 +308,9 @@ function setupInteractiveControls(viewer, canvas) {
     link.click();
   });
 
-  controls.appendChild(wireframeBtn);
-  controls.appendChild(facesBtn);
   controls.appendChild(pointsBtn);
+  controls.appendChild(edgesBtn);
+  controls.appendChild(facesBtn);
   controls.appendChild(exportBtn);
 
   // Insert controls after canvas

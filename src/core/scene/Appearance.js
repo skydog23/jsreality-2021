@@ -232,7 +232,7 @@ export class Appearance extends SceneGraphNode {
    * @private
    */
   #fireAppearanceChanged(key, oldValue) {
-    this.#changedAttributes.set(key, oldValue);
+    this.#changedAttributes.add(key);
   }
 
   /**

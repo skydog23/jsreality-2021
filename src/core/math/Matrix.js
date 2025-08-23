@@ -61,30 +61,6 @@ export class Matrix {
   }
 
   /**
-   * Create Matrix with individual components
-   * @param {number} x00 
-   * @param {number} x01 
-   * @param {number} x02 
-   * @param {number} x03 
-   * @param {number} x10 
-   * @param {number} x11 
-   * @param {number} x12 
-   * @param {number} x13 
-   * @param {number} x20 
-   * @param {number} x21 
-   * @param {number} x22 
-   * @param {number} x23 
-   * @param {number} x30 
-   * @param {number} x31 
-   * @param {number} x32 
-   * @param {number} x33 
-   * @returns {Matrix}
-   */
-  static fromComponents(x00, x01, x02, x03, x10, x11, x12, x13, x20, x21, x22, x23, x30, x31, x32, x33) {
-    return new Matrix([x00, x01, x02, x03, x10, x11, x12, x13, x20, x21, x22, x23, x30, x31, x32, x33]);
-  }
-
-  /**
    * Static factory methods
    */
 
@@ -160,28 +136,6 @@ export class Matrix {
     }
   }
 
-  /**
-   * Set matrix components individually
-   * @param {number} x00 
-   * @param {number} x01 
-   * @param {number} x02 
-   * @param {number} x03 
-   * @param {number} x10 
-   * @param {number} x11 
-   * @param {number} x12 
-   * @param {number} x13 
-   * @param {number} x20 
-   * @param {number} x21 
-   * @param {number} x22 
-   * @param {number} x23 
-   * @param {number} x30 
-   * @param {number} x31 
-   * @param {number} x32 
-   * @param {number} x33 
-   */
-  assignFromComponents(x00, x01, x02, x03, x10, x11, x12, x13, x20, x21, x22, x23, x30, x31, x32, x33) {
-    this.assignFrom([x00, x01, x02, x03, x10, x11, x12, x13, x20, x21, x22, x23, x30, x31, x32, x33]);
-  }
 
   /**
    * Copy this matrix to another array
