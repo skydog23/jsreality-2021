@@ -318,8 +318,8 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   constructor(viewer) {
     super();
     this.#viewer = viewer;
-    this.#context = viewer._getViewingComponent().getContext('2d');
     this.#canvas = viewer._getViewingComponent();
+    this.#context = this.#canvas.getContext('2d');
     this.#camera = viewer._getCamera();
     this.#world2ndc = new Array(16);
   }
@@ -336,10 +336,10 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const world2Cam = cameraPath.getInverseMatrix();
     const cam2ndc = this.#viewer._computeCam2NDCMatrix(this.#camera);
     Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
-    console.log('world2ndc', this.#world2ndc);
-    console.log('world2Cam', world2Cam);
-    console.log('cam2ndc', cam2ndc);
-    // Initialize transformation stack with the world-to-NDC matrix
+    // console.log('world2ndc', this.#world2ndc);
+    // console.log('world2Cam', world2Cam);
+    // console.log('cam2ndc', cam2ndc);
+    // // Initialize transformation stack with the world-to-NDC matrix
     this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
 
     this._setupCanvasTransform();
