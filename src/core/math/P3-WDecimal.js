@@ -1,5 +1,5 @@
-import * as Pn from 'jsreality-math/Pn.js';
-import * as Rn from 'jsreality-math/Rn.js';
+import * as Pn from './Pn.js';
+import * as Rn from './Rn.js';
 import { Decimal } from '../node_modules/decimal.js/decimal.mjs';
 
 // Configure Decimal for high precision
