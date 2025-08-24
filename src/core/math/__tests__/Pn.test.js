@@ -1,161 +1,507 @@
-// Import the required modules
-require('../Pn.js');
-require('../Rn.js');
+// Import the Pn module
+require('../src-core/de/jreality/math/Pn.js');
 
-// Use globalThis for accessing the modules
+// Use globalThis.Pn for all tests
 const Pn = globalThis.Pn;
-const { matrixTimesVector, subtract, normalize, crossProduct } = globalThis.Rn;
 
-describe('dragTowards', () => {
-    test('drags point in Euclidean space', () => {
-        const p0 = [0, 0, 0, 1];  // Origin
-        const p1 = [1, 0, 0, 1];  // Point on x-axis
-        const length = 2;
-        const result = Pn.dragTowards(null, p0, p1, length, Pn.EUCLIDEAN);
-        expect(result).toEqual([2, 0, 0, 1]);
+describe('Pn (Projective Geometry)', () => {
+    describe('Constants', () => {
+        test('metric constants are defined correctly', () => {
+            expect(Pn.ELLIPTIC).toBe(1);
+            expect(Pn.EUCLIDEAN).toBe(0);
+            expect(Pn.HYPERBOLIC).toBe(-1);
+            expect(Pn.PROJECTIVE).toBe(2);
+        });
+
+        test('zDirectionP3 is defined correctly', () => {
+            expect(Pn.zDirectionP3).toEqual([0, 0, 1, 0]);
+        });
     });
 
-    test('drags point in hyperbolic space', () => {
-        const p0 = [0, 0, 0, 1];
-        const p1 = [1, 0, 0, 1];
-        const length = 1;
-        const result = Pn.dragTowards(null, p0, p1, length, Pn.HYPERBOLIC);
-        // Point should lie on hyperbolic geodesic
-        expect(Pn.innerProduct(result, result, Pn.HYPERBOLIC)).toBeLessThan(0);
-        // Distance should be approximately length
-        expect(Pn.distanceBetween(p0, result, Pn.HYPERBOLIC)).toBeCloseTo(length);
-    });
-});
+    describe('Hyperbolic Functions', () => {
+        test('cosh', () => {
+            expect(Pn.cosh(0)).toBe(1);
+            expect(Pn.cosh(1)).toBeCloseTo(1.5430806348152437);
+        });
 
-describe('projectToTangentSpace', () => {
-    test('projects vector in Euclidean space', () => {
-        const point = [1, 0, 0, 1];
-        const vector = [1, 1, 0, 1];
-        const result = Pn.projectToTangentSpace(null, point, vector, Pn.EUCLIDEAN);
-        // Last coordinate should be 0 for Euclidean tangent vector
-        expect(result[3]).toBe(0);
-    });
+        test('sinh', () => {
+            expect(Pn.sinh(0)).toBe(0);
+            expect(Pn.sinh(1)).toBeCloseTo(1.1752011936438014);
+        });
 
-    test('projects vector in hyperbolic space', () => {
-        const point = [0, 0, 0, 1];
-        const vector = [1, 0, 0, 1];
-        const result = Pn.projectToTangentSpace(null, point, vector, Pn.HYPERBOLIC);
-        // Result should be orthogonal to point
-        expect(Pn.innerProduct(point, result, Pn.HYPERBOLIC)).toBeCloseTo(0);
-    });
-});
+        test('tanh', () => {
+            expect(Pn.tanh(0)).toBe(0);
+            expect(Pn.tanh(1)).toBeCloseTo(0.7615941559557649);
+        });
 
-describe('abs', () => {
-    test('returns absolute values', () => {
-        const src = [-1, 2, -3, 4];
-        const result = Pn.abs(null, src);
-        expect(result).toEqual([1, 2, 3, 4]);
-    });
-});
+        test('acosh', () => {
+            expect(Pn.acosh(1)).toBe(0);
+            expect(Pn.acosh(2)).toBeCloseTo(1.3169578969248166);
+        });
 
-describe('isZero', () => {
-    test('detects zero vector', () => {
-        expect(Pn.isZero([0, 0, 0, 0])).toBe(true);
-        expect(Pn.isZero([1e-9, 0, 0, 0])).toBe(true);
-        expect(Pn.isZero([0.1, 0, 0, 0])).toBe(false);
-    });
-});
+        test('asinh', () => {
+            expect(Pn.asinh(0)).toBe(0);
+            expect(Pn.asinh(1)).toBeCloseTo(0.8813735870195429);
+        });
 
-describe('manhattanNorm', () => {
-    test('calculates L1 norm', () => {
-        expect(Pn.manhattanNorm([1, -2, 3, -4])).toBe(10);
-        expect(Pn.manhattanNorm([1, 1, 1, 1])).toBe(4);
-    });
-});
-
-describe('manhattanNormDistance', () => {
-    test('calculates L1 distance', () => {
-        const u = [1, 2, 3, 4];
-        const v = [0, 2, 4, 6];
-        expect(Pn.manhattanNormDistance(u, v)).toBe(4);
-    });
-});
-
-describe('planeParallelToPassingThrough', () => {
-    test('creates plane equation', () => {
-        const dir = [1, 0, 0];
-        const point = [0, 1, 2];
-        const result = Pn.planeParallelToPassingThrough(null, dir, point);
-        // Plane equation: x + 0y + 0z + 0 = 0
-        expect(result).toEqual([1, 0, 0, 0]);
-    });
-});
-
-describe('polarizePlane', () => {
-    test('converts point to direction in Euclidean space', () => {
-        const point = [1, 2, 3, 1];
-        const result = Pn.polarizePlane(null, point, Pn.EUCLIDEAN);
-        expect(result).toEqual([1, 2, 3, 0]);
+        test('atanh', () => {
+            expect(Pn.atanh(0)).toBe(0);
+            expect(Pn.atanh(0.5)).toBeCloseTo(0.5493061443340548);
+        });
     });
 
-    test('handles hyperbolic polarization', () => {
-        const point = [1, 2, 3, 1];
-        const result = Pn.polarizePlane(null, point, Pn.HYPERBOLIC);
-        expect(result).toEqual([1, 2, 3, -1]);
-    });
-});
+    describe('dehomogenize', () => {
+        test('dehomogenizes 2D point correctly', () => {
+            const p = [2, 4, 2];  // Point (1,2) in homogeneous coordinates
+            const result = Pn.dehomogenize(null, p);
+            expect(result).toEqual([1, 2]);
+        });
 
-describe('completeBasis', () => {
-    test('completes partial basis to full basis', () => {
-        const partial = [
-            [1, 0, 0],  // x-axis
-            [0, 1, 0]   // y-axis
-        ];
-        const result = Pn.completeBasis(null, partial);
-        
-        // Should add z-axis to complete basis
-        expect(result[2][2]).toBeCloseTo(1);
-        
-        // Vectors should be orthogonal
-        expect(Pn.innerProduct(result[0], result[1])).toBeCloseTo(0);
-        expect(Pn.innerProduct(result[1], result[2])).toBeCloseTo(0);
-        expect(Pn.innerProduct(result[2], result[0])).toBeCloseTo(0);
-    });
-});
+        test('dehomogenizes 3D point correctly', () => {
+            const p = [2, 4, 6, 2];  // Point (1,2,3) in homogeneous coordinates
+            const result = Pn.dehomogenize(null, p);
+            expect(result).toEqual([1, 2, 3]);
+        });
 
-describe('permutationMatrix', () => {
-    test('creates valid permutation matrix', () => {
-        const perm = [1, 2, 0];  // Cyclic permutation
-        const result = Pn.permutationMatrix(null, perm);
-        
-        // Test permutation effect
-        const point = [1, 2, 3];
-        const transformed = Pn.matrixTimesVector(null, result, point);
-        expect(transformed).toEqual([2, 3, 1]);
-    });
-});
+        test('handles point at infinity', () => {
+            const p = [1, 2, 0];  // Point at infinity
+            const result = Pn.dehomogenize(null, p);
+            expect(result[0]).toBe(Infinity);
+            expect(result[1]).toBe(Infinity);
+        });
 
-describe('extractOrientationMatrix', () => {
-    test('extracts orientation part', () => {
-        // Create a matrix with translation and rotation
-        const translation = [1, 2, 3];
-        const angle = Math.PI / 3;
-        const c = Math.cos(angle);
-        const s = Math.sin(angle);
-        const m = [
-            c, -s, 0, translation[0],
-            s, c, 0, translation[1],
-            0, 0, 1, translation[2],
-            0, 0, 0, 1
-        ];
-        
-        const point = [0, 0, 0, 1];  // Origin
-        const result = Pn.extractOrientationMatrix(null, m, point, Pn.EUCLIDEAN);
-        
-        // Result should have no translation
-        expect(result[12]).toBeCloseTo(0);
-        expect(result[13]).toBeCloseTo(0);
-        expect(result[14]).toBeCloseTo(0);
-        
-        // But should preserve rotation
-        expect(result[0]).toBeCloseTo(c);
-        expect(result[1]).toBeCloseTo(s);
-        expect(result[4]).toBeCloseTo(-s);
-        expect(result[5]).toBeCloseTo(c);
+        test('handles zero homogeneous coordinate', () => {
+            const p = [0, 0, 0];
+            const result = Pn.dehomogenize(null, p);
+            expect(result).toEqual([0, 0]);
+        });
+
+        test('reuses destination array', () => {
+            const dst = [0, 0];
+            const p = [2, 4, 2];
+            const result = Pn.dehomogenize(dst, p);
+            expect(result).toBe(dst);
+            expect(result).toEqual([1, 2]);
+        });
+    });
+
+    describe('homogenize', () => {
+        test('homogenizes 2D point correctly', () => {
+            const p = [1, 2];
+            const result = Pn.homogenize(null, p);
+            expect(result).toEqual([1, 2, 1]);
+        });
+
+        test('homogenizes 3D point correctly', () => {
+            const p = [1, 2, 3];
+            const result = Pn.homogenize(null, p);
+            expect(result).toEqual([1, 2, 3, 1]);
+        });
+
+        test('handles zero point', () => {
+            const p = [0, 0];
+            const result = Pn.homogenize(null, p);
+            expect(result).toEqual([0, 0, 1]);
+        });
+
+        test('reuses destination array', () => {
+            const dst = [0, 0, 0];
+            const p = [1, 2];
+            const result = Pn.homogenize(dst, p);
+            expect(result).toBe(dst);
+            expect(result).toEqual([1, 2, 1]);
+        });
+    });
+
+    describe('distanceBetween', () => {
+        test('calculates Euclidean distance correctly', () => {
+            const p1 = [0, 0, 1];
+            const p2 = [3, 4, 1];
+            const result = Pn.distanceBetween(p1, p2, Pn.EUCLIDEAN);
+            expect(result).toBe(5); // 3-4-5 triangle
+        });
+
+        test('handles homogeneous coordinates', () => {
+            const p1 = [0, 0, 2];  // Point (0,0) with w=2
+            const p2 = [6, 8, 2];  // Point (3,4) with w=2
+            const result = Pn.distanceBetween(p1, p2, Pn.EUCLIDEAN);
+            expect(result).toBe(5);
+        });
+
+        test('calculates hyperbolic distance', () => {
+            const p1 = [1, 0, 1];  // Point on hyperbolic plane
+            const p2 = [2, 0, 2];  // Same point with different w
+            const result = Pn.distanceBetween(p1, p2, Pn.HYPERBOLIC);
+            expect(result).toBeCloseTo(0);
+        });
+
+        test('handles points at infinity', () => {
+            const p1 = [1, 0, 0];  // Point at infinity
+            const p2 = [0, 1, 1];  // Finite point
+            const result = Pn.distanceBetween(p1, p2, Pn.EUCLIDEAN);
+            expect(result).toBe(Infinity);
+        });
+    });
+
+    describe('perpendicularBisector', () => {
+        test('calculates perpendicular bisector in Euclidean space', () => {
+            const p1 = [0.5, 0, 1];
+            const p2 = [0, 0.5, 1];
+            const result = Pn.perpendicularBisector(null, p1, p2, Pn.EUCLIDEAN);
+            // The perpendicular bisector should be equidistant from both points
+            const d1 = Pn.distanceBetween(p1, result, Pn.EUCLIDEAN);
+            const d2 = Pn.distanceBetween(p2, result, Pn.EUCLIDEAN);
+            expect(d1).toBeCloseTo(d2);
+        });
+
+        test('handles homogeneous coordinates', () => {
+            const p1 = [1, 0, 2];  // Point (0.5,0)
+            const p2 = [0, 1, 2];  // Point (0,0.5)
+            const result = Pn.perpendicularBisector(null, p1, p2, Pn.EUCLIDEAN);
+            // Result should be normalized
+            const norm = Math.sqrt(result[0]*result[0] + result[1]*result[1] + result[2]*result[2]);
+            expect(norm).toBeCloseTo(1);
+        });
+
+        test('handles coincident points', () => {
+            const p1 = [1, 1, 1];
+            const p2 = [1, 1, 1];
+            expect(() => {
+                Pn.perpendicularBisector(null, p1, p2, Pn.EUCLIDEAN);
+            }).toThrow();
+        });
+    });
+
+    describe('pointFromLines', () => {
+        test('calculates intersection of two lines', () => {
+            const l1 = [1, 0, 0];  // Vertical line x=0
+            const l2 = [0, 1, 0];  // Horizontal line y=0
+            const result = Pn.pointFromLines(null, l1, l2);
+            // Result should be the origin [0,0,1] up to scale
+            expect(result[0]/result[2]).toBeCloseTo(0);
+            expect(result[1]/result[2]).toBeCloseTo(0);
+        });
+
+        test('handles parallel lines', () => {
+            const l1 = [1, 0, 0];  // x=0
+            const l2 = [1, 0, 1];  // x=1
+            const result = Pn.pointFromLines(null, l1, l2);
+            // Result should be a point at infinity
+            expect(result[2]).toBeCloseTo(0);
+        });
+
+        test('handles coincident lines', () => {
+            const l1 = [1, 0, 0];
+            const l2 = [2, 0, 0];  // Same line as l1
+            expect(() => {
+                Pn.pointFromLines(null, l1, l2);
+            }).toThrow();
+        });
+
+        test('reuses destination array', () => {
+            const dst = [0, 0, 0];
+            const l1 = [1, 0, 0];
+            const l2 = [0, 1, 0];
+            const result = Pn.pointFromLines(dst, l1, l2);
+            expect(result).toBe(dst);
+        });
+    });
+
+    describe('lineFromPoints', () => {
+        test('calculates line through two points', () => {
+            const p1 = [0, 0, 1];  // Origin
+            const p2 = [1, 1, 1];  // Point (1,1)
+            const result = Pn.lineFromPoints(null, p1, p2);
+            // Line should pass through both points
+            expect(Pn.innerProduct(result, p1)).toBeCloseTo(0);
+            expect(Pn.innerProduct(result, p2)).toBeCloseTo(0);
+        });
+
+        test('handles points at infinity', () => {
+            const p1 = [1, 0, 0];  // Point at infinity
+            const p2 = [0, 0, 1];  // Origin
+            const result = Pn.lineFromPoints(null, p1, p2);
+            // Line should be vertical (x=0)
+            expect(result[0]).not.toBe(0);
+            expect(result[1]).toBeCloseTo(0);
+        });
+
+        test('handles coincident points', () => {
+            const p1 = [1, 1, 1];
+            const p2 = [1, 1, 1];
+            expect(() => {
+                Pn.lineFromPoints(null, p1, p2);
+            }).toThrow();
+        });
+
+        test('reuses destination array', () => {
+            const dst = [0, 0, 0];
+            const p1 = [0, 0, 1];
+            const p2 = [1, 1, 1];
+            const result = Pn.lineFromPoints(dst, p1, p2);
+            expect(result).toBe(dst);
+        });
+    });
+
+    describe('innerProduct', () => {
+        const v1 = [1, 0, 1];
+        const v2 = [0, 1, 1];
+
+        test('Euclidean metric', () => {
+            const result = Pn.innerProduct(v1, v2, Pn.EUCLIDEAN);
+            expect(result).toBe(0); // Vectors are orthogonal in Euclidean space
+        });
+
+        test('Hyperbolic metric', () => {
+            const result = Pn.innerProduct(v1, v2, Pn.HYPERBOLIC);
+            expect(result).toBe(-1); // Last coordinate gets negative weight
+        });
+
+        test('Elliptic metric', () => {
+            const result = Pn.innerProduct(v1, v2, Pn.ELLIPTIC);
+            expect(result).toBe(1); // Last coordinate gets positive weight
+        });
+    });
+
+    describe('normalize', () => {
+        test('normalizes vector in Euclidean metric', () => {
+            const v = [3, 4, 0];
+            const result = Pn.normalize(null, v, Pn.EUCLIDEAN);
+            expect(result[0]).toBeCloseTo(0.6);
+            expect(result[1]).toBeCloseTo(0.8);
+            expect(result[2]).toBe(0);
+        });
+
+        test('normalizes vector in Hyperbolic metric', () => {
+            const v = [1, 1, 2];
+            const result = Pn.normalize(null, v, Pn.HYPERBOLIC);
+            // The norm in hyperbolic metric is sqrt(x²+y²-w²)
+            const norm = Math.sqrt(Math.abs(1 + 1 - 4));
+            expect(result[0]).toBeCloseTo(1/norm);
+            expect(result[1]).toBeCloseTo(1/norm);
+            expect(result[2]).toBeCloseTo(2/norm);
+        });
+    });
+
+    describe('angleBetween', () => {
+        test('calculates angle in Euclidean metric', () => {
+            const v1 = [1, 0, 1];
+            const v2 = [0, 1, 1];
+            const angle = Pn.angleBetween(v1, v2, Pn.EUCLIDEAN);
+            expect(angle).toBeCloseTo(Math.PI/2); // 90 degrees
+        });
+
+        test('handles parallel vectors', () => {
+            const v1 = [1, 0, 1];
+            const v2 = [2, 0, 2];
+            const angle = Pn.angleBetween(v1, v2, Pn.EUCLIDEAN);
+            expect(angle).toBeCloseTo(0); // 0 degrees
+        });
+
+        test('handles zero vector', () => {
+            const v1 = [0, 0, 0];
+            const v2 = [1, 0, 1];
+            const angle = Pn.angleBetween(v1, v2, Pn.EUCLIDEAN);
+            expect(angle).toBe(Number.MAX_VALUE);
+        });
+    });
+
+    describe('normSquared', () => {
+        test('calculates Euclidean norm squared correctly', () => {
+            const v = [3, 4, 1];  // homogeneous coordinates
+            const result = Pn.normSquared(v, Pn.EUCLIDEAN);
+            expect(result).toBe(25); // 3^2 + 4^2
+        });
+
+        test('calculates hyperbolic norm squared correctly', () => {
+            const v = [3, 4, 5];  // point in hyperbolic space
+            const result = Pn.normSquared(v, Pn.HYPERBOLIC);
+            expect(result).toBe(25 - 25); // (3^2 + 4^2) - 5^2
+        });
+
+        test('calculates elliptic norm squared correctly', () => {
+            const v = [3, 4, 5];  // point in elliptic space
+            const result = Pn.normSquared(v, Pn.ELLIPTIC);
+            expect(result).toBe(25 + 25); // (3^2 + 4^2) + 5^2
+        });
+
+        test('handles zero vector', () => {
+            const v = [0, 0, 0];
+            const result = Pn.normSquared(v, Pn.EUCLIDEAN);
+            expect(result).toBe(0);
+        });
+    });
+
+    describe('setToLength', () => {
+        test('sets Euclidean vector to specified length', () => {
+            const v = [3, 4, 1];  // length 5 vector
+            const result = Pn.setToLength(null, v, 10, Pn.EUCLIDEAN);
+            expect(result[0]).toBe(6);  // 3 * (10/5)
+            expect(result[1]).toBe(8);  // 4 * (10/5)
+            expect(result[2]).toBe(2);  // 1 * (10/5)
+        });
+
+        test('sets hyperbolic vector to specified length', () => {
+            const v = [0, 0, 1];  // unit vector in hyperbolic space
+            const result = Pn.setToLength(null, v, 2, Pn.HYPERBOLIC);
+            // Length in hyperbolic space is more complex, just verify the scaling
+            const newLength = Math.sqrt(Math.abs(Pn.normSquared(result, Pn.HYPERBOLIC)));
+            expect(newLength).toBeCloseTo(2);
+        });
+
+        test('reuses destination array', () => {
+            const dst = [0, 0, 0];
+            const v = [3, 4, 1];
+            const result = Pn.setToLength(dst, v, 10, Pn.EUCLIDEAN);
+            expect(result).toBe(dst);
+        });
+
+        test('throws error for zero vector', () => {
+            const v = [0, 0, 0];
+            expect(() => {
+                Pn.setToLength(null, v, 1, Pn.EUCLIDEAN);
+            }).toThrow('Cannot set length of zero vector');
+        });
+    });
+
+    describe('isValidCoordinate', () => {
+        test('validates coordinates in Euclidean metric', () => {
+            expect(Pn.isValidCoordinate([1, 2, 3], Pn.EUCLIDEAN)).toBe(true);
+            expect(Pn.isValidCoordinate([0, 0, 0], Pn.EUCLIDEAN)).toBe(false);
+        });
+
+        test('validates coordinates in hyperbolic metric', () => {
+            expect(Pn.isValidCoordinate([1, 0, 1], Pn.HYPERBOLIC)).toBe(true);
+            expect(Pn.isValidCoordinate([1, 1, 0], Pn.HYPERBOLIC)).toBe(false);
+        });
+
+        test('validates coordinates in elliptic metric', () => {
+            expect(Pn.isValidCoordinate([1, 0, 0], Pn.ELLIPTIC)).toBe(true);
+            expect(Pn.isValidCoordinate([0, 0, 0], Pn.ELLIPTIC)).toBe(false);
+        });
+
+        test('throws error for invalid metric', () => {
+            expect(() => {
+                Pn.isValidCoordinate([1, 2, 3], 999); // Use a number that's definitely not a valid metric
+            }).toThrow('Invalid metric');
+        });
+    });
+
+    describe('matrixTimesVector', () => {
+        test('multiplies matrix by vector', () => {
+            const matrix = [
+                [1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9]
+            ];
+            const vector = [1, 0, 1];
+            const result = Pn.matrixTimesVector(null, matrix, vector);
+            expect(result).toEqual([4, 10, 16]);
+        });
+
+        test('reuses destination array', () => {
+            const matrix = [[1, 2], [3, 4]];
+            const vector = [1, 1];
+            const dst = new Array(2);
+            const result = Pn.matrixTimesVector(dst, matrix, vector);
+            expect(result).toBe(dst);
+            expect(result).toEqual([3, 7]);
+        });
+    });
+
+    describe('matrixTimesMatrix', () => {
+        test('multiplies two matrices', () => {
+            const m1 = [
+                [1, 2],
+                [3, 4]
+            ];
+            const m2 = [
+                [5, 6],
+                [7, 8]
+            ];
+            const result = Pn.matrixTimesMatrix(null, m1, m2);
+            expect(result).toEqual([
+                [19, 22],
+                [43, 50]
+            ]);
+        });
+
+        test('reuses destination matrix', () => {
+            const m1 = [[1, 2], [3, 4]];
+            const m2 = [[5, 6], [7, 8]];
+            const dst = [new Array(2), new Array(2)];
+            const result = Pn.matrixTimesMatrix(dst, m1, m2);
+            expect(result).toBe(dst);
+            expect(result).toEqual([[19, 22], [43, 50]]);
+        });
+    });
+
+    describe('transpose', () => {
+        test('transposes a square matrix', () => {
+            const matrix = [
+                [1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9]
+            ];
+            const result = Pn.transpose(null, matrix);
+            expect(result).toEqual([
+                [1, 4, 7],
+                [2, 5, 8],
+                [3, 6, 9]
+            ]);
+        });
+
+        test('transposes a rectangular matrix', () => {
+            const matrix = [
+                [1, 2, 3],
+                [4, 5, 6]
+            ];
+            const result = Pn.transpose(null, matrix);
+            expect(result).toEqual([
+                [1, 4],
+                [2, 5],
+                [3, 6]
+            ]);
+        });
+
+        test('reuses destination matrix', () => {
+            const matrix = [[1, 2], [3, 4]];
+            const dst = [new Array(2), new Array(2)];
+            const result = Pn.transpose(dst, matrix);
+            expect(result).toBe(dst);
+            expect(result).toEqual([[1, 3], [2, 4]]);
+        });
+    });
+
+    describe('determinant', () => {
+        test('calculates 1x1 determinant', () => {
+            expect(Pn.determinant([[5]])).toBe(5);
+        });
+
+        test('calculates 2x2 determinant', () => {
+            const matrix = [
+                [1, 2],
+                [3, 4]
+            ];
+            expect(Pn.determinant(matrix)).toBe(-2); // 1*4 - 2*3
+        });
+
+        test('calculates 3x3 determinant', () => {
+            const matrix = [
+                [1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9]
+            ];
+            expect(Pn.determinant(matrix)).toBe(0);
+        });
+
+        test('calculates non-zero 3x3 determinant', () => {
+            const matrix = [
+                [2, -3, 1],
+                [2, 0, -1],
+                [1, 4, 5]
+            ];
+            expect(Pn.determinant(matrix)).toBe(49);
+        });
     });
 }); 

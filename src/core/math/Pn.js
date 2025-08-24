@@ -73,28 +73,28 @@ export function angleBetween(u, v, metric) {
  * @param {number[]} src - Source array in homogeneous coordinates
  * @returns {number[]} The dehomogenized coordinates
  */
-export function dehomogenize(dst, src) {
+
+export function dehomogenize(dst, src)	{
+    // assert dim checks
     const sl = src.length;
-    const dl = sl - 1; // Output has one less dimension
-    if (!dst) dst = new Array(dl);
-    
-    if (dst.length !== dl) {
-        throw new Error('Invalid dimensions');
+    if (!dst) dst = new double[src.length];
+    const dl = dst.length;
+    // allow dst array same length or one shorter than source
+    if (! (dl == sl || dl +1 == sl))	{
+        throw new Error("Invalid dimensions");
     }
-    
-    const last = src[sl - 1];
-    if (last === 0.0) {
-        for (let i = 0; i < dl; i++) {
-            dst[i] = src[i] === 0 ? 0 : Infinity * Math.sign(src[i]);
+    const last = src[sl-1];
+    if (last == 1.0 || last == 0.0) 	{
+        if (src != dst) {
+            for (let i = 0; i < dl; i++) {
+                dst[i] = src[i];
+            }
         }
         return dst;
     }
-    
-    const factor = 1.0 / last;
-    for (let i = 0; i < dl; i++) {
-        dst[i] = factor * src[i];
-    }
-    
+    last = 1.0/last;
+    for (let i = 0; i<dl; ++i)		dst[i] = last * src[i];
+    if (dl == sl) dst[dl-1] = 1.0;
     return dst;
 }
 
@@ -749,4 +749,51 @@ export function copy(dst, src) {
         dst[i] = src[i];
     }
     return dst;
-} 
+}
+
+/**
+ * Compute the polar of a point or plane with respect to the given metric.
+ * Mirrors Pn.polarize(polar, p, metric) in Java.
+ * @param {number[]|null} polar - Destination array or null to create new
+ * @param {number[]} p - Input point or plane
+ * @param {number} metric - Metric constant (ELLIPTIC, EUCLIDEAN, HYPERBOLIC)
+ * @returns {number[]} The polar
+ */
+export function polarize(polar, p, metric) {
+    if (polar === null) {
+        polar = [...p]; // Clone the array
+    } else {
+        // Copy p to polar
+        for (let i = 0; i < p.length; i++) {
+            polar[i] = p[i];
+        }
+    }
+    
+    // Last element is multiplied by the metric!
+    switch (metric) {
+        case ELLIPTIC:
+            // self-polar!
+            break;
+        case EUCLIDEAN:
+            polar[polar.length - 1] = 0.0;
+            break;
+        case HYPERBOLIC:
+            polar[polar.length - 1] *= -1;
+            break;
+    }
+    return polar;
+}
+
+/**
+ * Compute the polar plane of a plane with respect to the given metric.
+ * This just calls polarize since the polar plane of a plane is the same operation.
+ * Mirrors Pn.polarizePlane(dst, plane, metric) in Java.
+ * @param {number[]|null} dst - Destination array or null to create new
+ * @param {number[]} plane - Input plane
+ * @param {number} metric - Metric constant (ELLIPTIC, EUCLIDEAN, HYPERBOLIC)
+ * @returns {number[]} The polar plane
+ */
+export function polarizePlane(dst, plane, metric) {
+    return polarize(dst, plane, metric);
+}
+ 
