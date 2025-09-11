@@ -257,8 +257,8 @@ _computeCam2NDCMatrix(camera) {
     } else {
       // Orthographic projection
       const size = 5; //camera.getViewPort().width; 
-      const left = -size; // * aspect;
-      const right = size; // * aspect;
+      const left = -size * aspect;
+      const right = size * aspect;
       const bottom = -size;
       const top = size;
       const near = camera.getNear();
@@ -336,11 +336,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const world2Cam = cameraPath.getInverseMatrix();
     const cam2ndc = this.#viewer._computeCam2NDCMatrix(this.#camera);
     Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
-    // console.log('world2ndc', this.#world2ndc);
-    // console.log('world2Cam', world2Cam);
-    // console.log('cam2ndc', cam2ndc);
-    // // Initialize transformation stack with the world-to-NDC matrix
-    this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
+   this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
 
     this._setupCanvasTransform();
     // Clear canvas with proper background color
@@ -356,14 +352,6 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     }
   }
 
-  initializeMatrixStack(cameraMatrix, cam2ndcMatrix) {
-    this.#world2Cam = cameraMatrix;
-    this.#cam2ndc = cam2ndcMatrix;
-    // Combine world-to-camera and camera-to-NDC transformations
-    Rn.timesMatrix(this.#world2ndc, this.#cam2ndc, this.#world2Cam);
-    // Initialize transformation stack with the world-to-NDC matrix
-    this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
-    }
 
   /**
    * Get the current transformation matrix from the top of the stack
@@ -390,15 +378,39 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     // Apply NDC-to-screen transformation:
     // NDC space [-1,1] x [-1,1] -> Screen space [0,width] x [0,height]
     // with Y-axis flip (NDC +Y up, Screen +Y down)
-    // Note: width/height are in CSS pixels, context is already scaled by ratio
-    const aspect  = height < width ? height / width : width / height;
     ctx.transform(
-      aspect * width / 2,   // X scale: [-1,1] -> [0,width]
+      width / 2,   // X scale: [-1,1] -> [0,width]
       0,           // XY skew
       0,           // YX skew  
       -height / 2, // Y scale: [-1,1] -> [0,height] (flipped)
       width / 2,   // X translation: 0 -> center
       height / 2   // Y translation: 0 -> center
+    );
+    
+    // Apply the base world-to-NDC transformation
+    // This will be the foundation that all scene transformations build upon
+    const world2ndc = this.#world2ndc;
+    this.pushTransform(ctx, world2ndc);
+  }
+
+ /**
+   * Apply a 4x4 transformation matrix to the canvas context
+   * @param {CanvasRenderingContext2D} ctx - The canvas context
+   * @param {number[]} matrix - 4x4 transformation matrix
+   * @private
+   */
+ pushTransform(ctx, world2ndc) {
+// Extract the 2D transformation components from the 4x4 matrix
+    // Canvas 2D uses: [a c e]  where a,c,e = scale/skew X, translate X
+    //                 [b d f]        b,d,f = skew/scale Y, translate Y
+    //                 [0 0 1]
+    ctx.transform(
+      world2ndc[0], // a: x-scale
+      world2ndc[1], // b: y-skew  
+      world2ndc[4], // c: x-skew
+      world2ndc[5], // d: y-scale
+      world2ndc[3], // e: x-translate
+      world2ndc[7]
     );
   }
 
@@ -414,7 +426,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     
     // Get background color from appearance stack, fall back to default
-    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, '#00c000');
+    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, '#cccccc');
     ctx.fillStyle = this.toCSSColor(backgroundColor);
     // Clear using the full bitmap dimensions
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -432,34 +444,35 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     this.pushPath(component);
     
     let hasTransformation = false;
+    let hasAppearance = false;
     
     try {
-      // Check if this component has a transformation
+      // Check if we need to save canvas state for transformation
       const transformation = component.getTransformation();
       if (transformation) {
         hasTransformation = true;
-        // Visit the transformation (this will push onto transformation stack)
-        transformation.accept(this);
+        this.#context.save(); // Save current canvas transformation state
       }
       
-       // Push root scene's appearance if it exists
-       const appearance = component.getAppearance();
-       if (appearance ) {
-         appearance.accept(this);
-       }
+      // Check if we need to track appearance for cleanup
+      const appearance = component.getAppearance();
+      if (appearance) {
+        hasAppearance = true;
+      }
        
-     
-      // Continue traversal to all children (sub-components, geometry, etc.)
+      // Let childrenAccept handle the actual visiting of transformation, appearance, and children
+      // This avoids double-application since childrenAccept calls transformation.accept() and appearance.accept()
       component.childrenAccept(this);
     } finally {
-
-      if (component.getAppearance) {
+      // Pop appearance from stack if it was pushed by visitAppearance
+      if (hasAppearance) {
         this.#appearanceStack.pop();
       }
 
-      // Pop the transformation from the stack if we pushed one
+      // Restore canvas transformation state and pop our tracking stack
       if (hasTransformation) {
-        this.#transformationStack.pop();
+        this.#context.restore(); // Canvas handles transformation restoration
+        this.#transformationStack.pop(); // Keep our stack in sync
       }
       
       // Pop the component from the path
@@ -468,18 +481,20 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   }
 
   /**
-   * Visit a Transformation node - multiply current transformation and push onto stack
+   * Visit a Transformation node - apply transformation to canvas context
    * @param {Transformation} transformation
    */
   visitTransformation(transformation) {
-    // Get the current transformation matrix from the top of the stack
-    const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
     // Get the transformation matrix from the transformation object
     const transformMatrix = transformation.getMatrix();
-    // Multiply current transformation on the right: newMatrix = currentMatrix * transformMatrix
+    
+    // Apply the transformation to the canvas context - let canvas handle accumulation
+    this.pushTransform(this.#context, transformMatrix);
+    
+    // Keep our own stack for compatibility (but don't use it for rendering)
+    const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
     const newMatrix = new Array(16);
     Rn.timesMatrix(newMatrix, currentMatrix, transformMatrix);
-    // Push the new combined transformation onto the stack
     this.#transformationStack.push(newMatrix);
   }
 
@@ -596,9 +611,6 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const pointColor = this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000');
     ctx.fillStyle = this.toCSSColor(pointColor);
 
-    // Get current transformation from path
-    const currentMatrix = this.getCurrentTransformation();
-    
     const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
                        geometry.getNumVertices ? geometry.getNumVertices() : 
                        vertices.shape[0];
@@ -606,10 +618,8 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     for (let i = 0; i < numVertices; i++) {
       const vertex = vertices.getSlice(i);
       if (vertex.length >= 3) {
-        const projected = this.#projectPoint(vertex, currentMatrix);
-        if (projected) {
-          this.#drawPoint(projected.x, projected.y);
-        }
+        const point = this.#extractPoint(vertex);
+        this.#drawPoint(point.x, point.y);
       }
     }
   }
@@ -649,14 +659,12 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     ctx.strokeStyle = this.toCSSColor(lineColor);
     ctx.lineWidth = lineWidth;
 
-    const currentMatrix = this.getCurrentTransformation();
-
     // Render all edges
     if (indices) {
       // 2D array of edge indices
       for (let i = 0; i < indices.rows.length; i++) {
         const edgeIndices = indices.getRow(i);
-        this.#drawPolyline(vertices, edgeIndices, currentMatrix);
+        this.#drawPolyline(vertices, edgeIndices);
       }
     } else {
       // Handle flat array case
@@ -679,7 +687,6 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     if (!vertices || !indices) return;
 
     const ctx = this.#context;
-    const currentMatrix = this.getCurrentTransformation();
 
     // Get appearance attributes
     const faceColor = this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc');
@@ -689,7 +696,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
       
       // Fill faces
       ctx.fillStyle = this.toCSSColor(faceColor);
-      this.#drawPolygon(vertices, faceIndices, currentMatrix, true);
+      this.#drawPolygon(vertices, faceIndices, true);
     }
   }
 
@@ -709,26 +716,14 @@ class Canvas2DRenderer extends SceneGraphVisitor {
  
 
   /**
-   * Project a 3D point to 2D NDC coordinates
+   * Extract 2D coordinates from vertex (canvas handles all transformations)
    * @private
    * @param {number[]} vertex - 3D vertex [x, y, z] or [x, y, z, w]
-   * @param {number[]} transformMatrix - Transformation matrix
-   * @returns {{x: number, y: number}|null} NDC coordinates [-1,1] or null if behind camera
+   * @returns {{x: number, y: number}} 2D coordinates
    */
-  #projectPoint(vertex, transformMatrix) {
-    // Apply transformation to get NDC coordinates
-    let tvertex = Rn.matrixTimesVector(null, transformMatrix, vertex);
-    Pn.dehomogenize(tvertex, tvertex);
-    
-    const ndcX = tvertex[0];  
-    const ndcY = tvertex[1];
-    const ndcZ = tvertex[2];
-
-    // Clip check - reject points outside NDC cube
-    // if (ndcZ < -1 || ndcZ > 1) return null;
-
-    // Return NDC coordinates - Canvas transform will handle screen conversion
-    return { x: ndcX, y: ndcY };
+  #extractPoint(vertex) {
+    // Canvas transformation handles all projection - just extract x,y coordinates
+    return { x: vertex[0], y: vertex[1] };
   }
 
   /**
@@ -739,7 +734,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    */
   #drawPoint(x, y) {
     const ctx = this.#context;
-    const size = this.getNumericAttribute(CommonAttributes.POINT_SIZE, .03);
+    const size = this.getNumericAttribute(CommonAttributes.POINT_SIZE, .1);
     ctx.beginPath();
     ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
     ctx.fill();
@@ -750,23 +745,20 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    * @private
    * @param {*} vertices - Vertex data list
    * @param {number[]} indices - Vertex indices for the line
-   * @param {number[]} transformMatrix - Transformation matrix
    */
-  #drawPolyline(vertices, indices, transformMatrix) {
+  #drawPolyline(vertices, indices) {
     const ctx = this.#context;
     ctx.beginPath();
 
     let firstPoint = true;
     for (const index of indices) {
       const vertex = vertices.getSlice(index);
-      const projected = this.#projectPoint(vertex, transformMatrix);
-      if (projected) {
-        if (firstPoint) {
-          ctx.moveTo(projected.x, projected.y);
-          firstPoint = false;
-        } else {
-          ctx.lineTo(projected.x, projected.y);
-        }
+      const point = this.#extractPoint(vertex);
+      if (firstPoint) {
+        ctx.moveTo(point.x, point.y);
+        firstPoint = false;
+      } else {
+        ctx.lineTo(point.x, point.y);
       }
     }
     ctx.stroke();
@@ -777,24 +769,21 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    * @private
    * @param {*} vertices - Vertex data list
    * @param {number[]} indices - Vertex indices for the polygon
-   * @param {number[]} transformMatrix - Transformation matrix
    * @param {boolean} fill - Whether to fill the polygon
    */
-  #drawPolygon(vertices, indices, transformMatrix, fill) {
+  #drawPolygon(vertices, indices, fill) {
     const ctx = this.#context;
     ctx.beginPath();
 
     let firstPoint = true;
     for (const index of indices) {
       const vertex = vertices.getSlice(index);
-      const projected = this.#projectPoint(vertex, transformMatrix);
-      if (projected) {
-        if (firstPoint) {
-          ctx.moveTo(projected.x, projected.y);
-          firstPoint = false;
-        } else {
-          ctx.lineTo(projected.x, projected.y);
-        }
+      const point = this.#extractPoint(vertex);
+      if (firstPoint) {
+        ctx.moveTo(point.x, point.y);
+        firstPoint = false;
+      } else {
+        ctx.lineTo(point.x, point.y);
       }
     }
     ctx.closePath();
