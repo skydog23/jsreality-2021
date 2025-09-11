@@ -359,13 +359,10 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   initializeMatrixStack(cameraMatrix, cam2ndcMatrix) {
     this.#world2Cam = cameraMatrix;
     this.#cam2ndc = cam2ndcMatrix;
-    
     // Combine world-to-camera and camera-to-NDC transformations
     Rn.timesMatrix(this.#world2ndc, this.#cam2ndc, this.#world2Cam);
-    
     // Initialize transformation stack with the world-to-NDC matrix
     this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
-    
     }
 
   /**
@@ -376,7 +373,6 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     return this.#transformationStack[this.#transformationStack.length - 1];
   }
 
- 
   /**
    * Set up the Canvas 2D context transform to convert from NDC to screen coordinates
    * @private
@@ -395,7 +391,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     // NDC space [-1,1] x [-1,1] -> Screen space [0,width] x [0,height]
     // with Y-axis flip (NDC +Y up, Screen +Y down)
     // Note: width/height are in CSS pixels, context is already scaled by ratio
-    const aspect  = height / width;
+    const aspect  = height < width ? height / width : width / height;
     ctx.transform(
       aspect * width / 2,   // X scale: [-1,1] -> [0,width]
       0,           // XY skew

@@ -97,7 +97,7 @@ export class Rectangle2D {
      * @returns {number}
      */
     getCenterY() {
-        return this.y + this.height / 2;
+        return (this.y + this.height) / 2;
     }
 
     /**
