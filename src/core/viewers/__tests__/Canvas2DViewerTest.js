@@ -24,11 +24,11 @@ function createTestScene() {
   const rootAppearance = new Appearance('rootAppearance');
   
   // Background color
-  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(255,255,255));
+  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(100,255,100));
   
   // Point rendering attributes
   rootAppearance.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
-  rootAppearance.setAttribute(CommonAttributes.POINT_SIZE, .01);
+  rootAppearance.setAttribute(CommonAttributes.POINT_SIZE, .1);
   rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
   
   // Line rendering attributes  
@@ -53,7 +53,7 @@ function createTestScene() {
   camera.setFar(5);
   camera.setPerspective(false);
   
-  
+  // Position camera back from origin
   const cameraComponent = new SceneGraphComponent();
   cameraComponent.setName('cameraNode');
   cameraComponent.addChild(camera);
@@ -98,8 +98,9 @@ function initGrid() {
   gridComponent.setName('grid');
   gridComponent.setGeometry(gridIFS);
   const ap = new Appearance();
-  ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(180,180,0));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.005);
+  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
+  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
+  ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   gridComponent.setAppearance(ap);
   
   return gridComponent;
@@ -133,8 +134,8 @@ function createTestPoints(parent) {
   pointsComponent.setTransformation(transform);
 
   const ap = new Appearance();
-  //ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(0,100,255));
-  ap.setAttribute(CommonAttributes.POINT_SIZE, .03);
+  ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
+  ap.setAttribute(CommonAttributes.POINT_SIZE, .1);
   pointsComponent.setAppearance(ap);
  
   parent.addChild(pointsComponent);
@@ -170,6 +171,11 @@ function createTestLines(parent) {
   const transform = new Transformation();
   linesComponent.setTransformation(transform);
 
+  const ap = new Appearance();
+  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+  ap.setAttribute(CommonAttributes.LINE_WIDTH, .04);
+  linesComponent.setAppearance(ap);
+
   parent.addChild(linesComponent);
 }
 
@@ -191,11 +197,15 @@ function createTestTriangle(parent) {
   const faces = [
     [0, 1, 2]       // Triangle face
   ];
+ // Create face indices
+ const edges = [
+  [0, 1, 2,0]       // Triangle face
+];
 
   const faceSet = new IndexedFaceSet(3, 1);
   faceSet.setVertexCoordinates(vertices, 4);
   faceSet.setFaceIndices(faces);
-  faceSet.setEdgeIndices(faces);
+  faceSet.setEdgeIndices(edges);
   triangleComponent.setGeometry(faceSet);
 
   // Position triangle to the right
@@ -215,6 +225,12 @@ export function runCanvas2DTest() {
 
   // Create or find canvas element
   let canvas = document.getElementById('canvas2d-test');
+  
+  // Check if test has already been run on this canvas
+  if (canvas && canvas.dataset.testRun === 'true') {
+    console.log('Test already run on this canvas, skipping...');
+    return;
+  }
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'canvas2d-test';
@@ -255,6 +271,9 @@ export function runCanvas2DTest() {
     console.log('Component size:', viewer.getViewingComponentSize());
     console.log('Can render async:', viewer.canRenderAsync());
 
+    // Mark canvas as having been tested to prevent duplicate runs
+    canvas.dataset.testRun = 'true';
+
     // Setup interactive controls
     setupInteractiveControls(viewer, canvas);
 
@@ -282,8 +301,16 @@ export function runCanvas2DTest() {
  * Setup interactive controls for the viewer
  */
 function setupInteractiveControls(viewer, canvas) {
+  // Check if controls already exist to prevent duplicates
+  const existingControls = document.querySelector('.canvas2d-controls');
+  if (existingControls) {
+    console.log('Controls already exist, skipping creation');
+    return;
+  }
+
   // Add some basic interaction
   const controls = document.createElement('div');
+  controls.className = 'canvas2d-controls'; // Add class for duplicate detection
   controls.style.textAlign = 'center';
   controls.style.margin = '10px';
 
@@ -341,9 +368,12 @@ function setupInteractiveControls(viewer, canvas) {
   canvas.parentNode.insertBefore(controls, canvas.nextSibling);
 }
 
-// Auto-run test if this script is loaded directly
-if (typeof window !== 'undefined' && document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', runCanvas2DTest);
-} else if (typeof window !== 'undefined') {
-  runCanvas2DTest();
+// Auto-run test if this script is loaded directly (not as a module import)
+// Check if we're being imported as a module by looking for existing canvas
+if (typeof window !== 'undefined' && !document.getElementById('canvas2d-test')) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runCanvas2DTest);
+  } else {
+    runCanvas2DTest();
+  }
 }
