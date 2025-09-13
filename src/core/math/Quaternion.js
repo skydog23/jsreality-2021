@@ -1,3 +1,4 @@
+
 // JavaScript port of jReality's Quaternion class (from Quaternion.java)
 // This file provides both a Quaternion class and static utility functions
 // @ts-check
@@ -7,8 +8,6 @@ import * as Pn from './Pn.js';
 
 /** @typedef {number[]} Vec */
 /** @typedef {number[]} Matrix */
-
-export const INFINITE_QUATERNION = new Quaternion(Number.POSITIVE_INFINITY, 0.0, 0.0, 0.0);
 
 /**
  * A simple quaternion class for support for FactoredMatrix and isometry generation.
@@ -567,3 +566,6 @@ export function linearInterpolation(dst, rot1, rot2, s) {
   dst.setValue(val[0], val[1], val[2], val[3]);
   return dst;
 }
+
+// Constants defined after the class to avoid circular dependency
+export const INFINITE_QUATERNION = new Quaternion(Number.POSITIVE_INFINITY, 0.0, 0.0, 0.0);

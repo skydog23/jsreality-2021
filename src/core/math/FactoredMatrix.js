@@ -3,7 +3,7 @@
 // @ts-check
 
 import { Matrix } from './Matrix.js';
-import { Quaternion } from './Quaternion.js';
+import { Quaternion, makeRotationQuaternionAngle, copy as quaternionCopy, normalize as quaternionNormalize, IJK as quaternionIJK } from './Quaternion.js';
 import * as Rn from './Rn.js';
 import * as Pn from './Pn.js';
 import * as P3 from './P3.js';
@@ -358,7 +358,7 @@ export class FactoredMatrix extends Matrix {
       this.setRotationAngle(angle);
       return;
     }
-    Quaternion.makeRotationQuaternionAngle(this.#rotationQ, angle, axis);
+    makeRotationQuaternionAngle(this.#rotationQ, angle, axis);
     this.#factorHasChanged = true;
     this.update();
   }
@@ -380,8 +380,8 @@ export class FactoredMatrix extends Matrix {
    * @param {Quaternion} aQ 
    */
   setRotationQuaternion(aQ) {
-    Quaternion.copy(this.#rotationQ, aQ);
-    Quaternion.normalize(this.#rotationQ, this.#rotationQ);
+    quaternionCopy(this.#rotationQ, aQ);
+    quaternionNormalize(this.#rotationQ, this.#rotationQ);
     this.getRotationAxis();
     this.#factorHasChanged = true;
     this.update();
@@ -392,7 +392,7 @@ export class FactoredMatrix extends Matrix {
    * @returns {number[]}
    */
   getRotationAxis() {
-    return Rn.normalize(this.#rotationAxis, Quaternion.IJK(this.#rotationAxis, this.#rotationQ));
+    return Rn.normalize(this.#rotationAxis, quaternionIJK(this.#rotationAxis, this.#rotationQ));
   }
 
   /**
@@ -472,26 +472,26 @@ export class FactoredMatrix extends Matrix {
     let TTmp;
     
     if (this.#factorHasChanged) {
-      P3.composeMatrixFromFactors(this.getArray(), this.#translationVector,
+      P3.composeMatrixFromFactors(super.getArray(), this.#translationVector,
         this.#rotationQ, this.#stretchRotationQ, this.#stretchVector, this.#isReflection,
         this.#metric);
       if (this.#useCenter) {
-        Rn.timesMatrix(this.getArray(), this.getArray(), this.#invCenterMatrix);
-        Rn.timesMatrix(this.getArray(), this.#centerMatrix, this.getArray());
+        Rn.timesMatrix(super.getArray(), super.getArray(), this.#invCenterMatrix);
+        Rn.timesMatrix(super.getArray(), this.#centerMatrix, super.getArray());
       }
     } else if (this.#isMatrixHasChanged()) {
       if (this.#useCenter) {
-        Rn.timesMatrix(MC, this.getArray(), this.#centerMatrix);
+        Rn.timesMatrix(MC, super.getArray(), this.#centerMatrix);
         Rn.timesMatrix(MC, this.#invCenterMatrix, MC);
         TTmp = MC;
       } else {
-        TTmp = this.getArray();
+        TTmp = super.getArray();
       }
       P3.factorMatrix(TTmp, this.#translationVector, this.#rotationQ,
         this.#stretchRotationQ, this.#stretchVector, isFlipped, this.#metric);
       this.#isReflection = isFlipped[0];
     }
-    this.#isSpecial = Rn.isSpecialMatrix(this.getArray(), Matrix.TOLERANCE);
+    this.#isSpecial = Rn.isSpecialMatrix(super.getArray(), Matrix.TOLERANCE);
     this.#matrixHasChanged = this.#factorHasChanged = this.resetMatrixChanged();
   }
 

@@ -784,3 +784,197 @@ export function makeReflectionMatrix(m, plane, metric) {
     
     return reflectionMatrix;
 }
+
+/**
+ * Factor a 4x4 transformation matrix into translation, rotation, and scaling components
+ * using polar decomposition. This is a direct translation of the Java P3.factorMatrix method.
+ * 
+ * @param {number[]} m - The 4x4 transformation matrix (16 elements)
+ * @param {number[]} transV - Output translation vector (4 elements)
+ * @param {import('./Quaternion.js').Quaternion} rotQ - Output rotation quaternion
+ * @param {import('./Quaternion.js').Quaternion} stretchRotQ - Output stretch rotation quaternion (set to identity)
+ * @param {number[]} stretchV - Output stretch/scale vector (3 elements)
+ * @param {boolean[]} isFlipped - Output array indicating if matrix is a reflection (1 element)
+ * @param {number} metric - The metric type (EUCLIDEAN, HYPERBOLIC, ELLIPTIC)
+ * @returns {number[]} The input matrix m
+ */
+export function factorMatrix(m, transV, rotQ, stretchRotQ, stretchV, isFlipped, metric) {
+    const itransT = new Array(16);
+    const transT = new Array(16);
+    const tmp = new Array(16);
+    const M3 = new Array(9);
+    const Q3 = new Array(9);
+    const S3 = new Array(9);
+    
+    // Check if it's a reflection
+    const det = Rn.determinant(m);
+    isFlipped[0] = (det < 0);
+    
+    // First extract the translation part
+    Rn.matrixTimesVector(transV, m, originP3);
+    if (metric === Pn.EUCLIDEAN && transV[3] === 0.0) {
+        throw new Error("bad translation vector");
+    }
+    
+    makeTranslationMatrix(transT, transV, metric);
+    Rn.inverse(itransT, transT);
+    // Undo the translation first
+    Rn.timesMatrix(tmp, itransT, m);
+    
+    // Next polar decompose M
+    Rn.extractSubmatrix(M3, tmp, 0, 2, 0, 2);
+    if (isFlipped[0] === true) {
+        Rn.times(M3, -1.0, M3);
+    }
+    
+    Rn.polarDecompose(Q3, S3, M3);
+    
+    // We pretend that we have a diagonal scale matrix
+    stretchV[0] = S3[0];    // S3[0,0]
+    stretchV[1] = S3[4];    // S3[1,1]  
+    stretchV[2] = S3[8];    // S3[2,2]
+    
+    // Convert rotation matrix to quaternion
+    rotationMatrixToQuaternion(rotQ, Q3);
+    
+    // Set the stretch rotation to identity
+    stretchRotQ.setValue(1.0, 0.0, 0.0, 0.0);
+    
+    return m;
+}
+
+/**
+ * Convert a 3x3 rotation matrix to a quaternion.
+ * This is a helper function for factorMatrix.
+ * 
+ * @param {import('./Quaternion.js').Quaternion} quat - Output quaternion
+ * @param {number[]} rotMatrix - 3x3 rotation matrix (9 elements)
+ */
+function rotationMatrixToQuaternion(quat, rotMatrix) {
+    // This is a simplified implementation of the Shepperd's method
+    // for converting rotation matrix to quaternion
+    const trace = rotMatrix[0] + rotMatrix[4] + rotMatrix[8]; // m00 + m11 + m22
+    
+    if (trace > 0) {
+        const s = Math.sqrt(trace + 1.0) * 2; // s = 4 * qw
+        quat.re = 0.25 * s;
+        quat.x = (rotMatrix[7] - rotMatrix[5]) / s; // (m21 - m12) / s
+        quat.y = (rotMatrix[2] - rotMatrix[6]) / s; // (m02 - m20) / s
+        quat.z = (rotMatrix[3] - rotMatrix[1]) / s; // (m10 - m01) / s
+    } else if ((rotMatrix[0] > rotMatrix[4]) && (rotMatrix[0] > rotMatrix[8])) {
+        const s = Math.sqrt(1.0 + rotMatrix[0] - rotMatrix[4] - rotMatrix[8]) * 2; // s = 4 * qx
+        quat.re = (rotMatrix[7] - rotMatrix[5]) / s;
+        quat.x = 0.25 * s;
+        quat.y = (rotMatrix[1] + rotMatrix[3]) / s;
+        quat.z = (rotMatrix[2] + rotMatrix[6]) / s;
+    } else if (rotMatrix[4] > rotMatrix[8]) {
+        const s = Math.sqrt(1.0 + rotMatrix[4] - rotMatrix[0] - rotMatrix[8]) * 2; // s = 4 * qy
+        quat.re = (rotMatrix[2] - rotMatrix[6]) / s;
+        quat.x = (rotMatrix[1] + rotMatrix[3]) / s;
+        quat.y = 0.25 * s;
+        quat.z = (rotMatrix[5] + rotMatrix[7]) / s;
+    } else {
+        const s = Math.sqrt(1.0 + rotMatrix[8] - rotMatrix[0] - rotMatrix[4]) * 2; // s = 4 * qz
+        quat.re = (rotMatrix[3] - rotMatrix[1]) / s;
+        quat.x = (rotMatrix[2] + rotMatrix[6]) / s;
+        quat.y = (rotMatrix[5] + rotMatrix[7]) / s;
+        quat.z = 0.25 * s;
+    }
+}
+
+/**
+ * Compose a 4x4 transformation matrix from translation, rotation, and scaling components.
+ * This is the inverse operation of factorMatrix.
+ * 
+ * @param {number[]} m - Output 4x4 transformation matrix (16 elements)
+ * @param {number[]} transV - Translation vector (4 elements)
+ * @param {import('./Quaternion.js').Quaternion} rotQ - Rotation quaternion
+ * @param {import('./Quaternion.js').Quaternion} stretchRotQ - Stretch rotation quaternion (usually identity)
+ * @param {number[]} stretchV - Stretch/scale vector (3 elements)
+ * @param {boolean} isFlipped - Whether the matrix represents a reflection
+ * @param {number} metric - The metric type (EUCLIDEAN, HYPERBOLIC, ELLIPTIC)
+ * @returns {number[]} The composed transformation matrix
+ */
+export function composeMatrixFromFactors(m, transV, rotQ, stretchRotQ, stretchV, isFlipped, metric) {
+    // Temporary matrices
+    const transT = new Array(16);
+    const rotT = new Array(16);
+    const stretchRotT = new Array(16);
+    const stretchT = new Array(16);
+    const tmp = new Array(3);
+    
+    if (!transV || !rotQ || !stretchV) {
+        throw new Error("Null argument");
+    }
+    
+    // Create translation matrix
+    makeTranslationMatrix(transT, transV, metric);
+    
+    // Convert rotation quaternion to matrix
+    quaternionToRotationMatrix(rotT, rotQ);
+    
+    // Convert stretch rotation quaternion to matrix (for now we ignore it)
+    quaternionToRotationMatrix(stretchRotT, stretchRotQ);
+    
+    // Handle reflection by negating stretch values
+    if (isFlipped === true) {
+        for (let i = 0; i < 3; ++i) tmp[i] = -stretchV[i];
+    } else {
+        for (let i = 0; i < 3; ++i) tmp[i] = stretchV[i];
+    }
+    
+    // Create diagonal stretch matrix
+    Rn.setDiagonalMatrix(stretchT, tmp);
+    
+    // Compose: m = transT * rotT * stretchT
+    Rn.timesMatrix(m, rotT, stretchT);
+    Rn.timesMatrix(m, transT, m);
+    
+    return m;
+}
+
+/**
+ * Convert a quaternion to a 4x4 rotation matrix.
+ * This is a helper function for composeMatrixFromFactors.
+ * 
+ * @param {number[]} rotT - Output 4x4 rotation matrix (16 elements)
+ * @param {import('./Quaternion.js').Quaternion} q - Input quaternion
+ */
+function quaternionToRotationMatrix(rotT, q) {
+    const w = q.re;
+    const x = q.x;
+    const y = q.y;
+    const z = q.z;
+    
+    // Convert quaternion to rotation matrix using standard formula
+    const xx = x * x;
+    const yy = y * y;
+    const zz = z * z;
+    const xy = x * y;
+    const xz = x * z;
+    const yz = y * z;
+    const wx = w * x;
+    const wy = w * y;
+    const wz = w * z;
+    
+    // Fill the 4x4 matrix (homogeneous coordinates)
+    rotT[0] = 1 - 2 * (yy + zz);  // m00
+    rotT[1] = 2 * (xy - wz);      // m01
+    rotT[2] = 2 * (xz + wy);      // m02
+    rotT[3] = 0;                  // m03
+    
+    rotT[4] = 2 * (xy + wz);      // m10
+    rotT[5] = 1 - 2 * (xx + zz);  // m11
+    rotT[6] = 2 * (yz - wx);      // m12
+    rotT[7] = 0;                  // m13
+    
+    rotT[8] = 2 * (xz - wy);      // m20
+    rotT[9] = 2 * (yz + wx);      // m21
+    rotT[10] = 1 - 2 * (xx + yy); // m22
+    rotT[11] = 0;                 // m23
+    
+    rotT[12] = 0;                 // m30
+    rotT[13] = 0;                 // m31
+    rotT[14] = 0;                 // m32
+    rotT[15] = 1;                 // m33
+}

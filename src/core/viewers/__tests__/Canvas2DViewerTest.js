@@ -24,7 +24,7 @@ function createTestScene() {
   const rootAppearance = new Appearance('rootAppearance');
   
   // Background color
-  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(100,255,100));
+  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(255,255,255));
   
   // Point rendering attributes
   rootAppearance.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
@@ -53,7 +53,7 @@ function createTestScene() {
   camera.setFar(5);
   camera.setPerspective(false);
   
-  // Position camera back from origin
+  
   const cameraComponent = new SceneGraphComponent();
   cameraComponent.setName('cameraNode');
   cameraComponent.addChild(camera);
@@ -99,7 +99,7 @@ function initGrid() {
   gridComponent.setGeometry(gridIFS);
   const ap = new Appearance();
   ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(180,180,0));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
+  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.005);
   gridComponent.setAppearance(ap);
   
   return gridComponent;
@@ -133,7 +133,7 @@ function createTestPoints(parent) {
   pointsComponent.setTransformation(transform);
 
   const ap = new Appearance();
-  ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(0,100,255));
+  //ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(0,100,255));
   ap.setAttribute(CommonAttributes.POINT_SIZE, .03);
   pointsComponent.setAppearance(ap);
  

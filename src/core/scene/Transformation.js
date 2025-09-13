@@ -186,6 +186,16 @@ export class Transformation extends SceneGraphNode {
   }
 
   /**
+   * Check if this transformation is read-only
+   * @returns {boolean} True if read-only, false otherwise
+   */
+  isReadOnly() {
+    // For now, we'll assume transformations are writable unless explicitly set otherwise
+    // This could be enhanced later with proper read-only state management
+    return false;
+  }
+
+  /**
    * Accept a visitor
    * @param {SceneGraphVisitor} visitor - The visitor
    */
