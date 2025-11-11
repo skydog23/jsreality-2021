@@ -126,17 +126,6 @@
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
         
         try {
-            // Redirect console.log to show info on page
-            const infoContainer = document.getElementById('info-container');
-            const originalLog = console.log;
-            
-            console.log = function(...args) {
-                originalLog.apply(console, args);
-                const message = args.join(' ');
-                infoContainer.innerHTML += message + '<br>';
-                infoContainer.scrollTop = infoContainer.scrollHeight;
-            };
-
             // Run the test
             const viewer = runCanvas2DTest();
             
@@ -154,6 +143,9 @@
             const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
             console.log('✓ Scene Graph Inspector created');
             
+            // Store viewer reference globally so inspector changes can trigger renders
+            window._viewerInstance = viewer;
+            
             // Auto-expand the root node for convenience
             inspector.refresh();
             
@@ -165,6 +157,30 @@
             };
             
             console.log('✓ Inspector integrated with viewer');
+            console.log('✓ You can now edit appearance attributes and see changes in real-time!');
+            
+            // Add a test to verify console.log is working
+            window.testConsole = function() {
+                console.log('TEST: Console.log is working!', new Date().toISOString());
+            };
+            console.log('TIP: Type testConsole() in console to verify logging works');
+            
+            // Add direct visibility toggle test
+            window.toggleGridVisibility = function() {
+                const children = sceneRoot.getChildComponents();
+                const grid = children.find(c => c.getName() === 'grid');
+                if (grid) {
+                    const newVis = !grid.isVisible();
+                    console.log('BEFORE: grid visibility =', grid.isVisible());
+                    grid.setVisible(newVis);
+                    console.log('AFTER: grid visibility =', grid.isVisible());
+                    viewer.render();
+                    console.log('Render called');
+                } else {
+                    console.log('Grid component not found');
+                }
+            };
+            console.log('TIP: Type toggleGridVisibility() to test visibility programmatically');
             
         } catch (error) {
             console.error('Test failed:', error);

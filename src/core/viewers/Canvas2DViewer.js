@@ -344,8 +344,9 @@ class Canvas2DRenderer extends SceneGraphVisitor {
 
       // Render the scene
     try {
-      
+      console.log('Calling sceneRoot.accept(this)');
       sceneRoot.accept(this);
+      console.log('sceneRoot.accept(this) completed');
  
     } catch (error) {
       console.error('Rendering error:', error);
@@ -440,6 +441,9 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    * @param {SceneGraphComponent} component
    */
   visitComponent(component) {
+    if (!component.isVisible()) {
+      return;
+    }
     // Push this component onto the path for transformation calculations
     this.pushPath(component);
     

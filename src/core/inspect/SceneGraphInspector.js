@@ -6,6 +6,7 @@ import { Transformation } from '../scene/Transformation.js';
 import { Appearance } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
+import { Color } from '../util/Color.js';
 
 /**
  * Interactive inspector for exploring and editing scene graph structures
@@ -320,6 +321,131 @@ export class SceneGraphInspector {
       .sg-button:hover {
         background: #1177bb;
       }
+      
+      /* Color picker styles - vertical layout with alpha */
+      .sg-color-picker-container-vertical {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+      }
+      
+      /* Color picker styles - simple (no alpha) */
+      .sg-color-picker-container-simple {
+        display: flex;
+        width: 100%;
+      }
+      
+      .sg-color-input {
+        width: 100%;
+        height: 20px;
+        border: 1px solid #555;
+        border-radius: 3px;
+        background: #3c3c3c;
+        cursor: pointer;
+        padding: 0;
+      }
+      
+      .sg-color-input:hover {
+        border-color: #666;
+      }
+      
+      .sg-color-input::-webkit-color-swatch-wrapper {
+        padding: 2px;
+      }
+      
+      .sg-color-input::-webkit-color-swatch {
+        border: none;
+        border-radius: 2px;
+      }
+      
+      /* Alpha slider styles */
+      .sg-alpha-slider-container {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+      }
+      
+      .sg-alpha-slider-label {
+        color: #9cdcfe;
+        font-size: 11px;
+        font-weight: 600;
+        flex-shrink: 0;
+        width: 12px;
+      }
+      
+      .sg-alpha-slider {
+        flex: 1;
+        height: 4px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: linear-gradient(to right, transparent 0%, #cccccc 100%);
+        border-radius: 2px;
+        outline: none;
+      }
+      
+      .sg-alpha-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #007acc;
+        cursor: pointer;
+        border: 2px solid #ffffff;
+      }
+      
+      .sg-alpha-slider::-webkit-slider-thumb:hover {
+        background: #1177bb;
+      }
+      
+      .sg-alpha-slider::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #007acc;
+        cursor: pointer;
+        border: 2px solid #ffffff;
+      }
+      
+      .sg-alpha-slider::-moz-range-thumb:hover {
+        background: #1177bb;
+      }
+      
+      .sg-alpha-value {
+        color: #ce9178;
+        font-size: 11px;
+        font-family: 'Monaco', 'Courier New', monospace;
+        flex-shrink: 0;
+        width: 30px;
+        text-align: right;
+      }
+      
+      /* Number and text input styles */
+      .sg-number-input,
+      .sg-text-input {
+        width: 100%;
+        background: #3c3c3c;
+        border: 1px solid #555;
+        color: #cccccc;
+        padding: 4px 6px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-family: inherit;
+      }
+      
+      .sg-number-input:focus,
+      .sg-text-input:focus {
+        outline: none;
+        border-color: #007acc;
+        background: #404040;
+      }
+      
+      .sg-number-input:hover,
+      .sg-text-input:hover {
+        border-color: #666;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -597,6 +723,10 @@ export class SceneGraphInspector {
         editable: true,
         onChange: (val) => {
           component.setVisible(val);
+          // Trigger viewer render if available (for live preview)
+          if (typeof window !== 'undefined' && window._viewerInstance) {
+            window._viewerInstance.render();
+          }
           this.#updatePropertyPanel(component);
         }
       },
@@ -606,14 +736,14 @@ export class SceneGraphInspector {
         editable: true,
         onChange: (val) => {
           component.setPickable(val);
+          // Trigger viewer render if available (for live preview)
+          if (typeof window !== 'undefined' && window._viewerInstance) {
+            window._viewerInstance.render();
+          }
           this.#updatePropertyPanel(component);
         }
       },
-      { label: 'Children', value: component.getChildComponentCount(), editable: false },
-      { label: 'Has Transform', value: !!component.getTransformation(), editable: false },
-      { label: 'Has Appearance', value: !!component.getAppearance(), editable: false },
-      { label: 'Has Geometry', value: !!component.getGeometry(), editable: false },
-      { label: 'Has Camera', value: !!component.getCamera(), editable: false }
+      { label: 'Children', value: component.getChildComponentCount(), editable: false }
     ]);
   }
 
@@ -651,11 +781,17 @@ export class SceneGraphInspector {
     
     for (const key of attrs) {
       const value = appearance.getAttribute(key);
-      properties.push({
-        label: key,
-        value: this.#formatValue(value),
-        editable: false
+      const propertyDef = this.#createEditableProperty(key, value, (newValue) => {
+        // Update the appearance attribute
+        appearance.setAttribute(key, newValue);
+        // Trigger viewer render if available (for live preview)
+        if (typeof window !== 'undefined' && window._viewerInstance) {
+          window._viewerInstance.render();
+        }
+        // Refresh the property panel
+        this.#updatePropertyPanel(appearance);
       });
+      properties.push(propertyDef);
     }
     
     if (properties.length === 0) {
@@ -663,6 +799,333 @@ export class SceneGraphInspector {
     }
     
     this.#addPropertyGroup('Attributes', properties);
+  }
+
+  /**
+   * Create an editable property definition based on value type
+   * @param {string} label - Property label
+   * @param {*} value - Property value
+   * @param {Function} onChange - Change handler
+   * @returns {Object} Property definition
+   * @private
+   */
+  #createEditableProperty(label, value, onChange) {
+    // Check if value is a Color object
+    if (value instanceof Color) {
+      return {
+        label,
+        value: this.#createColorPickerFromColor(value, onChange),
+        editable: true
+      };
+    }
+    
+    // Check if value is a color array (array of 3 or 4 numbers)
+    if (this.#isColorArray(value)) {
+      return {
+        label,
+        value: this.#createColorPicker(value, onChange),
+        editable: true
+      };
+    }
+    
+    // Check for boolean
+    if (typeof value === 'boolean') {
+      return {
+        label,
+        value,
+        editable: true,
+        onChange
+      };
+    }
+    
+    // Check for number
+    if (typeof value === 'number') {
+      return {
+        label,
+        value: this.#createNumberInput(value, onChange),
+        editable: true
+      };
+    }
+    
+    // Check for string
+    if (typeof value === 'string') {
+      return {
+        label,
+        value: this.#createTextInput(value, onChange),
+        editable: true
+      };
+    }
+    
+    // Default: non-editable formatted value
+    return {
+      label,
+      value: this.#formatValue(value),
+      editable: false
+    };
+  }
+
+  /**
+   * Check if value is a color array
+   * @param {*} value - Value to check
+   * @returns {boolean}
+   * @private
+   */
+  #isColorArray(value) {
+    if (!Array.isArray(value)) return false;
+    if (value.length !== 3 && value.length !== 4) return false;
+    return value.every(v => typeof v === 'number');
+  }
+
+  /**
+   * Create a color picker widget for Color objects
+   * @param {Color} colorObj - Color object
+   * @param {Function} onChange - Change handler
+   * @returns {HTMLElement}
+   * @private
+   */
+  #createColorPickerFromColor(colorObj, onChange) {
+    const container = document.createElement('div');
+    container.className = 'sg-color-picker-container-vertical';
+    
+    // Color input (HTML5 color picker)
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = colorObj.toHexString();
+    colorInput.className = 'sg-color-input';
+    
+    // Alpha slider container
+    const alphaContainer = document.createElement('div');
+    alphaContainer.className = 'sg-alpha-slider-container';
+    
+    const alphaLabel = document.createElement('span');
+    alphaLabel.className = 'sg-alpha-slider-label';
+    alphaLabel.textContent = 'α';
+    
+    const alphaSlider = document.createElement('input');
+    alphaSlider.type = 'range';
+    alphaSlider.min = '0';
+    alphaSlider.max = '255';
+    alphaSlider.step = '1';
+    alphaSlider.value = colorObj.a;
+    alphaSlider.className = 'sg-alpha-slider';
+    
+    const alphaValue = document.createElement('span');
+    alphaValue.className = 'sg-alpha-value';
+    alphaValue.textContent = colorObj.a;
+    
+    // Update handler for color
+    colorInput.addEventListener('change', () => {
+      const hex = colorInput.value;
+      const r = parseInt(hex.substr(1, 2), 16);
+      const g = parseInt(hex.substr(3, 2), 16);
+      const b = parseInt(hex.substr(5, 2), 16);
+      
+      const newColor = new Color(r, g, b, parseInt(alphaSlider.value, 10));
+      onChange(newColor);
+    });
+    
+    // Update handler for alpha slider
+    alphaSlider.addEventListener('input', () => {
+      alphaValue.textContent = alphaSlider.value;
+    });
+    
+    alphaSlider.addEventListener('change', () => {
+      const hex = colorInput.value;
+      const r = parseInt(hex.substr(1, 2), 16);
+      const g = parseInt(hex.substr(3, 2), 16);
+      const b = parseInt(hex.substr(5, 2), 16);
+      
+      const alpha = parseInt(alphaSlider.value, 10);
+      const newColor = new Color(r, g, b, alpha);
+      onChange(newColor);
+    });
+    
+    alphaContainer.appendChild(alphaLabel);
+    alphaContainer.appendChild(alphaSlider);
+    alphaContainer.appendChild(alphaValue);
+    
+    container.appendChild(colorInput);
+    container.appendChild(alphaContainer);
+    
+    return container;
+  }
+
+  /**
+   * Create a color picker widget
+   * @param {number[]} colorArray - Color as array [r,g,b] or [r,g,b,a]
+   * @param {Function} onChange - Change handler
+   * @returns {HTMLElement}
+   * @private
+   */
+  #createColorPicker(colorArray, onChange) {
+    const container = document.createElement('div');
+    container.className = colorArray.length === 4 ? 'sg-color-picker-container-vertical' : 'sg-color-picker-container-simple';
+    
+    // Normalize color to 0-255 range if needed
+    const normalized = colorArray.map(v => v <= 1 ? Math.round(v * 255) : v);
+    const r = Math.min(255, Math.max(0, normalized[0]));
+    const g = Math.min(255, Math.max(0, normalized[1]));
+    const b = Math.min(255, Math.max(0, normalized[2]));
+    const wasNormalized = colorArray[0] <= 1;
+    
+    // Color input (HTML5 color picker)
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    colorInput.className = 'sg-color-input';
+    
+    // Alpha channel slider (if RGBA)
+    if (colorArray.length === 4) {
+      const alphaContainer = document.createElement('div');
+      alphaContainer.className = 'sg-alpha-slider-container';
+      
+      const alphaLabel = document.createElement('span');
+      alphaLabel.className = 'sg-alpha-slider-label';
+      alphaLabel.textContent = 'α';
+      
+      const alphaSlider = document.createElement('input');
+      alphaSlider.type = 'range';
+      alphaSlider.min = '0';
+      alphaSlider.max = wasNormalized ? '100' : '255';
+      alphaSlider.step = '1';
+      const currentAlpha = wasNormalized ? Math.round(colorArray[3] * 100) : Math.round(colorArray[3]);
+      alphaSlider.value = currentAlpha;
+      alphaSlider.className = 'sg-alpha-slider';
+      
+      const alphaValue = document.createElement('span');
+      alphaValue.className = 'sg-alpha-value';
+      alphaValue.textContent = wasNormalized ? colorArray[3].toFixed(2) : Math.round(colorArray[3]);
+      
+      // Update handler for color
+      colorInput.addEventListener('change', () => {
+        const hex = colorInput.value;
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        
+        const alpha = wasNormalized 
+          ? parseInt(alphaSlider.value, 10) / 100
+          : parseInt(alphaSlider.value, 10);
+        
+        const newColor = wasNormalized 
+          ? [r / 255, g / 255, b / 255, alpha]
+          : [r, g, b, alpha];
+        
+        onChange(newColor);
+      });
+      
+      // Update handler for alpha slider
+      alphaSlider.addEventListener('input', () => {
+        const displayValue = wasNormalized 
+          ? (parseInt(alphaSlider.value, 10) / 100).toFixed(2)
+          : alphaSlider.value;
+        alphaValue.textContent = displayValue;
+      });
+      
+      alphaSlider.addEventListener('change', () => {
+        const hex = colorInput.value;
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        
+        const alpha = wasNormalized 
+          ? parseInt(alphaSlider.value, 10) / 100
+          : parseInt(alphaSlider.value, 10);
+        
+        const newColor = wasNormalized 
+          ? [r / 255, g / 255, b / 255, alpha]
+          : [r, g, b, alpha];
+        
+        onChange(newColor);
+      });
+      
+      alphaContainer.appendChild(alphaLabel);
+      alphaContainer.appendChild(alphaSlider);
+      alphaContainer.appendChild(alphaValue);
+      
+      container.appendChild(colorInput);
+      container.appendChild(alphaContainer);
+    } else {
+      // RGB only
+      colorInput.addEventListener('change', () => {
+        const hex = colorInput.value;
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        
+        const newColor = wasNormalized 
+          ? [r / 255, g / 255, b / 255]
+          : [r, g, b];
+        
+        onChange(newColor);
+      });
+      
+      container.appendChild(colorInput);
+    }
+    
+    return container;
+  }
+
+  /**
+   * Create a number input widget
+   * @param {number} value - Number value
+   * @param {Function} onChange - Change handler
+   * @returns {HTMLElement}
+   * @private
+   */
+  #createNumberInput(value, onChange) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = value;
+    input.className = 'sg-number-input';
+    
+    // Determine if integer or float
+    if (Number.isInteger(value)) {
+      input.step = '1';
+    } else {
+      input.step = 'any';
+    }
+    
+    input.addEventListener('change', () => {
+      const newValue = Number.isInteger(value) 
+        ? parseInt(input.value, 10)
+        : parseFloat(input.value);
+      
+      if (!isNaN(newValue)) {
+        onChange(newValue);
+      }
+    });
+    
+    // Also update on blur for better UX
+    input.addEventListener('blur', () => {
+      input.dispatchEvent(new Event('change'));
+    });
+    
+    return input;
+  }
+
+  /**
+   * Create a text input widget
+   * @param {string} value - String value
+   * @param {Function} onChange - Change handler
+   * @returns {HTMLElement}
+   * @private
+   */
+  #createTextInput(value, onChange) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.className = 'sg-text-input';
+    
+    input.addEventListener('change', () => {
+      onChange(input.value);
+    });
+    
+    input.addEventListener('blur', () => {
+      input.dispatchEvent(new Event('change'));
+    });
+    
+    return input;
   }
 
   /**
