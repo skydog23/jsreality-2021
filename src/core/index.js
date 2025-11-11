@@ -4,4 +4,5 @@
 export * from './math/index.js';
 export * from './scene/index.js';
 export * from './shader/index.js';
-export * from './util/index.js'; 
+export * from './util/index.js';
+export * from './inspect/index.js'; 

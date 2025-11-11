@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas2D Viewer with Inspector</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e1e1e;
+            color: #cccccc;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 16px;
+            border-bottom: 1px solid #3e3e3e;
+        }
+        
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #858585;
+            font-size: 14px;
+        }
+        
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .canvas-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #3e3e3e;
+            min-width: 500px;
+        }
+        
+        .canvas-header {
+            background: #2d2d2d;
+            padding: 8px 12px;
+            border-bottom: 1px solid #3e3e3e;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #252526;
+            padding: 20px;
+            overflow: auto;
+        }
+        
+        #canvas2d-test {
+            border: 2px solid #3e3e3e;
+            border-radius: 4px;
+            background: white;
+        }
+        
+        .inspector-panel {
+            flex: 0 0 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info {
+            background: #2d2d2d;
+            padding: 10px 12px;
+            border-top: 1px solid #3e3e3e;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #858585;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 4px;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Canvas2D Viewer with Scene Graph Inspector</h1>
+        <p>Interactive viewer and inspector for exploring jSReality scene graphs</p>
+    </div>
+    
+    <div class="main-container">
+        <div class="canvas-panel">
+            <div class="canvas-header">Canvas Viewer</div>
+            <div class="canvas-container">
+                <canvas id="canvas2d-test" width="800" height="600"></canvas>
+            </div>
+            <div id="info-container" class="info"></div>
+        </div>
+        
+        <div class="inspector-panel" id="inspector-container"></div>
+    </div>
+
+    <div id="error-container"></div>
+
+    <script type="module">
+        import { runCanvas2DTest } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
+        import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
+        
+        try {
+            // Redirect console.log to show info on page
+            const infoContainer = document.getElementById('info-container');
+            const originalLog = console.log;
+            
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                const message = args.join(' ');
+                infoContainer.innerHTML += message + '<br>';
+                infoContainer.scrollTop = infoContainer.scrollHeight;
+            };
+
+            // Run the test
+            const viewer = runCanvas2DTest();
+            
+            // Add some extra debug info
+            console.log('---');
+            console.log('Canvas size:', viewer.getViewingComponentSize());
+            console.log('Pixel ratio:', window.devicePixelRatio || 1);
+            
+            // Get the scene root from the viewer
+            const sceneRoot = viewer.getSceneRoot();
+            console.log('Scene root:', sceneRoot.getName());
+            
+            // Create and attach the inspector
+            const inspectorContainer = document.getElementById('inspector-container');
+            const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
+            console.log('✓ Scene Graph Inspector created');
+            
+            // Auto-expand the root node for convenience
+            inspector.refresh();
+            
+            // Add a hook to refresh inspector when viewer renders
+            const originalRender = viewer.render.bind(viewer);
+            viewer.render = function() {
+                originalRender();
+                inspector.refresh();
+            };
+            
+            console.log('✓ Inspector integrated with viewer');
+            
+        } catch (error) {
+            console.error('Test failed:', error);
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `
+                <div class="error">
+                    <h4>Test Failed</h4>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
+

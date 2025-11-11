@@ -83,7 +83,7 @@ export function dehomogenize(dst, src)	{
     if (! (dl == sl || dl +1 == sl))	{
         throw new Error("Invalid dimensions");
     }
-    const last = src[sl-1];
+    let last = src[sl-1];
     if (last == 1.0 || last == 0.0) 	{
         if (src != dst) {
             for (let i = 0; i < dl; i++) {
