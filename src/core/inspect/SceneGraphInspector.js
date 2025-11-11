@@ -322,12 +322,17 @@ export class SceneGraphInspector {
         background: #1177bb;
       }
       
-      /* Color picker styles - vertical layout with alpha */
+      /* Color picker styles - vertical layout with alpha (integrated RGBA panel) */
       .sg-color-picker-container-vertical {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
         width: 100%;
+        padding: 6px;
+        background: #2a2a2a;
+        border: 1px solid #555;
+        border-radius: 4px;
+        box-sizing: border-box;
       }
       
       /* Color picker styles - simple (no alpha) */
@@ -359,12 +364,13 @@ export class SceneGraphInspector {
         border-radius: 2px;
       }
       
-      /* Alpha slider styles */
+      /* Alpha slider styles - integrated within RGBA panel */
       .sg-alpha-slider-container {
         display: flex;
         align-items: center;
         gap: 6px;
         width: 100%;
+        padding-top: 2px;
       }
       
       .sg-alpha-slider-label {
