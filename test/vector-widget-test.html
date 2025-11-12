@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vector Widget Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e1e;
+      color: #cccccc;
+      padding: 20px;
+      margin: 0;
+    }
+    
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #252526;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    
+    h1 {
+      color: #9cdcfe;
+      margin-top: 0;
+    }
+    
+    .test-section {
+      margin: 30px 0;
+      padding: 15px;
+      background: #2d2d2d;
+      border-radius: 4px;
+      border: 1px solid #3c3c3c;
+    }
+    
+    .test-section h2 {
+      margin-top: 0;
+      color: #4ec9b0;
+      font-size: 16px;
+    }
+    
+    .widget-wrapper {
+      margin: 10px 0;
+    }
+    
+    .output {
+      margin-top: 10px;
+      padding: 10px;
+      background: #1e1e1e;
+      border: 1px solid #555;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      color: #ce9178;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #9cdcfe;
+      font-size: 13px;
+    }
+    
+    /* NumberWidget and VectorWidget styles are now self-injected */
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>🔢 Vector Widget Test</h1>
+    
+    <div class="test-section">
+      <h2>NumberWidget Test</h2>
+      <label>Single Number:</label>
+      <div class="widget-wrapper" id="number-widget-container"></div>
+      <div class="output" id="number-output">Value: 0.0000</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>VectorWidget 2D Test</h2>
+      <label>2D Vector (X, Y):</label>
+      <div class="widget-wrapper" id="vector2d-container"></div>
+      <div class="output" id="vector2d-output">Value: [0.0000, 0.0000]</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>VectorWidget 3D Test</h2>
+      <label>3D Vector (X, Y, Z):</label>
+      <div class="widget-wrapper" id="vector3d-container"></div>
+      <div class="output" id="vector3d-output">Value: [0.0000, 0.0000, 0.0000]</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>VectorWidget 4D Test</h2>
+      <label>4D Vector (X, Y, Z, W):</label>
+      <div class="widget-wrapper" id="vector4d-container"></div>
+      <div class="output" id="vector4d-output">Value: [0.0000, 0.0000, 0.0000, 0.0000]</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>Custom Labels Test</h2>
+      <label>RGB Color Vector:</label>
+      <div class="widget-wrapper" id="vector-rgb-container"></div>
+      <div class="output" id="vector-rgb-output">Value: [0.0000, 0.0000, 0.0000]</div>
+    </div>
+  </div>
+  
+  <script type="module">
+    import { NumberWidget, VectorWidget } from '../src/core/inspect/widgets/index.js';
+    
+    // Test NumberWidget
+    const numberWidget = new NumberWidget('Value', 3.1416, (value) => {
+      document.getElementById('number-output').textContent = `Value: ${value.toFixed(4)}`;
+      console.log('NumberWidget changed:', value);
+    });
+    document.getElementById('number-widget-container').appendChild(numberWidget.getElement());
+    
+    // Test 2D VectorWidget
+    const vector2d = VectorWidget.create2D([1.0, 2.0], (vector) => {
+      document.getElementById('vector2d-output').textContent = 
+        `Value: [${vector.map(v => v.toFixed(4)).join(', ')}]`;
+      console.log('Vector2D changed:', vector);
+    });
+    document.getElementById('vector2d-container').appendChild(vector2d.getElement());
+    
+    // Test 3D VectorWidget
+    const vector3d = VectorWidget.create3D([1.5, 2.5, 3.5], (vector) => {
+      document.getElementById('vector3d-output').textContent = 
+        `Value: [${vector.map(v => v.toFixed(4)).join(', ')}]`;
+      console.log('Vector3D changed:', vector);
+    });
+    document.getElementById('vector3d-container').appendChild(vector3d.getElement());
+    
+    // Test 4D VectorWidget
+    const vector4d = VectorWidget.create4D([0.0, 0.0, 0.0, 1.0], (vector) => {
+      document.getElementById('vector4d-output').textContent = 
+        `Value: [${vector.map(v => v.toFixed(4)).join(', ')}]`;
+      console.log('Vector4D changed:', vector);
+    });
+    document.getElementById('vector4d-container').appendChild(vector4d.getElement());
+    
+    // Test custom labels
+    const vectorRGB = new VectorWidget([1.0, 0.5, 0.0], ['R', 'G', 'B'], (vector) => {
+      document.getElementById('vector-rgb-output').textContent = 
+        `Value: [${vector.map(v => v.toFixed(4)).join(', ')}]`;
+      console.log('Vector RGB changed:', vector);
+    });
+    document.getElementById('vector-rgb-container').appendChild(vectorRGB.getElement());
+    
+    console.log('Vector Widget Test loaded successfully!');
+  </script>
+</body>
+</html>
+

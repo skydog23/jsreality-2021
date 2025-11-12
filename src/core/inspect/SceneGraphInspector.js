@@ -7,6 +7,9 @@ import { Appearance } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
 import { Color } from '../util/Color.js';
+import { FactoredMatrix } from '../math/FactoredMatrix.js';
+import * as Pn from '../math/Pn.js';
+import { ColorPickerWidget, VectorWidget } from './widgets/index.js';
 
 /**
  * Interactive inspector for exploring and editing scene graph structures
@@ -71,7 +74,7 @@ export class SceneGraphInspector {
     // Add styles
     this.#injectStyles();
     
-    // Create main layout
+    // Create main layout (vertical split)
     const inspectorDiv = document.createElement('div');
     inspectorDiv.className = 'sg-inspector';
     
@@ -89,27 +92,75 @@ export class SceneGraphInspector {
     treePanel.appendChild(treeHeader);
     treePanel.appendChild(this.#treeView);
     
-    // Create property panel
+    // Create resizable divider
+    const divider = document.createElement('div');
+    divider.className = 'sg-divider';
+    
+    // Create property panel (no header)
     const propPanel = document.createElement('div');
     propPanel.className = 'sg-property-panel';
-    
-    const propHeader = document.createElement('div');
-    propHeader.className = 'sg-panel-header';
-    propHeader.textContent = 'Properties';
     
     this.#propertyPanel = document.createElement('div');
     this.#propertyPanel.className = 'sg-properties';
     this.#propertyPanel.innerHTML = '<div class="sg-no-selection">Select a node to view properties</div>';
     
-    propPanel.appendChild(propHeader);
     propPanel.appendChild(this.#propertyPanel);
     
     // Add panels to inspector
     inspectorDiv.appendChild(treePanel);
+    inspectorDiv.appendChild(divider);
     inspectorDiv.appendChild(propPanel);
     
     // Add to container
     this.#container.appendChild(inspectorDiv);
+    
+    // Setup resizable divider
+    this.#setupDivider(divider, treePanel, propPanel);
+  }
+
+  /**
+   * Setup the resizable divider
+   * @param {HTMLElement} divider
+   * @param {HTMLElement} topPanel
+   * @param {HTMLElement} bottomPanel
+   * @private
+   */
+  #setupDivider(divider, topPanel, bottomPanel) {
+    let isDragging = false;
+    let startY = 0;
+    let startTopHeight = 0;
+
+    divider.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startTopHeight = topPanel.offsetHeight;
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const delta = e.clientY - startY;
+      const containerHeight = this.#container.offsetHeight;
+      const newTopHeight = startTopHeight + delta;
+      const minHeight = 100; // Minimum panel height
+      
+      if (newTopHeight > minHeight && (containerHeight - newTopHeight) > minHeight) {
+        const percentage = (newTopHeight / containerHeight) * 100;
+        topPanel.style.flex = `0 0 ${percentage}%`;
+        bottomPanel.style.flex = '1';
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    });
   }
 
   /**
@@ -124,6 +175,7 @@ export class SceneGraphInspector {
     style.textContent = `
       .sg-inspector {
         display: flex;
+        flex-direction: column;
         height: 100%;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 13px;
@@ -132,18 +184,30 @@ export class SceneGraphInspector {
       }
       
       .sg-tree-panel {
-        flex: 1;
-        min-width: 250px;
-        border-right: 1px solid #3e3e3e;
+        flex: 0 0 50%;
+        min-height: 100px;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
+      }
+      
+      .sg-divider {
+        height: 4px;
+        background: #3e3e3e;
+        cursor: ns-resize;
+        flex-shrink: 0;
+      }
+      
+      .sg-divider:hover {
+        background: #007acc;
       }
       
       .sg-property-panel {
         flex: 1;
-        min-width: 300px;
+        min-height: 100px;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
       }
       
       .sg-panel-header {
@@ -277,8 +341,8 @@ export class SceneGraphInspector {
         word-break: break-word;
       }
       
-      .sg-prop-value input[type="text"],
-      .sg-prop-value input[type="number"] {
+      .sg-prop-value input[type="text"]:not(.sg-number-widget-input),
+      .sg-prop-value input[type="number"]:not(.sg-number-widget-input) {
         width: 100%;
         background: #3c3c3c;
         border: 1px solid #555;
@@ -322,17 +386,17 @@ export class SceneGraphInspector {
         background: #1177bb;
       }
       
-      /* Color picker styles - vertical layout with alpha (integrated RGBA panel) */
-      .sg-color-picker-container-vertical {
-        display: flex;
-        flex-direction: column;
+      /* Color picker styles - horizontal layout with alpha button */
+      .sg-color-picker-container-horizontal {
+        display: inline-flex;
+        align-items: center;
         gap: 4px;
-        width: 100%;
-        padding: 6px;
-        background: #2a2a2a;
-        border: 1px solid #555;
-        border-radius: 4px;
-        box-sizing: border-box;
+        position: relative;
+      }
+      
+      .sg-color-picker-container-horizontal > .sg-color-input {
+        width: 36px;
+        height: 18px;
       }
       
       /* Color picker styles - simple (no alpha) */
@@ -343,7 +407,7 @@ export class SceneGraphInspector {
       
       .sg-color-input {
         width: 100%;
-        height: 20px;
+        height: 18px;
         border: 1px solid #555;
         border-radius: 3px;
         background: #3c3c3c;
@@ -364,21 +428,81 @@ export class SceneGraphInspector {
         border-radius: 2px;
       }
       
-      /* Alpha slider styles - integrated within RGBA panel */
-      .sg-alpha-slider-container {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        width: 100%;
-        padding-top: 2px;
-      }
-      
-      .sg-alpha-slider-label {
+      /* Alpha button with tooltip-style popup */
+      .sg-alpha-button {
+        width: 20px;
+        height: 18px;
+        padding: 0;
+        background: #3c3c3c;
+        border: 1px solid #555;
+        border-radius: 3px;
         color: #9cdcfe;
         font-size: 11px;
         font-weight: 600;
-        flex-shrink: 0;
-        width: 12px;
+        cursor: pointer;
+        position: relative;
+      }
+      
+      .sg-alpha-button:hover {
+        background: #4a4a4a;
+        border-color: #666;
+      }
+      
+      .sg-alpha-button.active {
+        background: #007acc;
+        border-color: #007acc;
+        color: #ffffff;
+      }
+      
+      /* Alpha slider popup - tooltip style */
+      .sg-alpha-slider-popup {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-top: 2px;
+        padding: 8px 10px;
+        background: #2a2a2a;
+        border: 1px solid #666;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        white-space: nowrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 150px;
+      }
+      
+      /* Invisible bridge to keep popup visible while moving cursor */
+      .sg-alpha-slider-popup::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        right: 0;
+        height: 8px;
+      }
+      
+      /* Show popup on hover */
+      .sg-alpha-button:hover + .sg-alpha-slider-popup,
+      .sg-alpha-slider-popup:hover {
+        display: flex;
+      }
+      
+      /* Tooltip arrow - visual only */
+      .sg-alpha-slider-popup::after {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-bottom: 5px solid #2a2a2a;
+        margin-bottom: -1px;
       }
       
       .sg-alpha-slider {
@@ -427,6 +551,8 @@ export class SceneGraphInspector {
         width: 30px;
         text-align: right;
       }
+      
+      /* NumberWidget and VectorWidget styles are now self-injected by the widgets */
       
       /* Number and text input styles */
       .sg-number-input,
@@ -647,12 +773,6 @@ export class SceneGraphInspector {
       return;
     }
     
-    // Basic info
-    this.#addPropertyGroup('Basic', [
-      { label: 'Name', value: node.getName?.() || 'Unnamed', editable: false },
-      { label: 'Type', value: this.#getNodeType(node), editable: false }
-    ]);
-    
     // Component-specific properties
     if (node instanceof SceneGraphComponent) {
       this.#addComponentProperties(node);
@@ -761,7 +881,126 @@ export class SceneGraphInspector {
   #addTransformationProperties(transform) {
     const matrix = transform.getMatrix();
     
-    // Create matrix grid
+    // Use FactoredMatrix to decompose the transformation
+    const fm = new FactoredMatrix(Pn.EUCLIDEAN, matrix);
+    
+    // Get decomposed values
+    const translation = fm.getTranslation(); // [x, y, z, 1]
+    const stretch = fm.getStretch();         // [sx, sy, sz, 1]
+    const angle = fm.getRotationAngle();     // radians
+    const axis = fm.getRotationAxis();       // [x, y, z]
+    
+    // Helper to update the transformation
+    const updateTransform = () => {
+      const newMatrix = fm.getArray();
+      transform.setMatrix(newMatrix);
+      // Trigger viewer render if available
+      if (typeof window !== 'undefined' && window._viewerInstance) {
+        window._viewerInstance.render();
+      }
+      this.#updatePropertyPanel(transform);
+    };
+    
+    // Position (Translation) - VectorWidget (direct append, no wrapper)
+    const positionWidget = new VectorWidget(
+      [translation[0], translation[1], translation[2]],
+      ['X', 'Y', 'Z'],
+      (newVector) => {
+        fm.setTranslation(newVector[0], newVector[1], newVector[2]);
+        updateTransform();
+      },
+      'Position'
+    );
+    this.#propertyPanel.appendChild(positionWidget.getElement());
+    
+    // Rotation - Combined Angle + Axis in single border
+    const angleDegrees = angle * 180 / Math.PI;
+    const rotationContainer = document.createElement('div');
+    rotationContainer.className = 'sg-rotation-container';
+    rotationContainer.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 6px 8px;
+      background: #2a2a2a;
+      border: 1px solid #555;
+      border-radius: 4px;
+      margin-top: 8px;
+    `;
+    
+    // Rotation label
+    const rotationLabel = document.createElement('div');
+    rotationLabel.style.cssText = `
+      color: #4ec9b0;
+      font-size: 11px;
+      font-weight: 600;
+    `;
+    rotationLabel.textContent = 'Rotation:';
+    rotationContainer.appendChild(rotationLabel);
+    
+    // Angle row
+    const angleRow = document.createElement('div');
+    angleRow.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    `;
+    const angleLabel = document.createElement('span');
+    angleLabel.style.cssText = `
+      color: #9cdcfe;
+      font-size: 11px;
+      font-weight: 600;
+    `;
+    angleLabel.textContent = 'Angle (°):';
+    const angleInput = this.#createNumberInput(angleDegrees, (val) => {
+      const angleRad = val * Math.PI / 180;
+      const currentAxis = fm.getRotationAxis();
+      fm.setRotation(angleRad, currentAxis);
+      updateTransform();
+    });
+    angleRow.appendChild(angleLabel);
+    angleRow.appendChild(angleInput);
+    rotationContainer.appendChild(angleRow);
+    
+    // Axis VectorWidget (without group label since it's in the container)
+    const rotationAxisWidget = new VectorWidget(
+      [axis[0], axis[1], axis[2]],
+      ['X', 'Y', 'Z'],
+      (newAxis) => {
+        const currentAngle = fm.getRotationAngle();
+        fm.setRotation(currentAngle, newAxis);
+        updateTransform();
+      },
+      'Axis'
+    );
+    rotationContainer.appendChild(rotationAxisWidget.getElement());
+    this.#propertyPanel.appendChild(rotationContainer);
+    
+    // Scale (Stretch) - VectorWidget (direct append, no wrapper)
+    const scaleWidget = new VectorWidget(
+      [stretch[0], stretch[1], stretch[2]],
+      ['X', 'Y', 'Z'],
+      (newScale) => {
+        fm.setStretchComponents(newScale[0], newScale[1], newScale[2]);
+        updateTransform();
+      },
+      'Scale'
+    );
+    scaleWidget.getElement().style.marginTop = '8px';
+    this.#propertyPanel.appendChild(scaleWidget.getElement());
+    
+    // Raw matrix (collapsible, for reference)
+    const matrixToggle = document.createElement('div');
+    matrixToggle.className = 'sg-matrix-toggle';
+    matrixToggle.textContent = '▸ Show Raw Matrix';
+    matrixToggle.style.cursor = 'pointer';
+    matrixToggle.style.color = '#9cdcfe';
+    matrixToggle.style.marginBottom = '8px';
+    matrixToggle.style.userSelect = 'none';
+    
+    const matrixContainer = document.createElement('div');
+    matrixContainer.style.display = 'none';
+    
     const grid = document.createElement('div');
     grid.className = 'sg-matrix-grid';
     for (let i = 0; i < 16; i++) {
@@ -770,9 +1009,20 @@ export class SceneGraphInspector {
       cell.textContent = matrix[i].toFixed(3);
       grid.appendChild(cell);
     }
+    matrixContainer.appendChild(grid);
     
-    this.#addPropertyGroup('Matrix (4×4)', [
-      { label: '', value: grid, editable: false }
+    matrixToggle.addEventListener('click', () => {
+      const isHidden = matrixContainer.style.display === 'none';
+      matrixContainer.style.display = isHidden ? 'block' : 'none';
+      matrixToggle.textContent = isHidden ? '▾ Hide Raw Matrix' : '▸ Show Raw Matrix';
+    });
+    
+    const matrixSection = document.createElement('div');
+    matrixSection.appendChild(matrixToggle);
+    matrixSection.appendChild(matrixContainer);
+    
+    this.#addPropertyGroup('Matrix', [
+      { label: '', value: matrixSection, editable: false }
     ]);
   }
 
@@ -816,20 +1066,12 @@ export class SceneGraphInspector {
    * @private
    */
   #createEditableProperty(label, value, onChange) {
-    // Check if value is a Color object
-    if (value instanceof Color) {
+    // Check if value is a valid color (Color object or color array)
+    if (ColorPickerWidget.isColorValue(value)) {
+      const widget = new ColorPickerWidget(value, onChange);
       return {
         label,
-        value: this.#createColorPickerFromColor(value, onChange),
-        editable: true
-      };
-    }
-    
-    // Check if value is a color array (array of 3 or 4 numbers)
-    if (this.#isColorArray(value)) {
-      return {
-        label,
-        value: this.#createColorPicker(value, onChange),
+        value: widget.getElement(),
         editable: true
       };
     }
@@ -870,207 +1112,6 @@ export class SceneGraphInspector {
     };
   }
 
-  /**
-   * Check if value is a color array
-   * @param {*} value - Value to check
-   * @returns {boolean}
-   * @private
-   */
-  #isColorArray(value) {
-    if (!Array.isArray(value)) return false;
-    if (value.length !== 3 && value.length !== 4) return false;
-    return value.every(v => typeof v === 'number');
-  }
-
-  /**
-   * Create a color picker widget for Color objects
-   * @param {Color} colorObj - Color object
-   * @param {Function} onChange - Change handler
-   * @returns {HTMLElement}
-   * @private
-   */
-  #createColorPickerFromColor(colorObj, onChange) {
-    const container = document.createElement('div');
-    container.className = 'sg-color-picker-container-vertical';
-    
-    // Color input (HTML5 color picker)
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = colorObj.toHexString();
-    colorInput.className = 'sg-color-input';
-    
-    // Alpha slider container
-    const alphaContainer = document.createElement('div');
-    alphaContainer.className = 'sg-alpha-slider-container';
-    
-    const alphaLabel = document.createElement('span');
-    alphaLabel.className = 'sg-alpha-slider-label';
-    alphaLabel.textContent = 'α';
-    
-    const alphaSlider = document.createElement('input');
-    alphaSlider.type = 'range';
-    alphaSlider.min = '0';
-    alphaSlider.max = '255';
-    alphaSlider.step = '1';
-    alphaSlider.value = colorObj.a;
-    alphaSlider.className = 'sg-alpha-slider';
-    
-    const alphaValue = document.createElement('span');
-    alphaValue.className = 'sg-alpha-value';
-    alphaValue.textContent = colorObj.a;
-    
-    // Update handler for color
-    colorInput.addEventListener('change', () => {
-      const hex = colorInput.value;
-      const r = parseInt(hex.substr(1, 2), 16);
-      const g = parseInt(hex.substr(3, 2), 16);
-      const b = parseInt(hex.substr(5, 2), 16);
-      
-      const newColor = new Color(r, g, b, parseInt(alphaSlider.value, 10));
-      onChange(newColor);
-    });
-    
-    // Update handler for alpha slider
-    alphaSlider.addEventListener('input', () => {
-      alphaValue.textContent = alphaSlider.value;
-    });
-    
-    alphaSlider.addEventListener('change', () => {
-      const hex = colorInput.value;
-      const r = parseInt(hex.substr(1, 2), 16);
-      const g = parseInt(hex.substr(3, 2), 16);
-      const b = parseInt(hex.substr(5, 2), 16);
-      
-      const alpha = parseInt(alphaSlider.value, 10);
-      const newColor = new Color(r, g, b, alpha);
-      onChange(newColor);
-    });
-    
-    alphaContainer.appendChild(alphaLabel);
-    alphaContainer.appendChild(alphaSlider);
-    alphaContainer.appendChild(alphaValue);
-    
-    container.appendChild(colorInput);
-    container.appendChild(alphaContainer);
-    
-    return container;
-  }
-
-  /**
-   * Create a color picker widget
-   * @param {number[]} colorArray - Color as array [r,g,b] or [r,g,b,a]
-   * @param {Function} onChange - Change handler
-   * @returns {HTMLElement}
-   * @private
-   */
-  #createColorPicker(colorArray, onChange) {
-    const container = document.createElement('div');
-    container.className = colorArray.length === 4 ? 'sg-color-picker-container-vertical' : 'sg-color-picker-container-simple';
-    
-    // Normalize color to 0-255 range if needed
-    const normalized = colorArray.map(v => v <= 1 ? Math.round(v * 255) : v);
-    const r = Math.min(255, Math.max(0, normalized[0]));
-    const g = Math.min(255, Math.max(0, normalized[1]));
-    const b = Math.min(255, Math.max(0, normalized[2]));
-    const wasNormalized = colorArray[0] <= 1;
-    
-    // Color input (HTML5 color picker)
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    colorInput.className = 'sg-color-input';
-    
-    // Alpha channel slider (if RGBA)
-    if (colorArray.length === 4) {
-      const alphaContainer = document.createElement('div');
-      alphaContainer.className = 'sg-alpha-slider-container';
-      
-      const alphaLabel = document.createElement('span');
-      alphaLabel.className = 'sg-alpha-slider-label';
-      alphaLabel.textContent = 'α';
-      
-      const alphaSlider = document.createElement('input');
-      alphaSlider.type = 'range';
-      alphaSlider.min = '0';
-      alphaSlider.max = wasNormalized ? '100' : '255';
-      alphaSlider.step = '1';
-      const currentAlpha = wasNormalized ? Math.round(colorArray[3] * 100) : Math.round(colorArray[3]);
-      alphaSlider.value = currentAlpha;
-      alphaSlider.className = 'sg-alpha-slider';
-      
-      const alphaValue = document.createElement('span');
-      alphaValue.className = 'sg-alpha-value';
-      alphaValue.textContent = wasNormalized ? colorArray[3].toFixed(2) : Math.round(colorArray[3]);
-      
-      // Update handler for color
-      colorInput.addEventListener('change', () => {
-        const hex = colorInput.value;
-        const r = parseInt(hex.substr(1, 2), 16);
-        const g = parseInt(hex.substr(3, 2), 16);
-        const b = parseInt(hex.substr(5, 2), 16);
-        
-        const alpha = wasNormalized 
-          ? parseInt(alphaSlider.value, 10) / 100
-          : parseInt(alphaSlider.value, 10);
-        
-        const newColor = wasNormalized 
-          ? [r / 255, g / 255, b / 255, alpha]
-          : [r, g, b, alpha];
-        
-        onChange(newColor);
-      });
-      
-      // Update handler for alpha slider
-      alphaSlider.addEventListener('input', () => {
-        const displayValue = wasNormalized 
-          ? (parseInt(alphaSlider.value, 10) / 100).toFixed(2)
-          : alphaSlider.value;
-        alphaValue.textContent = displayValue;
-      });
-      
-      alphaSlider.addEventListener('change', () => {
-        const hex = colorInput.value;
-        const r = parseInt(hex.substr(1, 2), 16);
-        const g = parseInt(hex.substr(3, 2), 16);
-        const b = parseInt(hex.substr(5, 2), 16);
-        
-        const alpha = wasNormalized 
-          ? parseInt(alphaSlider.value, 10) / 100
-          : parseInt(alphaSlider.value, 10);
-        
-        const newColor = wasNormalized 
-          ? [r / 255, g / 255, b / 255, alpha]
-          : [r, g, b, alpha];
-        
-        onChange(newColor);
-      });
-      
-      alphaContainer.appendChild(alphaLabel);
-      alphaContainer.appendChild(alphaSlider);
-      alphaContainer.appendChild(alphaValue);
-      
-      container.appendChild(colorInput);
-      container.appendChild(alphaContainer);
-    } else {
-      // RGB only
-      colorInput.addEventListener('change', () => {
-        const hex = colorInput.value;
-        const r = parseInt(hex.substr(1, 2), 16);
-        const g = parseInt(hex.substr(3, 2), 16);
-        const b = parseInt(hex.substr(5, 2), 16);
-        
-        const newColor = wasNormalized 
-          ? [r / 255, g / 255, b / 255]
-          : [r, g, b];
-        
-        onChange(newColor);
-      });
-      
-      container.appendChild(colorInput);
-    }
-    
-    return container;
-  }
 
   /**
    * Create a number input widget

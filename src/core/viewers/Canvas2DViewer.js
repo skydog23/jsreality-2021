@@ -422,16 +422,17 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   _clearCanvas() {
     const ctx = this.#context;
     const canvas = this.#canvas;
-    
+    this.#appearanceStack.push(this.#viewer.getSceneRoot().getAppearance());
     // Temporarily reset transform to identity for clearing
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     
     // Get background color from appearance stack, fall back to default
-    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, '#cccccc');
+    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, CommonAttributes.BACKGROUND_COLOR_DEFAULT);
     ctx.fillStyle = this.toCSSColor(backgroundColor);
     // Clear using the full bitmap dimensions
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+    this.#appearanceStack.pop();
+
     // Restore the NDC-to-screen transform
     this._setupCanvasTransform();
   }

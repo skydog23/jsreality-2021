@@ -44,8 +44,18 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            border-right: 1px solid #3e3e3e;
-            min-width: 500px;
+            min-width: 300px;
+        }
+        
+        .main-divider {
+            width: 4px;
+            background: #3e3e3e;
+            cursor: ew-resize;
+            flex-shrink: 0;
+        }
+        
+        .main-divider:hover {
+            background: #007acc;
         }
         
         .canvas-header {
@@ -75,9 +85,10 @@
         }
         
         .inspector-panel {
-            flex: 0 0 600px;
+            flex: 0 0 40%;
             display: flex;
             flex-direction: column;
+            min-width: 300px;
         }
         
         .info {
@@ -108,13 +119,15 @@
     </div>
     
     <div class="main-container">
-        <div class="canvas-panel">
+        <div class="canvas-panel" id="canvas-panel">
             <div class="canvas-header">Canvas Viewer</div>
             <div class="canvas-container">
                 <canvas id="canvas2d-test" width="800" height="600"></canvas>
             </div>
             <div id="info-container" class="info"></div>
         </div>
+        
+        <div class="main-divider" id="main-divider"></div>
         
         <div class="inspector-panel" id="inspector-container"></div>
     </div>
@@ -124,6 +137,50 @@
     <script type="module">
         import { runCanvas2DTest } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
+        
+        // Setup resizable divider between canvas and inspector
+        function setupMainDivider() {
+            const divider = document.getElementById('main-divider');
+            const canvasPanel = document.getElementById('canvas-panel');
+            const inspectorPanel = document.getElementById('inspector-container');
+            const mainContainer = document.querySelector('.main-container');
+            
+            let isDragging = false;
+            let startX = 0;
+            let startCanvasWidth = 0;
+            
+            divider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startCanvasWidth = canvasPanel.offsetWidth;
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const delta = e.clientX - startX;
+                const containerWidth = mainContainer.offsetWidth;
+                const newCanvasWidth = startCanvasWidth + delta;
+                const minWidth = 300; // Minimum panel width
+                
+                if (newCanvasWidth > minWidth && (containerWidth - newCanvasWidth) > minWidth) {
+                    const percentage = (newCanvasWidth / containerWidth) * 100;
+                    canvasPanel.style.flex = `0 0 ${percentage}%`;
+                    inspectorPanel.style.flex = '1';
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
         
         try {
             // Run the test
@@ -158,6 +215,9 @@
             
             console.log('✓ Inspector integrated with viewer');
             console.log('✓ You can now edit appearance attributes and see changes in real-time!');
+            
+            // Setup resizable main divider
+            setupMainDivider();
             
             // Add a test to verify console.log is working
             window.testConsole = function() {
