@@ -141,10 +141,13 @@ export class NumberWidget {
     const container = document.createElement('div');
     container.className = 'sg-number-widget';
 
-    // Label with colon
-    const label = document.createElement('span');
-    label.className = 'sg-number-widget-label';
-    label.textContent = this.#label + ':';
+    // Label with colon (only add if label is not empty)
+    if (this.#label) {
+      const label = document.createElement('span');
+      label.className = 'sg-number-widget-label';
+      label.textContent = this.#label + ':';
+      container.appendChild(label);
+    }
 
     // Input field
     this.#input = document.createElement('input');
@@ -169,7 +172,6 @@ export class NumberWidget {
       this.#input.select();
     });
 
-    container.appendChild(label);
     container.appendChild(this.#input);
 
     return container;

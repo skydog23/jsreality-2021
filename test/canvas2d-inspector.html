@@ -110,12 +110,109 @@
             border-radius: 4px;
             border: 1px solid #f5c6cb;
         }
+        
+        /* Menubar styles */
+        .menubar {
+            background: #2d2d2d;
+            border-bottom: 1px solid #3e3e3e;
+            display: flex;
+            padding: 0;
+            font-size: 13px;
+            user-select: none;
+        }
+        
+        .menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            position: relative;
+            color: #cccccc;
+        }
+        
+        .menu-item:hover {
+            background: #3e3e3e;
+        }
+        
+        .menu-item.active {
+            background: #094771;
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #2d2d2d;
+            border: 1px solid #3e3e3e;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        .menu-option {
+            padding: 8px 16px;
+            cursor: pointer;
+            color: #cccccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .menu-option:hover {
+            background: #094771;
+        }
+        
+        .menu-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .menu-option.disabled:hover {
+            background: transparent;
+        }
+        
+        .menu-separator {
+            height: 1px;
+            background: #3e3e3e;
+            margin: 4px 0;
+        }
+        
+        .menu-shortcut {
+            color: #858585;
+            font-size: 11px;
+            margin-left: 24px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🔍 Canvas2D Viewer with Scene Graph Inspector</h1>
         <p>Interactive viewer and inspector for exploring jSReality scene graphs</p>
+    </div>
+    
+    <div class="menubar">
+        <div class="menu-item" id="file-menu">
+            File
+            <div class="dropdown-menu" id="file-dropdown">
+                <div class="menu-option" id="export-image-png">
+                    <span>Export as PNG</span>
+                </div>
+                <div class="menu-option" id="export-image-jpeg">
+                    <span>Export as JPEG</span>
+                </div>
+            </div>
+        </div>
+        <div class="menu-item" id="view-menu">
+            View
+            <div class="dropdown-menu" id="view-dropdown">
+                <div class="menu-option" id="reset-camera">
+                    <span>Reset Camera</span>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="main-container">
@@ -182,6 +279,91 @@
             });
         }
         
+        // Setup menubar functionality
+        function setupMenubar(viewer) {
+            let activeMenu = null;
+            
+            // Close all menus
+            function closeAllMenus() {
+                document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                activeMenu = null;
+            }
+            
+            // Toggle menu
+            function toggleMenu(menuItem, dropdown) {
+                const wasActive = dropdown.classList.contains('show');
+                closeAllMenus();
+                
+                if (!wasActive) {
+                    dropdown.classList.add('show');
+                    menuItem.classList.add('active');
+                    activeMenu = dropdown;
+                }
+            }
+            
+            // Setup File menu
+            const fileMenu = document.getElementById('file-menu');
+            const fileDropdown = document.getElementById('file-dropdown');
+            
+            fileMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMenu(fileMenu, fileDropdown);
+            });
+            
+            // Setup View menu
+            const viewMenu = document.getElementById('view-menu');
+            const viewDropdown = document.getElementById('view-dropdown');
+            
+            viewMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMenu(viewMenu, viewDropdown);
+            });
+            
+            // Export as PNG
+            document.getElementById('export-image-png').addEventListener('click', () => {
+                closeAllMenus();
+                const dataURL = viewer.exportImage('image/png');
+                downloadImage(dataURL, 'scene-export.png');
+            });
+            
+            // Export as JPEG
+            document.getElementById('export-image-jpeg').addEventListener('click', () => {
+                closeAllMenus();
+                const dataURL = viewer.exportImage('image/jpeg', 0.95);
+                downloadImage(dataURL, 'scene-export.jpg');
+            });
+            
+            // Reset camera (placeholder for now)
+            document.getElementById('reset-camera').addEventListener('click', () => {
+                closeAllMenus();
+                console.log('Reset camera - not yet implemented');
+                // TODO: Implement camera reset functionality
+            });
+            
+            // Close menus when clicking outside
+            document.addEventListener('click', (e) => {
+                if (activeMenu && !e.target.closest('.menu-item')) {
+                    closeAllMenus();
+                }
+            });
+            
+            // Helper function to download image
+            function downloadImage(dataURL, filename) {
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                console.log(`✓ Image exported as ${filename}`);
+            }
+        }
+        
         try {
             // Run the test
             const viewer = runCanvas2DTest();
@@ -218,6 +400,10 @@
             
             // Setup resizable main divider
             setupMainDivider();
+            
+            // Setup menubar
+            setupMenubar(viewer);
+            console.log('✓ Menubar initialized');
             
             // Add a test to verify console.log is working
             window.testConsole = function() {

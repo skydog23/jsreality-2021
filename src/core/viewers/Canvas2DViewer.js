@@ -426,10 +426,13 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     // Temporarily reset transform to identity for clearing
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     
-    // Get background color from appearance stack, fall back to default
+    // First, completely clear the canvas to transparent
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Then apply the background color (which may have alpha < 1.0)
     const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, CommonAttributes.BACKGROUND_COLOR_DEFAULT);
     ctx.fillStyle = this.toCSSColor(backgroundColor);
-    // Clear using the full bitmap dimensions
+    console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.#appearanceStack.pop();
 

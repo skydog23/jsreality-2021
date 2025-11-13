@@ -9,7 +9,7 @@ import { Camera } from '../scene/Camera.js';
 import { Color } from '../util/Color.js';
 import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
-import { ColorPickerWidget, VectorWidget } from './widgets/index.js';
+import { ColorPickerWidget, VectorWidget, NumberWidget } from './widgets/index.js';
 
 /**
  * Interactive inspector for exploring and editing scene graph structures
@@ -1088,9 +1088,11 @@ export class SceneGraphInspector {
     
     // Check for number
     if (typeof value === 'number') {
+      // Use empty label since the property group already displays the label in the left column
+      const widget = new NumberWidget('', value, onChange);
       return {
         label,
-        value: this.#createNumberInput(value, onChange),
+        value: widget.getElement(),
         editable: true
       };
     }
