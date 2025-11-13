@@ -10,16 +10,99 @@ import { SceneGraphNode } from './SceneGraphNode.js';
  */
 export class Rectangle2D {
   /**
-   * @param {number} x - X coordinate
-   * @param {number} y - Y coordinate  
-   * @param {number} width - Width
-   * @param {number} height - Height
+   * @param {number} x - X coordinate (default 0)
+   * @param {number} y - Y coordinate (default 0)
+   * @param {number} width - Width (default 0)
+   * @param {number} height - Height (default 0)
    */
-  constructor(x, y, width, height) {
+  constructor(x = 0, y = 0, width = 0, height = 0) {
     this.x = x;
     this.y = y;
     this.width = width;
     this.height = height;
+  }
+
+  /**
+   * Get the minimum X coordinate
+   * @returns {number}
+   */
+  getMinX() {
+    return this.x;
+  }
+
+  /**
+   * Get the minimum Y coordinate
+   * @returns {number}
+   */
+  getMinY() {
+    return this.y;
+  }
+
+  /**
+   * Get the maximum X coordinate
+   * @returns {number}
+   */
+  getMaxX() {
+    return this.x + this.width;
+  }
+
+  /**
+   * Get the maximum Y coordinate
+   * @returns {number}
+   */
+  getMaxY() {
+    return this.y + this.height;
+  }
+
+  /**
+   * Get the width
+   * @returns {number}
+   */
+  getWidth() {
+    return this.width;
+  }
+
+  /**
+   * Get the height
+   * @returns {number}
+   */
+  getHeight() {
+    return this.height;
+  }
+
+  /**
+   * Set the rectangle from diagonal corners
+   * @param {number} x1 - First corner X
+   * @param {number} y1 - First corner Y
+   * @param {number} x2 - Second corner X
+   * @param {number} y2 - Second corner Y
+   */
+  setFrameFromDiagonal(x1, y1, x2, y2) {
+    const minX = Math.min(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxX = Math.max(x1, x2);
+    const maxY = Math.max(y1, y2);
+    
+    this.x = minX;
+    this.y = minY;
+    this.width = maxX - minX;
+    this.height = maxY - minY;
+  }
+
+  /**
+   * Create a copy of this rectangle
+   * @returns {Rectangle2D}
+   */
+  clone() {
+    return new Rectangle2D(this.x, this.y, this.width, this.height);
+  }
+
+  /**
+   * Convert to string for debugging
+   * @returns {string}
+   */
+  toString() {
+    return `Rectangle2D[x=${this.x}, y=${this.y}, width=${this.width}, height=${this.height}]`;
   }
 }
 

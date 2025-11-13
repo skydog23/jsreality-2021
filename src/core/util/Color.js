@@ -109,6 +109,19 @@ export class Color {
     toString() {
         return `Color(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
     }
+
+    /**
+     * Static utility to convert any color value to CSS string
+     * Handles Color objects, strings, arrays, etc.
+     * @param {*} colorValue - Color object, string, or other value
+     * @returns {string} CSS color string
+     */
+    static toCSSColor(colorValue) {
+        if (colorValue && typeof colorValue.toCSSString === 'function') {
+            return colorValue.toCSSString();
+        }
+        return String(colorValue);
+    }
 }
 
 // Common color constants matching Java's Color class

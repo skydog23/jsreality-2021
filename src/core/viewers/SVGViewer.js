@@ -11,6 +11,8 @@ import * as Pn from '../math/Pn.js';
 import * as P3 from '../math/P3.js';
 import { Camera, Rectangle2D } from '../scene/Camera.js';
 import { INHERITED } from '../scene/Appearance.js';
+import * as CameraUtility from '../util/CameraUtility.js';
+import { Color } from '../util/Color.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -315,7 +317,7 @@ class SVGRenderer extends SceneGraphVisitor {
     console.log('  - Computing transformations...');
     const world2Cam = cameraPath.getInverseMatrix();
     console.log('  - world2Cam matrix:', world2Cam);
-    const cam2ndc = this.#viewer._computeCam2NDCMatrix(this.#camera);
+    const cam2ndc = CameraUtility.getCameraToNDC(this.#viewer);
     console.log('  - cam2ndc matrix:', cam2ndc);
     Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
     console.log('  - world2ndc matrix:', this.#world2ndc);
@@ -509,14 +511,12 @@ class SVGRenderer extends SceneGraphVisitor {
 
   /**
    * Convert a Color object to CSS string
+   * Delegates to Color.toCSSColor() static method
    * @param {*} colorValue - Color object or string
    * @returns {string}
    */
   toCSSColor(colorValue) {
-    if (colorValue && typeof colorValue.toCSSString === 'function') {
-      return colorValue.toCSSString();
-    }
-    return String(colorValue);
+    return Color.toCSSColor(colorValue);
   }
 
   /**

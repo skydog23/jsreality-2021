@@ -59,7 +59,7 @@ function createTestScene() {
   cameraComponent.addChild(camera);
   
   const cameraTransform = new Transformation();
-  const cameraMatrix = MatrixBuilder.euclidean().translate(0,0,-1).getArray();
+  const cameraMatrix = MatrixBuilder.euclidean().translate(0,0,-1).scale(2,2,1).getArray();
    cameraTransform.setMatrix(cameraMatrix);
   cameraComponent.setTransformation(cameraTransform);
   

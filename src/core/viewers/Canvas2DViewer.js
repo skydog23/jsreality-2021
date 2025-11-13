@@ -1,16 +1,12 @@
 // Canvas2D implementation of the Viewer interface
 // Provides 2D rendering using HTML5 Canvas 2D context
 
-import { Viewer, Dimension } from '../scene/Viewer.js';
-import { SceneGraphVisitor } from '../scene/SceneGraphVisitor.js';
-import { Matrix } from '../math/Matrix.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { Dimension } from '../scene/Viewer.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import * as Rn from '../math/Rn.js';
-import * as Pn from '../math/Pn.js';
-import * as P3 from '../math/P3.js';
-import { Camera, Rectangle2D } from '../scene/Camera.js';
-import { INHERITED } from '../scene/Appearance.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -24,19 +20,13 @@ import { INHERITED } from '../scene/Appearance.js';
  * A 2D Canvas-based viewer implementation for jReality scene graphs.
  * Renders geometry using HTML5 Canvas 2D context with simple projection.
  */
-export class Canvas2DViewer extends Viewer {
+export class Canvas2DViewer extends Abstract2DViewer {
 
   /** @type {HTMLCanvasElement} */
   #canvas;
 
   /** @type {CanvasRenderingContext2D} */
   #context;
-
-  /** @type {SceneGraphComponent|null} */
-  #sceneRoot = null;
-
-  /** @type {SceneGraphPath|null} */
-  #cameraPath = null;
 
   /** @type {boolean} */
   #autoResize = true;
@@ -126,22 +116,7 @@ export class Canvas2DViewer extends Viewer {
   }
 
   // Viewer interface implementation
-
-  getSceneRoot() {
-    return this.#sceneRoot;
-  }
-
-  setSceneRoot(root) {
-    this.#sceneRoot = root;
-  }
-
-  getCameraPath() {
-    return this.#cameraPath;
-  }
-
-  setCameraPath(cameraPath) {
-    this.#cameraPath = cameraPath;
-  }
+  // (getSceneRoot, setSceneRoot, getCameraPath, setCameraPath inherited from Abstract2DViewer)
 
   render() {
   
@@ -162,9 +137,7 @@ export class Canvas2DViewer extends Viewer {
     }
 
 
-  hasViewingComponent() {
-    return true;
-  }
+  // hasViewingComponent() inherited from Abstract2DViewer
 
   getViewingComponent() {
     return this.#canvas;
@@ -174,13 +147,7 @@ export class Canvas2DViewer extends Viewer {
     return new Dimension(this.#canvas.width, this.#canvas.height);
   }
 
-  canRenderAsync() {
-    return true;
-  }
-
-  renderAsync() {
-    requestAnimationFrame(() => this.render());
-  }
+  // canRenderAsync() and renderAsync() inherited from Abstract2DViewer
 
   // Additional Canvas2D-specific methods
 
@@ -210,19 +177,7 @@ export class Canvas2DViewer extends Viewer {
 
 
 
-  /**
-   * Get camera from camera path
-   * @protected - Internal method for use by related classes
-   * @returns {Camera|null}
-   */
-  _getCamera() {
-    if (!this.#cameraPath || this.#cameraPath.getLength() === 0) {
-      return null;
-    }
-    
-    const lastElement = this.#cameraPath.getLastElement();
-    return lastElement && lastElement.constructor.name === 'Camera' ? lastElement : null;
-  }
+  // _getCamera() inherited from Abstract2DViewer
 
   /**
    * Get the viewing component (canvas)
@@ -234,40 +189,19 @@ export class Canvas2DViewer extends Viewer {
   }
 
   /**
-   * Compute projection matrix for the camera
-   * @private
+   * Compute projection matrix for the camera (Canvas-specific override)
+   * @protected
    * @param {Camera} camera
    * @returns {number[]} 4x4 projection matrix
    */
-_computeCam2NDCMatrix(camera) {
+  _computeCam2NDCMatrix(camera) {
     const canvas = this.#canvas;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const aspect = width / height;
 
-    const projMatrix = new Array(16);
-    
-    if (camera.isPerspective()) {
-      // Perspective projection
-      const fov = camera.getFieldOfView() * Math.PI / 180; // Convert to radians
-      const near = camera.getNear();
-      const far = camera.getFar();
-      
-      P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
-    } else {
-      // Orthographic projection
-      const size = 5; //camera.getViewPort().width; 
-      const left = -size * aspect;
-      const right = size * aspect;
-      const bottom = -size;
-      const top = size;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      const vp = new Rectangle2D(left, bottom, right - left, top - bottom);
-      P3.makeOrthographicProjectionMatrix(projMatrix, vp, near, far);
-    }
-
-    return projMatrix;
+    // Call base class method with computed aspect ratio
+    return super._computeCam2NDCMatrix(camera, aspect);
   }
 
   
@@ -278,11 +212,9 @@ _computeCam2NDCMatrix(camera) {
 
 /**
  * Canvas2D rendering visitor that traverses the scene graph and renders geometry
+ * Extends Abstract2DRenderer with Canvas-specific drawing operations
  */
-class Canvas2DRenderer extends SceneGraphVisitor {
-
-  /** @type {Canvas2DViewer} */
-  #viewer;
+class Canvas2DRenderer extends Abstract2DRenderer {
 
   /** @type {CanvasRenderingContext2D} */
   #context;
@@ -290,76 +222,60 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   /** @type {HTMLCanvasElement} */
   #canvas;
 
-  /** @type {Camera} */
-  #camera;
-
-  /** @type {Appearance[]} Stack of appearances for hierarchical attribute resolution */
-  #appearanceStack = [];
-
-  /** @type {number[][]} Stack of transformation matrices for hierarchical transformations */
-  #transformationStack = [];
-
-  /** @type {number[]} World-to-camera transformation matrix */
-  #world2Cam;
-
-  /** @type {number[]} Camera-to-NDC transformation matrix */
-  #cam2ndc;
-
-  /** @type {number[]} NDC-to-screen transformation matrix */
-  #ndc2screen;
-
-  /** @type {number[]} Combined world-to-NDC transformation matrix */
-  #world2ndc;
-
   /**
    * Create a new Canvas2D renderer
    * @param {Canvas2DViewer} viewer - The viewer
    */
   constructor(viewer) {
-    super();
-    this.#viewer = viewer;
+    super(viewer);
     this.#canvas = viewer._getViewingComponent();
     this.#context = this.#canvas.getContext('2d');
-    this.#camera = viewer._getCamera();
-    this.#world2ndc = new Array(16);
   }
 
-  render() {
-    const cameraPath = this.#viewer.getCameraPath();
-    const sceneRoot = this.#viewer.getSceneRoot();
-
-    if (!cameraPath || !sceneRoot) {
-      return;
-    }
-
-    // Get world-to-camera transformation
-    const world2Cam = cameraPath.getInverseMatrix();
-    const cam2ndc = this.#viewer._computeCam2NDCMatrix(this.#camera);
-    Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
-   this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
-
-    this._setupCanvasTransform();
-    // Clear canvas with proper background color
-    this._clearCanvas();
-
-      // Render the scene
-    try {
-      console.log('Calling sceneRoot.accept(this)');
-      sceneRoot.accept(this);
-      console.log('sceneRoot.accept(this) completed');
- 
-    } catch (error) {
-      console.error('Rendering error:', error);
-    }
-  }
-
+  // render() inherited from Abstract2DRenderer
 
   /**
-   * Get the current transformation matrix from the top of the stack
-   * @returns {number[]} The current transformation matrix
+   * Setup Canvas-specific rendering context (implements abstract method)
+   * @protected
    */
-  getCurrentTransformation() {
-    return this.#transformationStack[this.#transformationStack.length - 1];
+  _setupRendering() {
+    this._setupCanvasTransform();
+  }
+
+  /**
+   * Clear canvas and draw background (implements abstract method)
+   * @protected
+   */
+  _clearSurface() {
+    this._clearCanvas();
+  }
+
+
+  // getCurrentTransformation() inherited from Abstract2DRenderer
+
+  /**
+   * Push transformation state - save canvas context (implements abstract method)
+   * @protected
+   */
+  _pushTransformState() {
+    this.#context.save();
+  }
+
+  /**
+   * Pop transformation state - restore canvas context (implements abstract method)
+   * @protected
+   */
+  _popTransformState() {
+    this.#context.restore();
+  }
+
+  /**
+   * Apply transformation matrix to canvas (implements abstract method)
+   * @protected
+   * @param {number[]} matrix - 4x4 transformation matrix
+   */
+  _applyTransform(matrix) {
+    this.pushTransform(this.#context, matrix);
   }
 
   /**
@@ -371,7 +287,8 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     const ctx = this.#context;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    const ratio = this.#viewer._pixelRatio;
+    const viewer = this._getViewer();
+    const ratio = viewer._pixelRatio;
     
     // Reset transform to identity, then reapply pixel ratio scaling
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -390,7 +307,7 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     
     // Apply the base world-to-NDC transformation
     // This will be the foundation that all scene transformations build upon
-    const world2ndc = this.#world2ndc;
+    const world2ndc = this._getWorld2NDC();
     this.pushTransform(ctx, world2ndc);
   }
 
@@ -400,18 +317,18 @@ class Canvas2DRenderer extends SceneGraphVisitor {
    * @param {number[]} matrix - 4x4 transformation matrix
    * @private
    */
- pushTransform(ctx, world2ndc) {
+ pushTransform(ctx, tform) {
 // Extract the 2D transformation components from the 4x4 matrix
     // Canvas 2D uses: [a c e]  where a,c,e = scale/skew X, translate X
     //                 [b d f]        b,d,f = skew/scale Y, translate Y
     //                 [0 0 1]
     ctx.transform(
-      world2ndc[0], // a: x-scale
-      world2ndc[1], // b: y-skew  
-      world2ndc[4], // c: x-skew
-      world2ndc[5], // d: y-scale
-      world2ndc[3], // e: x-translate
-      world2ndc[7]
+      tform[0], // a: x-scale
+      tform[1], // b: y-skew  
+      tform[4], // c: x-skew
+      tform[5], // d: y-scale
+      tform[3], // e: x-translate
+      tform[7]
     );
   }
 
@@ -422,7 +339,9 @@ class Canvas2DRenderer extends SceneGraphVisitor {
   _clearCanvas() {
     const ctx = this.#context;
     const canvas = this.#canvas;
-    this.#appearanceStack.push(this.#viewer.getSceneRoot().getAppearance());
+    const appearanceStack = this._getAppearanceStack();
+    const viewer = this._getViewer();
+    appearanceStack.push(viewer.getSceneRoot().getAppearance());
     // Temporarily reset transform to identity for clearing
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     
@@ -434,150 +353,15 @@ class Canvas2DRenderer extends SceneGraphVisitor {
     ctx.fillStyle = this.toCSSColor(backgroundColor);
     console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    this.#appearanceStack.pop();
+    appearanceStack.pop();
 
     // Restore the NDC-to-screen transform
     this._setupCanvasTransform();
   }
 
-  /**
-   * Visit a SceneGraphComponent - this is the key method for traversal
-   * @param {SceneGraphComponent} component
-   */
-  visitComponent(component) {
-    if (!component.isVisible()) {
-      return;
-    }
-    // Push this component onto the path for transformation calculations
-    this.pushPath(component);
-    
-    let hasTransformation = false;
-    let hasAppearance = false;
-    
-    try {
-      // Check if we need to save canvas state for transformation
-      const transformation = component.getTransformation();
-      if (transformation) {
-        hasTransformation = true;
-        this.#context.save(); // Save current canvas transformation state
-      }
-      
-      // Check if we need to track appearance for cleanup
-      const appearance = component.getAppearance();
-      if (appearance) {
-        hasAppearance = true;
-      }
-       
-      // Let childrenAccept handle the actual visiting of transformation, appearance, and children
-      // This avoids double-application since childrenAccept calls transformation.accept() and appearance.accept()
-      component.childrenAccept(this);
-    } finally {
-      // Pop appearance from stack if it was pushed by visitAppearance
-      if (hasAppearance) {
-        this.#appearanceStack.pop();
-      }
+  // visitComponent(), visitTransformation(), visitAppearance() inherited from Abstract2DRenderer
 
-      // Restore canvas transformation state and pop our tracking stack
-      if (hasTransformation) {
-        this.#context.restore(); // Canvas handles transformation restoration
-        this.#transformationStack.pop(); // Keep our stack in sync
-      }
-      
-      // Pop the component from the path
-      this.popPath();
-    }
-  }
-
-  /**
-   * Visit a Transformation node - apply transformation to canvas context
-   * @param {Transformation} transformation
-   */
-  visitTransformation(transformation) {
-    // Get the transformation matrix from the transformation object
-    const transformMatrix = transformation.getMatrix();
-    
-    // Apply the transformation to the canvas context - let canvas handle accumulation
-    this.pushTransform(this.#context, transformMatrix);
-    
-    // Keep our own stack for compatibility (but don't use it for rendering)
-    const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
-    const newMatrix = new Array(16);
-    Rn.timesMatrix(newMatrix, currentMatrix, transformMatrix);
-    this.#transformationStack.push(newMatrix);
-  }
-
-   /**
-   * Visit an Appearance node - push it onto the appearance stack
-   * @param {Appearance} appearance
-   */
-  visitAppearance(appearance) {
-    this.#appearanceStack.push(appearance);
-  }
-
-  /**
-   * Get an attribute value from the appearance stack with namespace support
-   * @param {string} prefix - Namespace prefix (e.g., "point", "line", "polygon")
-   * @param {string} attribute - Base attribute name (e.g., "diffuseColor")
-   * @param {*} defaultValue - Default value if not found
-   * @returns {*} The attribute value
-   */
-  getAppearanceAttribute(prefix, attribute, defaultValue) {
-    // Search from top of stack (most specific) to bottom (most general)
-    for (let i = this.#appearanceStack.length - 1; i >= 0; i--) {
-      const appearance = this.#appearanceStack[i];
-      
-      // First try namespaced attribute (e.g., "point.diffuseColor")
-      if (prefix) {
-        const namespacedKey = prefix + '.' + attribute;
-        const namespacedValue = appearance.getAttribute(namespacedKey);
-        if (namespacedValue !== INHERITED) {
-          return namespacedValue;
-        }
-      }
-      
-      // Then try base attribute (e.g., "diffuseColor")
-      const baseValue = appearance.getAttribute(attribute);
-      if (baseValue !== INHERITED) {
-        return baseValue;
-      }
-    }
-    
-    // Return default if not found in any appearance
-    return defaultValue;
-  }
-
-  /**
-   * Convert a Color object to CSS string, or return string as-is
-   * @param {*} colorValue - Color object or string
-   * @returns {string} CSS color string
-   */
-  toCSSColor(colorValue) {
-    if (colorValue && typeof colorValue.toCSSString === 'function') {
-      return colorValue.toCSSString();
-    }
-    return String(colorValue);
-  }
-
-  /**
-   * Get a boolean appearance attribute with fallback
-   * @param {string} attribute - Attribute name
-   * @param {boolean} defaultValue - Default value
-   * @returns {boolean}
-   */
-  getBooleanAttribute(attribute, defaultValue) {
-    return Boolean(this.getAppearanceAttribute(null, attribute, defaultValue));
-  }
-
-  /**
-   * Get a numeric appearance attribute with fallback
-   * @param {string} attribute - Attribute name
-   * @param {number} defaultValue - Default value
-   * @returns {number}
-   */
-  getNumericAttribute(attribute, defaultValue) {
-    const ret = this.getAppearanceAttribute(null, attribute, defaultValue);
-     return Number(ret);
-  }
+  // getAppearanceAttribute(), toCSSColor(), getBooleanAttribute(), getNumericAttribute() inherited from Abstract2DRenderer
 
   visitPointSet(pointSet) {
     // PointSet only renders vertices as points (based on VERTEX_DRAW flag)
