@@ -240,13 +240,14 @@ export function runCanvas2DTest() {
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'canvas2d-test';
-    canvas.width = 800;
-    canvas.height = 600;
+    // Don't set width/height here - let CSS control the size
+    // Canvas2DViewer will set the bitmap dimensions based on clientWidth/clientHeight
     canvas.style.border = '1px solid #ccc';
     canvas.style.display = 'block';
     canvas.style.margin = '20px auto';
-    canvas.style.width = '800px';   // Ensure CSS size matches bitmap size
-    canvas.style.height = '600px';  // Ensure CSS size matches bitmap size
+    canvas.style.width = '100%';      // Fill available width
+    canvas.style.height = '600px';    // Fixed height (can be changed via CSS)
+    canvas.style.maxWidth = '100%';   // Don't exceed container
     document.body.appendChild(canvas);
   }
 

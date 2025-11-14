@@ -79,7 +79,7 @@ export class Canvas2DViewer extends Abstract2DViewer {
     const context = this.#context;
     const ratio = this._pixelRatio;
 
-    // Get display size
+    // Get display size from CSS
     const displayWidth = canvas.clientWidth;
     const displayHeight = canvas.clientHeight;
 
@@ -90,9 +90,9 @@ export class Canvas2DViewer extends Abstract2DViewer {
     // Scale the drawing context so that 1 canvas unit = 1 CSS pixel
     this.#context.scale(ratio, ratio);
 
-    // Set CSS size to maintain correct display size
-    canvas.style.width = displayWidth + 'px';
-    canvas.style.height = displayHeight + 'px';
+    // Note: We don't set canvas.style.width/height here to allow CSS to control sizing.
+    // The canvas element should have its dimensions set via CSS (either inline or stylesheet).
+    // Setting inline styles here would override CSS and break responsive layouts.
   }
 
   /**
