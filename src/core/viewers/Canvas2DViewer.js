@@ -5,6 +5,7 @@ import { Abstract2DViewer } from './Abstract2DViewer.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { Dimension } from '../scene/Viewer.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import * as Rn from '../math/Rn.js';
 
@@ -194,7 +195,7 @@ export class Canvas2DViewer extends Abstract2DViewer {
    * @param {Camera} camera
    * @returns {number[]} 4x4 projection matrix
    */
-  _computeCam2NDCMatrix(camera) {
+_computeCam2NDCMatrix(camera) {
     const canvas = this.#canvas;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -222,6 +223,9 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   /** @type {HTMLCanvasElement} */
   #canvas;
 
+  /** @type {number} Cached point size from current appearance */
+  #pointSize = 0.1;
+
   /**
    * Create a new Canvas2D renderer
    * @param {Canvas2DViewer} viewer - The viewer
@@ -235,21 +239,62 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   // render() inherited from Abstract2DRenderer
 
   /**
-   * Setup Canvas-specific rendering context (implements abstract method)
+   * Begin rendering - Canvas-specific setup (implements abstract method)
+   * Sets up NDC-to-screen transform, clears canvas, draws background
+   * Note: world2ndc is applied by Abstract2DRenderer.beginRender()
    * @protected
    */
-  _setupRendering() {
+  _beginRender() {
     this._setupCanvasTransform();
-  }
-
-  /**
-   * Clear canvas and draw background (implements abstract method)
-   * @protected
-   */
-  _clearSurface() {
     this._clearCanvas();
   }
 
+  /**
+   * End rendering - Canvas-specific cleanup (implements abstract method)
+   * @protected
+   */
+  _endRender() {
+    // No cleanup needed for Canvas2D
+  }
+
+  /**
+   * Apply appearance attributes to canvas context (implements abstract method)
+   * Sets all drawing properties from current appearance stack
+   * @protected
+   */
+  _applyAppearance() {
+    // Cache appearance attributes - will be set per primitive type in _beginPrimitiveGroup
+    this.#pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
+  }
+
+  /**
+   * Begin a primitive group - for Canvas, set appropriate context state (implements abstract method)
+   * @protected
+   * @param {string} type - Primitive type: 'point', 'line', or 'face'
+   */
+  _beginPrimitiveGroup(type) {
+    const ctx = this.#context;
+    
+    if (type === 'point') {
+      ctx.fillStyle = this.toCSSColor(
+        this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
+    } else if (type === 'line') {
+      ctx.strokeStyle = this.toCSSColor(
+        this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000'));
+      ctx.lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
+    } else if (type === 'face') {
+      ctx.fillStyle = this.toCSSColor(
+        this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
+    }
+  }
+
+  /**
+   * End primitive group - no-op for Canvas (implements abstract method)
+   * @protected
+   */
+  _endPrimitiveGroup() {
+    // No action needed for Canvas2D - context state persists
+  }
 
   // getCurrentTransformation() inherited from Abstract2DRenderer
 
@@ -305,10 +350,8 @@ class Canvas2DRenderer extends Abstract2DRenderer {
       height / 2   // Y translation: 0 -> center
     );
     
-    // Apply the base world-to-NDC transformation
-    // This will be the foundation that all scene transformations build upon
-    const world2ndc = this._getWorld2NDC();
-    this.pushTransform(ctx, world2ndc);
+    // Note: world2ndc is now applied by Abstract2DRenderer.beginRender()
+    // via _pushTransformState() and _applyTransform()
   }
 
  /**
@@ -339,213 +382,83 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   _clearCanvas() {
     const ctx = this.#context;
     const canvas = this.#canvas;
-    const appearanceStack = this._getAppearanceStack();
-    const viewer = this._getViewer();
-    appearanceStack.push(viewer.getSceneRoot().getAppearance());
+    
     // Temporarily reset transform to identity for clearing
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     
     // First, completely clear the canvas to transparent
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Then apply the background color (which may have alpha < 1.0)
-    const backgroundColor = this.getAppearanceAttribute(null, CommonAttributes.BACKGROUND_COLOR, CommonAttributes.BACKGROUND_COLOR_DEFAULT);
+    // Get background color from scene root's appearance
+    // Background color must be defined in the root appearance
+    const sceneRoot = this._getViewer().getSceneRoot();
+    let backgroundColor = CommonAttributes.BACKGROUND_COLOR_DEFAULT;
+    
+    if (sceneRoot && sceneRoot.getAppearance()) {
+      const rootApp = sceneRoot.getAppearance();
+      const bgColor = rootApp.getAttribute(CommonAttributes.BACKGROUND_COLOR);
+      if (bgColor !== undefined && bgColor !== null && bgColor !== INHERITED) {
+        backgroundColor = bgColor;
+      }
+    }
+    
     ctx.fillStyle = this.toCSSColor(backgroundColor);
     console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    appearanceStack.pop();
 
     // Restore the NDC-to-screen transform
     this._setupCanvasTransform();
   }
 
   // visitComponent(), visitTransformation(), visitAppearance() inherited from Abstract2DRenderer
-
   // getAppearanceAttribute(), toCSSColor(), getBooleanAttribute(), getNumericAttribute() inherited from Abstract2DRenderer
+  // visitPointSet(), visitIndexedLineSet(), visitIndexedFaceSet() inherited from Abstract2DRenderer
+  // _renderVerticesAsPoints(), _renderEdgesAsLines(), _renderFacesAsPolygons() inherited from Abstract2DRenderer
 
-  visitPointSet(pointSet) {
-    // PointSet only renders vertices as points (based on VERTEX_DRAW flag)
-    this.#renderVerticesAsPoints(pointSet);
-  }
-
-  visitIndexedLineSet(lineSet) {
-    // IndexedLineSet renders vertices as points (if VERTEX_DRAW), then edges as lines (if EDGE_DRAW)
-    this.#renderVerticesAsPoints(lineSet);
-    this.#renderEdgesAsLines(lineSet);
-  }
-
-  visitIndexedFaceSet(faceSet) {
-    // IndexedFaceSet renders all three primitive types based on draw flags:
-    // 1. Vertices as points (if VERTEX_DRAW)
-    // 2. Edges as lines (if EDGE_DRAW) 
-    // 3. Faces as filled polygons (if FACE_DRAW)
-    this.#renderVerticesAsPoints(faceSet);
-    this.#renderEdgesAsLines(faceSet);
-    this.#renderFacesAsPolygons(faceSet);
-  }
-
-  /**
-   * Helper method to render vertices as points for any geometry
-   * @private
-   * @param {*} geometry - The geometry object
-   */
-  #renderVerticesAsPoints(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.VERTEX_DRAW, true)) {
-      return;
-    }
-
-    const vertices = geometry.getVertexCoordinates();
-    if (!vertices) return;
-
-    const ctx = this.#context;
-    
-    // Get point color with namespace fallback
-    const pointColor = this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000');
-    ctx.fillStyle = this.toCSSColor(pointColor);
-
-    const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
-                       geometry.getNumVertices ? geometry.getNumVertices() : 
-                       vertices.shape[0];
-    
-    for (let i = 0; i < numVertices; i++) {
-      const vertex = vertices.getSlice(i);
-      if (vertex.length >= 3) {
-        const point = this.#extractPoint(vertex);
-        this.#drawPoint(point.x, point.y);
-      }
-    }
-  }
-
-  /**
-   * Helper method to render edges as lines for indexed geometries
-   * @private
-   * @param {IndexedLineSet} geometry - The geometry object (IndexedLineSet or IndexedFaceSet)
-   */
-  #renderEdgesAsLines(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
-      return;
-    }
-
-    const vertices = geometry.getVertexCoordinates();
-    let indices = null;
-    
-    // Get appropriate edge indices - try both convenience method and direct attribute access
-    if (geometry.getEdgeIndices) {
-      indices = geometry.getEdgeIndices();
-    }
-    
-    // Fallback: try getting indices directly from edge attributes
-    if (!indices && geometry.getEdgeAttributes().size > 0) {
-      indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES) || 
-                geometry.getEdgeAttribute('indices');
-    }
-    
-    // console.log('geometry',vertices, ' shape: ', vertices.shape);
-    // console.log('indices', indices, ' shape: ', indices.rows.length);
-    const ctx = this.#context;
-    
-    // Get line appearance attributes with namespace fallback
-    const lineColor = this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000');
-    const lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
-    
-    ctx.strokeStyle = this.toCSSColor(lineColor);
-    ctx.lineWidth = lineWidth;
-
-    // Render all edges
-    if (indices) {
-      // 2D array of edge indices
-      for (let i = 0; i < indices.rows.length; i++) {
-        const edgeIndices = indices.getRow(i);
-        this.#drawPolyline(vertices, edgeIndices);
-      }
-    } else {
-      // Handle flat array case
-      console.warn('Edge indices format not supported yet');
-    }
-  }
-
-  /**
-   * Helper method to render faces as filled polygons for indexed face sets
-   * @private
-   * @param {*} geometry - The geometry object (IndexedFaceSet)
-   */
-  #renderFacesAsPolygons(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.FACE_DRAW, true)) {
-      return;
-    }
-
-    const vertices = geometry.getVertexCoordinates();
-    const indices = geometry.getFaceIndices();
-    if (!vertices || !indices) return;
-
-    const ctx = this.#context;
-
-    // Get appearance attributes
-    const faceColor = this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc');
-
-    for (let i = 0; i < geometry.getNumFaces(); i++) {
-      const faceIndices = indices.getRow(i);
-      
-      // Fill faces
-      ctx.fillStyle = this.toCSSColor(faceColor);
-      this.#drawPolygon(vertices, faceIndices, true);
-    }
-  }
-
-  /**
-   * Helper method to extract edge indices from face indices
-   * @private
-   * @param {*} faceIndices - Face indices data
-   * @param {number} numFaces - Number of faces
-   * @returns {*} Edge indices data structure
-   */
-  #extractEdgesFromFaces(faceIndices, numFaces) {
-    // For now, return null to disable edge rendering for faces
-    // TODO: Implement proper edge extraction from face topology
-    return faceIndices;
-  }
-
- 
+  // ============================================================================
+  // DEVICE-SPECIFIC DRAWING PRIMITIVES
+  // ============================================================================
 
   /**
    * Extract 2D coordinates from vertex (canvas handles all transformations)
-   * @private
+   * @protected
    * @param {number[]} vertex - 3D vertex [x, y, z] or [x, y, z, w]
    * @returns {{x: number, y: number}} 2D coordinates
    */
-  #extractPoint(vertex) {
+  _extractPoint(vertex) {
     // Canvas transformation handles all projection - just extract x,y coordinates
     return { x: vertex[0], y: vertex[1] };
   }
 
   /**
-   * Draw a point on the canvas
-   * @private
+   * Draw a single point on the canvas (implements abstract method)
+   * @protected
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
    */
-  #drawPoint(x, y) {
+  _drawPoint(x, y) {
     const ctx = this.#context;
-    const size = this.getNumericAttribute(CommonAttributes.POINT_SIZE, .1);
+    // Use cached point size and fillStyle already set by _applyAppearance()
     ctx.beginPath();
-    ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
+    ctx.arc(x, y, this.#pointSize / 2, 0, 2 * Math.PI);
     ctx.fill();
   }
 
   /**
-   * Draw a polyline
-   * @private
+   * Draw a polyline through multiple points (implements abstract method)
+   * @protected
    * @param {*} vertices - Vertex data list
    * @param {number[]} indices - Vertex indices for the line
    */
-  #drawPolyline(vertices, indices) {
+  _drawPolyline(vertices, indices) {
     const ctx = this.#context;
+    
+    // Use strokeStyle and lineWidth already set by _applyAppearance()
     ctx.beginPath();
-
     let firstPoint = true;
     for (const index of indices) {
       const vertex = vertices.getSlice(index);
-      const point = this.#extractPoint(vertex);
+      const point = this._extractPoint(vertex);
       if (firstPoint) {
         ctx.moveTo(point.x, point.y);
         firstPoint = false;
@@ -557,20 +470,21 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   }
 
   /**
-   * Draw a polygon (filled or wireframe)
-   * @private
+   * Draw a filled polygon (implements abstract method)
+   * @protected
    * @param {*} vertices - Vertex data list
    * @param {number[]} indices - Vertex indices for the polygon
    * @param {boolean} fill - Whether to fill the polygon
    */
-  #drawPolygon(vertices, indices, fill) {
+  _drawPolygon(vertices, indices, fill) {
     const ctx = this.#context;
+    
+    // fillStyle already set by _beginPrimitiveGroup('face')
     ctx.beginPath();
-
     let firstPoint = true;
     for (const index of indices) {
       const vertex = vertices.getSlice(index);
-      const point = this.#extractPoint(vertex);
+      const point = this._extractPoint(vertex);
       if (firstPoint) {
         ctx.moveTo(point.x, point.y);
         firstPoint = false;

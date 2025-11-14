@@ -2,16 +2,13 @@
 // Provides vector rendering using SVG DOM
 
 import { Viewer, Dimension } from '../scene/Viewer.js';
-import { SceneGraphVisitor } from '../scene/SceneGraphVisitor.js';
-import { Matrix } from '../math/Matrix.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
-import * as P3 from '../math/P3.js';
-import { Camera, Rectangle2D } from '../scene/Camera.js';
-import { INHERITED } from '../scene/Appearance.js';
-import * as CameraUtility from '../util/CameraUtility.js';
 import { Color } from '../util/Color.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -122,6 +119,8 @@ export class SVGViewer extends Viewer {
     console.log('  - Calling renderer.render()...');
     renderer.render();
     console.log('SVGViewer.render() complete');
+    
+    // Note: Final formatting is now handled by SVGRenderer._endRender()
   }
 
   hasViewingComponent() {
@@ -258,26 +257,18 @@ export class SVGViewer extends Viewer {
 
 /**
  * SVG rendering visitor that traverses the scene graph and renders geometry as SVG
+ * Extends Abstract2DRenderer with SVG-specific drawing operations
  */
-class SVGRenderer extends SceneGraphVisitor {
-
-  /** @type {SVGViewer} */
-  #viewer;
+class SVGRenderer extends Abstract2DRenderer {
 
   /** @type {SVGSVGElement} */
   #svgElement;
 
-  /** @type {Camera} */
-  #camera;
-
-  /** @type {Appearance[]} Stack of appearances for hierarchical attribute resolution */
-  #appearanceStack = [];
-
   /** @type {SVGGElement[]} Stack of SVG group elements for hierarchical transforms */
   #groupStack = [];
 
-  /** @type {number[]} World-to-NDC transformation matrix */
-  #world2ndc;
+  /** @type {number} Current indentation level for formatted output */
+  #indentLevel = 0;
 
   /** @type {number} SVG viewport width */
   #width;
@@ -285,67 +276,210 @@ class SVGRenderer extends SceneGraphVisitor {
   /** @type {number} SVG viewport height */
   #height;
 
+  // Cached appearance attributes
+  /** @type {string} Cached point color */
+  #pointColor = '#ff0000';
+  
+  /** @type {number} Cached point size */
+  #pointSize = 0.1;
+  
+  /** @type {string} Cached line color */
+  #lineColor = '#000000';
+  
+  /** @type {number} Cached line width */
+  #lineWidth = 1;
+  
+  /** @type {string} Cached polygon/face color */
+  #faceColor = '#cccccc';
+
   /**
    * Create a new SVG renderer
    * @param {SVGViewer} viewer - The viewer
    */
   constructor(viewer) {
-    super();
-    this.#viewer = viewer;
+    super(viewer);
     this.#svgElement = viewer._getSVGElement();
-    this.#camera = viewer._getCamera();
     this.#width = viewer._getWidth();
     this.#height = viewer._getHeight();
-    this.#world2ndc = new Array(16);
   }
 
-  render() {
-    console.log('SVGRenderer.render() called');
-    
-    const cameraPath = this.#viewer.getCameraPath();
-    const sceneRoot = this.#viewer.getSceneRoot();
-    
-    console.log('  - Camera path:', cameraPath);
-    console.log('  - Scene root:', sceneRoot?.getName());
+  // render() inherited from Abstract2DRenderer
 
-    if (!cameraPath || !sceneRoot) {
-      console.warn('SVGRenderer: Missing camera path or scene root');
-      return;
-    }
-
-    // Get world-to-camera transformation
-    console.log('  - Computing transformations...');
-    const world2Cam = cameraPath.getInverseMatrix();
-    console.log('  - world2Cam matrix:', world2Cam);
-    const cam2ndc = CameraUtility.getCameraToNDC(this.#viewer);
-    console.log('  - cam2ndc matrix:', cam2ndc);
-    Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
-    console.log('  - world2ndc matrix:', this.#world2ndc);
-
-    // Create root group with NDC-to-screen transform
-    console.log('  - Creating root group...');
+  /**
+   * Begin rendering - SVG-specific setup (implements abstract method)
+   * Creates root group with NDC-to-screen transform, draws background
+   * Note: world2ndc is applied by Abstract2DRenderer.beginRender()
+   * @protected
+   */
+  _beginRender() {
+    console.log('SVGRenderer._beginRender()');
     const rootGroup = this.#createRootGroup();
+    
+    // Add comment for root group
+    const comment = document.createComment(' Root group: NDC to screen transform ');
+    this.#svgElement.appendChild(document.createTextNode('\n  '));
+    this.#svgElement.appendChild(comment);
+    this.#svgElement.appendChild(document.createTextNode('\n  '));
     this.#svgElement.appendChild(rootGroup);
+    
     this.#groupStack.push(rootGroup);
-    console.log('  - Root group created and added to SVG');
-
+    this.#indentLevel = 1; // Start at indent level 1 (inside root group)
+    
     // Render background
-    console.log('  - Rendering background...');
     this.#renderBackground();
+  }
 
-    // Render the scene
-    try {
-      console.log('  - Starting scene traversal...');
-      console.log('  - Scene root has', sceneRoot.getChildComponents().length, 'children');
-      sceneRoot.accept(this);
-      console.log('  - Scene traversal completed');
-      console.log('  - Total SVG children:', this.#svgElement.children.length);
-    } catch (error) {
-      console.error('SVG rendering error:', error);
-      console.error('Stack trace:', error.stack);
+  /**
+   * End rendering - SVG-specific cleanup (implements abstract method)
+   * Adds final formatting newlines
+   * @protected
+   */
+  _endRender() {
+    console.log('SVGRenderer._endRender()');
+    // Add final closing newline for root group
+    const rootGroup = this.#groupStack[0]; // Should be the root group
+    if (rootGroup) {
+      rootGroup.appendChild(document.createTextNode('\n  '));
+    }
+    this.#svgElement.appendChild(document.createTextNode('\n'));
+  }
+
+  /**
+   * Apply appearance attributes - cache values from current appearance stack (implements abstract method)
+   * @protected
+   */
+  _applyAppearance() {
+    // Cache appearance attributes - will be used in _beginPrimitiveGroup
+    this.#pointColor = this.toCSSColor(
+      this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
+    this.#pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
+    
+    this.#lineColor = this.toCSSColor(
+      this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000'));
+    this.#lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
+    
+    this.#faceColor = this.toCSSColor(
+      this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
+  }
+
+  /**
+   * Begin a nested primitive group with type-specific appearance (implements abstract method)
+   * @protected
+   * @param {string} type - Primitive type: 'point', 'line', or 'face'
+   */
+  _beginPrimitiveGroup(type) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    
+    // Add comment showing primitive type
+    const comment = document.createComment(` ${type} group `);
+    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    currentGroup.appendChild(comment);
+    
+    // Add newline and indentation before group
+    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
+    currentGroup.appendChild(document.createTextNode(indent));
+    
+    // Set type-specific attributes on the group
+    if (type === 'point') {
+      g.setAttribute('fill', this.#pointColor);
+    } else if (type === 'line') {
+      g.setAttribute('stroke', this.#lineColor);
+      g.setAttribute('stroke-width', this.#lineWidth.toFixed(4));
+      g.setAttribute('fill', 'none');
+    } else if (type === 'face') {
+      g.setAttribute('fill', this.#faceColor);
+      g.setAttribute('stroke', 'none');
     }
     
-    console.log('SVGRenderer.render() complete');
+    currentGroup.appendChild(g);
+    this.#groupStack.push(g);
+    this.#indentLevel++;
+  }
+
+  /**
+   * End the nested primitive group (implements abstract method)
+   * @protected
+   */
+  _endPrimitiveGroup() {
+    this.#groupStack.pop();
+    this.#indentLevel--;
+    
+    // Add newline and indentation after closing group
+    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
+    const parentGroup = this.#groupStack[this.#groupStack.length - 1];
+    parentGroup.appendChild(document.createTextNode(indent));
+  }
+
+  /**
+   * Push transformation state - create new SVG group (implements abstract method)
+   * @protected
+   */
+  _pushTransformState() {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    
+    // Add newline and indentation before group
+    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
+    currentGroup.appendChild(document.createTextNode(indent));
+    currentGroup.appendChild(g);
+    
+    this.#groupStack.push(g);
+    this.#indentLevel++;
+  }
+
+  /**
+   * Pop transformation state - remove SVG group from stack (implements abstract method)
+   * @protected
+   */
+  _popTransformState() {
+    const poppedGroup = this.#groupStack.pop();
+    this.#indentLevel--;
+    
+    // Add newline and indentation after closing group
+    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
+    const parentGroup = this.#groupStack[this.#groupStack.length - 1];
+    parentGroup.appendChild(document.createTextNode(indent));
+  }
+
+  /**
+   * Apply transformation matrix to current SVG group (implements abstract method)
+   * @protected
+   * @param {number[]} matrix - 4x4 transformation matrix (incremental)
+   */
+  _applyTransform(matrix) {
+    // Use the incremental transformation (not accumulated)
+    // SVG groups nest, so transforms compose automatically through the DOM hierarchy
+    // 
+    // Convert to SVG transform format (2D affine)
+    // Extract the 2D affine part from the 4x4 matrix (row-major layout)
+    // 
+    // 4x4 matrix in row-major:
+    // [  0   1   2   3  ]  <- Row 0: [m00 m01 m02 tx]
+    // [  4   5   6   7  ]  <- Row 1: [m10 m11 m12 ty]
+    // [  8   9  10  11 ]  <- Row 2: [m20 m21 m22 tz]
+    // [ 12  13  14  15 ]  <- Row 3: [  0   0   0  1]
+    //
+    // SVG matrix(a b c d e f) represents:
+    // [a c e]  [x]     [a c e]
+    // [b d f]  [y]  =  [b d f]
+    // [0 0 1]  [1]     [0 0 1]
+    const a = matrix[0];  // X scale
+    const b = matrix[4];  // Y skew
+    const c = matrix[1];  // X skew
+    const d = matrix[5];  // Y scale
+    const e = matrix[3];  // X translation
+    const f = matrix[7];  // Y translation
+    
+    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    const transformStr = `matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(4)} ${f.toFixed(4)})`;
+    currentGroup.setAttribute('transform', transformStr);
+    
+    // Add comment showing the transform
+    const comment = document.createComment(` Transform: ${transformStr} `);
+    const parent = currentGroup.parentNode;
+    parent.insertBefore(comment, currentGroup);
+    parent.insertBefore(document.createTextNode('\n' + '  '.repeat(this.#indentLevel)), currentGroup);
   }
 
   /**
@@ -375,10 +509,18 @@ class SVGRenderer extends SceneGraphVisitor {
    * @private
    */
   #renderBackground() {
-    this.#appearanceStack.push(this.#viewer.getSceneRoot().getAppearance());
+    // Get background color from scene root's appearance
+    // Background color must be defined in the root appearance
+    const sceneRoot = this._getViewer().getSceneRoot();
+    let backgroundColor = CommonAttributes.BACKGROUND_COLOR_DEFAULT;
     
-    const backgroundColor = this.getAppearanceAttribute(null, 
-      CommonAttributes.BACKGROUND_COLOR, CommonAttributes.BACKGROUND_COLOR_DEFAULT);
+    if (sceneRoot && sceneRoot.getAppearance()) {
+      const rootApp = sceneRoot.getAppearance();
+      const bgColor = rootApp.getAttribute(CommonAttributes.BACKGROUND_COLOR);
+      if (bgColor !== undefined && bgColor !== null && bgColor !== INHERITED) {
+        backgroundColor = bgColor;
+      }
+    }
     
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', '-1');
@@ -389,290 +531,110 @@ class SVGRenderer extends SceneGraphVisitor {
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     currentGroup.appendChild(rect);
-    
-    this.#appearanceStack.pop();
   }
+
+  // visitComponent(), visitTransformation(), visitAppearance() inherited from Abstract2DRenderer
+  // getAppearanceAttribute(), toCSSColor(), getBooleanAttribute(), getNumericAttribute() inherited from Abstract2DRenderer
+  // visitPointSet(), visitIndexedLineSet(), visitIndexedFaceSet() inherited from Abstract2DRenderer
+  // _renderVerticesAsPoints(), _renderEdgesAsLines(), _renderFacesAsPolygons() inherited from Abstract2DRenderer
+
+  // ============================================================================
+  // DEVICE-SPECIFIC DRAWING PRIMITIVES
+  // ============================================================================
 
   /**
-   * Visit a SceneGraphComponent
-   * @param {SceneGraphComponent} component
-   */
-  visitComponent(component) {
-    console.log('SVGRenderer.visitComponent:', component.getName());
-    
-    if (!component.isVisible()) {
-      console.log('  - Component not visible, skipping');
-      return;
-    }
-
-    this.pushPath(component);
-    
-    let hasTransformation = false;
-    let hasAppearance = false;
-    let transformGroup = null;
-    
-    try {
-      // Check for transformation
-      const transformation = component.getTransformation();
-      if (transformation) {
-        hasTransformation = true;
-        transformGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        const currentGroup = this.#groupStack[this.#groupStack.length - 1];
-        currentGroup.appendChild(transformGroup);
-        this.#groupStack.push(transformGroup);
-      }
-      
-      // Check for appearance
-      const appearance = component.getAppearance();
-      if (appearance) {
-        hasAppearance = true;
-      }
-      
-      // Visit children
-      component.childrenAccept(this);
-    } finally {
-      // Pop appearance from stack
-      if (hasAppearance) {
-        this.#appearanceStack.pop();
-      }
-
-      // Pop transform group
-      if (hasTransformation) {
-        this.#groupStack.pop();
-      }
-      
-      this.popPath();
-    }
-  }
-
-  /**
-   * Visit a Transformation node
-   * @param {Transformation} transformation
-   */
-  visitTransformation(transformation) {
-    // Get the transformation matrix
-    const matrix = transformation.getMatrix();
-    
-    // Apply world-to-NDC transform to get final NDC coordinates
-    const finalMatrix = new Array(16);
-    Rn.timesMatrix(finalMatrix, this.#world2ndc, matrix);
-    
-    // Convert to SVG transform format (2D affine)
-    // SVG uses: matrix(a b c d e f)
-    // which represents: [a c e]  [x]
-    //                   [b d f]  [y]
-    //                   [0 0 1]  [1]
-    const a = finalMatrix[0];
-    const b = finalMatrix[1];
-    const c = finalMatrix[4];
-    const d = finalMatrix[5];
-    const e = finalMatrix[3];
-    const f = finalMatrix[7];
-    
-    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
-    currentGroup.setAttribute('transform', `matrix(${a} ${b} ${c} ${d} ${e} ${f})`);
-  }
-
-  /**
-   * Visit an Appearance node
-   * @param {Appearance} appearance
-   */
-  visitAppearance(appearance) {
-    this.#appearanceStack.push(appearance);
-  }
-
-  /**
-   * Get an attribute value from the appearance stack
-   * @param {string} prefix - Namespace prefix
-   * @param {string} attribute - Attribute name
-   * @param {*} defaultValue - Default value
-   * @returns {*}
-   */
-  getAppearanceAttribute(prefix, attribute, defaultValue) {
-    for (let i = this.#appearanceStack.length - 1; i >= 0; i--) {
-      const appearance = this.#appearanceStack[i];
-      
-      if (prefix) {
-        const namespacedKey = prefix + '.' + attribute;
-        const namespacedValue = appearance.getAttribute(namespacedKey);
-        if (namespacedValue !== INHERITED) {
-          return namespacedValue;
-        }
-      }
-      
-      const baseValue = appearance.getAttribute(attribute);
-      if (baseValue !== INHERITED) {
-        return baseValue;
-      }
-    }
-    
-    return defaultValue;
-  }
-
-  /**
-   * Convert a Color object to CSS string
-   * Delegates to Color.toCSSColor() static method
-   * @param {*} colorValue - Color object or string
-   * @returns {string}
-   */
-  toCSSColor(colorValue) {
-    return Color.toCSSColor(colorValue);
-  }
-
-  /**
-   * Get a boolean appearance attribute
-   * @param {string} attribute - Attribute name
-   * @param {boolean} defaultValue - Default value
-   * @returns {boolean}
-   */
-  getBooleanAttribute(attribute, defaultValue) {
-    return Boolean(this.getAppearanceAttribute(null, attribute, defaultValue));
-  }
-
-  /**
-   * Get a numeric appearance attribute
-   * @param {string} attribute - Attribute name
-   * @param {number} defaultValue - Default value
-   * @returns {number}
-   */
-  getNumericAttribute(attribute, defaultValue) {
-    const ret = this.getAppearanceAttribute(null, attribute, defaultValue);
-    return Number(ret);
-  }
-
-  visitPointSet(pointSet) {
-    console.log('SVGRenderer.visitPointSet - numPoints:', pointSet.getNumPoints());
-    this.#renderVerticesAsPoints(pointSet);
-  }
-
-  visitIndexedLineSet(lineSet) {
-    console.log('SVGRenderer.visitIndexedLineSet - numPoints:', lineSet.getNumPoints());
-    this.#renderVerticesAsPoints(lineSet);
-    this.#renderEdgesAsLines(lineSet);
-  }
-
-  visitIndexedFaceSet(faceSet) {
-    console.log('SVGRenderer.visitIndexedFaceSet - numFaces:', faceSet.getNumFaces());
-    this.#renderVerticesAsPoints(faceSet);
-    this.#renderEdgesAsLines(faceSet);
-    this.#renderFacesAsPolygons(faceSet);
-  }
-
-  /**
-   * Render vertices as SVG circles
+   * Get current indentation string
    * @private
-   * @param {*} geometry
+   * @returns {string} Indentation string
    */
-  #renderVerticesAsPoints(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.VERTEX_DRAW, true)) {
-      return;
-    }
-
-    const vertices = geometry.getVertexCoordinates();
-    if (!vertices) return;
-
-    const pointColor = this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000');
-    const pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
-
-    const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
-                       geometry.getNumVertices ? geometry.getNumVertices() : 
-                       vertices.shape[0];
-    
-    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
-    
-    for (let i = 0; i < numVertices; i++) {
-      const vertex = vertices.getSlice(i);
-      if (vertex.length >= 2) {
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', vertex[0]);
-        circle.setAttribute('cy', vertex[1]);
-        circle.setAttribute('r', pointSize / 2);
-        circle.setAttribute('fill', this.toCSSColor(pointColor));
-        currentGroup.appendChild(circle);
-      }
-    }
+  #getIndent() {
+    return '\n' + '  '.repeat(this.#indentLevel + 1);
   }
 
   /**
-   * Render edges as SVG polylines
-   * @private
-   * @param {IndexedLineSet} geometry
+   * Extract 2D coordinates from vertex
+   * @protected
+   * @param {number[]} vertex - 3D vertex [x, y, z] or [x, y, z, w]
+   * @returns {{x: number, y: number}} 2D coordinates
    */
-  #renderEdgesAsLines(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
-      return;
-    }
-
-    const vertices = geometry.getVertexCoordinates();
-    let indices = null;
-    
-    if (geometry.getEdgeIndices) {
-      indices = geometry.getEdgeIndices();
-    }
-    
-    if (!indices && geometry.getEdgeAttributes().size > 0) {
-      indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES) || 
-                geometry.getEdgeAttribute('indices');
-    }
-    
-    if (!indices) return;
-
-    const lineColor = this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000');
-    const lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
-    
-    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
-    
-    for (let i = 0; i < indices.rows.length; i++) {
-      const edgeIndices = indices.getRow(i);
-      const points = [];
-      
-      for (const index of edgeIndices) {
-        const vertex = vertices.getSlice(index);
-        points.push(`${vertex[0]},${vertex[1]}`);
-      }
-      
-      const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-      polyline.setAttribute('points', points.join(' '));
-      polyline.setAttribute('stroke', this.toCSSColor(lineColor));
-      polyline.setAttribute('stroke-width', lineWidth * 0.01); // Scale for NDC space
-      polyline.setAttribute('fill', 'none');
-      currentGroup.appendChild(polyline);
-    }
+  _extractPoint(vertex) {
+    // SVG coordinates directly from vertex x,y
+    return { x: vertex[0], y: vertex[1] };
   }
 
   /**
-   * Render faces as SVG polygons
-   * @private
-   * @param {*} geometry
+   * Draw a single point as SVG circle (implements abstract method)
+   * @protected
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
    */
-  #renderFacesAsPolygons(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.FACE_DRAW, true)) {
-      return;
+  _drawPoint(x, y) {
+    // Appearance attributes inherited from group (set in _applyAppearance)
+    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    
+    // Add indentation before element
+    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', x.toFixed(4));
+    circle.setAttribute('cy', y.toFixed(4));
+    circle.setAttribute('r', (this.#pointSize / 2).toFixed(4));
+    // fill inherited from group
+    currentGroup.appendChild(circle);
+  }
+
+  /**
+   * Draw a polyline through multiple points (implements abstract method)
+   * @protected
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]} indices - Array of vertex indices
+   */
+  _drawPolyline(vertices, indices) {
+    // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
+    const points = [];
+    for (const index of indices) {
+      const vertex = vertices.getSlice(index);
+      const point = this._extractPoint(vertex);
+      points.push(`${point.x.toFixed(4)},${point.y.toFixed(4)}`);
     }
-
-    const vertices = geometry.getVertexCoordinates();
-    const indices = geometry.getFaceIndices();
-    if (!vertices || !indices) return;
-
-    const faceColor = this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc');
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
-    for (let i = 0; i < geometry.getNumFaces(); i++) {
-      const faceIndices = indices.getRow(i);
-      const points = [];
-      
-      for (const index of faceIndices) {
-        const vertex = vertices.getSlice(index);
-        points.push(`${vertex[0]},${vertex[1]}`);
-      }
-      
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute('points', points.join(' '));
-      polygon.setAttribute('fill', this.toCSSColor(faceColor));
-      polygon.setAttribute('stroke', 'none');
-      currentGroup.appendChild(polygon);
+    // Add indentation before element
+    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    
+    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', points.join(' '));
+    // stroke, stroke-width, fill inherited from primitive group
+    currentGroup.appendChild(polyline);
+  }
+
+  /**
+   * Draw a filled polygon (implements abstract method)
+   * @protected
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]} indices - Array of vertex indices
+   * @param {boolean} fill - Whether to fill the polygon
+   */
+  _drawPolygon(vertices, indices, fill) {
+    // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
+    const points = [];
+    for (const index of indices) {
+      const vertex = vertices.getSlice(index);
+      const point = this._extractPoint(vertex);
+      points.push(`${point.x.toFixed(4)},${point.y.toFixed(4)}`);
     }
+    
+    const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    
+    // Add indentation before element
+    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', points.join(' '));
+    // fill and stroke inherited from primitive group
+    
+    currentGroup.appendChild(polygon);
   }
 }
 

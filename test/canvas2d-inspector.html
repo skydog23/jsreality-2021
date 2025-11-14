@@ -203,6 +203,9 @@
                 <div class="menu-option" id="export-image-jpeg">
                     <span>Export as JPEG</span>
                 </div>
+                <div class="menu-option" id="export-svg">
+                    <span>Export as SVG</span>
+                </div>
             </div>
         </div>
         <div class="menu-item" id="view-menu">
@@ -234,6 +237,7 @@
     <script type="module">
         import { runCanvas2DTest } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
+        import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
         
         // Setup resizable divider between canvas and inspector
         function setupMainDivider() {
@@ -338,6 +342,37 @@
                 downloadImage(dataURL, 'scene-export.jpg');
             });
             
+            // Export as SVG
+            document.getElementById('export-svg').addEventListener('click', () => {
+                closeAllMenus();
+                
+                // Get canvas dimensions
+                const canvas = viewer.getViewingComponent();
+                const width = canvas.clientWidth;
+                const height = canvas.clientHeight;
+                
+                // Create a temporary HTML container (doesn't need to be in DOM)
+                const tempContainer = document.createElement('div');
+                
+                // Create SVGViewer with the container and dimensions
+                const svgViewer = new SVGViewer(tempContainer, { width, height });
+                
+                // Copy scene setup from Canvas2DViewer
+                svgViewer.setSceneRoot(viewer.getSceneRoot());
+                svgViewer.setCameraPath(viewer.getCameraPath());
+                
+                // Render the scene to SVG
+                svgViewer.render();
+                
+                // Export SVG as string
+                const svgString = svgViewer.exportSVG();
+                
+                // Download SVG
+                downloadSVG(svgString, 'scene-export.svg');
+                
+                console.log('✓ SVG exported successfully');
+            });
+            
             // Reset camera (placeholder for now)
             document.getElementById('reset-camera').addEventListener('click', () => {
                 closeAllMenus();
@@ -361,6 +396,20 @@
                 link.click();
                 document.body.removeChild(link);
                 console.log(`✓ Image exported as ${filename}`);
+            }
+            
+            // Helper function to download SVG
+            function downloadSVG(svgString, filename) {
+                const blob = new Blob([svgString], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                console.log(`✓ SVG exported as ${filename}`);
             }
         }
         

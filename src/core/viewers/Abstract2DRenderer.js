@@ -8,6 +8,9 @@ import * as Rn from '../math/Rn.js';
 import { INHERITED } from '../scene/Appearance.js';
 import * as CameraUtility from '../util/CameraUtility.js';
 import { Color } from '../util/Color.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
+import { ShaderUtility } from '../shader/ShaderUtility.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/Appearance.js').Appearance} Appearance */
@@ -28,8 +31,11 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   /** @type {Camera} */
   #camera;
 
-  /** @type {Appearance[]} Stack of appearances for hierarchical attribute resolution */
-  #appearanceStack = [];
+  /** @type {EffectiveAppearance} Current effective appearance for hierarchical attribute resolution */
+  #effectiveAppearance;
+
+  /** @type {EffectiveAppearance[]} Stack of effective appearances for restoring after traversal */
+  #effectiveAppearanceStack = [];
 
   /** @type {number[][]} Stack of transformation matrices for hierarchical transformations */
   #transformationStack = [];
@@ -46,7 +52,142 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this.#viewer = viewer;
     this.#camera = viewer._getCamera();
     this.#world2ndc = new Array(16);
+    // Initialize with an empty root EffectiveAppearance
+    this.#effectiveAppearance = EffectiveAppearance.create();
   }
+
+  // ============================================================================
+  // ABSTRACT METHODS - Must be implemented by subclasses
+  // ============================================================================
+
+  /**
+   * Begin rendering - device-specific initial setup
+   * Called after world2ndc is computed but before it's applied
+   * Device should setup context, clear surface, draw background
+   * @protected
+   * @abstract
+   */
+  _beginRender() {
+    throw new Error('Abstract method _beginRender() must be implemented by subclass');
+  }
+
+  /**
+   * End rendering - device-specific cleanup
+   * Called after scene traversal is complete
+   * @protected
+   * @abstract
+   */
+  _endRender() {
+    throw new Error('Abstract method _endRender() must be implemented by subclass');
+  }
+
+  /**
+   * Apply appearance attributes to device context
+   * Called when an Appearance is visited, should set device-specific state
+   * (Canvas2D: set ctx properties; SVG: cache values or set group attributes)
+   * @protected
+   * @abstract
+   */
+  _applyAppearance() {
+    throw new Error('Abstract method _applyAppearance() must be implemented by subclass');
+  }
+
+  /**
+   * Begin a nested group for a specific primitive type (point/line/face)
+   * Allows setting type-specific appearance attributes
+   * @protected
+   * @abstract
+   * @param {string} type - Primitive type: 'point', 'line', or 'face'
+   */
+  _beginPrimitiveGroup(type) {
+    throw new Error('Abstract method _beginPrimitiveGroup() must be implemented by subclass');
+  }
+
+  /**
+   * End the nested group for a primitive type
+   * @protected
+   * @abstract
+   */
+  _endPrimitiveGroup() {
+    throw new Error('Abstract method _endPrimitiveGroup() must be implemented by subclass');
+  }
+
+  /**
+   * Push transformation state (device-specific)
+   * @protected
+   * @abstract
+   */
+  _pushTransformState() {
+    throw new Error('Abstract method _pushTransformState() must be implemented by subclass');
+  }
+
+  /**
+   * Pop transformation state (device-specific)
+   * @protected
+   * @abstract
+   */
+  _popTransformState() {
+    throw new Error('Abstract method _popTransformState() must be implemented by subclass');
+  }
+
+  /**
+   * Apply a transformation matrix (device-specific)
+   * @protected
+   * @abstract
+   * @param {number[]} matrix - 4x4 transformation matrix
+   */
+  _applyTransform(matrix) {
+    throw new Error('Abstract method _applyTransform() must be implemented by subclass');
+  }
+
+  /**
+   * Draw a single point (device-specific primitive)
+   * @protected
+   * @abstract
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   */
+  _drawPoint(x, y) {
+    throw new Error('Abstract method _drawPoint() must be implemented by subclass');
+  }
+
+  /**
+   * Draw a polyline through multiple points (device-specific primitive)
+   * @protected
+   * @abstract
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]} indices - Array of vertex indices
+   */
+  _drawPolyline(vertices, indices) {
+    throw new Error('Abstract method _drawPolyline() must be implemented by subclass');
+  }
+
+  /**
+   * Draw a filled polygon (device-specific primitive)
+   * @protected
+   * @abstract
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]} indices - Array of vertex indices
+   * @param {boolean} fill - Whether to fill the polygon
+   */
+  _drawPolygon(vertices, indices, fill) {
+    throw new Error('Abstract method _drawPolygon() must be implemented by subclass');
+  }
+
+  /**
+   * Extract 2D point from vertex data (device-specific)
+   * @protected
+   * @abstract
+   * @param {number[]} vertex - Vertex coordinates [x, y, z, w]
+   * @returns {{x: number, y: number}} 2D point
+   */
+  _extractPoint(vertex) {
+    throw new Error('Abstract method _extractPoint() must be implemented by subclass');
+  }
+
+  // ============================================================================
+  // PROTECTED GETTERS - Access to internal state
+  // ============================================================================
 
   /**
    * Get the viewer
@@ -76,12 +217,22 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   }
 
   /**
-   * Get the appearance stack
+   * Get the current EffectiveAppearance (for subclass use)
+   * @protected
+   * @returns {EffectiveAppearance}
+   */
+  _getEffectiveAppearance() {
+    return this.#effectiveAppearance;
+  }
+  
+  /**
+   * Get the hierarchy of appearances (for backwards compatibility)
+   * Returns the appearance hierarchy from most specific (deepest) to least (root)
    * @protected
    * @returns {Appearance[]}
    */
-  _getAppearanceStack() {
-    return this.#appearanceStack;
+  _getAppearanceHierarchy() {
+    return this.#effectiveAppearance.getAppearanceHierarchy();
   }
 
   /**
@@ -93,28 +244,60 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     return this.#transformationStack;
   }
 
+  // ============================================================================
+  // IMPLEMENTED METHODS - Device-independent scene graph traversal
+  // ============================================================================
+
   /**
-   * Render the scene (device-independent orchestration)
+   * Begin rendering - device-independent setup + world2ndc application
+   * Computes world2ndc, calls device-specific _beginRender(), then applies world2ndc transform
    */
-  render() {
+  beginRender() {
     const cameraPath = this.#viewer.getCameraPath();
     const sceneRoot = this.#viewer.getSceneRoot();
 
     if (!cameraPath || !sceneRoot) {
-      return;
+      return false;
     }
 
-    // Get world-to-camera transformation
+    // Compute world-to-NDC transformation
     const world2Cam = cameraPath.getInverseMatrix();
     const cam2ndc = CameraUtility.getCameraToNDC(this.#viewer);
     Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
     this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
 
-    // Device-specific setup
-    this._setupRendering();
+    // Device-specific setup (context, clear, background)
+    this._beginRender();
 
-    // Clear and render background
-    this._clearSurface();
+    // Apply world2ndc transformation
+    // This is device-independent: push state, apply transform
+    this._pushTransformState();
+    this._applyTransform(this.#world2ndc);
+
+    return true;
+  }
+
+  /**
+   * End rendering - device-independent cleanup
+   * Pops the world2ndc transform state, then calls device-specific _endRender()
+   */
+  endRender() {
+    // Pop the world2ndc transformation state
+    this._popTransformState();
+
+    // Device-specific cleanup
+    this._endRender();
+  }
+
+  /**
+   * Render the scene (device-independent orchestration)
+   */
+  render() {
+    const sceneRoot = this.#viewer.getSceneRoot();
+
+    if (!this.beginRender()) {
+      return;
+    }
 
     // Render the scene
     try {
@@ -124,24 +307,8 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     } catch (error) {
       console.error('Rendering error:', error);
     }
-  }
 
-  /**
-   * Setup device-specific rendering context
-   * @protected
-   * @abstract
-   */
-  _setupRendering() {
-    throw new Error('Abstract method _setupRendering() must be implemented by subclass');
-  }
-
-  /**
-   * Clear the rendering surface and draw background
-   * @protected
-   * @abstract
-   */
-  _clearSurface() {
-    throw new Error('Abstract method _clearSurface() must be implemented by subclass');
+    this.endRender();
   }
 
   /**
@@ -184,9 +351,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       // Let childrenAccept handle the actual visiting of transformation, appearance, and children
       component.childrenAccept(this);
     } finally {
-      // Pop appearance from stack if it was pushed by visitAppearance
+      // Restore parent EffectiveAppearance if we visited an Appearance
       if (hasAppearance) {
-        this.#appearanceStack.pop();
+        this.#effectiveAppearance = this.#effectiveAppearanceStack.pop();
       }
 
       // Restore transformation state and pop our tracking stack
@@ -198,24 +365,6 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       // Pop the component from the path
       this.popPath();
     }
-  }
-
-  /**
-   * Push transformation state (device-specific)
-   * @protected
-   * @abstract
-   */
-  _pushTransformState() {
-    throw new Error('Abstract method _pushTransformState() must be implemented by subclass');
-  }
-
-  /**
-   * Pop transformation state (device-specific)
-   * @protected
-   * @abstract
-   */
-  _popTransformState() {
-    throw new Error('Abstract method _popTransformState() must be implemented by subclass');
   }
 
   /**
@@ -237,53 +386,37 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   }
 
   /**
-   * Apply a transformation matrix (device-specific)
-   * @protected
-   * @abstract
-   * @param {number[]} matrix - 4x4 transformation matrix
-   */
-  _applyTransform(matrix) {
-    throw new Error('Abstract method _applyTransform() must be implemented by subclass');
-  }
-
-  /**
-   * Visit an Appearance node - push it onto the appearance stack
+   * Visit an Appearance node - create child effective appearance and apply to device
    * @param {Appearance} appearance
    */
   visitAppearance(appearance) {
-    this.#appearanceStack.push(appearance);
+    // Save current EffectiveAppearance (will be restored in visitComponent's finally block)
+    this.#effectiveAppearanceStack.push(this.#effectiveAppearance);
+    // Create a new child EffectiveAppearance
+    this.#effectiveAppearance = this.#effectiveAppearance.createChild(appearance);
+    // Apply appearance attributes to device context (set state once)
+    this._applyAppearance();
   }
 
   /**
-   * Get an attribute value from the appearance stack with namespace support
+   * Get an attribute value using EffectiveAppearance with namespace support.
+   * 
+   * This method leverages EffectiveAppearance's automatic namespace stripping.
+   * For example, querying "point.diffuseColor" will try:
+   *   1. "point.diffuseColor" (full namespaced key)
+   *   2. "diffuseColor" (base key)
+   * 
    * @param {string} prefix - Namespace prefix (e.g., "point", "line", "polygon")
    * @param {string} attribute - Base attribute name (e.g., "diffuseColor")
    * @param {*} defaultValue - Default value if not found
    * @returns {*} The attribute value
    */
   getAppearanceAttribute(prefix, attribute, defaultValue) {
-    // Search from top of stack (most specific) to bottom (most general)
-    for (let i = this.#appearanceStack.length - 1; i >= 0; i--) {
-      const appearance = this.#appearanceStack[i];
-      
-      // First try namespaced attribute (e.g., "point.diffuseColor")
-      if (prefix) {
-        const namespacedKey = prefix + '.' + attribute;
-        const namespacedValue = appearance.getAttribute(namespacedKey);
-        if (namespacedValue !== INHERITED) {
-          return namespacedValue;
-        }
-      }
-      
-      // Then try base attribute (e.g., "diffuseColor")
-      const baseValue = appearance.getAttribute(attribute);
-      if (baseValue !== INHERITED) {
-        return baseValue;
-      }
-    }
+    // Use ShaderUtility to create the namespaced key if prefix is provided
+    const key = prefix ? ShaderUtility.nameSpace(prefix, attribute) : attribute;
     
-    // Return default if not found in any appearance
-    return defaultValue;
+    // EffectiveAppearance handles namespace stripping automatically
+    return this.#effectiveAppearance.getAttribute(key, defaultValue);
   }
 
   /**
@@ -317,19 +450,164 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     return Number(ret);
   }
 
-  // Geometry visit methods - subclasses should implement rendering logic
-  // These provide the hooks for device-specific drawing
+  // ============================================================================
+  // GEOMETRY RENDERING - Device-independent rendering logic
+  // ============================================================================
 
+  /**
+   * Visit a PointSet geometry - renders vertices as points
+   * @param {PointSet} pointSet - The point set to render
+   */
   visitPointSet(pointSet) {
-    // Subclass should implement
+    // PointSet only renders vertices as points (based on VERTEX_DRAW flag)
+    this._renderVerticesAsPoints(pointSet);
   }
 
+  /**
+   * Visit an IndexedLineSet geometry - renders vertices and edges
+   * @param {IndexedLineSet} lineSet - The line set to render
+   */
   visitIndexedLineSet(lineSet) {
-    // Subclass should implement
+    // IndexedLineSet renders vertices as points (if VERTEX_DRAW), then edges as lines (if EDGE_DRAW)
+    this._renderVerticesAsPoints(lineSet);
+    this._renderEdgesAsLines(lineSet);
   }
 
+  /**
+   * Visit an IndexedFaceSet geometry - renders vertices, edges, and faces
+   * @param {IndexedFaceSet} faceSet - The face set to render
+   */
   visitIndexedFaceSet(faceSet) {
-    // Subclass should implement
+    // IndexedFaceSet renders all three primitive types based on draw flags:
+    // 1. Vertices as points (if VERTEX_DRAW)
+    // 2. Edges as lines (if EDGE_DRAW) 
+    // 3. Faces as filled polygons (if FACE_DRAW)
+    this._renderVerticesAsPoints(faceSet);
+    this._renderEdgesAsLines(faceSet);
+    this._renderFacesAsPolygons(faceSet);
+  }
+
+  /**
+   * Helper method to render vertices as points for any geometry
+   * @protected
+   * @param {*} geometry - The geometry object
+   */
+  _renderVerticesAsPoints(geometry) {
+    if (!this.getBooleanAttribute(CommonAttributes.VERTEX_DRAW, true)) {
+      return;
+    }
+
+    const vertices = geometry.getVertexCoordinates();
+    if (!vertices) return;
+    
+    // Get point color with namespace fallback
+    const pointColor = this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000');
+
+    const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
+                       geometry.getNumVertices ? geometry.getNumVertices() : 
+                       vertices.shape[0];
+    
+    // Begin nested group for points
+    this._beginPrimitiveGroup('point');
+    
+    for (let i = 0; i < numVertices; i++) {
+      const vertex = vertices.getSlice(i);
+      if (vertex.length >= 3) {
+        const point = this._extractPoint(vertex);
+        this._drawPoint(point.x, point.y);
+      }
+    }
+    
+    // End nested group for points
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * Helper method to render edges as lines for indexed geometries
+   * @protected
+   * @param {IndexedLineSet} geometry - The geometry object (IndexedLineSet or IndexedFaceSet)
+   */
+  _renderEdgesAsLines(geometry) {
+    if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
+      return;
+    }
+
+    const vertices = geometry.getVertexCoordinates();
+    let indices = null;
+    
+    // Get appropriate edge indices - try both convenience method and direct attribute access
+    if (geometry.getEdgeIndices) {
+      indices = geometry.getEdgeIndices();
+    }
+    
+    // Fallback: try getting indices directly from edge attributes
+    if (!indices && geometry.getEdgeAttributes) {
+      const edgeAttrs = geometry.getEdgeAttributes();
+      if (edgeAttrs && edgeAttrs.size > 0) {
+        indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES) || 
+                  geometry.getEdgeAttribute('indices');
+      }
+    }
+
+    // Begin nested group for lines
+    this._beginPrimitiveGroup('line');
+    
+    // Render all edges
+    if (indices) {
+      // 2D array of edge indices
+      for (let i = 0; i < indices.rows.length; i++) {
+        const edgeIndices = indices.getRow(i);
+        this._drawPolyline(vertices, edgeIndices);
+      }
+    } else {
+      // Handle flat array case
+      console.warn('Edge indices format not supported yet');
+    }
+    
+    // End nested group for lines
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * Helper method to render faces as filled polygons for indexed face sets
+   * @protected
+   * @param {*} geometry - The geometry object (IndexedFaceSet)
+   */
+  _renderFacesAsPolygons(geometry) {
+    if (!this.getBooleanAttribute(CommonAttributes.FACE_DRAW, true)) {
+      return;
+    }
+
+    const vertices = geometry.getVertexCoordinates();
+    const indices = geometry.getFaceIndices();
+    if (!vertices || !indices) return;
+
+    // Get appearance attributes
+    const faceColor = this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc');
+
+    // Begin nested group for faces
+    this._beginPrimitiveGroup('face');
+    
+    for (let i = 0; i < geometry.getNumFaces(); i++) {
+      const faceIndices = indices.getRow(i);
+      this._drawPolygon(vertices, faceIndices, true);
+    }
+    
+    // End nested group for faces
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * Helper method to extract edge indices from face indices
+   * @protected
+   * @param {*} faceIndices - Face indices data
+   * @param {number} numFaces - Number of faces
+   * @returns {*} Edge indices data structure
+   */
+  _extractEdgesFromFaces(faceIndices, numFaces) {
+    // For now, return null to disable edge rendering for faces
+    // TODO: Implement proper edge extraction from face topology
+    return faceIndices;
   }
 }
 

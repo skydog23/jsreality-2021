@@ -174,7 +174,7 @@ export class MatrixBuilder {
    * @returns {MatrixBuilder}
    */
   rotateAboutAxis(p1, p2, angle) {
-    P3.makeRotationMatrix(this.#tmp, p1, p2, angle, this.#metric);
+    P3.makeRotationMatrixAxis(this.#tmp, p1, p2, angle, this.#metric);
     this.#matrix.multiplyOnRight(this.#tmp);
     return this;
   }
@@ -285,8 +285,8 @@ export class MatrixBuilder {
    */
   translate(vector, dy, dz) {
     if (typeof vector === 'number') {
-      // Called with three numbers
-      return this.translateArray([vector, dy, dz]);
+      // Called with three numbers - dy and dz default to 0 if not provided
+      return this.translateArray([vector, dy ?? 0, dz ?? 0]);
     } else {
       // Called with array
       return this.translateArray(vector);

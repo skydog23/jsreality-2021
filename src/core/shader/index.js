@@ -3,3 +3,5 @@
  */
 
 export * from './CommonAttributes.js';
+export { EffectiveAppearance } from './EffectiveAppearance.js';
+export { ShaderUtility } from './ShaderUtility.js';

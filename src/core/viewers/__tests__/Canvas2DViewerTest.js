@@ -7,6 +7,7 @@ import { IndexedFaceSet, IndexedLineSet, PointSet, SceneGraphComponent, SceneGra
 import { Transformation } from '../../scene/Transformation.js';
 import * as CommonAttributes from '../../shader/CommonAttributes.js';
 import { Color } from '../../util/Color.js';
+import { SceneGraphUtility } from '../../util/SceneGraphUtility.js';
 import { Canvas2DViewer } from '../Canvas2DViewer.js';
 import { MatrixBuilder } from '../../math/MatrixBuilder.js';
 import { Appearance } from '../../scene/Appearance.js';
@@ -17,9 +18,7 @@ import { Appearance } from '../../scene/Appearance.js';
  */
 function createTestScene() {
   // Create scene root 
-  const sceneRoot = new SceneGraphComponent();
-  sceneRoot.setName('root');
-
+  const sceneRoot = SceneGraphUtility.createFullSceneGraphComponent("root");
   // Create and configure appearance with namespaced attributes
   const rootAppearance = new Appearance('rootAppearance');
   
@@ -59,27 +58,32 @@ function createTestScene() {
   cameraComponent.addChild(camera);
   
   const cameraTransform = new Transformation();
-  const cameraMatrix = MatrixBuilder.euclidean().translate(0,0,-1).scale(2,2,1).getArray();
-   cameraTransform.setMatrix(cameraMatrix);
+  const cameraMatrix = MatrixBuilder.euclidean().translate(0,0,-1).getArray();
+  cameraTransform.setMatrix(cameraMatrix);
   cameraComponent.setTransformation(cameraTransform);
   
   sceneRoot.addChild(cameraComponent);
   
-
   const cameraPath = new SceneGraphPath(sceneRoot, cameraComponent, camera);
 
-  sceneRoot.addChild(initGrid());
+  const worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
+  sceneRoot.addChild(worldSGC);
+
+  initGrid(worldSGC);
+
+  const mat = MatrixBuilder.euclidean().scale(.5,.5,1).getArray();
+  worldSGC.setTransformation(new Transformation(mat));
 
   // Create some test geometry
-  createTestPoints(sceneRoot);
-  createTestLines(sceneRoot);
-  createTestTriangle(sceneRoot);
+  createTestPoints(worldSGC);
+  createTestLines(worldSGC);
+  createTestTriangle(worldSGC);
 
   return { sceneRoot, cameraPath };
 }
 
 
-function initGrid() {
+function initGrid(parent) {
    const size = 10, incr = .5;
   const xmin = -size / 2, xmax = size / 2, ymin = -size / 2, ymax = size / 2;
   const num = size / incr + 1;
@@ -103,7 +107,7 @@ function initGrid() {
   ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   gridComponent.setAppearance(ap);
   
-  return gridComponent;
+  parent.addChild(gridComponent);
 }
 
 /**
@@ -183,8 +187,7 @@ function createTestLines(parent) {
  * Create test triangle
  */
 function createTestTriangle(parent) {
-  const triangleComponent = new SceneGraphComponent();
-  triangleComponent.setName('testTriangle');
+  const triangleComponent = SceneGraphUtility.createFullSceneGraphComponent('testTriangle');
 
   // Create vertices for a triangle
   const vertices = [
@@ -207,6 +210,9 @@ function createTestTriangle(parent) {
   faceSet.setFaceIndices(faces);
   faceSet.setEdgeIndices(edges);
   triangleComponent.setGeometry(faceSet);
+  const ap = triangleComponent.getAppearance();
+  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
+  ap.setAttribute(CommonAttributes.LINE_WIDTH, .02);
 
   // Position triangle to the right
   const transform = new Transformation();
@@ -274,10 +280,7 @@ export function runCanvas2DTest() {
     // Mark canvas as having been tested to prevent duplicate runs
     canvas.dataset.testRun = 'true';
 
-    // Setup interactive controls
-    setupInteractiveControls(viewer, canvas);
-
-    // Test async rendering
+     // Test async rendering
     setTimeout(() => {
       viewer.renderAsync();
       console.log('✓ Async render triggered');
@@ -297,76 +300,6 @@ export function runCanvas2DTest() {
   }
 }
 
-/**
- * Setup interactive controls for the viewer
- */
-function setupInteractiveControls(viewer, canvas) {
-  // Check if controls already exist to prevent duplicates
-  const existingControls = document.querySelector('.canvas2d-controls');
-  if (existingControls) {
-    console.log('Controls already exist, skipping creation');
-    return;
-  }
-
-  // Add some basic interaction
-  const controls = document.createElement('div');
-  controls.className = 'canvas2d-controls'; // Add class for duplicate detection
-  controls.style.textAlign = 'center';
-  controls.style.margin = '10px';
-
-  // Show/hide points
-  const pointsBtn = document.createElement('button');
-  pointsBtn.textContent = 'Toggle Points';
-  pointsBtn.addEventListener('click', () => {
-    const sceneRoot = viewer.getSceneRoot();
-    const appearance = sceneRoot.getAppearance();
-    const currentVertexDraw = appearance.getAttribute(CommonAttributes.VERTEX_DRAW);
-    appearance.setAttribute(CommonAttributes.VERTEX_DRAW, !currentVertexDraw);
-    viewer.render();
-  });
-
- // Edges toggle
-  const edgesBtn = document.createElement('button');
-  edgesBtn.textContent = 'Toggle Edges';
-  edgesBtn.addEventListener('click', () => {
-    const sceneRoot = viewer.getSceneRoot();
-    const appearance = sceneRoot.getAppearance();
-    const currentEdgeDraw = appearance.getAttribute(CommonAttributes.EDGE_DRAW) || false;
-    appearance.setAttribute(CommonAttributes.EDGE_DRAW, !currentEdgeDraw);
-    viewer.render();
-  });
-
-  // Show/hide faces
-  const facesBtn = document.createElement('button');
-  facesBtn.textContent = 'Toggle Faces';
-  facesBtn.addEventListener('click', () => {
-    const sceneRoot = viewer.getSceneRoot();
-    const appearance = sceneRoot.getAppearance();
-    const currentFaceDraw = appearance.getAttribute(CommonAttributes.FACE_DRAW);
-    appearance.setAttribute(CommonAttributes.FACE_DRAW, !currentFaceDraw);
-    viewer.render();
-  });
-
- 
-  // Export image
-  const exportBtn = document.createElement('button');
-  exportBtn.textContent = 'Export Image';
-  exportBtn.addEventListener('click', () => {
-    const dataUrl = viewer.exportImage();
-    const link = document.createElement('a');
-    link.download = 'canvas2d-export.png';
-    link.href = dataUrl;
-    link.click();
-  });
-
-  controls.appendChild(pointsBtn);
-  controls.appendChild(edgesBtn);
-  controls.appendChild(facesBtn);
-  controls.appendChild(exportBtn);
-
-  // Insert controls after canvas
-  canvas.parentNode.insertBefore(controls, canvas.nextSibling);
-}
 
 // Auto-run test if this script is loaded directly (not as a module import)
 // Check if we're being imported as a module by looking for existing canvas
