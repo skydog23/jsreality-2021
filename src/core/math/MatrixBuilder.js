@@ -240,8 +240,8 @@ export class MatrixBuilder {
   }
 
   /**
-   * Non-uniform scaling with array
-   * @param {number[]} scaleVec 
+   * uniform scaling with number
+   * @param {number} scaleVec 
    * @returns {MatrixBuilder}
    */
   scaleArray(scaleVec) {
@@ -258,7 +258,7 @@ export class MatrixBuilder {
    * @returns {MatrixBuilder}
    */
   scaleXYZ(scaleX, scaleY, scaleZ) {
-    P3.makeStretchMatrix(this.#tmp, [scaleX, scaleY, scaleZ, 1]);
+    P3.makeStretchMatrixXYZ(this.#tmp, scaleX, scaleY, scaleZ);
     this.#matrix.multiplyOnRight(this.#tmp);
     return this;
   }
