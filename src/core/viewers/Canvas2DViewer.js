@@ -264,7 +264,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    */
   _applyAppearance() {
     // Cache appearance attributes - will be set per primitive type in _beginPrimitiveGroup
-    this.#pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
+    this.#pointSize = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_SIZE, 0.1);
   }
 
   /**
@@ -275,16 +275,16 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   _beginPrimitiveGroup(type) {
     const ctx = this.#context;
     
-    if (type === 'point') {
+    if (type === CommonAttributes.POINT) {
       ctx.fillStyle = this.toCSSColor(
-        this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
-    } else if (type === 'line') {
+        this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
+    } else if (type === CommonAttributes.LINE) {
       ctx.strokeStyle = this.toCSSColor(
-        this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000'));
-      ctx.lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
-    } else if (type === 'face') {
+        this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
+      ctx.lineWidth = this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, 1);
+    } else if (type === CommonAttributes.POLYGON) {
       ctx.fillStyle = this.toCSSColor(
-        this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
+        this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
     }
   }
 

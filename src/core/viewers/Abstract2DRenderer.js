@@ -97,7 +97,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * Allows setting type-specific appearance attributes
    * @protected
    * @abstract
-   * @param {string} type - Primitive type: 'point', 'line', or 'face'
+   * @param {string} type - Primitive type: CommonAttributes.POINT, CommonAttributes.LINE, or CommonAttributes.POLYGON
    */
   _beginPrimitiveGroup(type) {
     throw new Error('Abstract method _beginPrimitiveGroup() must be implemented by subclass');
@@ -402,11 +402,11 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * Get an attribute value using EffectiveAppearance with namespace support.
    * 
    * This method leverages EffectiveAppearance's automatic namespace stripping.
-   * For example, querying "point.diffuseColor" will try:
-   *   1. "point.diffuseColor" (full namespaced key)
+   * For example, querying "CommonAttributes.POINT_SHADERdiffuseColor" will try:
+   *   1. "CommonAttributes.POINT_SHADERdiffuseColor" (full namespaced key)
    *   2. "diffuseColor" (base key)
    * 
-   * @param {string} prefix - Namespace prefix (e.g., "point", "line", "polygon")
+   * @param {string} prefix - Namespace prefix (e.g., "CommonAttributes.POINT_SHADER", "line", "polygon")
    * @param {string} attribute - Base attribute name (e.g., "diffuseColor")
    * @param {*} defaultValue - Default value if not found
    * @returns {*} The attribute value
@@ -501,14 +501,14 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (!vertices) return;
     
     // Get point color with namespace fallback
-    const pointColor = this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000');
+    const pointColor = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000');
 
     const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
                        geometry.getNumVertices ? geometry.getNumVertices() : 
                        vertices.shape[0];
     
     // Begin nested group for points
-    this._beginPrimitiveGroup('point');
+    this._beginPrimitiveGroup(CommonAttributes.POINT);
     
     for (let i = 0; i < numVertices; i++) {
       const vertex = vertices.getSlice(i);
@@ -550,7 +550,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
 
     // Begin nested group for lines
-    this._beginPrimitiveGroup('line');
+    this._beginPrimitiveGroup(CommonAttributes.LINE);
     
     // Render all edges
     if (indices) {
@@ -583,10 +583,10 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (!vertices || !indices) return;
 
     // Get appearance attributes
-    const faceColor = this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc');
+    const faceColor = this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc');
 
     // Begin nested group for faces
-    this._beginPrimitiveGroup('face');
+    this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     
     for (let i = 0; i < geometry.getNumFaces(); i++) {
       const faceIndices = indices.getRow(i);

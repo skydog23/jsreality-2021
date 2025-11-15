@@ -351,15 +351,15 @@ class SVGRenderer extends Abstract2DRenderer {
   _applyAppearance() {
     // Cache appearance attributes - will be used in _beginPrimitiveGroup
     this.#pointColor = this.toCSSColor(
-      this.getAppearanceAttribute('point', CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
+      this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
     this.#pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
     
     this.#lineColor = this.toCSSColor(
-      this.getAppearanceAttribute('line', CommonAttributes.DIFFUSE_COLOR, '#000000'));
+      this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
     this.#lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
     
     this.#faceColor = this.toCSSColor(
-      this.getAppearanceAttribute('polygon', CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
+      this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
   }
 
   /**
@@ -381,13 +381,13 @@ class SVGRenderer extends Abstract2DRenderer {
     currentGroup.appendChild(document.createTextNode(indent));
     
     // Set type-specific attributes on the group
-    if (type === 'point') {
+    if (type === CommonAttributes.POINT) {
       g.setAttribute('fill', this.#pointColor);
-    } else if (type === 'line') {
+    } else if (type === CommonAttributes.LINE) {
       g.setAttribute('stroke', this.#lineColor);
       g.setAttribute('stroke-width', this.#lineWidth.toFixed(4));
       g.setAttribute('fill', 'none');
-    } else if (type === 'face') {
+    } else if (type === CommonAttributes.POLYGON) {
       g.setAttribute('fill', this.#faceColor);
       g.setAttribute('stroke', 'none');
     }
