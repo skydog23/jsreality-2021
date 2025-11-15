@@ -157,6 +157,18 @@ export class DefaultGeometryShader {
   }
   
   /**
+   * Get all attributes as a map (for inspector display)
+   * @returns {Object} Attribute map with showPoints, showLines, showFaces
+   */
+  getAllAttributes() {
+    return {
+      showPoints: this.#showPoints,
+      showLines: this.#showLines,
+      showFaces: this.#showFaces
+    };
+  }
+  
+  /**
    * Create a DefaultGeometryShader from an EffectiveAppearance
    * 
    * Queries the EffectiveAppearance for all shader attributes and creates
