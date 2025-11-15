@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoggingSystem Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .info-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    button {
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button.secondary {
+      background: #2196F3;
+    }
+    button.secondary:hover {
+      background: #0b7dda;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+    code {
+      background: #e8e8e8;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+    }
+    .success { color: #4CAF50; }
+    .error { color: #f44336; }
+  </style>
+</head>
+<body>
+  <h1>LoggingSystem Test</h1>
+
+  <div class="info-box">
+    <h2>About</h2>
+    <p>This page demonstrates the <code>LoggingSystem</code> for jsReality-2021.</p>
+    <p><strong>Open the browser console</strong> (F12) to see the log output.</p>
+  </div>
+
+  <div class="info-box">
+    <h2>Log Levels</h2>
+    <p>From most to least severe:</p>
+    <ul>
+      <li><strong>SEVERE</strong> (1000) - console.error</li>
+      <li><strong>WARNING</strong> (900) - console.warn</li>
+      <li><strong>INFO</strong> (800) - console.info</li>
+      <li><strong>CONFIG</strong> (700) - console.log</li>
+      <li><strong>FINE</strong> (500) - console.log</li>
+      <li><strong>FINER</strong> (400) - console.log</li>
+      <li><strong>FINEST</strong> (300) - console.log</li>
+    </ul>
+  </div>
+
+  <div class="info-box">
+    <h2>Categories (Bitwise Flags)</h2>
+    <ul>
+      <li><code>DEBUG.SCENE</code> (1) - Scene graph operations</li>
+      <li><code>DEBUG.GEOMETRY</code> (2) - Geometry processing</li>
+      <li><code>DEBUG.SHADER</code> (4) - Shader and appearance</li>
+      <li><code>DEBUG.VIEWER</code> (8) - Viewer rendering</li>
+      <li><code>DEBUG.INSPECTOR</code> (16) - Inspector UI</li>
+      <li><code>DEBUG.TRANSFORMATION</code> (32) - Matrix transformations</li>
+      <li><code>DEBUG.UTIL</code> (64) - Utility functions</li>
+      <li><code>DEBUG.IO</code> (128) - Input/output</li>
+      <li><code>DEBUG.ERROR</code> (256) - Error conditions</li>
+      <li><code>DEBUG.GENERAL</code> (512) - General/uncategorized</li>
+    </ul>
+  </div>
+
+  <div class="info-box">
+    <h2>Test Controls</h2>
+    <p><strong>Check the console after clicking each button!</strong></p>
+    
+    <div class="controls">
+      <button onclick="testBasicLogging()">1. Basic Logging</button>
+      <button onclick="testLogLevels()">2. Log Levels</button>
+      <button onclick="testCategories()">3. Categories</button>
+      <button onclick="testModuleLevels()">4. Module Levels</button>
+      <button onclick="testCombined()">5. Combined Filters</button>
+      <button class="secondary" onclick="resetLogging()">Reset to Defaults</button>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <h2>Example Usage</h2>
+    <pre>
+<span style="color: #66d9ef;">import</span> { getLogger, DEBUG, Level } <span style="color: #66d9ef;">from</span> <span style="color: #e6db74;">'./util/LoggingSystem.js'</span>;
+
+<span style="color: #75715e;">// In a class</span>
+<span style="color: #66d9ef;">class</span> <span style="color: #a6e22e;">MyViewer</span> {
+  <span style="color: #75715e;">// Get logger for this class</span>
+  #logger = getLogger(<span style="color: #66d9ef;">this</span>);
+
+  render() {
+    <span style="color: #66d9ef;">this</span>.#logger.fine(DEBUG.VIEWER, <span style="color: #e6db74;">'Starting render'</span>);
+    <span style="color: #75715e;">// ... rendering code ...</span>
+    <span style="color: #66d9ef;">this</span>.#logger.finest(DEBUG.VIEWER, <span style="color: #e6db74;">'Render complete'</span>);
+  }
+
+  handleError(e) {
+    <span style="color: #66d9ef;">this</span>.#logger.severe(DEBUG.ERROR, <span style="color: #e6db74;">'Render failed:'</span>, e);
+  }
+}
+
+<span style="color: #75715e;">// In a module/function</span>
+<span style="color: #66d9ef;">const</span> logger = getLogger(<span style="color: #e6db74;">'GeometryUtils'</span>);
+logger.info(DEBUG.GEOMETRY, <span style="color: #e6db74;">'Processing vertices:'</span>, count);
+    </pre>
+  </div>
+
+  <div class="info-box">
+    <h2>Configuration</h2>
+    <pre>
+<span style="color: #66d9ef;">import</span> { 
+  setGlobalLevel, 
+  setModuleLevel, 
+  setEnabledCategories,
+  Level,
+  DEBUG
+} <span style="color: #66d9ef;">from</span> <span style="color: #e6db74;">'./util/LoggingSystem.js'</span>;
+
+<span style="color: #75715e;">// Set global level (default is SEVERE)</span>
+setGlobalLevel(Level.INFO);
+
+<span style="color: #75715e;">// Enable specific modules for detailed logging</span>
+setModuleLevel(<span style="color: #e6db74;">'Canvas2DViewer'</span>, Level.FINE);
+setModuleLevel(<span style="color: #e6db74;">'SceneGraphInspector'</span>, Level.FINEST);
+
+<span style="color: #75715e;">// Enable only specific categories</span>
+setEnabledCategories(DEBUG.VIEWER | DEBUG.SHADER | DEBUG.ERROR);
+    </pre>
+  </div>
+
+  <script type="module">
+    import { 
+      getLogger, 
+      setGlobalLevel, 
+      setModuleLevel, 
+      setEnabledCategories,
+      reset,
+      Level, 
+      DEBUG 
+    } from '../src/core/util/LoggingSystem.js';
+
+    // Make functions available to window for onclick handlers
+    window.testBasicLogging = function() {
+      console.clear();
+      console.log('=== Test 1: Basic Logging ===\n');
+      
+      const logger = getLogger('TestModule');
+      
+      setGlobalLevel(Level.INFO);
+      
+      logger.severe(DEBUG.ERROR, 'This is a severe error');
+      logger.warn(DEBUG.GENERAL, 'This is a warning');
+      logger.info(DEBUG.GENERAL, 'This is an info message');
+      logger.fine(DEBUG.GENERAL, 'This is a fine message (should NOT appear - below INFO level)');
+      
+      console.log('\n✓ Test complete - check messages above');
+    };
+
+    window.testLogLevels = function() {
+      console.clear();
+      console.log('=== Test 2: Log Levels ===\n');
+      
+      const logger = getLogger('LevelTest');
+      
+      console.log('--- With Level.FINEST (shows all) ---');
+      setGlobalLevel(Level.FINEST);
+      logger.severe(DEBUG.GENERAL, 'SEVERE message');
+      logger.warn(DEBUG.GENERAL, 'WARNING message');
+      logger.info(DEBUG.GENERAL, 'INFO message');
+      logger.config(DEBUG.GENERAL, 'CONFIG message');
+      logger.fine(DEBUG.GENERAL, 'FINE message');
+      logger.finer(DEBUG.GENERAL, 'FINER message');
+      logger.finest(DEBUG.GENERAL, 'FINEST message');
+      
+      console.log('\n--- With Level.WARNING (only SEVERE and WARNING) ---');
+      setGlobalLevel(Level.WARNING);
+      logger.severe(DEBUG.GENERAL, 'SEVERE message (visible)');
+      logger.warn(DEBUG.GENERAL, 'WARNING message (visible)');
+      logger.info(DEBUG.GENERAL, 'INFO message (should NOT appear)');
+      
+      console.log('\n✓ Test complete');
+    };
+
+    window.testCategories = function() {
+      console.clear();
+      console.log('=== Test 3: Categories ===\n');
+      
+      const logger = getLogger('CategoryTest');
+      setGlobalLevel(Level.FINEST);
+      
+      console.log('--- All categories enabled ---');
+      setEnabledCategories(0xFFFFFFFF);
+      logger.info(DEBUG.SCENE, 'Scene message (visible)');
+      logger.info(DEBUG.GEOMETRY, 'Geometry message (visible)');
+      logger.info(DEBUG.VIEWER, 'Viewer message (visible)');
+      
+      console.log('\n--- Only SCENE and GEOMETRY enabled ---');
+      setEnabledCategories(DEBUG.SCENE | DEBUG.GEOMETRY);
+      logger.info(DEBUG.SCENE, 'Scene message (visible)');
+      logger.info(DEBUG.GEOMETRY, 'Geometry message (visible)');
+      logger.info(DEBUG.VIEWER, 'Viewer message (should NOT appear)');
+      
+      console.log('\n✓ Test complete');
+    };
+
+    window.testModuleLevels = function() {
+      console.clear();
+      console.log('=== Test 4: Module Levels ===\n');
+      
+      const logger1 = getLogger('ModuleA');
+      const logger2 = getLogger('ModuleB');
+      
+      setGlobalLevel(Level.WARNING); // Default: only warnings and above
+      setModuleLevel('ModuleB', Level.FINEST); // ModuleB gets detailed logging
+      
+      console.log('--- ModuleA uses global level (WARNING) ---');
+      logger1.severe(DEBUG.GENERAL, 'ModuleA severe (visible)');
+      logger1.warn(DEBUG.GENERAL, 'ModuleA warning (visible)');
+      logger1.info(DEBUG.GENERAL, 'ModuleA info (should NOT appear)');
+      
+      console.log('\n--- ModuleB uses custom level (FINEST) ---');
+      logger2.severe(DEBUG.GENERAL, 'ModuleB severe (visible)');
+      logger2.info(DEBUG.GENERAL, 'ModuleB info (visible)');
+      logger2.finest(DEBUG.GENERAL, 'ModuleB finest (visible)');
+      
+      console.log('\n✓ Test complete');
+    };
+
+    window.testCombined = function() {
+      console.clear();
+      console.log('=== Test 5: Combined Filters ===\n');
+      
+      const viewer = getLogger('Canvas2DViewer');
+      const inspector = getLogger('SceneGraphInspector');
+      
+      // Global: only warnings
+      setGlobalLevel(Level.WARNING);
+      
+      // Canvas2DViewer: detailed logging
+      setModuleLevel('Canvas2DViewer', Level.FINEST);
+      
+      // Only show VIEWER and INSPECTOR categories
+      setEnabledCategories(DEBUG.VIEWER | DEBUG.INSPECTOR);
+      
+      console.log('--- Canvas2DViewer (detailed, VIEWER category) ---');
+      viewer.finest(DEBUG.VIEWER, 'Detailed viewer message (visible)');
+      viewer.finest(DEBUG.SHADER, 'Shader message (should NOT appear - category filtered)');
+      
+      console.log('\n--- SceneGraphInspector (global level, INSPECTOR category) ---');
+      inspector.severe(DEBUG.INSPECTOR, 'Inspector error (visible)');
+      inspector.info(DEBUG.INSPECTOR, 'Inspector info (should NOT appear - level too low)');
+      
+      console.log('\n✓ Test complete');
+    };
+
+    window.resetLogging = function() {
+      console.clear();
+      reset();
+      console.log('✓ Logging system reset to defaults (Level.SEVERE, all categories)');
+    };
+
+    // Initial message
+    console.log('%c✓ LoggingSystem loaded successfully!', 'color: #4CAF50; font-weight: bold; font-size: 14px;');
+    console.log('Click the buttons above to run tests.');
+  </script>
+</body>
+</html>
+

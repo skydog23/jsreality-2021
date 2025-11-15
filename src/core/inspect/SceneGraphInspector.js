@@ -1245,54 +1245,23 @@ export class SceneGraphInspector {
   }
 
   /**
-   * Create an inherited button widget
+   * Create an inherited indicator (plain text for now)
    * @param {string} attributeKey - The attribute key (e.g., 'point.diffuseColor')
    * @param {*} currentValue - The current value (or INHERITED symbol)
    * @param {Appearance} appearance - The appearance to modify
    * @param {Function} schema - The shader schema to get defaults from
-   * @returns {HTMLElement} The button element
+   * @param {*} refreshNode - The node to refresh after changes (appearance or shaderNode)
+   * @returns {HTMLElement} The inherited indicator
    * @private
    */
-  #createInheritedButton(attributeKey, currentValue, appearance, schema) {
-    const button = document.createElement('button');
-    button.className = 'sg-inherited-button';
-    
-    const isInherited = currentValue === INHERITED;
-    
-    if (isInherited) {
-      button.textContent = 'Inherited';
-      button.title = 'Click to set explicit value';
-    } else {
-      button.textContent = 'Inherited';
-      button.classList.add('explicit');
-      button.title = 'Click to clear and inherit value';
-    }
-    
-    button.onclick = () => {
-      if (isInherited) {
-        // Set to default value to make it explicit
-        const baseKey = attributeKey.includes('.') 
-          ? attributeKey.split('.').pop() 
-          : attributeKey;
-        const defaultValue = schema.getDefault?.(baseKey);
-        if (defaultValue !== undefined) {
-          appearance.setAttribute(attributeKey, defaultValue);
-        }
-      } else {
-        // Clear to inherited
-        appearance.setAttribute(attributeKey, INHERITED);
-      }
-      
-      // Trigger viewer render if available
-      if (typeof window !== 'undefined' && window._viewerInstance) {
-        window._viewerInstance.render();
-      }
-      
-      // Refresh the property panel
-      this.#updatePropertyPanel(appearance);
-    };
-    
-    return button;
+  #createInheritedButton(attributeKey, currentValue, appearance, schema, refreshNode = null) {
+    const span = document.createElement('span');
+    span.className = 'sg-inherited-indicator';
+    span.textContent = 'Inherited';
+    span.style.color = '#858585';
+    span.style.fontSize = '11px';
+    span.style.fontStyle = 'italic';
+    return span;
   }
 
   /**
@@ -1647,7 +1616,7 @@ export class SceneGraphInspector {
       
       if (value === INHERITED) {
         // Create inherited button that can be clicked to set value
-        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema, shaderNode);
         properties.push({
           label: this.#formatAttributeName(key),
           value: inheritedBtn,
@@ -1674,7 +1643,7 @@ export class SceneGraphInspector {
         container.style.alignItems = 'center';
         container.appendChild(widget);
         
-        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema, shaderNode);
         container.appendChild(inheritedBtn);
         
         properties.push({

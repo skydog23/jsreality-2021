@@ -304,7 +304,7 @@ export class PointShaderInstance extends ShaderInstance {
     return createShaderInstance(
       ea,
       DefaultPointShader,
-      'point',
+      CommonAttributes.POINT_SHADER,
       'point',
       'Point Shader'
     );
@@ -324,7 +324,7 @@ export class LineShaderInstance extends ShaderInstance {
     return createShaderInstance(
       ea,
       DefaultLineShader,
-      'line',
+      CommonAttributes.LINE_SHADER,
       'line',
       'Line Shader'
     );
@@ -344,7 +344,7 @@ export class PolygonShaderInstance extends ShaderInstance {
     return createShaderInstance(
       ea,
       DefaultPolygonShader,
-      'polygon',
+      CommonAttributes.POLYGON_SHADER,
       'polygon',
       'Polygon Shader'
     );
