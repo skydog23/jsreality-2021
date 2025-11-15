@@ -26,17 +26,17 @@ function createTestScene() {
   rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(100,255,100));
   
   // Point rendering attributes
-  rootAppearance.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
-  rootAppearance.setAttribute(CommonAttributes.POINT_SIZE, .1);
+  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
+  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .1);
   rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
   
   // Line rendering attributes  
-  rootAppearance.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 255)); // Black lines
-  rootAppearance.setAttribute(CommonAttributes.LINE_WIDTH, .01);
+  rootAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 255)); // Black lines
+  rootAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .01);
   rootAppearance.setAttribute(CommonAttributes.EDGE_DRAW, true);
   
   // Polygon/face rendering attributes
-  rootAppearance.setAttribute('polygon.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0, 220)); // Light gray faces
+  rootAppearance.setAttribute(CommonAttributes.POLYGON_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0, 220)); // Light gray faces
   rootAppearance.setAttribute(CommonAttributes.FACE_DRAW, true);
   
   // General rendering settings
@@ -102,7 +102,7 @@ function initGrid(parent) {
   gridComponent.setName('grid');
   gridComponent.setGeometry(gridIFS);
   const ap = new Appearance();
-  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
   ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
   ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   gridComponent.setAppearance(ap);
@@ -138,8 +138,8 @@ function createTestPoints(parent) {
   pointsComponent.setTransformation(transform);
 
   const ap = new Appearance();
-  ap.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
-  ap.setAttribute(CommonAttributes.POINT_SIZE, .1);
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .1);
   pointsComponent.setAppearance(ap);
  
   parent.addChild(pointsComponent);
@@ -176,8 +176,8 @@ function createTestLines(parent) {
   linesComponent.setTransformation(transform);
 
   const ap = new Appearance();
-  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, .04);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
   linesComponent.setAppearance(ap);
 
   parent.addChild(linesComponent);
@@ -211,8 +211,8 @@ function createTestTriangle(parent) {
   faceSet.setEdgeIndices(edges);
   triangleComponent.setGeometry(faceSet);
   const ap = triangleComponent.getAppearance();
-  ap.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, .02);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .02);
 
   // Position triangle to the right
   const transform = new Transformation();
@@ -240,13 +240,14 @@ export function runCanvas2DTest() {
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'canvas2d-test';
-    canvas.width = 800;
-    canvas.height = 600;
+    // Don't set width/height here - let CSS control the size
+    // Canvas2DViewer will set the bitmap dimensions based on clientWidth/clientHeight
     canvas.style.border = '1px solid #ccc';
     canvas.style.display = 'block';
     canvas.style.margin = '20px auto';
-    canvas.style.width = '800px';   // Ensure CSS size matches bitmap size
-    canvas.style.height = '600px';  // Ensure CSS size matches bitmap size
+    canvas.style.width = '100%';      // Fill available width
+    canvas.style.height = '600px';    // Fixed height (can be changed via CSS)
+    canvas.style.maxWidth = '100%';   // Don't exceed container
     document.body.appendChild(canvas);
   }
 

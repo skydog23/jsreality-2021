@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geometry Shader Instance Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+    }
+    
+    .test-section {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    h2 {
+      color: #555;
+      margin-top: 0;
+    }
+    
+    .result {
+      background: #f8f8f8;
+      border-left: 4px solid #4CAF50;
+      padding: 10px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+    }
+    
+    .result.error {
+      border-left-color: #f44336;
+    }
+    
+    .pass {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    
+    .fail {
+      color: #f44336;
+      font-weight: bold;
+    }
+    
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    
+    button:hover {
+      background: #1976D2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Geometry Shader Instance Test</h1>
+  <p>This test verifies that <code>DefaultGeometryShader.createFromEffectiveAppearance()</code> correctly creates shader instances with resolved attribute values.</p>
+  
+  <button id="run-test">Run Test</button>
+  <button id="clear-results">Clear Results</button>
+  
+  <div id="test-results"></div>
+  
+  <script type="module">
+    // CRITICAL: Do NOT use cache-busting query parameters on module imports!
+    // ES6 modules that export symbols (like INHERITED) must be imported without
+    // query parameters, otherwise each import creates a DIFFERENT symbol instance,
+    // breaking === comparisons across modules.
+    import { Appearance, INHERITED } from '../src/core/scene/Appearance.js';
+    import { EffectiveAppearance } from '../src/core/shader/EffectiveAppearance.js';
+    import { DefaultGeometryShader } from '../src/core/shader/DefaultGeometryShader.js';
+    import * as CommonAttributes from '../src/core/shader/CommonAttributes.js';
+    import { Color } from '../src/core/util/Color.js';
+    
+    const resultsDiv = document.getElementById('test-results');
+    
+    function log(message, isError = false) {
+      const div = document.createElement('div');
+      div.className = isError ? 'result error' : 'result';
+      div.textContent = message;
+      resultsDiv.appendChild(div);
+    }
+    
+    function testSection(title) {
+      const section = document.createElement('div');
+      section.className = 'test-section';
+      section.innerHTML = `<h2>${title}</h2>`;
+      resultsDiv.appendChild(section);
+      return section;
+    }
+    
+    function assert(condition, message) {
+      if (condition) {
+        log(`✓ PASS: ${message}`);
+        return true;
+      } else {
+        log(`✗ FAIL: ${message}`, true);
+        return false;
+      }
+    }
+    
+    function runTests() {
+      resultsDiv.innerHTML = '';
+      
+      try {
+        // Test 1: Create empty appearance stack
+        const section1 = testSection('Test 1: Empty Appearance Stack');
+        const ea1 = EffectiveAppearance.createFromArray([]);
+        const gs1 = DefaultGeometryShader.createFromEffectiveAppearance(ea1);
+        
+        section1.appendChild(createResultDiv([
+          assert(gs1 !== null, 'Geometry shader created'),
+          assert(gs1.getShowPoints() !== null, 'showPoints has a value'),
+          assert(gs1.getShowLines() !== null, 'showLines has a value'),
+          assert(gs1.getShowFaces() !== null, 'showFaces has a value'),
+          assert(gs1.getPointShader() !== null, 'Point shader instance created'),
+          assert(gs1.getLineShader() !== null, 'Line shader instance created'),
+          assert(gs1.getPolygonShader() !== null, 'Polygon shader instance created')
+        ]));
+        
+        // Test 2: Appearance with explicit show flags
+        const section2 = testSection('Test 2: Explicit Show Flags');
+        const app2 = new Appearance('test2');
+        app2.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+        app2.setAttribute(CommonAttributes.EDGE_DRAW, true);
+        app2.setAttribute(CommonAttributes.FACE_DRAW, false);
+        
+        const ea2 = EffectiveAppearance.createFromArray([app2]);
+        const gs2 = DefaultGeometryShader.createFromEffectiveAppearance(ea2);
+        
+        section2.appendChild(createResultDiv([
+          assert(gs2.getShowPoints() === false, 'showPoints is false'),
+          assert(gs2.getShowLines() === true, 'showLines is true'),
+          assert(gs2.getShowFaces() === false, 'showFaces is false')
+        ]));
+        
+        // Test 3: Sub-shader attributes
+        const section3 = testSection('Test 3: Sub-Shader Attributes');
+        const app3 = new Appearance('test3');
+        const redColor = new Color(255, 0, 0);
+        const blueColor = new Color(0, 0, 255);
+        
+        app3.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, redColor);
+        app3.setAttribute('point.' + CommonAttributes.POINT_SIZE, 5.0);
+        app3.setAttribute('line.' + CommonAttributes.DIFFUSE_COLOR, blueColor);
+        app3.setAttribute('line.' + CommonAttributes.LINE_WIDTH, 2.5);
+        
+        const ea3 = EffectiveAppearance.createFromArray([app3]);
+        const gs3 = DefaultGeometryShader.createFromEffectiveAppearance(ea3);
+        
+        const pointShader = gs3.getPointShader();
+        const lineShader = gs3.getLineShader();
+        const polygonShader = gs3.getPolygonShader();
+        
+        const pointColor = pointShader.getAttribute(CommonAttributes.DIFFUSE_COLOR);
+        const pointSize = pointShader.getAttribute(CommonAttributes.POINT_SIZE);
+        const lineColor = lineShader.getAttribute(CommonAttributes.DIFFUSE_COLOR);
+        const lineWidth = lineShader.getAttribute(CommonAttributes.LINE_WIDTH);
+        const polygonColor = polygonShader.getAttribute(CommonAttributes.DIFFUSE_COLOR);
+        
+        section3.appendChild(createResultDiv([
+          assert(pointColor !== INHERITED, 'Point diffuse color is set'),
+          assert(pointColor?.equals(redColor), 'Point color is red'),
+          assert(pointSize === 5.0, 'Point size is 5.0'),
+          assert(lineColor !== INHERITED, 'Line diffuse color is set'),
+          assert(lineColor?.equals(blueColor), 'Line color is blue'),
+          assert(lineWidth === 2.5, 'Line width is 2.5'),
+          assert(polygonColor === INHERITED, 'Polygon color is INHERITED')
+        ]));
+        
+        // Test 4: Hierarchical inheritance
+        const section4 = testSection('Test 4: Hierarchical Inheritance');
+        const parentApp = new Appearance('parent');
+        const childApp = new Appearance('child');
+        
+        parentApp.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, new Color(100, 100, 100));
+        parentApp.setAttribute('point.' + CommonAttributes.POINT_SIZE, 3.0);
+        
+        childApp.setAttribute('point.' + CommonAttributes.POINT_SIZE, 7.0); // Override
+        
+        const ea4 = EffectiveAppearance.createFromArray([parentApp, childApp]);
+        const gs4 = DefaultGeometryShader.createFromEffectiveAppearance(ea4);
+        
+        const ps4 = gs4.getPointShader();
+        const pc4 = ps4.getAttribute(CommonAttributes.DIFFUSE_COLOR);
+        const pz4 = ps4.getAttribute(CommonAttributes.POINT_SIZE);
+        
+        section4.appendChild(createResultDiv([
+          assert(pc4 !== INHERITED, 'Point color is inherited from parent'),
+          assert(pc4?.r === 100, 'Point color red component is 100'),
+          assert(pz4 === 7.0, 'Point size is overridden to 7.0')
+        ]));
+        
+        // Test 5: Type identification
+        const section5 = testSection('Test 5: Type Identification');
+        const ea5 = EffectiveAppearance.createFromArray([]);
+        const gs5 = DefaultGeometryShader.createFromEffectiveAppearance(ea5);
+        
+        section5.appendChild(createResultDiv([
+          assert(gs5.getName() === 'Geometry Shader', 'Geometry shader has correct name'),
+          assert(gs5.getPointShader().getType() === 'point', 'Point shader type is "point"'),
+          assert(gs5.getLineShader().getType() === 'line', 'Line shader type is "line"'),
+          assert(gs5.getPolygonShader().getType() === 'polygon', 'Polygon shader type is "polygon"'),
+          assert(gs5.getPointShader().getName() === 'Point Shader', 'Point shader has correct name'),
+          assert(gs5.getLineShader().getName() === 'Line Shader', 'Line shader has correct name'),
+          assert(gs5.getPolygonShader().getName() === 'Polygon Shader', 'Polygon shader has correct name')
+        ]));
+        
+        log('\n✓ All tests completed!');
+        
+      } catch (error) {
+        log(`✗ Test failed with error: ${error.message}\n${error.stack}`, true);
+      }
+    }
+    
+    function createResultDiv(results) {
+      const div = document.createElement('div');
+      div.style.marginTop = '10px';
+      return div;
+    }
+    
+    document.getElementById('run-test').addEventListener('click', runTests);
+    document.getElementById('clear-results').addEventListener('click', () => {
+      resultsDiv.innerHTML = '';
+    });
+    
+    // Auto-run on load
+    runTests();
+  </script>
+</body>
+</html>
+

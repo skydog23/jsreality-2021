@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Debug Inheritance Test</title>
+</head>
+<body>
+  <h1>Debug Inheritance Test</h1>
+  <pre id="output"></pre>
+  
+  <script type="module">
+    // IMPORTANT: Don't use cache-busting for modules that export symbols,
+    // otherwise each import gets a different symbol instance!
+    const { Appearance, INHERITED } = await import('../src/core/scene/Appearance.js');
+    const { EffectiveAppearance } = await import('../src/core/shader/EffectiveAppearance.js');
+    const { DefaultGeometryShader } = await import('../src/core/shader/DefaultGeometryShader.js');
+    const CommonAttributes = await import('../src/core/shader/CommonAttributes.js');
+    const { Color } = await import('../src/core/util/Color.js');
+    
+    const output = document.getElementById('output');
+    
+    function log(msg) {
+      output.textContent += msg + '\n';
+      console.log(msg);
+    }
+    
+    // Create parent and child appearances
+    const parentApp = new Appearance('parent');
+    const childApp = new Appearance('child');
+    
+    const testColor = new Color(100, 100, 100);
+    
+    log('=== Setting attributes ===');
+    log(`Setting parent 'point.${CommonAttributes.DIFFUSE_COLOR}' to Color(100,100,100)`);
+    parentApp.setAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, testColor);
+    
+    log(`Setting parent 'point.${CommonAttributes.POINT_SIZE}' to 3.0`);
+    parentApp.setAttribute('point.' + CommonAttributes.POINT_SIZE, 3.0);
+    
+    log(`Setting child 'point.${CommonAttributes.POINT_SIZE}' to 7.0`);
+    childApp.setAttribute('point.' + CommonAttributes.POINT_SIZE, 7.0);
+    
+    // Check what was stored in parent
+    log('\n=== Checking parent appearance ===');
+    const parentDiffuse = parentApp.getAttribute('point.' + CommonAttributes.DIFFUSE_COLOR);
+    log(`Parent has 'point.diffuseColor': ${parentDiffuse === INHERITED ? 'INHERITED' : parentDiffuse}`);
+    log(`  Color check: ${parentDiffuse === testColor ? 'SAME OBJECT' : 'DIFFERENT'}`);
+    
+    // Create effective appearance chain
+    log('\n=== Creating EffectiveAppearance ===');
+    const ea = EffectiveAppearance.createFromArray([parentApp, childApp]);
+    log(`Created EA with hierarchy: ${ea.toString()}`);
+    
+    // Query directly on EffectiveAppearance
+    log('\n=== Querying EffectiveAppearance directly ===');
+    const eaDiffuse = ea.getAttribute('point.' + CommonAttributes.DIFFUSE_COLOR, INHERITED);
+    log(`EA.getAttribute('point.diffuseColor', INHERITED): ${eaDiffuse === INHERITED ? 'INHERITED' : eaDiffuse}`);
+    log(`  Result is INHERITED symbol: ${eaDiffuse === INHERITED}`);
+    log(`  Result is null: ${eaDiffuse === null}`);
+    log(`  Result is undefined: ${eaDiffuse === undefined}`);
+    log(`  Result type: ${typeof eaDiffuse}`);
+    if (eaDiffuse && typeof eaDiffuse === 'object' && eaDiffuse.r !== undefined) {
+      log(`  Result is Color with r=${eaDiffuse.r}`);
+    }
+    
+    const eaSize = ea.getAttribute('point.' + CommonAttributes.POINT_SIZE, INHERITED);
+    log(`EA.getAttribute('point.pointSize', INHERITED): ${eaSize}`);
+    
+    // Now try through GeometryShader
+    log('\n=== Creating DefaultGeometryShader ===');
+    const gs = DefaultGeometryShader.createFromEffectiveAppearance(ea);
+    const ps = gs.getPointShader();
+    
+    log('\n=== Querying PointShader instance ===');
+    const psDiffuse = ps.getAttribute(CommonAttributes.DIFFUSE_COLOR);
+    log(`PointShader.getAttribute('diffuseColor'): ${psDiffuse === INHERITED ? 'INHERITED' : psDiffuse}`);
+    log(`  Result is INHERITED symbol: ${psDiffuse === INHERITED}`);
+    if (psDiffuse && typeof psDiffuse === 'object' && psDiffuse.r !== undefined) {
+      log(`  Result is Color with r=${psDiffuse.r}`);
+    }
+    
+    const psSize = ps.getAttribute(CommonAttributes.POINT_SIZE);
+    log(`PointShader.getAttribute('pointSize'): ${psSize}`);
+    
+    log('\n=== All attributes in PointShader ===');
+    const allAttrs = ps.getAllAttributes();
+    for (const [key, value] of Object.entries(allAttrs)) {
+      if (value === INHERITED) {
+        log(`  ${key}: INHERITED`);
+      } else {
+        log(`  ${key}: ${value} (type: ${typeof value})`);
+      }
+    }
+  </script>
+</body>
+</html>
+

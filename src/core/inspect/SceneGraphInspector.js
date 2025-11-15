@@ -2,14 +2,62 @@
 // Provides a tree view and property panel for SceneGraphComponent hierarchies
 
 import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
+import { SceneGraphPath } from '../scene/SceneGraphPath.js';
 import { Transformation } from '../scene/Transformation.js';
-import { Appearance } from '../scene/Appearance.js';
+import { Appearance, INHERITED } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
 import { Color } from '../util/Color.js';
 import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
 import { ColorPickerWidget, VectorWidget, NumberWidget } from './widgets/index.js';
+import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
+import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader } from '../shader/index.js';
+import * as CommonAttributes from '../shader/CommonAttributes.js';
+
+/**
+ * Wrapper class for shader nodes in the tree view
+ * Allows shaders to be displayed as tree nodes with their own properties
+ */
+class ShaderTreeNode {
+  /**
+   * @param {string} name - Display name (e.g., "Geometry Shader", "Point Shader")
+   * @param {string} type - Shader type (e.g., "geometry", "point", "line", "polygon")
+   * @param {*} shaderInstance - The shader instance (DefaultGeometryShader or sub-shader instance)
+   * @param {Object} schema - The shader schema (DefaultGeometryShader, DefaultPointShader, etc.)
+   * @param {Appearance} appearance - The parent appearance
+   * @param {string} prefix - Attribute prefix for this shader (e.g., "point", "line", "polygon")
+   */
+  constructor(name, type, shaderInstance, schema, appearance, prefix) {
+    this.name = name;
+    this.type = type;
+    this.shaderInstance = shaderInstance;
+    this.schema = schema;
+    this.appearance = appearance;
+    this.prefix = prefix;
+    this.children = [];
+  }
+  
+  getName() {
+    return this.name;
+  }
+  
+  getChildren() {
+    return this.children;
+  }
+  
+  addChild(child) {
+    this.children.push(child);
+  }
+  
+  /**
+   * Update the shader instance (used when attributes change)
+   * @param {*} newShaderInstance - Updated shader instance
+   */
+  updateShaderInstance(newShaderInstance) {
+    this.shaderInstance = newShaderInstance;
+  }
+}
 
 /**
  * Interactive inspector for exploring and editing scene graph structures
@@ -49,6 +97,11 @@ export class SceneGraphInspector {
    * @type {Set<*>} Expanded nodes
    */
   #expandedNodes = new Set();
+
+  /**
+   * @type {Map<Appearance, ShaderTreeNode>} Cache of shader tree nodes by appearance
+   */
+  #shaderNodeCache = new Map();
 
   /**
    * Create a new SceneGraphInspector
@@ -578,6 +631,106 @@ export class SceneGraphInspector {
       .sg-text-input:hover {
         border-color: #666;
       }
+      
+      /* Inherited button styles */
+      .sg-inherited-button {
+        background: #5a5a5a;
+        color: #cccccc;
+        border: 1px solid #666;
+        padding: 2px 8px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 11px;
+        margin-left: 6px;
+        white-space: nowrap;
+      }
+      
+      .sg-inherited-button:hover {
+        background: #6a6a6a;
+        border-color: #777;
+      }
+      
+      .sg-inherited-button.explicit {
+        background: #0e639c;
+        border-color: #0e639c;
+      }
+      
+      .sg-inherited-button.explicit:hover {
+        background: #1177bb;
+      }
+      
+      /* Shader hierarchy styles */
+      .sg-shader-node {
+        margin-bottom: 12px;
+      }
+      
+      .sg-shader-header {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        background: #2d2d2d;
+        border-radius: 4px 4px 0 0;
+        border: 1px solid #3e3e3e;
+        cursor: pointer;
+        user-select: none;
+      }
+      
+      .sg-shader-header:hover {
+        background: #333;
+      }
+      
+      .sg-shader-expand {
+        width: 16px;
+        font-size: 10px;
+        margin-right: 6px;
+      }
+      
+      .sg-shader-icon {
+        margin-right: 6px;
+      }
+      
+      .sg-shader-name {
+        flex: 1;
+        font-weight: 600;
+        color: #4ec9b0;
+      }
+      
+      .sg-shader-attributes {
+        border: 1px solid #3e3e3e;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        padding: 8px;
+        background: #252525;
+      }
+      
+      .sg-shader-attributes.collapsed {
+        display: none;
+      }
+      
+      .sg-shader-attr-row {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        margin-bottom: 2px;
+        border-radius: 3px;
+      }
+      
+      .sg-shader-attr-row:hover {
+        background: #2d2d2d;
+      }
+      
+      .sg-shader-attr-label {
+        flex: 0 0 140px;
+        color: #9cdcfe;
+        font-size: 12px;
+      }
+      
+      .sg-shader-attr-value {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -624,12 +777,14 @@ export class SceneGraphInspector {
     const expand = document.createElement('span');
     expand.className = 'sg-tree-expand';
     
-    const hasChildren = node instanceof SceneGraphComponent && 
+    const hasChildren = (node instanceof SceneGraphComponent && 
                        (node.getChildComponentCount() > 0 || 
                         node.getTransformation() || 
                         node.getAppearance() || 
                         node.getGeometry() ||
-                        node.getCamera());
+                        node.getCamera())) ||
+                       (node instanceof Appearance) ||
+                       (node instanceof ShaderTreeNode && node.children.length > 0);
     
     if (hasChildren) {
       expand.textContent = this.#expandedNodes.has(node) ? '▼' : '▶';
@@ -675,23 +830,37 @@ export class SceneGraphInspector {
         childrenDiv.classList.add('collapsed');
       }
       
-      // Add non-component children first
-      if (node.getTransformation?.()) {
-        this.#buildTreeNode(node.getTransformation(), childrenDiv);
-      }
-      if (node.getAppearance?.()) {
-        this.#buildTreeNode(node.getAppearance(), childrenDiv);
-      }
-      if (node.getCamera?.()) {
-        this.#buildTreeNode(node.getCamera(), childrenDiv);
-      }
-      if (node.getGeometry?.()) {
-        this.#buildTreeNode(node.getGeometry(), childrenDiv);
-      }
-      
-      // Add component children
-      if (node.getChildComponents) {
-        for (const child of node.getChildComponents()) {
+      // Handle different node types
+      if (node instanceof SceneGraphComponent) {
+        // Add non-component children first
+        if (node.getTransformation?.()) {
+          this.#buildTreeNode(node.getTransformation(), childrenDiv);
+        }
+        if (node.getAppearance?.()) {
+          this.#buildTreeNode(node.getAppearance(), childrenDiv);
+        }
+        if (node.getCamera?.()) {
+          this.#buildTreeNode(node.getCamera(), childrenDiv);
+        }
+        if (node.getGeometry?.()) {
+          this.#buildTreeNode(node.getGeometry(), childrenDiv);
+        }
+        
+        // Add component children
+        if (node.getChildComponents) {
+          for (const child of node.getChildComponents()) {
+            this.#buildTreeNode(child, childrenDiv);
+          }
+        }
+      } else if (node instanceof Appearance) {
+        // Create shader tree nodes for this appearance
+        const shaderNodes = this.#createShaderTreeNodes(node);
+        if (shaderNodes) {
+          this.#buildTreeNode(shaderNodes, childrenDiv);
+        }
+      } else if (node instanceof ShaderTreeNode) {
+        // Add shader node children
+        for (const child of node.children) {
           this.#buildTreeNode(child, childrenDiv);
         }
       }
@@ -715,6 +884,12 @@ export class SceneGraphInspector {
     if (node instanceof Appearance) return '🎨';
     if (node instanceof Geometry) return '▲';
     if (node instanceof Camera) return '📷';
+    if (node instanceof ShaderTreeNode) {
+      if (node.type === 'geometry') return '🎨';
+      if (node.type === 'point') return '⚫';
+      if (node.type === 'line') return '━';
+      if (node.type === 'polygon') return '▲';
+    }
     return '•';
   }
 
@@ -732,6 +907,7 @@ export class SceneGraphInspector {
       return node.constructor.name;
     }
     if (node instanceof Camera) return 'Camera';
+    if (node instanceof ShaderTreeNode) return 'Shader';
     return 'Node';
   }
 
@@ -784,6 +960,8 @@ export class SceneGraphInspector {
       this.#addGeometryProperties(node);
     } else if (node instanceof Camera) {
       this.#addCameraProperties(node);
+    } else if (node instanceof ShaderTreeNode) {
+      this.#addShaderProperties(node);
     }
   }
 
@@ -1027,11 +1205,292 @@ export class SceneGraphInspector {
   }
 
   /**
+   * Build a SceneGraphPath from root to the given component
+   * @param {SceneGraphComponent} component - The target component
+   * @returns {SceneGraphPath|null} The path, or null if component not found
+   * @private
+   */
+  #buildPathToComponent(component) {
+    if (!this.#root) return null;
+    
+    const path = [];
+    
+    // Helper function to search recursively
+    const findComponent = (node, target) => {
+      if (node instanceof SceneGraphComponent) {
+        path.push(node);
+        
+        if (node === target) {
+          return true;
+        }
+        
+        // Search children
+        for (const child of node.getChildComponents()) {
+          if (findComponent(child, target)) {
+            return true;
+          }
+        }
+        
+        path.pop();
+      }
+      
+      return false;
+    };
+    
+    if (findComponent(this.#root, component)) {
+      return new SceneGraphPath(path);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Create an inherited button widget
+   * @param {string} attributeKey - The attribute key (e.g., 'point.diffuseColor')
+   * @param {*} currentValue - The current value (or INHERITED symbol)
+   * @param {Appearance} appearance - The appearance to modify
+   * @param {Function} schema - The shader schema to get defaults from
+   * @returns {HTMLElement} The button element
+   * @private
+   */
+  #createInheritedButton(attributeKey, currentValue, appearance, schema) {
+    const button = document.createElement('button');
+    button.className = 'sg-inherited-button';
+    
+    const isInherited = currentValue === INHERITED;
+    
+    if (isInherited) {
+      button.textContent = 'Inherited';
+      button.title = 'Click to set explicit value';
+    } else {
+      button.textContent = 'Inherited';
+      button.classList.add('explicit');
+      button.title = 'Click to clear and inherit value';
+    }
+    
+    button.onclick = () => {
+      if (isInherited) {
+        // Set to default value to make it explicit
+        const baseKey = attributeKey.includes('.') 
+          ? attributeKey.split('.').pop() 
+          : attributeKey;
+        const defaultValue = schema.getDefault?.(baseKey);
+        if (defaultValue !== undefined) {
+          appearance.setAttribute(attributeKey, defaultValue);
+        }
+      } else {
+        // Clear to inherited
+        appearance.setAttribute(attributeKey, INHERITED);
+      }
+      
+      // Trigger viewer render if available
+      if (typeof window !== 'undefined' && window._viewerInstance) {
+        window._viewerInstance.render();
+      }
+      
+      // Refresh the property panel
+      this.#updatePropertyPanel(appearance);
+    };
+    
+    return button;
+  }
+
+  /**
+   * Format attribute name for display (camelCase -> Title Case)
+   * @param {string} key - The attribute key
+   * @returns {string} Formatted name
+   * @private
+   */
+  #formatAttributeName(key) {
+    // Convert camelCase to spaces
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  }
+
+  /**
+   * Create a shader node UI (collapsible section with attributes)
+   * @param {string} shaderName - Name of the shader
+   * @param {string} icon - Icon for the shader
+   * @param {Object} shaderInstance - The shader instance
+   * @param {Object} shaderSchema - The shader schema
+   * @param {Appearance} appearance - The appearance to modify
+   * @param {string} prefix - Attribute prefix (e.g., 'point')
+   * @param {boolean} startExpanded - Whether to start expanded
+   * @returns {HTMLElement} The shader node element
+   * @private
+   */
+  #createShaderNode(shaderName, icon, shaderInstance, shaderSchema, appearance, prefix, startExpanded = false) {
+    const node = document.createElement('div');
+    node.className = 'sg-shader-node';
+    
+    // Header (clickable to expand/collapse)
+    const header = document.createElement('div');
+    header.className = 'sg-shader-header';
+    
+    const expandIcon = document.createElement('span');
+    expandIcon.className = 'sg-shader-expand';
+    expandIcon.textContent = startExpanded ? '▼' : '▶';
+    
+    const shaderIcon = document.createElement('span');
+    shaderIcon.className = 'sg-shader-icon';
+    shaderIcon.textContent = icon;
+    
+    const name = document.createElement('span');
+    name.className = 'sg-shader-name';
+    name.textContent = shaderName;
+    
+    header.appendChild(expandIcon);
+    header.appendChild(shaderIcon);
+    header.appendChild(name);
+    
+    // Attributes container
+    const attributesContainer = document.createElement('div');
+    attributesContainer.className = 'sg-shader-attributes';
+    if (!startExpanded) {
+      attributesContainer.classList.add('collapsed');
+    }
+    
+    // Get all attributes from the shader instance
+    const allAttributes = shaderInstance.getAllAttributes();
+    
+    // Create a row for each attribute
+    for (const [key, value] of Object.entries(allAttributes)) {
+      const row = this.#createShaderAttributeRow(
+        key,
+        value,
+        appearance,
+        shaderSchema,
+        prefix
+      );
+      attributesContainer.appendChild(row);
+    }
+    
+    // Toggle expand/collapse
+    header.onclick = () => {
+      const isCollapsed = attributesContainer.classList.contains('collapsed');
+      attributesContainer.classList.toggle('collapsed');
+      expandIcon.textContent = isCollapsed ? '▼' : '▶';
+    };
+    
+    node.appendChild(header);
+    node.appendChild(attributesContainer);
+    
+    return node;
+  }
+
+  /**
+   * Create a shader attribute row
+   * @param {string} key - Attribute key (without prefix)
+   * @param {*} value - Attribute value (or INHERITED)
+   * @param {Appearance} appearance - The appearance to modify
+   * @param {Object} schema - The shader schema
+   * @param {string} prefix - Attribute prefix
+   * @returns {HTMLElement} The attribute row
+   * @private
+   */
+  #createShaderAttributeRow(key, value, appearance, schema, prefix) {
+    const row = document.createElement('div');
+    row.className = 'sg-shader-attr-row';
+    
+    const label = document.createElement('div');
+    label.className = 'sg-shader-attr-label';
+    label.textContent = this.#formatAttributeName(key);
+    
+    const valueContainer = document.createElement('div');
+    valueContainer.className = 'sg-shader-attr-value';
+    
+    // Construct full key, handling empty prefix
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    
+    if (value === INHERITED) {
+      // Just show inherited button
+      const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+      valueContainer.appendChild(inheritedBtn);
+    } else {
+      // Show widget for the value
+      const widget = this.#createWidgetForValue(key, value, (newValue) => {
+        appearance.setAttribute(fullKey, newValue);
+        
+        // Trigger viewer render if available
+        if (typeof window !== 'undefined' && window._viewerInstance) {
+          window._viewerInstance.render();
+        }
+        
+        // Refresh the property panel
+        this.#updatePropertyPanel(appearance);
+      });
+      
+      valueContainer.appendChild(widget);
+      
+      // Plus inherited button to clear it
+      const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+      valueContainer.appendChild(inheritedBtn);
+    }
+    
+    row.appendChild(label);
+    row.appendChild(valueContainer);
+    
+    return row;
+  }
+
+  /**
+   * Create appropriate widget for a value based on its type
+   * @param {string} key - Attribute key
+   * @param {*} value - The value
+   * @param {Function} onChange - Change callback
+   * @returns {HTMLElement} The widget element
+   * @private
+   */
+  #createWidgetForValue(key, value, onChange) {
+    // Check if value is a valid color
+    if (ColorPickerWidget.isColorValue(value)) {
+      const widget = new ColorPickerWidget(value, onChange);
+      return widget.getElement();
+    }
+    
+    // Check for boolean
+    if (typeof value === 'boolean') {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = value;
+      checkbox.onchange = () => onChange(checkbox.checked);
+      return checkbox;
+    }
+    
+    // Check for number
+    if (typeof value === 'number') {
+      const widget = new NumberWidget('', value, onChange);
+      return widget.getElement();
+    }
+    
+    // Check for string
+    if (typeof value === 'string') {
+      return this.#createTextInput(value, onChange);
+    }
+    
+    // Check for array
+    if (Array.isArray(value)) {
+      const widget = new VectorWidget(value, null, onChange);
+      return widget.getElement();
+    }
+    
+    // Default: non-editable text
+    const span = document.createElement('span');
+    span.textContent = this.#formatValue(value);
+    span.style.color = '#858585';
+    return span;
+  }
+
+  /**
    * Add appearance-specific properties
    * @param {Appearance} appearance - The appearance
    * @private
    */
   #addAppearanceProperties(appearance) {
+    // Show flat attribute list
+    // (Shader hierarchy is now displayed in the tree view)
     const attrs = appearance.getStoredAttributes();
     const properties = [];
     
@@ -1055,6 +1514,243 @@ export class SceneGraphInspector {
     }
     
     this.#addPropertyGroup('Attributes', properties);
+  }
+
+  /**
+   * Create shader tree nodes for an appearance
+   * This builds a hierarchy: Geometry Shader -> Point/Line/Polygon Shaders
+   * @param {Appearance} appearance - The appearance
+   * @returns {ShaderTreeNode|null} The root geometry shader node
+   * @private
+   */
+  #createShaderTreeNodes(appearance) {
+    // Find the owning component to build EffectiveAppearance
+    let owningComponent = null;
+    
+    const findOwner = (node) => {
+      if (node instanceof SceneGraphComponent && node.getAppearance() === appearance) {
+        return node;
+      }
+      if (node instanceof SceneGraphComponent) {
+        for (const child of node.getChildComponents()) {
+          const found = findOwner(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    if (this.#root) {
+      owningComponent = findOwner(this.#root);
+    }
+    
+    if (!owningComponent) {
+      return null; // Can't build effective appearance without owner
+    }
+    
+    // Build effective appearance
+    const path = this.#buildPathToComponent(owningComponent);
+    if (!path) return null;
+    
+    const effectiveAppearance = EffectiveAppearance.createFromPath(path);
+    const geometryShader = DefaultGeometryShader.createFromEffectiveAppearance(effectiveAppearance);
+    
+    // Check cache first to maintain node identity
+    let geomNode = this.#shaderNodeCache.get(appearance);
+    
+    if (geomNode) {
+      // Update existing node with fresh shader data
+      geomNode.updateShaderInstance(geometryShader);
+      
+      // Update sub-shader data
+      const pointShader = geometryShader.getPointShader();
+      const lineShader = geometryShader.getLineShader();
+      const polygonShader = geometryShader.getPolygonShader();
+      
+      if (geomNode.children.length === 3) {
+        geomNode.children[0].updateShaderInstance(pointShader);
+        geomNode.children[1].updateShaderInstance(lineShader);
+        geomNode.children[2].updateShaderInstance(polygonShader);
+      }
+      
+      return geomNode;
+    }
+    
+    // Create new geometry shader node
+    geomNode = new ShaderTreeNode(
+      'Geometry Shader',
+      'geometry',
+      geometryShader,
+      DefaultGeometryShader,
+      appearance,
+      '' // No prefix
+    );
+    
+    // Create sub-shader nodes
+    const pointShader = geometryShader.getPointShader();
+    const lineShader = geometryShader.getLineShader();
+    const polygonShader = geometryShader.getPolygonShader();
+    
+    const pointNode = new ShaderTreeNode(
+      'Point Shader',
+      'point',
+      pointShader,
+      DefaultPointShader,
+      appearance,
+      CommonAttributes.POINT_SHADER
+    );
+    
+    const lineNode = new ShaderTreeNode(
+      'Line Shader',
+      'line',
+      lineShader,
+      DefaultLineShader,
+      appearance,
+      CommonAttributes.LINE_SHADER
+    );
+    
+    const polygonNode = new ShaderTreeNode(
+      'Polygon Shader',
+      'polygon',
+      polygonShader,
+      DefaultPolygonShader,
+      appearance,
+      CommonAttributes.POLYGON_SHADER
+    );
+    
+    geomNode.addChild(pointNode);
+    geomNode.addChild(lineNode);
+    geomNode.addChild(polygonNode);
+    
+    // Cache the node
+    this.#shaderNodeCache.set(appearance, geomNode);
+    
+    return geomNode;
+  }
+
+  /**
+   * Add shader-specific properties to the property panel
+   * Displays all attributes of the selected shader
+   * @param {ShaderTreeNode} shaderNode - The shader tree node
+   * @private
+   */
+  #addShaderProperties(shaderNode) {
+    const { shaderInstance, schema, appearance, prefix } = shaderNode;
+    
+    // Get all attributes from the shader instance
+    const allAttributes = shaderInstance.getAllAttributes();
+    
+    // Create a row for each attribute
+    const properties = [];
+    for (const [key, value] of Object.entries(allAttributes)) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      
+      if (value === INHERITED) {
+        // Create inherited button that can be clicked to set value
+        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+        properties.push({
+          label: this.#formatAttributeName(key),
+          value: inheritedBtn,
+          editable: true
+        });
+      } else {
+        // Create widget for the value
+        const widget = this.#createWidgetForValue(key, value, (newValue) => {
+          appearance.setAttribute(fullKey, newValue);
+          
+          // Trigger viewer render if available
+          if (typeof window !== 'undefined' && window._viewerInstance) {
+            window._viewerInstance.render();
+          }
+          
+          // Refresh the property panel
+          this.#updatePropertyPanel(shaderNode);
+        });
+        
+        // Create a container with the widget and inherited button
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.gap = '5px';
+        container.style.alignItems = 'center';
+        container.appendChild(widget);
+        
+        const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema);
+        container.appendChild(inheritedBtn);
+        
+        properties.push({
+          label: this.#formatAttributeName(key),
+          value: container,
+          editable: true
+        });
+      }
+    }
+    
+    this.#addPropertyGroup(shaderNode.name + ' Attributes', properties);
+  }
+
+  /**
+   * Add geometry shader properties (hierarchical shader display)
+   * @param {DefaultGeometryShader} geometryShader - The geometry shader
+   * @param {Appearance} appearance - The appearance to modify
+   * @private
+   */
+  #addGeometryShaderProperties(geometryShader, appearance) {
+    // Create geometry shader section (start expanded)
+    const geomNode = this.#createShaderNode(
+      'Geometry Shader',
+      '🎨',
+      { getAllAttributes: () => ({
+        showPoints: geometryShader.getShowPoints(),
+        showLines: geometryShader.getShowLines(),
+        showFaces: geometryShader.getShowFaces()
+      })},
+      DefaultGeometryShader,
+      appearance,
+      '', // No prefix for geometry shader attributes
+      true // Start expanded
+    );
+    this.#propertyPanel.appendChild(geomNode);
+    
+    // Add three sub-shaders
+    const pointShader = geometryShader.getPointShader();
+    const lineShader = geometryShader.getLineShader();
+    const polygonShader = geometryShader.getPolygonShader();
+    
+    // Point Shader
+    const pointNode = this.#createShaderNode(
+      'Point Shader',
+      '⚫',
+      pointShader,
+      DefaultPointShader,
+      appearance,
+      'point',
+      false
+    );
+    this.#propertyPanel.appendChild(pointNode);
+    
+    // Line Shader
+    const lineNode = this.#createShaderNode(
+      'Line Shader',
+      '━',
+      lineShader,
+      DefaultLineShader,
+      appearance,
+      'line',
+      false
+    );
+    this.#propertyPanel.appendChild(lineNode);
+    
+    // Polygon Shader
+    const polygonNode = this.#createShaderNode(
+      'Polygon Shader',
+      '▲',
+      polygonShader,
+      DefaultPolygonShader,
+      appearance,
+      'polygon',
+      false
+    );
+    this.#propertyPanel.appendChild(polygonNode);
   }
 
   /**

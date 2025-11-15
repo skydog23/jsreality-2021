@@ -70,12 +70,33 @@ export class EffectiveAppearance {
     let eap = EffectiveAppearance.create();
     
     // Iterate through the path and collect appearances
-    for (const node of path.toArray()) {
+    // SceneGraphPath is iterable, so we can use for...of directly
+    for (const node of path) {
       if (node instanceof SceneGraphComponent) {
         const app = node.getAppearance();
         if (app !== null) {
           eap = eap.createChild(app);
         }
+      }
+    }
+    
+    return eap;
+  }
+
+  /**
+   * Create an EffectiveAppearance from an array of Appearance instances.
+   * The array is treated as parent-to-child order, where the first element
+   * is the root and the last element is the leaf.
+   * @param {Appearance[]} appearances - Array of appearances from root to leaf
+   * @returns {EffectiveAppearance}
+   */
+  static createFromArray(appearances) {
+    let eap = EffectiveAppearance.create();
+    
+    // Chain appearances from root to leaf
+    for (const app of appearances) {
+      if (app !== null && app !== undefined) {
+        eap = eap.createChild(app);
       }
     }
     
