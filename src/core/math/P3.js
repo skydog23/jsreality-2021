@@ -631,7 +631,7 @@ export function barycentricCoordinates(weights, p0, p1, p) {
     
     if (!Rn.equals(zeroVector, plane, 1e-8)) {
         plane = Rn.subtract(null, p0, p1);
-        plane[3] = -Rn.innerProduct(plane, p, 3);
+        plane[3] = -Rn.innerProductN(plane, p, 3);
         projectedP = lineIntersectPlane(null, p0, p1, plane);
     }
     
