@@ -2,11 +2,6 @@
 // Simplified multidimensional array storage for geometry data
 
 export { DataList } from './DataList.js';
+export { RegularDataList } from './RegularDataList.js';
 export { VariableDataList } from './VariableDataList.js';
-export {
-  DataUtility,
-  detectFiberLength,
-  flattenArray,
-  getFiberCount,
-  validateDataArray
-} from './DataUtility.js';
+export * from './DataUtility.js';

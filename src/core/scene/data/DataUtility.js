@@ -2,6 +2,10 @@
  * Utility functions for data array processing
  */
 
+import { DataList } from './DataList.js';
+import { RegularDataList } from './RegularDataList.js';
+import { VariableDataList } from './VariableDataList.js';
+
 /**
  * Detect the "fiber length" (innermost dimension) of a nested array structure.
  * 
@@ -213,13 +217,227 @@ export function validateDataArray(arr, expectedFiberLength = null) {
 }
 
 /**
+ * Convert various data formats to a DataList or VariableDataList.
+ * 
+ * Handles:
+ * - DataList/VariableDataList (returns as-is)
+ * - null/undefined (returns null)
+ * - Flat arrays: [x0,y0,z0, x1,y1,z1, ...] (requires explicit fiberLength) → DataList
+ * - 2D arrays with fixed row length: [[x0,y0,z0], [x1,y1,z1], ...] → DataList
+ * - 2D arrays with variable row length: [[x0,y0], [x1,y1,x2], ...] → VariableDataList
+ * - 3D arrays: [[[x0,y0], [x1,y1]], ...] (auto-detects fiberLength) → DataList
+ * 
+ * Automatically detects variable-length arrays (rows with different lengths) and returns VariableDataList.
+ * For fixed-shape arrays, returns DataList.
+ * 
+ * @param {DataList|VariableDataList|number[]|number[][]|number[][][]|null|undefined} data - Input data
+ * @param {number|null} [fiberLength=null] - Number of components per fiber (required for flat arrays)
+ * @param {string} [dataType='float64'] - Data type for the resulting DataList/VariableDataList
+ * @returns {DataList|VariableDataList|null} The DataList/VariableDataList, or null if input was null/undefined
+ * 
+ * @example
+ * // Already a DataList
+ * const list = new DataList([1,2,3,4,5,6], [2,3], 'float64');
+ * const result = DataUtility.toDataList(list); // Returns list unchanged
+ * 
+ * @example
+ * // 2D array with fixed row length - auto-detects fiberLength=3
+ * const vertices = [[1,2,3], [4,5,6]];
+ * const list = DataUtility.toDataList(vertices); // Creates DataList with shape [2,3]
+ * 
+ * @example
+ * // 2D array with variable row length - returns VariableDataList
+ * const polygons = [[0,1,2], [3,4,5,6], [7,8]];
+ * const list = DataUtility.toDataList(polygons); // Creates VariableDataList
+ * 
+ * @example
+ * // Flat array - requires explicit fiberLength
+ * const flat = [1,2,3, 4,5,6];
+ * const list = DataUtility.toDataList(flat, 3); // Creates DataList with shape [2,3]
+ * 
+ * @example
+ * // 3D array - auto-detects innermost dimension
+ * const nested = [[[1,2], [3,4]], [[5,6], [7,8]]];
+ * const list = DataUtility.toDataList(nested); // Creates DataList with shape [4,2]
+ */
+export function toDataList(data, fiberLength = null, dataType = 'float64') {
+  // Handle null/undefined
+  if (data === null || data === undefined) {
+    return null;
+  }
+  
+  // If it's already a DataList (RegularDataList or VariableDataList), return it
+  if (data instanceof DataList) {
+    return data;
+  }
+  
+  // Must be an array
+  if (!Array.isArray(data)) {
+    throw new Error('Data must be a DataList (RegularDataList or VariableDataList), array, or nested array');
+  }
+  
+  // Check if it's nested (2D or higher) or flat
+  if (data.length === 0) {
+    // Empty array - determine shape based on dataType
+    if (dataType === 'string') {
+      return new RegularDataList([], [0], 'string');
+    }
+    // Default to RegularDataList with shape [0, 0] for numeric arrays
+    return new RegularDataList([], [0, 0], dataType);
+  }
+  
+  const isNested = Array.isArray(data[0]);
+  
+  if (isNested) {
+    // Check if it's a 2D array (not 3D+)
+    // A 2D array has: data[0] is array, but data[0][0] is NOT an array (or doesn't exist)
+    // Find first non-empty row to check depth
+    let firstNonEmptyRow = null;
+    for (let i = 0; i < data.length; i++) {
+      if (Array.isArray(data[i]) && data[i].length > 0) {
+        firstNonEmptyRow = data[i];
+        break;
+      }
+    }
+    
+    const is2D = firstNonEmptyRow === null || 
+                 typeof firstNonEmptyRow[0] !== 'object' || 
+                 !Array.isArray(firstNonEmptyRow[0]);
+    
+    if (is2D) {
+      // Check if rows have variable lengths
+      // Find first row with a length to compare against
+      let firstRowLength = null;
+      for (let i = 0; i < data.length; i++) {
+        if (Array.isArray(data[i])) {
+          firstRowLength = data[i].length;
+          break;
+        }
+      }
+      
+      if (firstRowLength !== null) {
+        const hasVariableLength = data.some(row => {
+          if (!Array.isArray(row)) return true; // Non-array row means variable
+          return row.length !== firstRowLength;
+        });
+        
+        if (hasVariableLength) {
+          // Variable-length rows → VariableDataList
+          return new VariableDataList(data, dataType);
+        }
+      }
+      // Fixed-length rows (or all empty) → DataList (fall through to existing logic)
+    }
+    // 3D+ array - always fixed shape, use DataList (fall through)
+  }
+  
+  // Special handling for string arrays: strings are atomic, so we preserve their natural shape
+  const isStringArray = dataType === 'string' || 
+    (data.length > 0 && typeof data[0] === 'string');
+  
+  if (isStringArray) {
+    // For string arrays, determine shape from the nested structure
+    if (isNested) {
+      // Build shape from nested structure: [outermost, ..., innermost]
+      const shape = [];
+      let current = data;
+      
+      // Traverse nested arrays to determine dimensions
+      while (Array.isArray(current) && current.length > 0) {
+        shape.push(current.length);
+        // Check if we've reached strings (atomic elements)
+        if (typeof current[0] === 'string') {
+          break; // Strings are atomic, stop here
+        }
+        current = current[0];
+      }
+      
+      // Flatten for storage
+      const flatData = flattenArray(data);
+      return new RegularDataList(flatData, shape, 'string');
+    } else {
+      // Flat string array: shape is just [length]
+      return new RegularDataList(data, [data.length], 'string');
+    }
+  }
+  
+  // Fixed-shape array → DataList (numeric arrays)
+  // Flatten if needed
+  const flatData = isNested ? flattenArray(data) : data;
+  
+  // Determine fiber length
+  if (fiberLength === null) {
+    if (isNested) {
+      // Can detect from nested array structure (traverses to innermost dimension)
+      fiberLength = detectFiberLength(data);
+      if (fiberLength === null) {
+        throw new Error('Cannot determine fiber length from array structure');
+      }
+    } else {
+      // Flat array - cannot infer without explicit fiberLength
+      throw new Error('Cannot infer fiber length from flat array. Please provide fiberLength parameter.');
+    }
+  }
+  
+  // Validate that data length is divisible by fiber length
+  if (flatData.length % fiberLength !== 0) {
+    throw new Error(`Data length ${flatData.length} is not divisible by fiber length ${fiberLength}`);
+  }
+  
+  // Create RegularDataList
+  const numFibers = flatData.length / fiberLength;
+  // For numeric arrays, always use [numFibers, fiberLength] shape
+  return new RegularDataList(flatData, [numFibers, fiberLength], dataType);
+}
+
+/**
+ * Convert a DataList or VariableDataList back to a nested JavaScript array.
+ * 
+ * This is the inverse operation of `toDataList()`. 
+ * - For a DataList with shape [n, m], returns a 2D array `number[][]` with fixed row lengths
+ * - For a VariableDataList, returns a 2D array `number[][]` with variable row lengths
+ * - For shape [n, m, p], returns a 3D array, etc.
+ * 
+ * @param {DataList|VariableDataList} dataList - The DataList/VariableDataList to convert
+ * @returns {number[]|number[][]|number[][][]|...} Nested array representation
+ * 
+ * @example
+ * // Convert DataList back to 2D array (fixed row length)
+ * const dataList = toDataList([[1,2,3], [4,5,6]]);
+ * const array = fromDataList(dataList); // Returns [[1,2,3], [4,5,6]]
+ * 
+ * @example
+ * // Convert VariableDataList back to 2D array (variable row length)
+ * const varList = toDataList([[0,1,2], [3,4,5,6], [7,8]]);
+ * const array = fromDataList(varList); // Returns [[0,1,2], [3,4,5,6], [7,8]]
+ * 
+ * @example
+ * // Handle null/undefined
+ * const array = fromDataList(null); // Returns null
+ */
+export function fromDataList(dataList) {
+  if (dataList === null || dataList === undefined) {
+    return null;
+  }
+  
+  if (dataList instanceof DataList) {
+    // DataList (RegularDataList or VariableDataList) → nested array
+    return dataList.toNestedArray();
+  }
+  
+  throw new Error('Input must be a DataList (RegularDataList or VariableDataList), or null/undefined');
+}
+
+/**
  * DataUtility - Collection of utility functions for data array processing
  */
 export const DataUtility = {
   detectFiberLength,
   flattenArray,
   getFiberCount,
-  validateDataArray
+  validateDataArray,
+  getDataList: toDataList,
+  fromDataList
 };
 
 export default DataUtility;

@@ -4,8 +4,8 @@
 import { PointSet } from './PointSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
-import { DataList, VariableDataList } from './data/index.js';
-import { createPolylineList } from '../geometry/GeometryUtility.js';
+import { DataList, RegularDataList, VariableDataList } from './data/index.js';
+import { toDataList } from './data/DataUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -163,7 +163,7 @@ export class IndexedLineSet extends PointSet {
       // Set count from the data list size
       if (dataList instanceof VariableDataList) {
         this.#numEdges = dataList.length();
-      } else if (dataList.shape.length >= 1) {
+      } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
         this.#numEdges = dataList.shape[0];
       }
       
@@ -189,7 +189,7 @@ export class IndexedLineSet extends PointSet {
       const firstDataList = attributes.values().next().value;
       if (firstDataList instanceof VariableDataList) {
         this.#numEdges = firstDataList.length();
-      } else if (firstDataList && firstDataList.shape.length >= 1) {
+      } else if (firstDataList instanceof RegularDataList && firstDataList.shape.length >= 1) {
         this.#numEdges = firstDataList.shape[0];
       }
       
@@ -253,10 +253,12 @@ export class IndexedLineSet extends PointSet {
 
   /**
    * Convenience method to set edge indices (polylines)
-   * @param {Array<Array<number>>} polylines - Array of polylines, each containing vertex indices
+   * @param {DataList|VariableDataList|Array<Array<number>>} polylines - Array of polylines, each containing vertex indices
    */
   setEdgeIndices(polylines) {
-    const indexList = createPolylineList(polylines);
+    // Convert to DataList using toDataList - automatically detects variable-length arrays
+    // and creates VariableDataList for polylines with different lengths
+    const indexList = toDataList(polylines, null, 'int32');
     this.setEdgeCountAndAttribute(GeometryAttribute.INDICES, indexList);
   }
 
@@ -293,8 +295,8 @@ export class IndexedLineSet extends PointSet {
    * @private
    */
   #validateEdgeAttribute(attributeName, dataList) {
-    if (!dataList || !(dataList instanceof DataList || dataList instanceof VariableDataList)) {
-      throw new Error(`Edge attribute '${attributeName}' must be a DataList or VariableDataList`);
+    if (!dataList || !(dataList instanceof DataList)) {
+      throw new Error(`Edge attribute '${attributeName}' must be a DataList (RegularDataList or VariableDataList)`);
     }
     
     // Check that the data size matches our edge count

@@ -17,29 +17,26 @@
  * ```
  */
 
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 import { IndexedFaceSet } from '../scene/IndexedFaceSet.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
+import { RegularDataList } from '../scene/data/RegularDataList.js';
 import { VariableDataList } from '../scene/data/VariableDataList.js';
-import { createVertexList, createMixedFaceList } from './GeometryUtility.js';
-import { EUCLIDEAN, polarizePlane, setToLength, normalize as PnNormalize } from '../math/Pn.js';
+import { toDataList } from '../scene/data/DataUtility.js';
+import { EUCLIDEAN, polarizePlane, setToLength, normalize as PnNormalize, dehomogenize } from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import * as P3 from '../math/P3.js';
 
-export class IndexedFaceSetFactory {
+export class IndexedFaceSetFactory extends IndexedLineSetFactory {
     
     #indexedFaceSet;
-    #vertexCount = 0;
-    #edgeCount = 0;
     #faceCount = 0;
-    #metric = EUCLIDEAN;
-    #generateVertexLabels = false;
-    #generateEdgeLabels = false;
     #generateFaceLabels = false;
     #generateEdgesFromFaces = false;
     #generateVertexNormals = false;
     #generateFaceNormals = false;
-    #dirty = new Set();
+    #pendingFaceAttributes = new Map(); // Store face attributes to be applied during update()
     
     /**
      * Create a new IndexedFaceSetFactory.
@@ -47,9 +44,10 @@ export class IndexedFaceSetFactory {
      * @param {number} [metric=EUCLIDEAN] - Metric for the geometry
      */
     constructor(existingFaceSet = null, metric = EUCLIDEAN) {
-        this.#indexedFaceSet = existingFaceSet || new IndexedFaceSet();
-        this.#metric = metric;
-        this.#indexedFaceSet.setGeometryAttribute('metric', metric);
+        // Pass IndexedFaceSet to parent constructor (IndexedFaceSet extends IndexedLineSet)
+        const faceSet = existingFaceSet || new IndexedFaceSet();
+        super(faceSet, metric);
+        this.#indexedFaceSet = faceSet;
     }
     
     // ============================================================================
@@ -64,28 +62,37 @@ export class IndexedFaceSetFactory {
         return this.#indexedFaceSet;
     }
     
-    getVertexCount() {
-        return this.#vertexCount;
+    /**
+     * Override to return IndexedFaceSet instead of IndexedLineSet.
+     * @returns {IndexedFaceSet}
+     */
+    getIndexedLineSet() {
+        return this.#indexedFaceSet;
     }
     
-    getEdgeCount() {
-        return this.#edgeCount;
+    /**
+     * Override to return IndexedFaceSet instead of PointSet.
+     * @returns {IndexedFaceSet}
+     */
+    getPointSet() {
+        return this.#indexedFaceSet;
     }
     
+    /**
+     * Protected getter for the geometry (overrides parent).
+     * @protected
+     * @returns {IndexedFaceSet}
+     */
+    _getGeometry() {
+        return this.#indexedFaceSet;
+    }
+    
+    /**
+     * Get the current face count.
+     * @returns {number}
+     */
     getFaceCount() {
         return this.#faceCount;
-    }
-    
-    getMetric() {
-        return this.#metric;
-    }
-    
-    isGenerateVertexLabels() {
-        return this.#generateVertexLabels;
-    }
-    
-    isGenerateEdgeLabels() {
-        return this.#generateEdgeLabels;
     }
     
     isGenerateFaceLabels() {
@@ -108,42 +115,23 @@ export class IndexedFaceSetFactory {
     // Public API - Configuration
     // ============================================================================
     
-    setVertexCount(count) {
-        if (count < 0) throw new Error('Vertex count must be non-negative');
-        this.#vertexCount = count;
-        this.#dirty.add('vertexCount');
-    }
-    
-    setEdgeCount(count) {
-        if (count < 0) throw new Error('Edge count must be non-negative');
-        this.#edgeCount = count;
-        this.#dirty.add('edgeCount');
-    }
-    
+    /**
+     * Set the number of faces.
+     * @param {number} count - Number of faces
+     */
     setFaceCount(count) {
         if (count < 0) throw new Error('Face count must be non-negative');
         this.#faceCount = count;
-        this.#dirty.add('faceCount');
+        this._getDirty().add('faceCount');
     }
     
-    setMetric(metric) {
-        this.#metric = metric;
-        this.#dirty.add('metric');
-    }
-    
-    setGenerateVertexLabels(generate) {
-        this.#generateVertexLabels = generate;
-        this.#dirty.add('vertexLabels');
-    }
-    
-    setGenerateEdgeLabels(generate) {
-        this.#generateEdgeLabels = generate;
-        this.#dirty.add('edgeLabels');
-    }
-    
+    /**
+     * Enable/disable automatic generation of face labels.
+     * @param {boolean} generate - Whether to generate labels
+     */
     setGenerateFaceLabels(generate) {
         this.#generateFaceLabels = generate;
-        this.#dirty.add('faceLabels');
+        this._getDirty().add('faceLabels');
     }
     
     /**
@@ -153,7 +141,7 @@ export class IndexedFaceSetFactory {
      */
     setGenerateEdgesFromFaces(generate) {
         this.#generateEdgesFromFaces = generate;
-        this.#dirty.add('edgesFromFaces');
+        this._getDirty().add('edgesFromFaces');
     }
     
     /**
@@ -162,7 +150,7 @@ export class IndexedFaceSetFactory {
      */
     setGenerateVertexNormals(generate) {
         this.#generateVertexNormals = generate;
-        this.#dirty.add('vertexNormals');
+        this._getDirty().add('vertexNormals');
     }
     
     /**
@@ -171,111 +159,7 @@ export class IndexedFaceSetFactory {
      */
     setGenerateFaceNormals(generate) {
         this.#generateFaceNormals = generate;
-        this.#dirty.add('faceNormals');
-    }
-    
-    // ============================================================================
-    // Public API - Vertex Attributes
-    // ============================================================================
-    
-    setVertexCoordinates(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.COORDINATES, data, fiberLength);
-    }
-    
-    setVertexNormals(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.NORMALS, data, fiberLength);
-    }
-    
-    setVertexColors(data, fiberLength = null) {
-        if (Array.isArray(data) && data.length > 0 && 
-            typeof data[0] === 'object' && data[0] !== null && 
-            'r' in data[0]) {
-            data = data.map(c => [c.r, c.g, c.b, c.a ?? 1.0]);
-        }
-        this._setVertexAttribute(GeometryAttribute.COLORS, data, fiberLength);
-    }
-    
-    setVertexTextureCoordinates(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES, data, fiberLength);
-    }
-    
-    setVertexLabels(labels) {
-        if (!Array.isArray(labels)) {
-            throw new Error('Labels must be an array of strings');
-        }
-        this._setVertexAttributeRaw(GeometryAttribute.LABELS, labels);
-    }
-    
-    setVertexRelativeRadii(radii) {
-        if (!Array.isArray(radii)) {
-            throw new Error('Radii must be an array of numbers');
-        }
-        this._setVertexAttributeRaw(GeometryAttribute.RELATIVE_RADII, radii);
-    }
-    
-    setVertexAttribute(attribute, data, fiberLength = null) {
-        this._setVertexAttribute(attribute, data, fiberLength);
-    }
-    
-    // ============================================================================
-    // Public API - Edge Attributes
-    // ============================================================================
-    
-    setEdgeIndices(data, pointsPerEdge = null) {
-        if (data === null || data === undefined) {
-            this.#indexedFaceSet.setEdgeIndices(null);
-            return;
-        }
-        
-        if (data instanceof DataList || data instanceof VariableDataList) {
-            this.#indexedFaceSet.setEdgeIndices(data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                const polylines = createMixedFaceList(data); // Reuse for edges
-                this.#indexedFaceSet.setEdgeIndices(polylines);
-            } else if (pointsPerEdge !== null) {
-                const dataList = new DataList(data, [Math.floor(data.length / pointsPerEdge), pointsPerEdge], 'int32');
-                this.#indexedFaceSet.setEdgeIndices(dataList);
-            } else {
-                throw new Error('For flat arrays, pointsPerEdge must be specified');
-            }
-        }
-    }
-    
-    setEdgeColors(data, fiberLength = null) {
-        if (Array.isArray(data) && data.length > 0 && 
-            typeof data[0] === 'object' && data[0] !== null && 
-            'r' in data[0]) {
-            data = data.map(c => [c.r, c.g, c.b, c.a ?? 1.0]);
-        }
-        this._setEdgeAttribute(GeometryAttribute.COLORS, data, fiberLength);
-    }
-    
-    setEdgeNormals(data, fiberLength = null) {
-        this._setEdgeAttribute(GeometryAttribute.NORMALS, data, fiberLength);
-    }
-    
-    setEdgeLabels(labels) {
-        if (!Array.isArray(labels)) {
-            throw new Error('Labels must be an array of strings');
-        }
-        this._setEdgeAttributeRaw(GeometryAttribute.LABELS, labels);
-    }
-    
-    setEdgeRelativeRadii(radii) {
-        if (!Array.isArray(radii)) {
-            throw new Error('Radii must be an array of numbers');
-        }
-        this._setEdgeAttributeRaw(GeometryAttribute.RELATIVE_RADII, radii);
-    }
-    
-    setEdgeAttribute(attribute, data, fiberLength = null) {
-        this._setEdgeAttribute(attribute, data, fiberLength);
+        this._getDirty().add('faceNormals');
     }
     
     // ============================================================================
@@ -284,45 +168,37 @@ export class IndexedFaceSetFactory {
     
     /**
      * Set face indices. Accepts multiple formats:
-     * - DataList or VariableDataList
-     * - 2D array: [[v0,v1,v2], [v3,v4,v5,v6], ...] (variable length faces)
-     * - Flat array with fixed pointsPerFace: [v0,v1,v2, v3,v4,v5, ...] (e.g., pointsPerFace=3 for triangles)
+     * - DataList (RegularDataList or VariableDataList) - must be INT32 type
+     * - 2D array: [[v0,v1,v2], [v3,v4,v5,v6], ...] (variable length faces) → VariableDataList
+     * - Flat array with fixed pointsPerFace: [v0,v1,v2, v3,v4,v5, ...] → RegularDataList
      * 
-     * @param {DataList|VariableDataList|number[]|number[][]} data - Face index data
+     * Face indices are stored as INT32 and can be variable-length (VariableDataList) for mixed face sizes.
+     * 
+     * @param {DataList|number[]|number[][]} data - Face index data
      * @param {number} [pointsPerFace=null] - Points per face for flat arrays (e.g., 3 for triangles)
      */
     setFaceIndices(data, pointsPerFace = null) {
         if (data === null || data === undefined) {
+            // Handle null/undefined - set directly (not stored in pending attributes)
             this.#indexedFaceSet.setFaceIndices(null);
             return;
         }
         
-        if (data instanceof DataList || data instanceof VariableDataList) {
-            this.#indexedFaceSet.setFaceIndices(data);
-            return;
+        let dataList;
+        
+        // If it's already a DataList (RegularDataList or VariableDataList), use it directly
+        // Note: We assume it's already INT32 - if not, the user should convert it
+        if (data instanceof DataList) {
+            dataList = data;
+        } else {
+            // Convert array to DataList using toDataList with INT32 type
+            // toDataList automatically detects variable-length arrays and creates VariableDataList
+            // For flat arrays, pointsPerFace is used as fiberLength
+            dataList = toDataList(data, pointsPerFace, 'int32');
         }
         
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                // 2D array: [[v0,v1,v2], [v3,v4,v5,v6], ...]
-                const faceList = createMixedFaceList(data);
-                this.#indexedFaceSet.setFaceIndices(faceList);
-            } else if (pointsPerFace !== null) {
-                // Flat array with fixed points per face: [v0,v1,v2, v3,v4,v5, ...]
-                if (data.length % pointsPerFace !== 0) {
-                    throw new Error(`Face indices length (${data.length}) must be divisible by pointsPerFace (${pointsPerFace})`);
-                }
-                const numFaces = data.length / pointsPerFace;
-                const dataList = new DataList(data, [numFaces, pointsPerFace], 'int32');
-                this.#indexedFaceSet.setFaceIndices(dataList);
-            } else {
-                throw new Error('For flat arrays, pointsPerFace must be specified');
-            }
-        } else {
-            throw new Error('Data must be a DataList, VariableDataList, array, or 2D array');
-        }
+        // Store for later application during update() (after setNumFaces clears attributes)
+        this.#pendingFaceAttributes.set(GeometryAttribute.INDICES, dataList);
     }
     
     setFaceColors(data, fiberLength = null) {
@@ -358,26 +234,20 @@ export class IndexedFaceSetFactory {
      * This method should be called after setting all desired attributes.
      */
     update() {
-        // Update counts
-        if (this.#dirty.has('vertexCount')) {
-            this.#indexedFaceSet.setNumPoints(this.#vertexCount);
-            this.#dirty.delete('vertexCount');
-        }
+        // Call parent update() to handle vertex and edge attributes
+        super.update();
         
-        if (this.#dirty.has('edgeCount')) {
-            this.#indexedFaceSet.setNumEdges(this.#edgeCount);
-            this.#dirty.delete('edgeCount');
-        }
-        
-        if (this.#dirty.has('faceCount')) {
+        // Update face count FIRST (this clears all face attributes)
+        if (this._getDirty().has('faceCount')) {
             this.#indexedFaceSet.setNumFaces(this.#faceCount);
-            this.#dirty.delete('faceCount');
+            this._getDirty().delete('faceCount');
         }
         
-        if (this.#dirty.has('metric')) {
-            this.#indexedFaceSet.setGeometryAttribute('metric', this.#metric);
-            this.#dirty.delete('metric');
+        // Apply all pending face attributes (after face count is set)
+        for (const [attribute, dataList] of this.#pendingFaceAttributes.entries()) {
+            this.#indexedFaceSet.setFaceAttribute(attribute, dataList);
         }
+        this.#pendingFaceAttributes.clear();
         
         // Generate edges from faces if requested
         if (this.#generateEdgesFromFaces) {
@@ -394,111 +264,38 @@ export class IndexedFaceSetFactory {
             this._generateVertexNormals();
         }
         
-        // Generate labels if requested
-        if (this.#generateVertexLabels && this.#dirty.has('vertexLabels')) {
-            const labels = this._generateIndexLabels(this.#vertexCount);
-            this.#indexedFaceSet.setVertexAttribute(GeometryAttribute.LABELS, labels);
-            this.#dirty.delete('vertexLabels');
-        }
-        
-        if (this.#generateEdgeLabels && this.#dirty.has('edgeLabels')) {
-            const labels = this._generateIndexLabels(this.#edgeCount);
-            this.#indexedFaceSet.setEdgeAttribute(GeometryAttribute.LABELS, labels);
-            this.#dirty.delete('edgeLabels');
-        }
-        
-        if (this.#generateFaceLabels && this.#dirty.has('faceLabels')) {
+        // Generate face labels if requested
+        if (this.#generateFaceLabels && this._getDirty().has('faceLabels')) {
             const labels = this._generateIndexLabels(this.#faceCount);
             this.#indexedFaceSet.setFaceAttribute(GeometryAttribute.LABELS, labels);
-            this.#dirty.delete('faceLabels');
+            this._getDirty().delete('faceLabels');
         }
-        
-        // Clear all dirty flags
-        this.#dirty.clear();
     }
     
     // ============================================================================
     // Protected/Internal Methods
     // ============================================================================
     
-    _setVertexAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#indexedFaceSet.setVertexAttribute(attribute, null);
-            return;
-        }
-        
-        if (data instanceof DataList) {
-            this.#indexedFaceSet.setVertexAttribute(attribute, data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            const dataList = is2D 
-                ? createVertexList(data, fiberLength)
-                : createVertexList(data, fiberLength || this._inferFiberLength(attribute));
-            this.#indexedFaceSet.setVertexAttribute(attribute, dataList);
-        }
-    }
-    
-    _setVertexAttributeRaw(attribute, data) {
-        this.#indexedFaceSet.setVertexAttribute(attribute, data);
-    }
-    
-    _setEdgeAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#indexedFaceSet.setEdgeAttribute(attribute, null);
-            return;
-        }
-        
-        if (data instanceof DataList) {
-            this.#indexedFaceSet.setEdgeAttribute(attribute, data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            const dataList = is2D 
-                ? createVertexList(data, fiberLength)
-                : createVertexList(data, fiberLength || this._inferFiberLength(attribute));
-            this.#indexedFaceSet.setEdgeAttribute(attribute, dataList);
-        }
-    }
-    
-    _setEdgeAttributeRaw(attribute, data) {
-        this.#indexedFaceSet.setEdgeAttribute(attribute, data);
-    }
-    
+    /**
+     * Set a face attribute, handling multiple input formats.
+     * Stores the attribute to be applied during update() to avoid clearing by setNumFaces().
+     * 
+     * If fiberLength is null, toDataList() will automatically detect it from the data structure.
+     * 
+     * @private
+     */
     _setFaceAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#indexedFaceSet.setFaceAttribute(attribute, null);
-            return;
-        }
-        
-        if (data instanceof DataList) {
-            this.#indexedFaceSet.setFaceAttribute(attribute, data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            const dataList = is2D 
-                ? createVertexList(data, fiberLength)
-                : createVertexList(data, fiberLength || this._inferFiberLength(attribute));
-            this.#indexedFaceSet.setFaceAttribute(attribute, dataList);
-        }
+        const dataList = toDataList(data, fiberLength);
+        // Store for later application during update() (after setNumFaces clears attributes)
+        this.#pendingFaceAttributes.set(attribute, dataList);
     }
     
+    /**
+     * Set a face attribute directly (for string arrays, etc.).
+     * @private
+     */
     _setFaceAttributeRaw(attribute, data) {
         this.#indexedFaceSet.setFaceAttribute(attribute, data);
-    }
-    
-    _inferFiberLength(attribute) {
-        if (attribute === GeometryAttribute.COORDINATES) return 4;
-        if (attribute === GeometryAttribute.NORMALS) return 3;
-        if (attribute === GeometryAttribute.COLORS) return 4;
-        if (attribute === GeometryAttribute.TEXTURE_COORDINATES) return 2;
-        throw new Error('Cannot infer fiber length for attribute: ' + attribute);
     }
     
     _generateIndexLabels(count) {
@@ -523,7 +320,7 @@ export class IndexedFaceSetFactory {
         
         // Iterate over all faces
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
-            const face = faceIndices.getItem(faceIdx);
+            const face = faceIndices.item(faceIdx);
             const faceLength = face.length;
             
             // For each edge in the face
@@ -542,9 +339,11 @@ export class IndexedFaceSetFactory {
         }
         
         // Set the edge indices
-        this.#edgeCount = edgeList.length;
-        this.#indexedFaceSet.setNumEdges(this.#edgeCount);
-        const edgeIndices = createMixedFaceList(edgeList);
+        this._setEdgeCount(edgeList.length);
+        this.#indexedFaceSet.setNumEdges(this._getEdgeCount());
+        // Convert edgeList (2D array) to DataList using toDataList
+        // All edges have length 2, so this will create a RegularDataList with shape [numEdges, 2]
+        const edgeIndices = toDataList(edgeList, null, 'int32');
         this.#indexedFaceSet.setEdgeIndices(edgeIndices);
     }
     
@@ -558,34 +357,56 @@ export class IndexedFaceSetFactory {
         
         if (!faceIndices || !vertexCoords) return;
         
-        const normalLength = this.#metric === EUCLIDEAN ? 3 : 4;
+        const metric = this.getMetric();
+        const normalLength = metric === EUCLIDEAN ? 3 : 4;
         const faceNormals = [];
         
         // Get vertex data as 2D array
         const verts = [];
         for (let i = 0; i < vertexCoords.length; i++) {
-            verts.push(vertexCoords.getItem(i));
+            verts.push(vertexCoords.item(i));
+        }
+        
+        // Dehomogenize vertices if they're 4D and metric is Euclidean (matches Java implementation)
+        if (metric === EUCLIDEAN && verts.length > 0 && verts[0].length === 4) {
+            for (let i = 0; i < verts.length; i++) {
+                verts[i] = dehomogenize(null, verts[i]);
+            }
         }
         
         // Calculate normal for each face
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
-            const face = faceIndices.getItem(faceIdx);
+            const face = faceIndices.item(faceIdx);
+            const n = face.length;
             
-            if (face.length < 3) {
-                // Degenerate face, use zero normal
-                faceNormals.push(new Array(normalLength).fill(0));
+            if (n < 3) {
+                // Degenerate face, skip (matches Java: continue)
                 continue;
             }
             
-            if (this.#metric === EUCLIDEAN) {
-                // Euclidean: use cross product of first two edges
-                const v0 = verts[face[0]].slice(0, 3);
-                const v1 = verts[face[1]].slice(0, 3);
-                const v2 = verts[face[2]].slice(0, 3);
+            if (metric === EUCLIDEAN) {
+                // Euclidean: find non-degenerate set of 3 vertices (matches Java implementation)
+                let count = 1;
+                let v1 = null;
                 
-                const e1 = Rn.subtract(null, v1, v0);
-                const e2 = Rn.subtract(null, v2, v0);
-                const normal = Rn.crossProduct(null, e1, e2);
+                // Find first non-degenerate edge
+                do {
+                    v1 = Rn.subtract(null, verts[face[count++]], verts[face[0]]);
+                } while (Rn.euclideanNorm(v1) < 1e-16 && count < (n - 1));
+                
+                // Find second non-degenerate edge
+                let v2 = null;
+                do {
+                    v2 = Rn.subtract(null, verts[face[count++]], verts[face[0]]);
+                } while (Rn.euclideanNorm(v2) < 1e-16 && count < n);
+                
+                if (count > n) {
+                    // Couldn't find non-degenerate edges, skip this face
+                    continue;
+                }
+                
+                // Compute cross product and normalize
+                const normal = Rn.crossProduct(null, v1, v2);
                 Rn.normalize(normal, normal);
                 faceNormals.push(normal);
             } else {
@@ -595,14 +416,15 @@ export class IndexedFaceSetFactory {
                 const p2 = verts[face[2]];
                 
                 const plane = P3.planeFromPoints(null, p0, p1, p2);
-                const normal = polarizePlane(null, plane, this.#metric);
-                setToLength(normal, normal, -1.0, this.#metric);
+                const normal = polarizePlane(null, plane, metric);
+                setToLength(normal, normal, -1.0, metric);
                 faceNormals.push(normal);
             }
         }
         
         // Set the face normals
-        const normalDataList = createVertexList(faceNormals, null);
+        // faceNormals is a 2D array, so toDataList will auto-detect fiber length
+        const normalDataList = toDataList(faceNormals);
         this.#indexedFaceSet.setFaceAttribute(GeometryAttribute.NORMALS, normalDataList);
     }
     
@@ -625,16 +447,18 @@ export class IndexedFaceSetFactory {
         if (!faceNormals) return;
         
         // Initialize vertex normals to zero
-        const normalLength = this.#metric === EUCLIDEAN ? 3 : 4;
-        const vertexNormals = new Array(this.#vertexCount);
-        for (let i = 0; i < this.#vertexCount; i++) {
+        const metric = this.getMetric();
+        const normalLength = metric === EUCLIDEAN ? 3 : 4;
+        const vertexCount = this.getVertexCount();
+        const vertexNormals = new Array(vertexCount);
+        for (let i = 0; i < vertexCount; i++) {
             vertexNormals[i] = new Array(normalLength).fill(0);
         }
         
         // Accumulate face normals at each vertex
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
-            const face = faceIndices.getItem(faceIdx);
-            const faceNormal = faceNormals.getItem(faceIdx);
+            const face = faceIndices.item(faceIdx);
+            const faceNormal = faceNormals.item(faceIdx);
             
             for (let i = 0; i < face.length; i++) {
                 const vertexIdx = face[i];
@@ -643,15 +467,15 @@ export class IndexedFaceSetFactory {
         }
         
         // Normalize
-        if (this.#metric === EUCLIDEAN && normalLength === 3) {
+        if (metric === EUCLIDEAN && normalLength === 3) {
             Rn.normalize(vertexNormals, vertexNormals);
         } else {
-            PnNormalize(vertexNormals, vertexNormals, this.#metric);
+            PnNormalize(vertexNormals, vertexNormals, metric);
         }
         
         // Set the vertex normals
-        const normalDataList = createVertexList(vertexNormals, null);
+        // vertexNormals is a 2D array, so toDataList will auto-detect fiber length
+        const normalDataList = toDataList(vertexNormals);
         this.#indexedFaceSet.setVertexAttribute(GeometryAttribute.NORMALS, normalDataList);
     }
 }
-

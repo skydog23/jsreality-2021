@@ -4,7 +4,7 @@
 import { IndexedLineSet } from './IndexedLineSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
-import { DataList, VariableDataList } from './data/index.js';
+import { DataList, RegularDataList, VariableDataList } from './data/index.js';
 import { createMixedFaceList } from '../geometry/GeometryUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
@@ -159,7 +159,7 @@ export class IndexedFaceSet extends IndexedLineSet {
       // Set count from the data list size
       if (dataList instanceof VariableDataList) {
         this.#numFaces = dataList.length();
-      } else if (dataList.shape.length >= 1) {
+      } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
         this.#numFaces = dataList.shape[0];
       }
       
@@ -185,7 +185,7 @@ export class IndexedFaceSet extends IndexedLineSet {
       const firstDataList = attributes.values().next().value;
       if (firstDataList instanceof VariableDataList) {
         this.#numFaces = firstDataList.length();
-      } else if (firstDataList && firstDataList.shape.length >= 1) {
+      } else if (firstDataList instanceof RegularDataList && firstDataList.shape.length >= 1) {
         this.#numFaces = firstDataList.shape[0];
       }
       
@@ -320,8 +320,8 @@ export class IndexedFaceSet extends IndexedLineSet {
    * @private
    */
   #validateFaceAttribute(attributeName, dataList) {
-    if (!dataList || !(dataList instanceof DataList || dataList instanceof VariableDataList)) {
-      throw new Error(`Face attribute '${attributeName}' must be a DataList or VariableDataList`);
+    if (!dataList || !(dataList instanceof DataList)) {
+      throw new Error(`Face attribute '${attributeName}' must be a DataList (RegularDataList or VariableDataList)`);
     }
     
     // Check that the data size matches our face count

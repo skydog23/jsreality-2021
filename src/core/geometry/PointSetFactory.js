@@ -21,7 +21,7 @@
 import { PointSet } from '../scene/PointSet.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
-import { createVertexList } from './GeometryUtility.js';
+import { toDataList, detectFiberLength } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 
 export class PointSetFactory {
@@ -31,6 +31,7 @@ export class PointSetFactory {
     #metric = EUCLIDEAN;
     #generateVertexLabels = false;
     #dirty = new Set(); // Track which attributes need updating
+    #pendingAttributes = new Map(); // Store attributes to be applied during update()
     
     /**
      * Create a new PointSetFactory.
@@ -53,6 +54,34 @@ export class PointSetFactory {
      */
     getPointSet() {
         return this.#pointSet;
+    }
+    
+    /**
+     * Protected getter for the geometry (for subclasses).
+     * Subclasses can override this to return their specific geometry type.
+     * @protected
+     * @returns {PointSet}
+     */
+    _getGeometry() {
+        return this.#pointSet;
+    }
+    
+    /**
+     * Protected accessor for dirty set (for subclasses).
+     * @protected
+     * @returns {Set}
+     */
+    _getDirty() {
+        return this.#dirty;
+    }
+    
+    /**
+     * Protected accessor for pending attributes (for subclasses).
+     * @protected
+     * @returns {Map}
+     */
+    _getPendingAttributes() {
+        return this.#pendingAttributes;
     }
     
     /**
@@ -251,22 +280,32 @@ export class PointSetFactory {
      * This method should be called after setting all desired attributes.
      */
     update() {
-        // Update vertex count if changed
+        const geometry = this._getGeometry();
+        
+        // Update vertex count FIRST (this clears all attributes, so must be done before setting them)
         if (this.#dirty.has('vertexCount')) {
-            this.#pointSet.setNumPoints(this.#vertexCount);
+            geometry.setNumPoints(this.#vertexCount);
             this.#dirty.delete('vertexCount');
         }
         
+        // Apply all pending attributes (after vertex count is set)
+        for (const [attribute, dataList] of this.#pendingAttributes.entries()) {
+            geometry.setVertexAttribute(attribute, dataList);
+        }
+        this.#pendingAttributes.clear();
+        
         // Update metric if changed
         if (this.#dirty.has('metric')) {
-            this.#pointSet.setGeometryAttribute('metric', this.#metric);
+            geometry.setGeometryAttribute('metric', this.#metric);
             this.#dirty.delete('metric');
         }
         
         // Generate vertex labels if requested
         if (this.#generateVertexLabels && this.#dirty.has('vertexLabels')) {
             const labels = this._generateIndexLabels(this.#vertexCount);
-            this.#pointSet.setVertexAttribute(GeometryAttribute.LABELS, labels);
+            // Convert string array to DataList using toDataList (handles string arrays specially)
+            const labelDataList = toDataList(labels, null, 'string');
+            geometry.setVertexAttribute(GeometryAttribute.LABELS, labelDataList);
             this.#dirty.delete('vertexLabels');
         }
         
@@ -280,60 +319,38 @@ export class PointSetFactory {
     
     /**
      * Set a vertex attribute, handling multiple input formats.
+     * Stores the attribute to be applied during update() to avoid clearing by setNumPoints().
      * @private
      */
     _setVertexAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#pointSet.setVertexAttribute(attribute, null);
-            return;
-        }
-        
-        // If it's already a DataList, use it directly
-        if (data instanceof DataList) {
-            this.#pointSet.setVertexAttribute(attribute, data);
-            return;
-        }
-        
-        // Otherwise, convert to DataList
-        let dataList;
-        
-        if (Array.isArray(data)) {
-            // Check if it's a 2D array or flat array
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                // 2D array: [[x,y,z], [x,y,z], ...]
-                dataList = createVertexList(data, fiberLength);
-            } else {
-                // Flat array: [x,y,z, x,y,z, ...]
-                // Determine fiber length if not provided
-                if (fiberLength === null) {
-                    // Default to 4 for coordinates, 3 for normals, 4 for colors, 2 for texcoords
-                    if (attribute === GeometryAttribute.COORDINATES) {
-                        fiberLength = 4;
-                    } else if (attribute === GeometryAttribute.NORMALS) {
-                        fiberLength = 3;
-                    } else if (attribute === GeometryAttribute.COLORS) {
-                        fiberLength = 4;
-                    } else if (attribute === GeometryAttribute.TEXTURE_COORDINATES) {
-                        fiberLength = 2;
-                    } else {
-                        // Try to infer from data length
-                        if (this.#vertexCount > 0) {
-                            fiberLength = Math.floor(data.length / this.#vertexCount);
-                        } else {
-                            throw new Error('Cannot infer fiber length without vertex count');
-                        }
-                    }
+        // Infer fiber length if not provided
+        if (fiberLength === null) {
+            // First, try to detect from array structure
+            if (Array.isArray(data) && data.length > 0) {
+                const detected = detectFiberLength(data);
+                if (detected !== null) {
+                    fiberLength = detected;
                 }
-                
-                dataList = createVertexList(data, fiberLength);
             }
             
-            this.#pointSet.setVertexAttribute(attribute, dataList);
-        } else {
-            throw new Error('Data must be a DataList, array, or 2D array');
+            // If still null, try to infer from vertex count for flat arrays
+            if (fiberLength === null) {
+                if (this.#vertexCount > 0 && Array.isArray(data) && !Array.isArray(data[0])) {
+                    // Flat array - try to infer from vertex count
+                    fiberLength = Math.floor(data.length / this.#vertexCount);
+                    if (fiberLength === 0) {
+                        throw new Error(`Cannot infer fiber length: data length ${data.length} is less than vertex count ${this.#vertexCount}`);
+                    }
+                } else {
+                    // Cannot determine fiber length - throw error
+                    throw new Error(`Cannot determine fiber length for attribute '${attribute}'. ` +
+                        `Please provide fiberLength parameter or use nested array format (e.g., [[x,y,z], ...])`);
+                }
+            }
         }
+        const dataList = toDataList(data, fiberLength);
+        // Store for later application during update() (after setNumPoints clears attributes)
+        this.#pendingAttributes.set(attribute, dataList);
     }
     
     /**
@@ -341,7 +358,7 @@ export class PointSetFactory {
      * @private
      */
     _setVertexAttributeRaw(attribute, data) {
-        this.#pointSet.setVertexAttribute(attribute, data);
+        this._getGeometry().setVertexAttribute(attribute, data);
     }
     
     /**

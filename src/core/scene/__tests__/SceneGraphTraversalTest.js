@@ -5,7 +5,7 @@ import { SceneGraphComponent, SceneGraphPath, SceneGraphVisitor } from '../index
 import { Camera } from '../Camera.js';
 import { PointSet } from '../PointSet.js';
 import { Transformation } from '../Transformation.js';
-import { createVertexList } from '../../geometry/GeometryUtility.js';
+import { toDataList } from '../data/DataUtility.js';
 import { Matrix } from '../../math/Matrix.js';
 
 /**
@@ -104,7 +104,8 @@ function createHierarchicalScene() {
   const pointSet = new PointSet(4);
   pointSet.setName('hierarchicalPoints');
   
-  const vertices = createVertexList([
+  // 2D array - toDataList will auto-detect fiber length
+  const vertices = toDataList([
     [0, 0, 0],     // Center
     [1, 0, 0],     // Right
     [0, 1, 0],     // Up
@@ -118,7 +119,8 @@ function createHierarchicalScene() {
   const directPointSet = new PointSet(3);
   directPointSet.setName('directPoints');
   
-  const directVertices = createVertexList([
+  // 2D array - toDataList will auto-detect fiber length
+  const directVertices = toDataList([
     [-2, 0, 0],    // Left
     [-2, 2, 0],    // Left-up
     [-2, -2, 0]    // Left-down

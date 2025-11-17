@@ -2,25 +2,7 @@
  * Utility functions for geometry data processing
  */
 
-import { DataList } from '../scene/data/DataList.js';
 import { VariableDataList } from '../scene/data/VariableDataList.js';
-
-/**
- * Create a DataList for vertex coordinates
- * @param {Array|Array<Array>} vertices - Vertex data (flat array or nested)
- * @param {number} [coordsPerVertex=4] - Number of coordinates per vertex (2D=2, 3D=3, 4D=4)
- * @returns {DataList}
- */
-export function createVertexList(vertices, coordsPerVertex = 4) {
-  const flatData = Array.isArray(vertices[0]) ? vertices.flat() : vertices;
-  const numVertices = flatData.length / coordsPerVertex;
-  
-  if (flatData.length % coordsPerVertex !== 0) {
-    throw new Error(`Vertex data length ${flatData.length} not divisible by ${coordsPerVertex}`);
-  }
-  
-  return new DataList(flatData, [numVertices, coordsPerVertex], 'float64');
-}
 
 /**
  * Create a VariableDataList for polyline indices (for IndexedLineSet)
@@ -48,9 +30,10 @@ export function createMixedFaceList(faces) {
 
 /**
  * GeometryUtility - Collection of utility functions for geometry data processing
+ * 
+ * Note: createVertexList has been moved to DataUtility.toDataList()
  */
 export const GeometryUtility = {
-  createVertexList,
   createPolylineList,
   createMixedFaceList
 };

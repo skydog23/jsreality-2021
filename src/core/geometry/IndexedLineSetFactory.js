@@ -15,22 +15,19 @@
  * ```
  */
 
+import { PointSetFactory } from './PointSetFactory.js';
 import { IndexedLineSet } from '../scene/IndexedLineSet.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
-import { VariableDataList } from '../scene/data/VariableDataList.js';
-import { createVertexList, createPolylineList } from './GeometryUtility.js';
+import { toDataList } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 
-export class IndexedLineSetFactory {
+export class IndexedLineSetFactory extends PointSetFactory {
     
     #indexedLineSet;
-    #vertexCount = 0;
     #edgeCount = 0;
-    #metric = EUCLIDEAN;
-    #generateVertexLabels = false;
     #generateEdgeLabels = false;
-    #dirty = new Set();
+    #pendingEdgeAttributes = new Map(); // Store edge attributes to be applied during update()
     
     /**
      * Create a new IndexedLineSetFactory.
@@ -38,9 +35,10 @@ export class IndexedLineSetFactory {
      * @param {number} [metric=EUCLIDEAN] - Metric for the geometry
      */
     constructor(existingLineSet = null, metric = EUCLIDEAN) {
-        this.#indexedLineSet = existingLineSet || new IndexedLineSet();
-        this.#metric = metric;
-        this.#indexedLineSet.setGeometryAttribute('metric', metric);
+        // Pass IndexedLineSet to parent constructor (IndexedLineSet extends PointSet)
+        const lineSet = existingLineSet || new IndexedLineSet();
+        super(lineSet, metric);
+        this.#indexedLineSet = lineSet;
     }
     
     // ============================================================================
@@ -56,11 +54,20 @@ export class IndexedLineSetFactory {
     }
     
     /**
-     * Get the current vertex count.
-     * @returns {number}
+     * Override to return IndexedLineSet instead of PointSet.
+     * @returns {IndexedLineSet}
      */
-    getVertexCount() {
-        return this.#vertexCount;
+    getPointSet() {
+        return this.#indexedLineSet;
+    }
+    
+    /**
+     * Protected getter for the geometry (overrides parent).
+     * @protected
+     * @returns {IndexedLineSet}
+     */
+    _getGeometry() {
+        return this.#indexedLineSet;
     }
     
     /**
@@ -72,19 +79,39 @@ export class IndexedLineSetFactory {
     }
     
     /**
-     * Get the current metric.
+     * Protected accessor for edge count (for subclasses).
+     * @protected
      * @returns {number}
      */
-    getMetric() {
-        return this.#metric;
+    _getEdgeCount() {
+        return this.#edgeCount;
     }
     
     /**
-     * Check if vertex labels are being auto-generated.
+     * Protected setter for edge count (for subclasses).
+     * @protected
+     * @param {number} count - Edge count
+     */
+    _setEdgeCount(count) {
+        this.#edgeCount = count;
+    }
+    
+    /**
+     * Protected accessor for pending edge attributes (for subclasses).
+     * @protected
+     * @returns {Map}
+     */
+    _getPendingEdgeAttributes() {
+        return this.#pendingEdgeAttributes;
+    }
+    
+    /**
+     * Protected accessor for generateEdgeLabels flag (for subclasses).
+     * @protected
      * @returns {boolean}
      */
-    isGenerateVertexLabels() {
-        return this.#generateVertexLabels;
+    _isGenerateEdgeLabels() {
+        return this.#generateEdgeLabels;
     }
     
     /**
@@ -100,18 +127,6 @@ export class IndexedLineSetFactory {
     // ============================================================================
     
     /**
-     * Set the number of vertices.
-     * @param {number} count - Number of vertices
-     */
-    setVertexCount(count) {
-        if (count < 0) {
-            throw new Error('Vertex count must be non-negative');
-        }
-        this.#vertexCount = count;
-        this.#dirty.add('vertexCount');
-    }
-    
-    /**
      * Set the number of edges.
      * @param {number} count - Number of edges
      */
@@ -120,25 +135,8 @@ export class IndexedLineSetFactory {
             throw new Error('Edge count must be non-negative');
         }
         this.#edgeCount = count;
-        this.#dirty.add('edgeCount');
-    }
-    
-    /**
-     * Set the metric for the geometry.
-     * @param {number} metric - Metric constant (EUCLIDEAN, HYPERBOLIC, etc.)
-     */
-    setMetric(metric) {
-        this.#metric = metric;
-        this.#dirty.add('metric');
-    }
-    
-    /**
-     * Enable/disable automatic generation of vertex labels.
-     * @param {boolean} generate - Whether to generate labels
-     */
-    setGenerateVertexLabels(generate) {
-        this.#generateVertexLabels = generate;
-        this.#dirty.add('vertexLabels');
+        // Use parent's dirty tracking
+        this._getDirty().add('edgeCount');
     }
     
     /**
@@ -147,57 +145,7 @@ export class IndexedLineSetFactory {
      */
     setGenerateEdgeLabels(generate) {
         this.#generateEdgeLabels = generate;
-        this.#dirty.add('edgeLabels');
-    }
-    
-    // ============================================================================
-    // Public API - Vertex Attributes (same as PointSetFactory)
-    // ============================================================================
-    
-    setVertexCoordinates(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.COORDINATES, data, fiberLength);
-    }
-    
-    setVertexNormals(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.NORMALS, data, fiberLength);
-    }
-    
-    setVertexColors(data, fiberLength = null) {
-        // Handle color objects {r,g,b,a}
-        if (Array.isArray(data) && data.length > 0 && 
-            typeof data[0] === 'object' && data[0] !== null && 
-            'r' in data[0]) {
-            data = data.map(c => [c.r, c.g, c.b, c.a ?? 1.0]);
-        }
-        this._setVertexAttribute(GeometryAttribute.COLORS, data, fiberLength);
-    }
-    
-    setVertexTextureCoordinates(data, fiberLength = null) {
-        this._setVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES, data, fiberLength);
-    }
-    
-    setVertexLabels(labels) {
-        if (!Array.isArray(labels)) {
-            throw new Error('Labels must be an array of strings');
-        }
-        if (labels.length !== this.#vertexCount) {
-            throw new Error(`Label array length (${labels.length}) must match vertex count (${this.#vertexCount})`);
-        }
-        this._setVertexAttributeRaw(GeometryAttribute.LABELS, labels);
-    }
-    
-    setVertexRelativeRadii(radii) {
-        if (!Array.isArray(radii)) {
-            throw new Error('Radii must be an array of numbers');
-        }
-        if (radii.length !== this.#vertexCount) {
-            throw new Error(`Radii array length (${radii.length}) must match vertex count (${this.#vertexCount})`);
-        }
-        this._setVertexAttributeRaw(GeometryAttribute.RELATIVE_RADII, radii);
-    }
-    
-    setVertexAttribute(attribute, data, fiberLength = null) {
-        this._setVertexAttribute(attribute, data, fiberLength);
+        this._getDirty().add('edgeLabels');
     }
     
     // ============================================================================
@@ -206,47 +154,37 @@ export class IndexedLineSetFactory {
     
     /**
      * Set edge indices. Accepts multiple formats:
-     * - DataList or VariableDataList
-     * - 2D array: [[v0,v1], [v2,v3,v4], ...] (variable length polylines)
-     * - Flat array with fixed pointsPerEdge: [v0,v1, v2,v3, ...] (e.g., pointsPerEdge=2 for line segments)
+     * - DataList (RegularDataList or VariableDataList) - must be INT32 type
+     * - 2D array: [[v0,v1], [v2,v3,v4], ...] (variable length polylines) → VariableDataList
+     * - Flat array with fixed pointsPerEdge: [v0,v1, v2,v3, ...] → RegularDataList
      * 
-     * @param {DataList|VariableDataList|number[]|number[][]} data - Edge index data
+     * Edge indices are stored as INT32 and can be variable-length (VariableDataList) for polylines.
+     * 
+     * @param {DataList|number[]|number[][]} data - Edge index data
      * @param {number} [pointsPerEdge=null] - Points per edge for flat arrays (e.g., 2 for segments)
      */
     setEdgeIndices(data, pointsPerEdge = null) {
         if (data === null || data === undefined) {
+            // Handle null/undefined - set directly (not stored in pending attributes)
             this.#indexedLineSet.setEdgeIndices(null);
             return;
         }
         
-        // If it's already a DataList or VariableDataList, use it directly
-        if (data instanceof DataList || data instanceof VariableDataList) {
-            this.#indexedLineSet.setEdgeIndices(data);
-            return;
+        let dataList;
+        
+        // If it's already a DataList (RegularDataList or VariableDataList), use it directly
+        // Note: We assume it's already INT32 - if not, the user should convert it
+        if (data instanceof DataList) {
+            dataList = data;
+        } else {
+            // Convert array to DataList using toDataList with INT32 type
+            // toDataList automatically detects variable-length arrays and creates VariableDataList
+            // For flat arrays, pointsPerEdge is used as fiberLength
+            dataList = toDataList(data, pointsPerEdge, 'int32');
         }
         
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                // 2D array: [[v0,v1], [v2,v3,v4], ...]
-                // Use VariableDataList for polylines
-                const polylines = createPolylineList(data);
-                this.#indexedLineSet.setEdgeIndices(polylines);
-            } else if (pointsPerEdge !== null) {
-                // Flat array with fixed points per edge: [v0,v1, v2,v3, ...]
-                if (data.length % pointsPerEdge !== 0) {
-                    throw new Error(`Edge indices length (${data.length}) must be divisible by pointsPerEdge (${pointsPerEdge})`);
-                }
-                const numEdges = data.length / pointsPerEdge;
-                const dataList = new DataList(data, [numEdges, pointsPerEdge], 'int32');
-                this.#indexedLineSet.setEdgeIndices(dataList);
-            } else {
-                throw new Error('For flat arrays, pointsPerEdge must be specified');
-            }
-        } else {
-            throw new Error('Data must be a DataList, VariableDataList, array, or 2D array');
-        }
+        // Store for later application during update() (after setNumEdges clears attributes)
+        this.#pendingEdgeAttributes.set(GeometryAttribute.INDICES, dataList);
     }
     
     // ============================================================================
@@ -345,40 +283,27 @@ export class IndexedLineSetFactory {
      * This method should be called after setting all desired attributes.
      */
     update() {
-        // Update vertex count if changed
-        if (this.#dirty.has('vertexCount')) {
-            this.#indexedLineSet.setNumPoints(this.#vertexCount);
-            this.#dirty.delete('vertexCount');
-        }
+        // Call parent update() to handle vertex attributes
+        super.update();
         
-        // Update edge count if changed
-        if (this.#dirty.has('edgeCount')) {
+        // Update edge count FIRST (this clears all edge attributes)
+        if (this._getDirty().has('edgeCount')) {
             this.#indexedLineSet.setNumEdges(this.#edgeCount);
-            this.#dirty.delete('edgeCount');
+            this._getDirty().delete('edgeCount');
         }
         
-        // Update metric if changed
-        if (this.#dirty.has('metric')) {
-            this.#indexedLineSet.setGeometryAttribute('metric', this.#metric);
-            this.#dirty.delete('metric');
+        // Apply all pending edge attributes (after edge count is set)
+        for (const [attribute, dataList] of this.#pendingEdgeAttributes.entries()) {
+            this.#indexedLineSet.setEdgeAttribute(attribute, dataList);
         }
-        
-        // Generate vertex labels if requested
-        if (this.#generateVertexLabels && this.#dirty.has('vertexLabels')) {
-            const labels = this._generateIndexLabels(this.#vertexCount);
-            this.#indexedLineSet.setVertexAttribute(GeometryAttribute.LABELS, labels);
-            this.#dirty.delete('vertexLabels');
-        }
+        this.#pendingEdgeAttributes.clear();
         
         // Generate edge labels if requested
-        if (this.#generateEdgeLabels && this.#dirty.has('edgeLabels')) {
+        if (this.#generateEdgeLabels && this._getDirty().has('edgeLabels')) {
             const labels = this._generateIndexLabels(this.#edgeCount);
             this.#indexedLineSet.setEdgeAttribute(GeometryAttribute.LABELS, labels);
-            this.#dirty.delete('edgeLabels');
+            this._getDirty().delete('edgeLabels');
         }
-        
-        // Clear all dirty flags
-        this.#dirty.clear();
     }
     
     // ============================================================================
@@ -386,77 +311,17 @@ export class IndexedLineSetFactory {
     // ============================================================================
     
     /**
-     * Set a vertex attribute, handling multiple input formats.
-     * @private
-     */
-    _setVertexAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#indexedLineSet.setVertexAttribute(attribute, null);
-            return;
-        }
-        
-        if (data instanceof DataList) {
-            this.#indexedLineSet.setVertexAttribute(attribute, data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                const dataList = createVertexList(data, fiberLength);
-                this.#indexedLineSet.setVertexAttribute(attribute, dataList);
-            } else {
-                if (fiberLength === null) {
-                    fiberLength = this._inferFiberLength(attribute);
-                }
-                const dataList = createVertexList(data, fiberLength);
-                this.#indexedLineSet.setVertexAttribute(attribute, dataList);
-            }
-        } else {
-            throw new Error('Data must be a DataList, array, or 2D array');
-        }
-    }
-    
-    /**
-     * Set a vertex attribute directly (for string arrays, etc.).
-     * @private
-     */
-    _setVertexAttributeRaw(attribute, data) {
-        this.#indexedLineSet.setVertexAttribute(attribute, data);
-    }
-    
-    /**
      * Set an edge attribute, handling multiple input formats.
+     * Stores the attribute to be applied during update() to avoid clearing by setNumEdges().
+     * 
+     * If fiberLength is null, toDataList() will automatically detect it from the data structure.
+     * 
      * @private
      */
-    _setEdgeAttribute(attribute, data, fiberLength = null) {
-        if (data === null || data === undefined) {
-            this.#indexedLineSet.setEdgeAttribute(attribute, null);
-            return;
-        }
-        
-        if (data instanceof DataList) {
-            this.#indexedLineSet.setEdgeAttribute(attribute, data);
-            return;
-        }
-        
-        if (Array.isArray(data)) {
-            const is2D = Array.isArray(data[0]);
-            
-            if (is2D) {
-                const dataList = createVertexList(data, fiberLength);
-                this.#indexedLineSet.setEdgeAttribute(attribute, dataList);
-            } else {
-                if (fiberLength === null) {
-                    fiberLength = this._inferFiberLength(attribute);
-                }
-                const dataList = createVertexList(data, fiberLength);
-                this.#indexedLineSet.setEdgeAttribute(attribute, dataList);
-            }
-        } else {
-            throw new Error('Data must be a DataList, array, or 2D array');
-        }
+    _setEdgeAttribute(attribute, data, fiberLength = null, dataType = 'float64') {
+        const dataList = toDataList(data, fiberLength, dataType);
+        // Store for later application during update() (after setNumEdges clears attributes)
+        this.#pendingEdgeAttributes.set(attribute, dataList);
     }
     
     /**
@@ -467,34 +332,4 @@ export class IndexedLineSetFactory {
         this.#indexedLineSet.setEdgeAttribute(attribute, data);
     }
     
-    /**
-     * Infer fiber length based on attribute type.
-     * @private
-     */
-    _inferFiberLength(attribute) {
-        if (attribute === GeometryAttribute.COORDINATES) {
-            return 4;
-        } else if (attribute === GeometryAttribute.NORMALS) {
-            return 3;
-        } else if (attribute === GeometryAttribute.COLORS) {
-            return 4;
-        } else if (attribute === GeometryAttribute.TEXTURE_COORDINATES) {
-            return 2;
-        } else {
-            throw new Error('Cannot infer fiber length for attribute: ' + attribute);
-        }
-    }
-    
-    /**
-     * Generate index labels.
-     * @private
-     */
-    _generateIndexLabels(count) {
-        const labels = new Array(count);
-        for (let i = 0; i < count; i++) {
-            labels[i] = String(i);
-        }
-        return labels;
-    }
 }
-

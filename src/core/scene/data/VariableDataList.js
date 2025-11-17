@@ -1,11 +1,15 @@
 // Variable-length DataList for irregular arrays like polygon index lists
 // Each "row" can have a different number of elements
 
+import { DataList } from './DataList.js';
+
 /**
  * A DataList where each row can have different lengths.
  * Useful for polygon indices, variable-length adjacency lists, etc.
+ * 
+ * @extends DataList
  */
-export class VariableDataList {
+export class VariableDataList extends DataList {
   
   /**
    * Create a new VariableDataList
@@ -13,45 +17,22 @@ export class VariableDataList {
    * @param {string} dataType - Type of data: 'int32', 'float64', 'string', 'object'
    */
   constructor(data, dataType = 'int32') {
-    this.dataType = dataType;
+    super(dataType);
     this.rows = [];
     this.rowOffsets = [0]; // Cumulative offsets for each row
     
     // Store each row as a separate typed array/array
     let totalSize = 0;
     for (const row of data) {
-      const typedRow = this.#createTypedArray(row, dataType);
+      const typedRow = this._createTypedArray(row, dataType);
       this.rows.push(typedRow);
       totalSize += row.length;
       this.rowOffsets.push(totalSize);
     }
     
     // Also maintain flat representation for efficient access
-    this.flatData = this.#createTypedArray(new Array(totalSize), dataType);
+    this.flatData = this._createTypedArray(new Array(totalSize), dataType);
     this.#rebuildFlatData();
-  }
-  
-  /**
-   * Create typed array based on data type
-   * @param {Array} data - Source data
-   * @param {string} dataType - Target data type
-   * @returns {TypedArray|Array}
-   * @private
-   */
-  #createTypedArray(data, dataType) {
-    switch (dataType) {
-      case 'int32':
-        return data instanceof Int32Array ? data : new Int32Array(data);
-      case 'float64':
-        return data instanceof Float64Array ? data : new Float64Array(data);
-      case 'float32':
-        return data instanceof Float32Array ? data : new Float32Array(data);
-      case 'string':
-      case 'object':
-        return Array.isArray(data) ? data : Array.from(data);
-      default:
-        throw new Error(`Unsupported data type: ${dataType}`);
-    }
   }
   
   /**
@@ -97,12 +78,25 @@ export class VariableDataList {
   }
   
   /**
-   * Get a specific element
+   * Get the i-th row (item) from the data list.
+   * Matches Java's DataList.item(int i) behavior.
+   * 
+   * @param {number} rowIndex - Row index
+   * @returns {Array} Copy of the row data
+   */
+  item(rowIndex) {
+    return this.getRow(rowIndex);
+  }
+  
+  /**
+   * Get a specific element at (rowIndex, colIndex).
+   * Use this when you need a specific element, not the entire row.
+   * 
    * @param {number} rowIndex - Row index
    * @param {number} colIndex - Column index within the row
    * @returns {*} The element value
    */
-  getItem(rowIndex, colIndex) {
+  getElement(rowIndex, colIndex) {
     if (rowIndex < 0 || rowIndex >= this.rows.length) {
       throw new Error(`Row index ${rowIndex} out of bounds`);
     }
@@ -126,7 +120,7 @@ export class VariableDataList {
     }
     
     // Create new typed array for the row
-    this.rows[rowIndex] = this.#createTypedArray(data, this.dataType);
+    this.rows[rowIndex] = this._createTypedArray(data, this.dataType);
     
     // Rebuild offsets and flat data
     this.#rebuildOffsets();
@@ -161,12 +155,12 @@ export class VariableDataList {
    * @param {Array} data - Row data to add
    */
   addRow(data) {
-    const typedRow = this.#createTypedArray(data, this.dataType);
+    const typedRow = this._createTypedArray(data, this.dataType);
     this.rows.push(typedRow);
     this.#rebuildOffsets();
     
     // Rebuild flat data with new size
-    const newFlatData = this.#createTypedArray(new Array(this.rowOffsets[this.rowOffsets.length - 1]), this.dataType);
+    const newFlatData = this._createTypedArray(new Array(this.rowOffsets[this.rowOffsets.length - 1]), this.dataType);
     for (let i = 0; i < this.flatData.length; i++) {
       newFlatData[i] = this.flatData[i];
     }
@@ -188,7 +182,7 @@ export class VariableDataList {
     
     // Rebuild flat data with new size
     const newSize = this.rowOffsets[this.rowOffsets.length - 1];
-    this.flatData = this.#createTypedArray(new Array(newSize), this.dataType);
+    this.flatData = this._createTypedArray(new Array(newSize), this.dataType);
     this.#rebuildFlatData();
   }
   

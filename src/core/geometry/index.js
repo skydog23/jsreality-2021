@@ -3,7 +3,6 @@
 
 export {
   GeometryUtility,
-  createVertexList,
   createPolylineList,
   createMixedFaceList
 } from './GeometryUtility.js';

@@ -1,41 +1,41 @@
-// JavaScript DataList implementation for jReality
-// Simplified multidimensional array storage using flat typed arrays
+// Abstract base class for DataList implementations
+// Provides common interface and shared functionality
 
 /**
- * A multidimensional array stored as a flat typed array with computed access.
- * Supports arbitrary dimensions with stride-based indexing.
+ * Abstract base class for data list implementations.
+ * 
+ * This class defines the common interface for both RegularDataList (fixed-shape)
+ * and VariableDataList (variable-length rows). Subclasses must implement
+ * the abstract methods defined here.
+ * 
+ * @abstract
  */
 export class DataList {
   
   /**
-   * Create a new DataList
-   * @param {Array|TypedArray} data - The flat data array
-   * @param {number|Array<number>} shape - Shape of the array (e.g., [rows, cols, 3] for mesh)
-   * @param {string} dataType - Type of data: 'int32', 'float64', 'string', 'object'
+   * Create a new DataList (abstract - subclasses must implement)
+   * @param {string} [dataType='float64'] - Data type for the list
    */
-  constructor(data, shape, dataType = 'float64') {
-    this.shape = Array.isArray(shape) ? shape : [shape];
-    this.dataType = dataType;
-    this.strides = this.#calculateStrides(this.shape);
-    
-    // Validate data size
-    const expectedSize = this.shape.reduce((a, b) => a * b, 1);
-    if (data.length !== expectedSize) {
-      throw new Error(`Data size ${data.length} doesn't match shape ${this.shape} (expected ${expectedSize})`);
+  constructor(dataType = 'float64') {
+    // Abstract class - prevent direct instantiation
+    if (this.constructor === DataList) {
+      throw new Error('DataList is an abstract class and cannot be instantiated directly');
     }
     
-    // Store data in appropriate typed array
-    this.data = this.#createTypedArray(data, dataType);
+    // Initialize common property
+    this.dataType = dataType;
   }
   
   /**
-   * Create typed array based on data type
+   * Create typed array based on data type.
+   * Shared implementation for both RegularDataList and VariableDataList.
+   * 
    * @param {Array} data - Source data
    * @param {string} dataType - Target data type
    * @returns {TypedArray|Array}
-   * @private
+   * @protected
    */
-  #createTypedArray(data, dataType) {
+  _createTypedArray(data, dataType) {
     switch (dataType) {
       case 'int32':
         return data instanceof Int32Array ? data : new Int32Array(data);
@@ -52,201 +52,86 @@ export class DataList {
   }
   
   /**
-   * Calculate strides for each dimension
-   * @param {Array<number>} shape - Array shape
-   * @returns {Array<number>} Stride for each dimension
-   * @private
-   */
-  #calculateStrides(shape) {
-    const strides = new Array(shape.length);
-    strides[strides.length - 1] = 1;  // Last dimension stride is always 1
-    
-    for (let i = strides.length - 2; i >= 0; i--) {
-      strides[i] = strides[i + 1] * shape[i + 1];
-    }
-    return strides;
-  }
-  
-  /**
-   * Calculate flat index from multidimensional indices
-   * @param {Array<number>} indices - Multidimensional indices
-   * @returns {number} Flat array index
-   * @private
-   */
-  #flatIndex(indices) {
-    if (indices.length > this.shape.length) {
-      throw new Error(`Too many indices: expected ${this.shape.length}, got ${indices.length}`);
-    }
-    
-    let offset = 0;
-    for (let i = 0; i < indices.length; i++) {
-      if (indices[i] < 0 || indices[i] >= this.shape[i]) {
-        throw new Error(`Index ${indices[i]} out of bounds for dimension ${i} (size ${this.shape[i]})`);
-      }
-      offset += indices[i] * this.strides[i];
-    }
-    return offset;
-  }
-  
-  /**
-   * Get the total number of elements
+   * Get the total number of elements.
+   * @abstract
    * @returns {number}
    */
   size() {
-    return this.data.length;
+    throw new Error('size() must be implemented by subclass');
   }
   
   /**
-   * Get the number of items in the first dimension
+   * Get the number of items in the first dimension (rows).
+   * @abstract
    * @returns {number}
    */
   length() {
-    return this.shape[0];
+    throw new Error('length() must be implemented by subclass');
   }
   
   /**
-   * Get item at multidimensional index
-   * @param {...number} indices - Indices for each dimension
-   * @returns {*} The value at the specified location
+   * Get the i-th item (sub-array/fiber) from the data list.
+   * Matches Java's DataList.item(int i) behavior - returns a sub-array, not a single element.
+   * 
+   * For RegularDataList with shape [n, m, ...]:
+   *   - Returns the i-th fiber (sub-array with remaining dimensions)
+   *   - For shape [n, m], item(i) returns array of length m
+   *   - For shape [n], item(i) returns single element
+   * 
+   * For VariableDataList:
+   *   - Returns the i-th row as an array
+   * 
+   * @abstract
+   * @param {number} index - Index of the item to retrieve
+   * @returns {Array|*} Sub-array or single element
    */
-  getItem(...indices) {
-    if (indices.length === 1 && this.shape.length === 1) {
-      // Simple 1D case
-      return this.data[indices[0]];
-    }
-    
-    if (indices.length !== this.shape.length) {
-      throw new Error(`Expected ${this.shape.length} indices, got ${indices.length}`);
-    }
-    
-    const flatIndex = this.#flatIndex(indices);
-    return this.data[flatIndex];
+  item(index) {
+    throw new Error('item() must be implemented by subclass');
   }
   
   /**
-   * Set item at multidimensional index
+   * Set item at index/indices.
+   * @abstract
    * @param {*} value - Value to set
-   * @param {...number} indices - Indices for each dimension
+   * @param {...number} indices - Indices (signature varies by subclass)
    */
   setItem(value, ...indices) {
-    if (indices.length !== this.shape.length) {
-      throw new Error(`Expected ${this.shape.length} indices, got ${indices.length}`);
-    }
-    
-    const flatIndex = this.#flatIndex(indices);
-    this.data[flatIndex] = value;
+    throw new Error('setItem() must be implemented by subclass');
   }
   
   /**
-   * Get a slice (subset) of the array
-   * @param {...number} indices - Partial indices (fewer than total dimensions)
-   * @returns {Array|*} Sub-array or single value
-   */
-  getSlice(...indices) {
-    if (indices.length === this.shape.length) {
-      // Full indexing - return single item
-      return this.getItem(...indices);
-    }
-    
-    if (indices.length === 0) {
-      // No indices - return entire flat array
-      return Array.from(this.data);
-    }
-    
-    // Partial indexing - return sub-array
-    const remainingShape = this.shape.slice(indices.length);
-    const size = remainingShape.reduce((a, b) => a * b, 1);
-    const startIndex = this.#flatIndex([...indices, ...new Array(remainingShape.length).fill(0)]);
-    
-    return Array.from(this.data.slice(startIndex, startIndex + size));
-  }
-  
-  /**
-   * Set a slice of the array
-   * @param {Array} values - Values to set
-   * @param {...number} indices - Partial indices
-   */
-  setSlice(values, ...indices) {
-    if (indices.length === 0) {
-      // Setting entire array
-      if (values.length !== this.data.length) {
-        throw new Error(`Value array size ${values.length} doesn't match data size ${this.data.length}`);
-      }
-      for (let i = 0; i < values.length; i++) {
-        this.data[i] = values[i];
-      }
-      return;
-    }
-    
-    const remainingShape = this.shape.slice(indices.length);
-    const size = remainingShape.reduce((a, b) => a * b, 1);
-    const startIndex = this.#flatIndex([...indices, ...new Array(remainingShape.length).fill(0)]);
-    
-    if (values.length !== size) {
-      throw new Error(`Value array size ${values.length} doesn't match slice size ${size}`);
-    }
-    
-    for (let i = 0; i < size; i++) {
-      this.data[startIndex + i] = values[i];
-    }
-  }
-  
-  /**
-   * Get the raw flat data array
+   * Get the raw flat data array.
+   * @abstract
    * @returns {TypedArray|Array}
    */
   getFlatData() {
-    return this.data;
+    throw new Error('getFlatData() must be implemented by subclass');
   }
   
   /**
-   * Convert to nested JavaScript arrays
+   * Convert to nested JavaScript arrays.
+   * @abstract
    * @returns {Array}
    */
   toNestedArray() {
-    const result = this.#buildNestedArray(this.shape, 0, 0);
-    return result;
+    throw new Error('toNestedArray() must be implemented by subclass');
   }
   
   /**
-   * Recursively build nested array structure
-   * @param {Array<number>} shape - Remaining shape
-   * @param {number} offset - Current flat array offset
-   * @param {number} depth - Current depth
-   * @returns {Array|*}
-   * @private
-   */
-  #buildNestedArray(shape, offset, depth) {
-    if (shape.length === 1) {
-      // Base case - return flat slice
-      return Array.from(this.data.slice(offset, offset + shape[0]));
-    }
-    
-    const result = [];
-    const stride = this.strides[depth];
-    const currentSize = shape[0];
-    const remainingShape = shape.slice(1);
-    
-    for (let i = 0; i < currentSize; i++) {
-      result.push(this.#buildNestedArray(remainingShape, offset + i * stride, depth + 1));
-    }
-    
-    return result;
-  }
-  
-  /**
-   * Create a copy of this DataList
+   * Create a copy of this DataList.
+   * @abstract
    * @returns {DataList}
    */
   clone() {
-    return new DataList(Array.from(this.data), this.shape, this.dataType);
+    throw new Error('clone() must be implemented by subclass');
   }
   
   /**
-   * String representation for debugging
+   * String representation for debugging.
+   * @abstract
    * @returns {string}
    */
   toString() {
-    return `DataList(shape: [${this.shape.join(', ')}], type: ${this.dataType}, size: ${this.size()})`;
+    throw new Error('toString() must be implemented by subclass');
   }
 }

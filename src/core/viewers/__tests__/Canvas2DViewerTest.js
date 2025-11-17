@@ -2,7 +2,8 @@
 
 import * as Rn from '../../math/Rn.js';
 import { Camera } from '../../scene/Camera.js';
-import { createVertexList, createPolylineList, createMixedFaceList } from '../../geometry/GeometryUtility.js';
+import { createPolylineList, createMixedFaceList } from '../../geometry/GeometryUtility.js';
+import { toDataList } from '../../scene/data/DataUtility.js';
 import { IndexedFaceSet, IndexedLineSet, PointSet, SceneGraphComponent, SceneGraphPath } from '../../scene/index.js';
 import { Transformation } from '../../scene/Transformation.js';
 import * as CommonAttributes from '../../shader/CommonAttributes.js';
@@ -96,7 +97,8 @@ function initGrid(parent) {
   const indlr = Array(num).fill(0).map((_, i) => [2 * num + i, 2 * num + i + num]);
   const inds = [...indup, ...indlr];
   const gridIFS = new IndexedLineSet(verts.length, inds.length);
-  gridIFS.setVertexAttribute('coordinates', createVertexList(verts));
+  // verts is a 2D array, so toDataList will auto-detect fiber length
+  gridIFS.setVertexAttribute('coordinates', toDataList(verts));
   gridIFS.setEdgeAttribute('indices', createPolylineList(inds));
   const gridComponent = new SceneGraphComponent();
   gridComponent.setName('grid');

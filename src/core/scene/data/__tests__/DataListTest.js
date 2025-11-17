@@ -2,12 +2,13 @@
 // This demonstrates how to use the DataList system
 
 import { 
-  DataList, 
-  VariableDataList
+  DataList,
+  RegularDataList, 
+  VariableDataList,
+  toDataList
 } from '../index.js';
 
 import {
-  createVertexList,
   createPolylineList,
   createMixedFaceList
 } from '../../../geometry/GeometryUtility.js';
@@ -20,22 +21,22 @@ export function testDataList() {
   
   // Test 1: Simple 1D array
   console.log('\n1. Simple 1D array:');
-  const simple1D = new DataList([1, 2, 3, 4, 5], [5], 'int32');
+  const simple1D = new RegularDataList([1, 2, 3, 4, 5], [5], 'int32');
   console.log(simple1D.toString());
-  console.log('Item 2:', simple1D.getItem(2)); // Should be 3
+  console.log('Item 2:', simple1D.item(2)); // Should be 3 (single element for 1D)
   
   // Test 2: 2D array (curve of 3D points)
   console.log('\n2. Curve of 3D points:');
-  const curve = new DataList([
+  const curve = new RegularDataList([
     0,0,0,  1,0,0,  2,0,0,  3,0,0
   ], [4, 3], 'float64');
   console.log(curve.toString());
-  console.log('Point 1:', curve.getSlice(1)); // Should be [1,0,0]
-  console.log('Y coord of point 2:', curve.getItem(2, 1)); // Should be 0
+  console.log('Point 1:', curve.item(1)); // Should be [1,0,0] (sub-array)
+  console.log('Y coord of point 2:', curve.getElement(2, 1)); // Should be 0 (single element)
   
   // Test 3: 3D array (quad mesh)
   console.log('\n3. Quad mesh (2x3 grid of 3D points):');
-  const mesh = new DataList([
+  const mesh = new RegularDataList([
     // Row 0: 3 points
     0,0,0,  1,0,0,  2,0,0,
     // Row 1: 3 points  
@@ -56,7 +57,8 @@ export function testFactories() {
   
   // Test vertex list creation
   console.log('\n1. Vertex list from nested array:');
-  const vertices = createVertexList([
+  // 2D array - toDataList will auto-detect fiber length
+  const vertices = toDataList([
     [0, 0, 0],
     [1, 0, 0],
     [0, 1, 0]
@@ -65,14 +67,14 @@ export function testFactories() {
   console.log('Vertices as nested array:', vertices.toNestedArray());
   
   // Test creating index data directly
-  console.log('\n2. Triangle indices (using DataList directly):');
-  const indices = new DataList([0, 1, 2], [1, 3], 'int32');
+  console.log('\n2. Triangle indices (using RegularDataList directly):');
+  const indices = new RegularDataList([0, 1, 2], [1, 3], 'int32');
   console.log(indices.toString());
   console.log('Triangle:', indices.getSlice(0));
   
-  // Test quad mesh creation (using DataList directly)
-  console.log('\n3. Empty quad mesh (using DataList directly):');
-  const quadMesh = new DataList(new Array(3 * 4 * 3).fill(0), [3, 4, 3], 'float64');
+  // Test quad mesh creation (using RegularDataList directly)
+  console.log('\n3. Empty quad mesh (using RegularDataList directly):');
+  const quadMesh = new RegularDataList(new Array(3 * 4 * 3).fill(0), [3, 4, 3], 'float64');
   console.log(quadMesh.toString());
   
   // Set some values in the mesh
@@ -114,7 +116,7 @@ export function testVariableDataList() {
   
   console.log(adjacency.toString());
   console.log('Vertex 1 neighbors:', adjacency.getRow(1));
-  console.log('First neighbor of vertex 3:', adjacency.getItem(3, 0));
+  console.log('First neighbor of vertex 3:', adjacency.getElement(3, 0));
   
   // Test 3: Modifying variable data
   console.log('\n3. Modifying variable data:');
@@ -136,18 +138,18 @@ export function testErrorHandling() {
   
   try {
     // Test bounds checking
-    const data = new DataList([1, 2, 3, 4], [2, 2]);
-    console.log('Valid access:', data.getItem(1, 1));
+    const data = new RegularDataList([1, 2, 3, 4], [2, 2]);
+    console.log('Valid access:', data.getElement(1, 1));
     
     // This should throw an error
-    data.getItem(2, 0); // Row 2 doesn't exist
+    data.item(2); // Row 2 doesn't exist
   } catch (error) {
     console.log('Caught expected error:', error.message);
   }
   
   try {
     // Test size mismatch
-    new DataList([1, 2, 3], [2, 2]); // 3 elements, but shape expects 4
+    new RegularDataList([1, 2, 3], [2, 2]); // 3 elements, but shape expects 4
   } catch (error) {
     console.log('Caught expected size error:', error.message);
   }
