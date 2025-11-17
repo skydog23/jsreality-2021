@@ -569,7 +569,11 @@ class SVGRenderer extends Abstract2DRenderer {
     circle.setAttribute('cx',point[0].toFixed(4));
     circle.setAttribute('cy',point[1].toFixed(4));
     circle.setAttribute('r', (this.#pointSize / 2).toFixed(4));
-    // fill inherited from group
+    // Override fill color if vertex color is provided
+    if (color) {
+      circle.setAttribute('fill', this.toCSSColor(color));
+    }
+    // Otherwise fill inherited from group
     currentGroup.appendChild(circle);
   }
 
@@ -595,7 +599,11 @@ class SVGRenderer extends Abstract2DRenderer {
     
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('points', points.join(' '));
-    // stroke, stroke-width, fill inherited from primitive group
+    // Override stroke color if edge color is provided
+    if (colors) {
+      polyline.setAttribute('stroke', this.toCSSColor(colors));
+    }
+    // Otherwise stroke, stroke-width, fill inherited from primitive group
     currentGroup.appendChild(polyline);
   }
 
@@ -622,7 +630,15 @@ class SVGRenderer extends Abstract2DRenderer {
     
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     polygon.setAttribute('points', points.join(' '));
-    // fill and stroke inherited from primitive group
+    // Override color if face color is provided
+    if (colors) {
+      if (fill) {
+        polygon.setAttribute('fill', this.toCSSColor(colors));
+      } else {
+        polygon.setAttribute('stroke', this.toCSSColor(colors));
+      }
+    }
+    // Otherwise fill and stroke inherited from primitive group
     
     currentGroup.appendChild(polygon);
   }
