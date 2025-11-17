@@ -832,23 +832,23 @@ export class SceneGraphInspector {
       
       // Handle different node types
       if (node instanceof SceneGraphComponent) {
-        // Add non-component children first
-        if (node.getTransformation?.()) {
-          this.#buildTreeNode(node.getTransformation(), childrenDiv);
-        }
-        if (node.getAppearance?.()) {
-          this.#buildTreeNode(node.getAppearance(), childrenDiv);
-        }
-        if (node.getCamera?.()) {
-          this.#buildTreeNode(node.getCamera(), childrenDiv);
-        }
-        if (node.getGeometry?.()) {
-          this.#buildTreeNode(node.getGeometry(), childrenDiv);
-        }
-        
-        // Add component children
-        if (node.getChildComponents) {
-          for (const child of node.getChildComponents()) {
+      // Add non-component children first
+      if (node.getTransformation?.()) {
+        this.#buildTreeNode(node.getTransformation(), childrenDiv);
+      }
+      if (node.getAppearance?.()) {
+        this.#buildTreeNode(node.getAppearance(), childrenDiv);
+      }
+      if (node.getCamera?.()) {
+        this.#buildTreeNode(node.getCamera(), childrenDiv);
+      }
+      if (node.getGeometry?.()) {
+        this.#buildTreeNode(node.getGeometry(), childrenDiv);
+      }
+      
+      // Add component children
+      if (node.getChildComponents) {
+        for (const child of node.getChildComponents()) {
             this.#buildTreeNode(child, childrenDiv);
           }
         }

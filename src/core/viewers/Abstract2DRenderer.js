@@ -554,9 +554,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     
     // Render all edges
     if (indices) {
-      // 2D array of edge indices
-      for (let i = 0; i < indices.rows.length; i++) {
-        const edgeIndices = indices.getRow(i);
+      // DataList of edge indices - use item() which works for both RegularDataList and VariableDataList
+      for (let i = 0; i < indices.length(); i++) {
+        const edgeIndices = indices.item(i);
         this._drawPolyline(vertices, edgeIndices);
       }
     } else {
@@ -588,8 +588,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // Begin nested group for faces
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     
-    for (let i = 0; i < geometry.getNumFaces(); i++) {
-      const faceIndices = indices.getRow(i);
+    // DataList of face indices - use item() which works for both RegularDataList and VariableDataList
+    for (let i = 0; i < indices.length(); i++) {
+      const faceIndices = indices.item(i);
       this._drawPolygon(vertices, faceIndices, true);
     }
     

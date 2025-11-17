@@ -8,10 +8,6 @@ import {
   toDataList
 } from '../index.js';
 
-import {
-  createPolylineList,
-  createMixedFaceList
-} from '../../../geometry/GeometryUtility.js';
 
 /**
  * Basic DataList examples
@@ -92,12 +88,12 @@ export function testVariableDataList() {
   
   // Test 1: Mixed polygon faces
   console.log('\n1. Mixed polygon faces (triangles and quads):');
-  const mixedFaces = createMixedFaceList([
+  const mixedFaces = toDataList([
     [0, 1, 2],        // Triangle
     [3, 4, 5, 6],     // Quad
     [7, 8, 9],        // Triangle
     [10, 11, 12, 13, 14]  // Pentagon
-  ]);
+  ], null, 'int32');
   
   console.log(mixedFaces.toString());
   console.log('Face 0 (triangle):', mixedFaces.getRow(0));

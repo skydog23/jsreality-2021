@@ -352,11 +352,11 @@ class SVGRenderer extends Abstract2DRenderer {
     // Cache appearance attributes - will be used in _beginPrimitiveGroup
     this.#pointColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
-    this.#pointSize = this.getNumericAttribute(CommonAttributes.POINT_SIZE, 0.1);
+    this.#pointSize = Number(this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_SIZE, 0.1));
     
     this.#lineColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
-    this.#lineWidth = this.getNumericAttribute(CommonAttributes.LINE_WIDTH, 1);
+    this.#lineWidth = Number(this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, 1));
     
     this.#faceColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));

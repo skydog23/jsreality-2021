@@ -5,7 +5,7 @@ import { IndexedLineSet } from './IndexedLineSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
 import { DataList, RegularDataList, VariableDataList } from './data/index.js';
-import { createMixedFaceList } from '../geometry/GeometryUtility.js';
+import { toDataList } from '../scene/data/DataUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -252,7 +252,7 @@ export class IndexedFaceSet extends IndexedLineSet {
    * @param {Array<Array<number>>} polygons - Array of polygons, each containing vertex indices
    */
   setFaceIndices(polygons) {
-    const indexList = createMixedFaceList(polygons);
+    const indexList = toDataList(polygons, null, 'int32');
     this.setFaceCountAndAttribute(GeometryAttribute.INDICES, indexList);
   }
 

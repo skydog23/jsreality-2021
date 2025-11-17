@@ -2,9 +2,7 @@
 // Port of de.jreality.geometry package
 
 export {
-  GeometryUtility,
-  createPolylineList,
-  createMixedFaceList
+  GeometryUtility
 } from './GeometryUtility.js';
 
 export { PointSetFactory } from './PointSetFactory.js';
