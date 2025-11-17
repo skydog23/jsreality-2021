@@ -289,11 +289,6 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
   
   const isNested = Array.isArray(data[0]);
   
-  // Special handling for Color object arrays: convert Color objects to numeric arrays
-  const isColorArray = !isNested && data.length > 0 && data[0] instanceof Color;
-  console.log('isColorArray', isColorArray);
-  console.log('data', data);
-     
   
   if (isNested) {
     // Check if it's a 2D array (not 3D+)
@@ -338,9 +333,12 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
     // 3D+ array - always fixed shape, use DataList (fall through)
   }
   
+    // Special handling for Color object arrays: convert Color objects to numeric arrays
+    const isColorArray = !isNested && data.length > 0 && 
+    typeof data[0] === 'object' && data[0] !== null && 
+    ('r' in data[0] || data[0] instanceof Color);   
+
   if (isColorArray) {
-    console.log('isColorArray', isColorArray);
-    console.log('data', data);
     // Convert Color objects to arrays [r, g, b, a] or [r, g, b]
     // Auto-detect number of channels from Color objects (ignore fiberLength parameter)
     // Check if colors have alpha channel
@@ -371,8 +369,13 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
         }
       } 
       else {
-        return color;
+       // Plain object with r, g, b, a properties
+       if (channels === 4) {
+        return [color.r, color.g, color.b, color.a ?? 255];
+      } else {
+        return [color.r, color.g, color.b];
       }
+    }
     });
     
     // Flatten the converted 2D array
