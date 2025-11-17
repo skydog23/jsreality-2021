@@ -241,6 +241,42 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         if (this._getDirty().has('faceCount')) {
             this.#indexedFaceSet.setNumFaces(this.#faceCount);
             this._getDirty().delete('faceCount');
+        } else {
+            // If face count wasn't explicitly set, infer it from pending face attributes
+            // Validate that all face attributes have consistent counts
+            let inferredCount = null;
+            const inconsistentAttributes = [];
+            
+            for (const [attribute, dataList] of this.#pendingFaceAttributes.entries()) {
+                if (!dataList) continue;
+                
+                let count = 0;
+                if (dataList instanceof VariableDataList) {
+                    count = dataList.length();
+                } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
+                    count = dataList.shape[0];
+                }
+                
+                if (count > 0) {
+                    if (inferredCount === null) {
+                        inferredCount = count;
+                    } else if (count !== inferredCount) {
+                        inconsistentAttributes.push(`${attribute}: ${count} entries`);
+                    }
+                }
+            }
+            
+            if (inconsistentAttributes.length > 0) {
+                throw new Error(
+                    `Inconsistent face attribute counts: expected ${inferredCount} faces, but found ` +
+                    inconsistentAttributes.join(', ')
+                );
+            }
+            
+            if (inferredCount !== null && inferredCount > 0) {
+                this.#faceCount = inferredCount;
+                this.#indexedFaceSet.setNumFaces(inferredCount);
+            }
         }
         
         // Apply all pending face attributes (after face count is set)

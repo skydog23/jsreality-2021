@@ -19,6 +19,8 @@ import { PointSetFactory } from './PointSetFactory.js';
 import { IndexedLineSet } from '../scene/IndexedLineSet.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
+import { RegularDataList } from '../scene/data/RegularDataList.js';
+import { VariableDataList } from '../scene/data/VariableDataList.js';
 import { toDataList } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 
@@ -290,6 +292,42 @@ export class IndexedLineSetFactory extends PointSetFactory {
         if (this._getDirty().has('edgeCount')) {
             this.#indexedLineSet.setNumEdges(this.#edgeCount);
             this._getDirty().delete('edgeCount');
+        } else {
+            // If edge count wasn't explicitly set, infer it from pending edge attributes
+            // Validate that all edge attributes have consistent counts
+            let inferredCount = null;
+            const inconsistentAttributes = [];
+            
+            for (const [attribute, dataList] of this.#pendingEdgeAttributes.entries()) {
+                if (!dataList) continue;
+                
+                let count = 0;
+                if (dataList instanceof VariableDataList) {
+                    count = dataList.length();
+                } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
+                    count = dataList.shape[0];
+                }
+                
+                if (count > 0) {
+                    if (inferredCount === null) {
+                        inferredCount = count;
+                    } else if (count !== inferredCount) {
+                        inconsistentAttributes.push(`${attribute}: ${count} entries`);
+                    }
+                }
+            }
+            
+            if (inconsistentAttributes.length > 0) {
+                throw new Error(
+                    `Inconsistent edge attribute counts: expected ${inferredCount} edges, but found ` +
+                    inconsistentAttributes.join(', ')
+                );
+            }
+            
+            if (inferredCount !== null && inferredCount > 0) {
+                this.#edgeCount = inferredCount;
+                this.#indexedLineSet.setNumEdges(inferredCount);
+            }
         }
         
         // Apply all pending edge attributes (after edge count is set)
