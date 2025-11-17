@@ -4,7 +4,8 @@
 import { PointSet } from './PointSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
-import { DataList, VariableDataList, createPolylineList } from './data/index.js';
+import { DataList, VariableDataList } from './data/index.js';
+import { createPolylineList } from '../geometry/GeometryUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 

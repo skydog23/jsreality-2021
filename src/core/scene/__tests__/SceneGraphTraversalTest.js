@@ -5,7 +5,7 @@ import { SceneGraphComponent, SceneGraphPath, SceneGraphVisitor } from '../index
 import { Camera } from '../Camera.js';
 import { PointSet } from '../PointSet.js';
 import { Transformation } from '../Transformation.js';
-import { createVertexList } from '../data/index.js';
+import { createVertexList } from '../../geometry/GeometryUtility.js';
 import { Matrix } from '../../math/Matrix.js';
 
 /**

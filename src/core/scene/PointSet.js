@@ -3,7 +3,8 @@
 
 import { Geometry, GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
-import { DataList, createVertexList } from './data/index.js';
+import { DataList } from './data/index.js';
+import { createVertexList } from '../geometry/GeometryUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -249,7 +250,7 @@ export class PointSet extends Geometry {
    * @param {number} [coordsPerVertex=3] - Number of coordinates per vertex
    */
   setVertexCoordinates(coordinates, coordsPerVertex = 4) {
-    const coordList = createVertexList(coordinates, coordsPerVertex);
+     const coordList = createVertexList(coordinates, coordsPerVertex);
     this.setVertexCountAndAttribute(GeometryAttribute.COORDINATES, coordList);
   }
 

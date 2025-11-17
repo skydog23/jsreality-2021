@@ -4,7 +4,8 @@
 import { IndexedLineSet } from './IndexedLineSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
-import { DataList, VariableDataList, createMixedFaceList } from './data/index.js';
+import { DataList, VariableDataList } from './data/index.js';
+import { createMixedFaceList } from '../geometry/GeometryUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 

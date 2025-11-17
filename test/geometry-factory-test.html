@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Factory Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Geometry Factory Tests</h1>
+    <div id="output"></div>
+
+    <script type="module">
+        import { PointSetFactory, IndexedLineSetFactory, IndexedFaceSetFactory } from '../src/core/geometry/index.js';
+        import { GeometryAttribute } from '../src/core/scene/GeometryAttribute.js';
+
+        const output = document.getElementById('output');
+
+        function addSection(title, content, isError = false) {
+            const section = document.createElement('div');
+            section.className = 'test-section';
+            section.innerHTML = `
+                <h2>${title}</h2>
+                <div class="${isError ? 'error' : 'success'}">${content}</div>
+            `;
+            output.appendChild(section);
+        }
+
+        function addDetails(details) {
+            const pre = document.createElement('pre');
+            pre.textContent = details;
+            output.lastElementChild.appendChild(pre);
+        }
+
+        // ============================================================================
+        // Test 1: PointSetFactory with 2D array coordinates
+        // ============================================================================
+        try {
+            const psf = new PointSetFactory();
+            psf.setVertexCount(3);
+            psf.setVertexCoordinates([
+                [0, 0, 0, 1],
+                [1, 0, 0, 1],
+                [0, 1, 0, 1]
+            ]);
+            psf.setVertexColors([
+                [1, 0, 0, 1],
+                [0, 1, 0, 1],
+                [0, 0, 1, 1]
+            ]);
+            psf.update();
+            
+            const ps = psf.getPointSet();
+            const coords = ps.getVertexAttribute(GeometryAttribute.COORDINATES);
+            const colors = ps.getVertexAttribute(GeometryAttribute.COLORS);
+            
+            addSection('Test 1: PointSetFactory (2D arrays)', '✓ PASSED');
+            addDetails(`Created PointSet with ${ps.getNumPoints()} vertices
+Coordinates: ${coords ? 'Set' : 'Not set'} (${coords?.length || 0} items)
+Colors: ${colors ? 'Set' : 'Not set'} (${colors?.length || 0} items)`);
+        } catch (e) {
+            addSection('Test 1: PointSetFactory (2D arrays)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 2: PointSetFactory with flat array coordinates
+        // ============================================================================
+        try {
+            const psf = new PointSetFactory();
+            psf.setVertexCount(3);
+            psf.setVertexCoordinates([
+                0, 0, 0, 1,
+                1, 0, 0, 1,
+                0, 1, 0, 1
+            ], 4);
+            psf.update();
+            
+            const ps = psf.getPointSet();
+            const coords = ps.getVertexAttribute(GeometryAttribute.COORDINATES);
+            
+            addSection('Test 2: PointSetFactory (flat array)', '✓ PASSED');
+            addDetails(`Created PointSet with ${ps.getNumPoints()} vertices
+First vertex: [${coords.getItem(0).join(', ')}]`);
+        } catch (e) {
+            addSection('Test 2: PointSetFactory (flat array)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 3: PointSetFactory with auto-generated labels
+        // ============================================================================
+        try {
+            const psf = new PointSetFactory();
+            psf.setVertexCount(5);
+            psf.setVertexCoordinates([
+                [0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]
+            ]);
+            psf.setGenerateVertexLabels(true);
+            psf.update();
+            
+            const ps = psf.getPointSet();
+            const labels = ps.getVertexAttribute(GeometryAttribute.LABELS);
+            
+            addSection('Test 3: PointSetFactory (auto-generated labels)', '✓ PASSED');
+            addDetails(`Created PointSet with ${ps.getNumPoints()} vertices
+Labels: ${labels ? labels.join(', ') : 'Not set'}`);
+        } catch (e) {
+            addSection('Test 3: PointSetFactory (auto-generated labels)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 4: IndexedLineSetFactory with line segments
+        // ============================================================================
+        try {
+            const ilsf = new IndexedLineSetFactory();
+            ilsf.setVertexCount(4);
+            ilsf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0]
+            ]);
+            ilsf.setEdgeCount(4);
+            ilsf.setEdgeIndices([
+                [0, 1],
+                [1, 2],
+                [2, 3],
+                [3, 0]
+            ]);
+            ilsf.update();
+            
+            const ils = ilsf.getIndexedLineSet();
+            const edges = ils.getEdgeIndices();
+            
+            addSection('Test 4: IndexedLineSetFactory (line segments)', '✓ PASSED');
+            addDetails(`Created IndexedLineSet with ${ils.getNumPoints()} vertices and ${ils.getNumEdges()} edges
+First edge: [${edges.getItem(0).join(', ')}]
+Second edge: [${edges.getItem(1).join(', ')}]`);
+        } catch (e) {
+            addSection('Test 4: IndexedLineSetFactory (line segments)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 5: IndexedLineSetFactory with polyline
+        // ============================================================================
+        try {
+            const ilsf = new IndexedLineSetFactory();
+            ilsf.setVertexCount(6);
+            ilsf.setVertexCoordinates([
+                [0, 0, 0], [1, 0, 0], [1, 1, 0],
+                [2, 0, 0], [2, 1, 0], [2, 2, 0]
+            ]);
+            ilsf.setEdgeCount(2);
+            ilsf.setEdgeIndices([
+                [0, 1, 2],      // Triangle
+                [3, 4, 5, 3]    // Closed square
+            ]);
+            ilsf.update();
+            
+            const ils = ilsf.getIndexedLineSet();
+            const edges = ils.getEdgeIndices();
+            
+            addSection('Test 5: IndexedLineSetFactory (polylines)', '✓ PASSED');
+            addDetails(`Created IndexedLineSet with ${ils.getNumPoints()} vertices and ${ils.getNumEdges()} polylines
+First polyline length: ${edges.getItem(0).length}
+Second polyline length: ${edges.getItem(1).length}`);
+        } catch (e) {
+            addSection('Test 5: IndexedLineSetFactory (polylines)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 6: IndexedFaceSetFactory with triangles
+        // ============================================================================
+        try {
+            const ifsf = new IndexedFaceSetFactory();
+            ifsf.setVertexCount(4);
+            ifsf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0]
+            ]);
+            ifsf.setFaceCount(2);
+            ifsf.setFaceIndices([
+                [0, 1, 2],
+                [0, 2, 3]
+            ]);
+            ifsf.update();
+            
+            const ifs = ifsf.getIndexedFaceSet();
+            const faces = ifs.getFaceIndices();
+            
+            addSection('Test 6: IndexedFaceSetFactory (triangles)', '✓ PASSED');
+            addDetails(`Created IndexedFaceSet with ${ifs.getNumPoints()} vertices and ${ifs.getNumFaces()} faces
+First face: [${faces.getItem(0).join(', ')}]
+Second face: [${faces.getItem(1).join(', ')}]`);
+        } catch (e) {
+            addSection('Test 6: IndexedFaceSetFactory (triangles)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 7: IndexedFaceSetFactory with auto-generated edges
+        // ============================================================================
+        try {
+            const ifsf = new IndexedFaceSetFactory();
+            ifsf.setVertexCount(4);
+            ifsf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0]
+            ]);
+            ifsf.setFaceCount(2);
+            ifsf.setFaceIndices([
+                [0, 1, 2],
+                [0, 2, 3]
+            ]);
+            ifsf.setGenerateEdgesFromFaces(true);
+            ifsf.update();
+            
+            const ifs = ifsf.getIndexedFaceSet();
+            const edges = ifs.getEdgeIndices();
+            
+            addSection('Test 7: IndexedFaceSetFactory (auto-generated edges)', '✓ PASSED');
+            addDetails(`Created IndexedFaceSet with ${ifs.getNumFaces()} faces
+Auto-generated ${ifs.getNumEdges()} edges`);
+        } catch (e) {
+            addSection('Test 7: IndexedFaceSetFactory (auto-generated edges)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 8: IndexedFaceSetFactory with auto-generated normals
+        // ============================================================================
+        try {
+            const ifsf = new IndexedFaceSetFactory();
+            ifsf.setVertexCount(4);
+            ifsf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0]
+            ]);
+            ifsf.setFaceCount(2);
+            ifsf.setFaceIndices([
+                [0, 1, 2],
+                [0, 2, 3]
+            ]);
+            ifsf.setGenerateFaceNormals(true);
+            ifsf.setGenerateVertexNormals(true);
+            ifsf.update();
+            
+            const ifs = ifsf.getIndexedFaceSet();
+            const faceNormals = ifs.getFaceAttribute(GeometryAttribute.NORMALS);
+            const vertexNormals = ifs.getVertexAttribute(GeometryAttribute.NORMALS);
+            
+            addSection('Test 8: IndexedFaceSetFactory (auto-generated normals)', '✓ PASSED');
+            addDetails(`Created IndexedFaceSet with ${ifs.getNumFaces()} faces
+Face normals: ${faceNormals ? 'Generated' : 'Not set'} (${faceNormals?.length || 0} items)
+Vertex normals: ${vertexNormals ? 'Generated' : 'Not set'} (${vertexNormals?.length || 0} items)
+First face normal: [${faceNormals?.getItem(0).map(n => n.toFixed(2)).join(', ') || 'N/A'}]
+First vertex normal: [${vertexNormals?.getItem(0).map(n => n.toFixed(2)).join(', ') || 'N/A'}]`);
+        } catch (e) {
+            addSection('Test 8: IndexedFaceSetFactory (auto-generated normals)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 9: IndexedFaceSetFactory with mixed face types
+        // ============================================================================
+        try {
+            const ifsf = new IndexedFaceSetFactory();
+            ifsf.setVertexCount(6);
+            ifsf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [1, 1, 0],
+                [0, 1, 0],
+                [2, 0, 0],
+                [2, 1, 0]
+            ]);
+            ifsf.setFaceCount(2);
+            ifsf.setFaceIndices([
+                [0, 1, 2, 3],   // Quad
+                [1, 4, 5, 2]    // Another quad
+            ]);
+            ifsf.update();
+            
+            const ifs = ifsf.getIndexedFaceSet();
+            const faces = ifs.getFaceIndices();
+            
+            addSection('Test 9: IndexedFaceSetFactory (mixed face types)', '✓ PASSED');
+            addDetails(`Created IndexedFaceSet with ${ifs.getNumFaces()} faces
+First face (quad): ${faces.getItem(0).length} vertices
+Second face (quad): ${faces.getItem(1).length} vertices`);
+        } catch (e) {
+            addSection('Test 9: IndexedFaceSetFactory (mixed face types)', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+        // ============================================================================
+        // Test 10: Color object format
+        // ============================================================================
+        try {
+            const psf = new PointSetFactory();
+            psf.setVertexCount(3);
+            psf.setVertexCoordinates([
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0]
+            ]);
+            psf.setVertexColors([
+                {r: 1.0, g: 0.0, b: 0.0, a: 1.0},
+                {r: 0.0, g: 1.0, b: 0.0, a: 1.0},
+                {r: 0.0, g: 0.0, b: 1.0, a: 1.0}
+            ]);
+            psf.update();
+            
+            const ps = psf.getPointSet();
+            const colors = ps.getVertexAttribute(GeometryAttribute.COLORS);
+            
+            addSection('Test 10: Color object format {r,g,b,a}', '✓ PASSED');
+            addDetails(`Set colors using {r,g,b,a} objects
+First color: [${colors.getItem(0).join(', ')}]`);
+        } catch (e) {
+            addSection('Test 10: Color object format {r,g,b,a}', '✗ FAILED: ' + e.message, true);
+            console.error(e);
+        }
+
+    </script>
+</body>
+</html>
+

@@ -3,13 +3,14 @@
 
 import { 
   DataList, 
-  VariableDataList,
-  createVertexList, 
-  createIndexList, 
-  createQuadMesh,
-  createPolygonList,
-  createMixedFaceList 
+  VariableDataList
 } from '../index.js';
+
+import {
+  createVertexList,
+  createPolylineList,
+  createMixedFaceList
+} from '../../../geometry/GeometryUtility.js';
 
 /**
  * Basic DataList examples
@@ -63,15 +64,15 @@ export function testFactories() {
   console.log(vertices.toString());
   console.log('Vertices as nested array:', vertices.toNestedArray());
   
-  // Test index list creation
-  console.log('\n2. Triangle indices:');
-  const indices = createIndexList([[0, 1, 2]]);
+  // Test creating index data directly
+  console.log('\n2. Triangle indices (using DataList directly):');
+  const indices = new DataList([0, 1, 2], [1, 3], 'int32');
   console.log(indices.toString());
   console.log('Triangle:', indices.getSlice(0));
   
-  // Test quad mesh creation
-  console.log('\n3. Empty quad mesh:');
-  const quadMesh = createQuadMesh(3, 4); // 3 rows, 4 cols
+  // Test quad mesh creation (using DataList directly)
+  console.log('\n3. Empty quad mesh (using DataList directly):');
+  const quadMesh = new DataList(new Array(3 * 4 * 3).fill(0), [3, 4, 3], 'float64');
   console.log(quadMesh.toString());
   
   // Set some values in the mesh

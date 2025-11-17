@@ -2,7 +2,7 @@
 
 import * as Rn from '../../math/Rn.js';
 import { Camera } from '../../scene/Camera.js';
-import { createPolygonList, createPolylineList, createVertexList } from '../../scene/data/index.js';
+import { createVertexList, createPolylineList, createMixedFaceList } from '../../geometry/GeometryUtility.js';
 import { IndexedFaceSet, IndexedLineSet, PointSet, SceneGraphComponent, SceneGraphPath } from '../../scene/index.js';
 import { Transformation } from '../../scene/Transformation.js';
 import * as CommonAttributes from '../../shader/CommonAttributes.js';
