@@ -100,7 +100,7 @@ export function dehomogenize(dst, src)	{
 
 /**
  * Homogenize a point or vector
- * @param {number[]} dst - Destination array (can be null)
+ * @param {number[]|null} dst - Destination array (can be null)
  * @param {number[]} src - Source array
  * @returns {number[]} The homogenized coordinates
  */
