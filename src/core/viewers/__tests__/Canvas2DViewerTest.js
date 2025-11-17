@@ -11,6 +11,7 @@ import { SceneGraphUtility } from '../../util/SceneGraphUtility.js';
 import { Canvas2DViewer } from '../Canvas2DViewer.js';
 import { MatrixBuilder } from '../../math/MatrixBuilder.js';
 import { Appearance } from '../../scene/Appearance.js';
+import { GeometryAttribute } from '../../scene/GeometryAttribute.js';
 
 /**
  * Create a simple test scene with various geometric shapes
@@ -23,10 +24,10 @@ function createTestScene() {
   const rootAppearance = new Appearance('rootAppearance');
   
   // Background color
-  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(100,255,100));
+  rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200,200,150));
   
   // Point rendering attributes
-  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0)); // Red points
+  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,150, 60)); // Red points
   rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .1);
   rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
   
@@ -115,8 +116,7 @@ function initGrid(parent) {
  * Create test points
  */
 function createTestPoints(parent) {
-  const pointsComponent = new SceneGraphComponent();
-  pointsComponent.setName('testPoints');
+  const pointsComponent = SceneGraphUtility.createFullSceneGraphComponent('testPoints');
 
   // Create a point set with some 3D points
   const pointSet = new PointSet(5);
@@ -130,19 +130,25 @@ function createTestPoints(parent) {
     [0, -2, 0,1]      // Down
   ];
   
+  const colors = [
+    Color.RED,
+    Color.GREEN,
+    Color.BLUE,
+    Color.YELLOW,
+    Color.PURPLE  // PURPLE is an alias for MAGENTA
+  ];
+  pointSet.setVertexColors(colors);
   pointSet.setVertexCoordinates(vertices);
   pointsComponent.setGeometry(pointSet);
 
   // Position points component
-  const transform = new Transformation();
-  transform.setMatrix(MatrixBuilder.euclidean().translate(-3,0,0).getArray());
-  pointsComponent.setTransformation(transform);
-
-  const ap = new Appearance();
+  const transform = pointsComponent.getTransformation();
+  transform.setMatrix(MatrixBuilder.euclidean().translate(-2,0,0).scale(.5,.5,1).getArray());
+  
+  const ap = pointsComponent.getAppearance();
   ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
-  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .1);
-  pointsComponent.setAppearance(ap);
- 
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .2);
+  
   parent.addChild(pointsComponent);
 }
 
@@ -150,8 +156,7 @@ function createTestPoints(parent) {
  * Create test lines
  */
 function createTestLines(parent) {
-  const linesComponent = new SceneGraphComponent();
-  linesComponent.setName('testLines');
+        const linesComponent = SceneGraphUtility.createFullSceneGraphComponent('testLines');
 
   // Create vertices for a simple cross pattern
   const vertices = [
@@ -167,19 +172,18 @@ function createTestLines(parent) {
     [2, 3]          // Diagonal line 2
   ];
 
+  const ecolors = [Color.BLACK, Color.WHITE];
+
   const lineSet = new IndexedLineSet(4, 2);
   lineSet.setVertexCoordinates( vertices, 4);
   lineSet.setEdgeIndices(edges);
+  lineSet.setEdgeAttribute(GeometryAttribute.COLORS, toDataList(ecolors));
   linesComponent.setGeometry(lineSet);
 
-  // Position lines component in the center
-  const transform = new Transformation();
-  linesComponent.setTransformation(transform);
 
-  const ap = new Appearance();
+  const ap = linesComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
-  linesComponent.setAppearance(ap);
 
   parent.addChild(linesComponent);
 }
@@ -194,32 +198,36 @@ function createTestTriangle(parent) {
   const vertices = [
     [0, 1, 0,1],      // 0: top
     [-1, -1, 0,1],    // 1: bottom-left
-    [1, -1, 0,1]      // 2: bottom-right
+    [1, -1, 0,1],     // 2: bottom-right
+    [0, -2, 0,1]      // 2: bottom-right
   ];
 
   // Create face indices
   const faces = [
-    [0, 1, 2]       // Triangle face
+    [0, 1, 2],        // Triangle face
+    [3, 2, 1]        // Triangle face
   ];
  // Create face indices
- const edges = [
-  [0, 1, 2,0]       // Triangle face
+  const edges = [
+    [0, 1, 2,0],
+    [3, 1, 2,3]       // Triangle face
 ];
+  const fcolors = [Color.RED, Color.BLUE];
 
   const faceSet = new IndexedFaceSet(3, 1);
   faceSet.setVertexCoordinates(vertices, 4);
   faceSet.setFaceIndices(faces);
   faceSet.setEdgeIndices(edges);
+  faceSet.setFaceAttribute(GeometryAttribute.COLORS, toDataList(fcolors));
   triangleComponent.setGeometry(faceSet);
   const ap = triangleComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .02);
 
   // Position triangle to the right
-  const transform = new Transformation();
+  const transform = triangleComponent.getTransformation();
   const matrix = MatrixBuilder.euclidean().translate(2,0,0).getArray();
   transform.setMatrix(matrix);
-  triangleComponent.setTransformation(transform);
 
   parent.addChild(triangleComponent);
 }

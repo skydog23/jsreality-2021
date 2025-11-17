@@ -551,24 +551,14 @@ class SVGRenderer extends Abstract2DRenderer {
     return '\n' + '  '.repeat(this.#indentLevel + 1);
   }
 
-  /**
-   * Extract 2D coordinates from vertex
-   * @protected
-   * @param {number[]} vertex - 3D vertex [x, y, z] or [x, y, z, w]
-   * @returns {{x: number, y: number}} 2D coordinates
-   */
-  _extractPoint(vertex) {
-    // SVG coordinates directly from vertex x,y
-    return { x: vertex[0], y: vertex[1] };
-  }
-
+  
   /**
    * Draw a single point as SVG circle (implements abstract method)
    * @protected
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
    */
-  _drawPoint(x, y) {
+  _drawPoint(point, color = null) {
     // Appearance attributes inherited from group (set in _applyAppearance)
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
@@ -576,8 +566,8 @@ class SVGRenderer extends Abstract2DRenderer {
     currentGroup.appendChild(document.createTextNode(this.#getIndent()));
     
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', x.toFixed(4));
-    circle.setAttribute('cy', y.toFixed(4));
+    circle.setAttribute('cx',point[0].toFixed(4));
+    circle.setAttribute('cy',point[1].toFixed(4));
     circle.setAttribute('r', (this.#pointSize / 2).toFixed(4));
     // fill inherited from group
     currentGroup.appendChild(circle);
@@ -589,13 +579,13 @@ class SVGRenderer extends Abstract2DRenderer {
    * @param {*} vertices - Vertex coordinate data
    * @param {number[]} indices - Array of vertex indices
    */
-  _drawPolyline(vertices, indices) {
+  _drawPolyline(vertices, colors, indices) {
     // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
     const points = [];
     for (const index of indices) {
-      const vertex = vertices.getSlice(index);
+      const vertex = vertices.item(index);
       const point = this._extractPoint(vertex);
-      points.push(`${point.x.toFixed(4)},${point.y.toFixed(4)}`);
+      points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
     }
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
@@ -616,13 +606,13 @@ class SVGRenderer extends Abstract2DRenderer {
    * @param {number[]} indices - Array of vertex indices
    * @param {boolean} fill - Whether to fill the polygon
    */
-  _drawPolygon(vertices, indices, fill) {
+  _drawPolygon(vertices, colors, indices, fill) {
     // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
     const points = [];
     for (const index of indices) {
-      const vertex = vertices.getSlice(index);
+      const vertex = vertices.item(index);
       const point = this._extractPoint(vertex);
-      points.push(`${point.x.toFixed(4)},${point.y.toFixed(4)}`);
+      points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
     }
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];

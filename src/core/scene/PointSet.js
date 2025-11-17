@@ -263,6 +263,33 @@ export class PointSet extends Geometry {
   }
 
   /**
+   * Set vertex colors for this point set.
+   * 
+   * Accepts multiple formats:
+   * - Color objects: [Color.RED, Color.GREEN, ...] → stored as int32 (0-255 range)
+   * - Numeric arrays: [[r, g, b, a], ...] → stored as float64 by default
+   * 
+   * NOTE: Color objects use 8-bit precision (0-255 range), which may not be sufficient
+   * for all applications (HDR rendering, color grading, scientific visualization).
+   * For higher precision, pass numeric arrays directly with normalized (0.0-1.0) or
+   * extended ranges, and use setVertexAttribute() with a DataList created using
+   * toDataList(colors, numChannels, 'float32') or 'float64'.
+   * 
+   * @param {Array<Color>|Array<Array<number>>} colors - Color data
+   * @param {number} [numChannels=null] - Number of color channels (3 for RGB, 4 for RGBA)
+   */
+  setVertexColors(colors, numChannels = null) {
+    // If numChannels is not provided and colors are Color objects, toDataList will auto-detect
+    // Otherwise, use the provided numChannels (defaults to 4 for RGBA if null and not Color objects)
+    const colorList = toDataList(colors, numChannels);
+    this.setVertexCountAndAttribute(GeometryAttribute.COLORS, colorList);
+  }
+
+  getVertexColors() {
+    return this.getVertexAttribute(GeometryAttribute.COLORS);
+  }
+
+  /**
    * Validate that a vertex attribute is compatible with this point set
    * @param {string} attributeName - The attribute name
    * @param {DataList} dataList - The attribute data

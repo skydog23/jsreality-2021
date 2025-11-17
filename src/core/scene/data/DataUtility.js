@@ -5,6 +5,7 @@
 import { DataList } from './DataList.js';
 import { RegularDataList } from './RegularDataList.js';
 import { VariableDataList } from './VariableDataList.js';
+import { Color } from '../../util/Color.js';
 
 /**
  * Detect the "fiber length" (innermost dimension) of a nested array structure.
@@ -288,6 +289,12 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
   
   const isNested = Array.isArray(data[0]);
   
+  // Special handling for Color object arrays: convert Color objects to numeric arrays
+  const isColorArray = !isNested && data.length > 0 && data[0] instanceof Color;
+  console.log('isColorArray', isColorArray);
+  console.log('data', data);
+     
+  
   if (isNested) {
     // Check if it's a 2D array (not 3D+)
     // A 2D array has: data[0] is array, but data[0][0] is NOT an array (or doesn't exist)
@@ -329,6 +336,56 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
       // Fixed-length rows (or all empty) → DataList (fall through to existing logic)
     }
     // 3D+ array - always fixed shape, use DataList (fall through)
+  }
+  
+  if (isColorArray) {
+    console.log('isColorArray', isColorArray);
+    console.log('data', data);
+    // Convert Color objects to arrays [r, g, b, a] or [r, g, b]
+    // Auto-detect number of channels from Color objects (ignore fiberLength parameter)
+    // Check if colors have alpha channel
+    const firstColor = data[0];
+    const hasAlpha = 'a' in firstColor || (firstColor instanceof Color && firstColor.a !== undefined);
+    const channels = hasAlpha ? 4 : 3;
+    
+    // Color objects store integer values 0-255, so use int32 unless explicitly overridden
+    // This is more memory-efficient than float64 (4 bytes vs 8 bytes per component)
+    // 
+    // NOTE: The 0-255 range (8 bits per channel) may not be sufficient for all applications:
+    // - High dynamic range (HDR) rendering requires extended color ranges
+    // - Color grading/post-processing may need higher precision
+    // - Scientific visualization may require extended or normalized color spaces
+    // 
+    // For higher precision, pass numeric arrays directly with dataType='float32' or 'float64':
+    //   toDataList([[1.0, 0.5, 0.0], ...], null, 'float64')  // Normalized 0.0-1.0 range
+    //   toDataList([[1000.0, 500.0, 0.0], ...], null, 'float32')  // Extended HDR range
+    const colorDataType = dataType === 'float64' ? 'int32' : dataType;
+    
+    // Convert Color objects to numeric arrays
+    const convertedData = data.map(color => {
+      if (color instanceof Color) {
+        if (channels === 4) {
+          return [color.r, color.g, color.b, color.a];
+        } else {
+          return [color.r, color.g, color.b];
+        }
+      } 
+      else {
+        return color;
+      }
+    });
+    
+    // Flatten the converted 2D array
+    const flatData = flattenArray(convertedData);
+    
+    // Validate that data length is divisible by fiber length
+    if (flatData.length % channels !== 0) {
+      throw new Error(`Data length ${flatData.length} is not divisible by fiber length ${channels}`);
+    }
+    
+    // Create RegularDataList with shape [numColors, channels]
+    const numColors = flatData.length / channels;
+    return new RegularDataList(flatData, [numColors, channels], colorDataType);
   }
   
   // Special handling for string arrays: strings are atomic, so we preserve their natural shape

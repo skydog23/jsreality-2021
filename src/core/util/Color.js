@@ -117,7 +117,14 @@ export class Color {
      * @returns {string} CSS color string
      */
     static toCSSColor(colorValue) {
-        if (colorValue && typeof colorValue.toCSSString === 'function') {
+        if (colorValue instanceof Array) { 
+            const n = colorValue.length;
+            if (n === 3) {
+                return `rgb(${colorValue[0]}, ${colorValue[1]}, ${colorValue[2]})`;
+            } else if (n === 4) {
+                return `rgba(${colorValue[0]}, ${colorValue[1]}, ${colorValue[2]}, ${colorValue[3]})`;
+            }
+        } else if (colorValue && typeof colorValue.toCSSString === 'function') {
             return colorValue.toCSSString();
         }
         return String(colorValue);
@@ -138,6 +145,23 @@ export const PINK = new Color(255, 175, 175);
 export const RED = new Color(255, 0, 0);
 export const WHITE = new Color(255, 255, 255);
 export const YELLOW = new Color(255, 255, 0);
+
+// Add constants as static properties to Color class for Java-like API (Color.RED, etc.)
+Color.BLACK = BLACK;
+Color.BLUE = BLUE;
+Color.CYAN = CYAN;
+Color.DARK_GRAY = DARK_GRAY;
+Color.GRAY = GRAY;
+Color.GREEN = GREEN;
+Color.LIGHT_GRAY = LIGHT_GRAY;
+Color.MAGENTA = MAGENTA;
+Color.ORANGE = ORANGE;
+Color.PINK = PINK;
+Color.RED = RED;
+Color.WHITE = WHITE;
+Color.YELLOW = YELLOW;
+// PURPLE is an alias for MAGENTA (common name)
+Color.PURPLE = MAGENTA;
 
 // Default export for convenience
 export default Color;

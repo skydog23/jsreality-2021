@@ -419,28 +419,20 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   // DEVICE-SPECIFIC DRAWING PRIMITIVES
   // ============================================================================
 
-  /**
-   * Extract 2D coordinates from vertex (canvas handles all transformations)
-   * @protected
-   * @param {number[]} vertex - 3D vertex [x, y, z] or [x, y, z, w]
-   * @returns {{x: number, y: number}} 2D coordinates
-   */
-  _extractPoint(vertex) {
-    // Canvas transformation handles all projection - just extract x,y coordinates
-    return { x: vertex[0], y: vertex[1] };
-  }
 
   /**
    * Draw a single point on the canvas (implements abstract method)
    * @protected
-   * @param {number} x - X coordinate
-   * @param {number} y - Y coordinate
+   * @param {number[]} point - Point coordinates [x, y, z, w]
    */
-  _drawPoint(x, y) {
+  _drawPoint(point, color = null) {
     const ctx = this.#context;
     // Use cached point size and fillStyle already set by _applyAppearance()
+    if (color) {
+      ctx.fillStyle = this.toCSSColor(color);
+    }
     ctx.beginPath();
-    ctx.arc(x, y, this.#pointSize / 2, 0, 2 * Math.PI);
+    ctx.arc(point[0], point[1], this.#pointSize / 2, 0, 2 * Math.PI);
     ctx.fill();
   }
 
@@ -450,22 +442,23 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    * @param {*} vertices - Vertex data list
    * @param {number[]} indices - Vertex indices for the line
    */
-  _drawPolyline(vertices, indices) {
+  _drawPolyline(vertices, color, indices) {
     const ctx = this.#context;
     
     // Use strokeStyle and lineWidth already set by _applyAppearance()
     ctx.beginPath();
     let firstPoint = true;
     for (const index of indices) {
-      const vertex = vertices.getSlice(index);
+      const vertex = vertices.item(index);
       const point = this._extractPoint(vertex);
       if (firstPoint) {
-        ctx.moveTo(point.x, point.y);
+        ctx.moveTo(point[0], point[1]);
         firstPoint = false;
       } else {
-        ctx.lineTo(point.x, point.y);
+        ctx.lineTo(point[0], point[1]);
       }
     }
+    if (color) ctx.strokeStyle = this.toCSSColor(color);
     ctx.stroke();
   }
 
@@ -476,27 +469,29 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    * @param {number[]} indices - Vertex indices for the polygon
    * @param {boolean} fill - Whether to fill the polygon
    */
-  _drawPolygon(vertices, indices, fill) {
+  _drawPolygon(vertices, color, indices, fill) {
     const ctx = this.#context;
     
     // fillStyle already set by _beginPrimitiveGroup('face')
     ctx.beginPath();
     let firstPoint = true;
     for (const index of indices) {
-      const vertex = vertices.getSlice(index);
+      const vertex = vertices.item(index);
       const point = this._extractPoint(vertex);
       if (firstPoint) {
-        ctx.moveTo(point.x, point.y);
+        ctx.moveTo(point[0], point[1]);
         firstPoint = false;
       } else {
-        ctx.lineTo(point.x, point.y);
+        ctx.lineTo(point[0], point[1]);
       }
     }
     ctx.closePath();
 
     if (fill) {
+      if (color) ctx.fillStyle = this.toCSSColor(color);
       ctx.fill();
     } else {
+      if (color) ctx.strokeStyle = this.toCSSColor(color);
       ctx.stroke();
     }
   }

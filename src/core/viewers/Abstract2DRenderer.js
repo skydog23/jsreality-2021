@@ -144,10 +144,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * Draw a single point (device-specific primitive)
    * @protected
    * @abstract
-   * @param {number} x - X coordinate
-   * @param {number} y - Y coordinate
+   * @param {number[]} point - Point coordinates [x, y, z, w]
    */
-  _drawPoint(x, y) {
+  _drawPoint(point, color = null) {
     throw new Error('Abstract method _drawPoint() must be implemented by subclass');
   }
 
@@ -158,7 +157,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {*} vertices - Vertex coordinate data
    * @param {number[]} indices - Array of vertex indices
    */
-  _drawPolyline(vertices, indices) {
+  _drawPolyline(vertices, colors, indices) {
     throw new Error('Abstract method _drawPolyline() must be implemented by subclass');
   }
 
@@ -170,7 +169,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {number[]} indices - Array of vertex indices
    * @param {boolean} fill - Whether to fill the polygon
    */
-  _drawPolygon(vertices, indices, fill) {
+  _drawPolygon(vertices, colors, indices, fill) {
     throw new Error('Abstract method _drawPolygon() must be implemented by subclass');
   }
 
@@ -182,7 +181,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @returns {{x: number, y: number}} 2D point
    */
   _extractPoint(vertex) {
-    throw new Error('Abstract method _extractPoint() must be implemented by subclass');
+    return vertex;    // by default, return the vertex as is
   }
 
   // ============================================================================
@@ -498,6 +497,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
 
     const vertices = geometry.getVertexCoordinates();
+    const colors = geometry.getVertexColors();
     if (!vertices) return;
     
     // Get point color with namespace fallback
@@ -511,11 +511,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this._beginPrimitiveGroup(CommonAttributes.POINT);
     
     for (let i = 0; i < numVertices; i++) {
-      const vertex = vertices.getSlice(i);
-      if (vertex.length >= 3) {
-        const point = this._extractPoint(vertex);
-        this._drawPoint(point.x, point.y);
-      }
+        this._drawPoint(vertices.getSlice(i), colors ? colors.getSlice(i) : null);
     }
     
     // End nested group for points
@@ -533,31 +529,25 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
 
     const vertices = geometry.getVertexCoordinates();
-    let indices = null;
     
     // Get appropriate edge indices - try both convenience method and direct attribute access
-    if (geometry.getEdgeIndices) {
-      indices = geometry.getEdgeIndices();
-    }
-    
-    // Fallback: try getting indices directly from edge attributes
+    let indices = geometry.getEdgeIndices();
+     // Fallback: try getting indices directly from edge attributes
     if (!indices && geometry.getEdgeAttributes) {
       const edgeAttrs = geometry.getEdgeAttributes();
       if (edgeAttrs && edgeAttrs.size > 0) {
-        indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES) || 
-                  geometry.getEdgeAttribute('indices');
+        indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES);
       }
     }
-
-    // Begin nested group for lines
+    const colors = geometry.getEdgeAttribute(GeometryAttribute.COLORS);
+    
     this._beginPrimitiveGroup(CommonAttributes.LINE);
     
     // Render all edges
     if (indices) {
       // DataList of edge indices - use item() which works for both RegularDataList and VariableDataList
       for (let i = 0; i < indices.length(); i++) {
-        const edgeIndices = indices.item(i);
-        this._drawPolyline(vertices, edgeIndices);
+        this._drawPolyline(vertices, colors ? colors.item(i) : null, indices.item(i));
       }
     } else {
       // Handle flat array case
@@ -582,6 +572,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     const indices = geometry.getFaceIndices();
     if (!vertices || !indices) return;
 
+    const colors = geometry.getFaceAttribute(GeometryAttribute.COLORS);
+
+
     // Get appearance attributes
     const faceColor = this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc');
 
@@ -591,7 +584,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // DataList of face indices - use item() which works for both RegularDataList and VariableDataList
     for (let i = 0; i < indices.length(); i++) {
       const faceIndices = indices.item(i);
-      this._drawPolygon(vertices, faceIndices, true);
+      this._drawPolygon(vertices, colors ? colors.item(i) : null, faceIndices, true);
     }
     
     // End nested group for faces
