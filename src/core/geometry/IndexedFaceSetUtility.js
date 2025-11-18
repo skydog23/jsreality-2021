@@ -636,6 +636,7 @@ export class IndexedFaceSetUtility {
     ifsf.setFaceIndices(newIndices);
     ifsf.setGenerateEdgesFromFaces(true);
     ifsf.update();
+    console.log("binaryRefine: "+nvd.length+' '+newIndices.length);
     return ifsf.getIndexedFaceSet();
   }
   

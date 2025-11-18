@@ -52,7 +52,6 @@ export function detectFiberLength(arr) {
   while (Array.isArray(current) && current.length > 0 && Array.isArray(current[0])) {
     current = current[0];
   }
-  
   // Now 'current' should be the innermost array
   if (Array.isArray(current)) {
     return current.length;

@@ -98,6 +98,7 @@ export class SphereUtility {
     
     if (SphereUtility.#tessellatedIcosahedra[i] == null) {
       let verts = null;
+      console.log(i+' sphereUtility tessellatedIcosahedronSphere');
       
       if (i === 0) {
         SphereUtility.#tessellatedIcosahedra[i] = Primitives.icosahedron();
@@ -107,27 +108,38 @@ export class SphereUtility {
         SphereUtility.#tessellatedIcosahedra[i] = IndexedFaceSetUtility.binaryRefine(
           SphereUtility.tessellatedIcosahedronSphere(i - 1, true)
         );
+        if (SphereUtility.#tessellatedIcosahedra[i] == null) {
+          throw new Error(`binaryRefine failed for tessellation level ${i}`);
+        }
         const vertsData = SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES);
         verts = fromDataList(vertsData);
+        if (verts == null || verts.length === 0) {
+          throw new Error(`No vertex coordinates found after binaryRefine for tessellation level ${i}`);
+        }
         const vlength = verts[0].length;
-        Rn.normalize(verts, verts);
+        Rn.normalizeArray(verts, verts);
         const coordsDataList = toDataList(verts);
-        SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(GeometryAttribute.COORDINATES, coordsDataList);
+        SphereUtility.#tessellatedIcosahedra[i].setVertexCountAndAttribute(GeometryAttribute.COORDINATES, coordsDataList);
       }
       
-      // Set texture coordinates
-      const tc = SphereUtility.getTC(verts);
-      const tcDataList = toDataList(tc);
-      SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES, tcDataList);
+      // Validate verts before using
+      if (verts == null || verts.length === 0) {
+        throw new Error(`No vertex coordinates available for tessellation level ${i}`);
+      }
       
-      // Set normals (same as coordinates for unit sphere)
-      SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(
-        GeometryAttribute.NORMALS,
-        SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES)
-      );
+      // // Set texture coordinates
+      // const tc = SphereUtility.getTC(verts);
+      // const tcDataList = toDataList(tc);
+      // SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES, tcDataList);
       
-      IndexedFaceSetUtility.calculateAndSetFaceNormals(SphereUtility.#tessellatedIcosahedra[i]);
-      IndexedFaceSetUtility.calculateAndSetEdgesFromFaces(SphereUtility.#tessellatedIcosahedra[i]);
+      // // Set normals (same as coordinates for unit sphere)
+      // SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(
+      //   GeometryAttribute.NORMALS,
+      //   SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES)
+      // );
+      
+      // IndexedFaceSetUtility.calculateAndSetFaceNormals(SphereUtility.#tessellatedIcosahedra[i]);
+      // IndexedFaceSetUtility.calculateAndSetEdgesFromFaces(SphereUtility.#tessellatedIcosahedra[i]);
     }
     
     if (sharedInstance) {
@@ -213,6 +225,9 @@ export class SphereUtility {
    * @returns {number[][]} Texture coordinates (4D)
    */
   static getTC(sphere, channels) {
+    if (sphere == null || !Array.isArray(sphere) || sphere.length === 0) {
+      throw new Error(`getTC: Invalid sphere parameter - expected non-empty array, got ${sphere}`);
+    }
     const tc = Array(sphere.length);
     for (let i = 0; i < sphere.length; ++i) {
       const i0 = channels[0];

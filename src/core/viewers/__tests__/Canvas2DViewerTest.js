@@ -2,7 +2,7 @@
 
 import * as Rn from '../../math/Rn.js';
 import { Camera } from '../../scene/Camera.js';
-import { toDataList } from '../../scene/data/DataUtility.js';
+import { toDataList, fromDataList } from '../../scene/data/DataUtility.js';
 import { IndexedFaceSet, IndexedLineSet, PointSet, SceneGraphComponent, SceneGraphPath } from '../../scene/index.js';
 import { Transformation } from '../../scene/Transformation.js';
 import * as CommonAttributes from '../../shader/CommonAttributes.js';
@@ -15,6 +15,7 @@ import { GeometryAttribute } from '../../scene/GeometryAttribute.js';
 import { PointSetFactory, IndexedLineSetFactory, IndexedFaceSetFactory } from '../../geometry/index.js';
 import { IndexedLineSetUtility } from '../../geometry/IndexedLineSetUtility.js';
 import { Primitives } from '../../geometry/Primitives.js';
+import { SphereUtility } from '../../geometry/SphereUtility.js';
 /**
  * Create a simple test scene with various geometric shapes
  * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath}}
@@ -435,6 +436,7 @@ function addMiscGeometry(parent) {
   geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
   geomList[1] = Primitives.regularPolygon(13, .5);
   geomList[2] = Primitives.getSharedIcosahedron();
+  geomList[2] = SphereUtility.tessellatedIcosahedronSphere(0);
   const components = [];
   let i = 0
   geomList.forEach(geom => {
@@ -446,8 +448,8 @@ function addMiscGeometry(parent) {
     if (i==2) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
-      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
     }
     parent.addChild(miscComponent);
     components.push(miscComponent);
@@ -526,7 +528,7 @@ export function runCanvas2DTest() {
     
     // Select the misc component to animate (index 2 is the icosahedron)
     const animatedComponent = miscComponents[2];
-    
+    const icoverts = fromDataList(Primitives.getSharedIcosahedron().getVertexCoordinates());
     function animate(timestamp) {
       // Initialize start time on first call
       if (animationStartTime === null) {
@@ -539,11 +541,13 @@ export function runCanvas2DTest() {
       // Apply rotation transformation (rotating around Y-axis)
       const rotationAngle = elapsedSeconds * Math.PI * 0.5; // Rotate at 0.5 rad/s
       const matrix = MatrixBuilder.euclidean()
-        .translate(2, 2, 0)
         .rotateY(rotationAngle)
         .getArray();
-      
-      animatedComponent.getTransformation().setMatrix(matrix);
+      const transformedIcoverts = Rn.matrixTimesVectorArray(null, matrix, icoverts); 
+      // Use setVertexAttribute instead of setVertexCoordinates to avoid updating vertex count
+      // which can cause edge data to be invalidated
+      const coordList = toDataList(transformedIcoverts);
+      animatedComponent.getGeometry().setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
       viewer.render();
       
       // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)

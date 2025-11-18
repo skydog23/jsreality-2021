@@ -403,7 +403,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     }
     
     ctx.fillStyle = this.toCSSColor(backgroundColor);
-    console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));
+    // console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Restore the NDC-to-screen transform
