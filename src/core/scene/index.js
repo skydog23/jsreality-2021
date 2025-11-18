@@ -22,6 +22,9 @@ export * from './GeometryAttribute.js';
 export * from './PointSet.js';
 export * from './IndexedLineSet.js';
 export * from './IndexedFaceSet.js';
+export * from './Cylinder.js';
+export * from './Sphere.js';
+export * from './ClippingPlane.js';
 
 // Data system
 export * from './data/index.js';

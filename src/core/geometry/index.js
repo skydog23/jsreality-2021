@@ -7,4 +7,8 @@ export {
 
 export { PointSetFactory } from './PointSetFactory.js';
 export { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
-export { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js'; 
+export { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
+
+export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
+export { BoundingBoxUtility } from './BoundingBoxUtility.js';
+export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 

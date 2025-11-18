@@ -12,7 +12,9 @@ import { Canvas2DViewer } from '../Canvas2DViewer.js';
 import { MatrixBuilder } from '../../math/MatrixBuilder.js';
 import { Appearance } from '../../scene/Appearance.js';
 import { GeometryAttribute } from '../../scene/GeometryAttribute.js';
-
+import { PointSetFactory, IndexedLineSetFactory, IndexedFaceSetFactory } from '../../geometry/index.js';
+import { IndexedLineSetUtility } from '../../geometry/IndexedLineSetUtility.js';
+import { Primitives } from '../../geometry/Primitives.js';
 /**
  * Create a simple test scene with various geometric shapes
  * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath}}
@@ -70,20 +72,35 @@ function createTestScene() {
   const worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
   sceneRoot.addChild(worldSGC);
 
-  initGrid(worldSGC);
-
+ 
   const mat = MatrixBuilder.euclidean().scale(.5,.5,1).getArray();
   worldSGC.setTransformation(new Transformation(mat));
 
   // Create some test geometry
-  createTestPoints(worldSGC);
-  createTestLines(worldSGC);
-  createTestTriangle(worldSGC);
-
+  createTestGeometry(worldSGC);
+  createTestGeometryFactories(worldSGC);
+  addMiscGeometry(worldSGC);
   return { sceneRoot, cameraPath };
 }
 
+function createTestGeometry(parent) {
+  initGrid(parent);
+  createTestPoints(parent);
+  createTestLines(parent);
+  createTestTriangle(parent);
+}
 
+/**
+ * Create the same test geometry using geometry factories instead of direct construction.
+ * This method mirrors createTestGeometry() but uses PointSetFactory, IndexedLineSetFactory,
+ * and IndexedFaceSetFactory to create the geometry.
+ */
+function createTestGeometryFactories(parent) {
+  initGridFactory(parent);
+  createTestPointsFactory(parent);
+  createTestLinesFactory(parent);
+  createTestTriangleFactory(parent);
+}
 function initGrid(parent) {
    const size = 10, incr = .5;
   const xmin = -size / 2, xmax = size / 2, ymin = -size / 2, ymax = size / 2;
@@ -232,6 +249,209 @@ function createTestTriangle(parent) {
   parent.addChild(triangleComponent);
 }
 
+// ============================================================================
+// Factory-based geometry creation methods
+// ============================================================================
+
+/**
+ * Create grid using IndexedLineSetFactory
+ */
+function initGridFactory(parent) {
+  const size = 10, incr = .5;
+  const xmin = -size / 2, xmax = size / 2, ymin = -size / 2, ymax = size / 2;
+  const num = size / incr + 1;
+  const topV = Array(num).fill(0).map((_, i) => [xmin + i * incr, ymax, 0, 1]);
+  const bottomV = Array(num).fill(0).map((_, i) => [xmin + i * incr, ymin, 0, 1]);
+  const leftH = Array(num).fill(0).map((_, i) => [xmin, ymin + i * incr, 0, 1]);
+  const rightH = Array(num).fill(0).map((_, i) => [xmax, ymin + i * incr, 0, 1]);
+  const verts = [...topV, ...bottomV, ...leftH, ...rightH];
+  const indup = Array(num).fill(0).map((_, i) => [i, i + num]);
+  const indlr = Array(num).fill(0).map((_, i) => [2 * num + i, 2 * num + i + num]);
+  const inds = [...indup, ...indlr];
+  
+  const factory = new IndexedLineSetFactory();
+  factory.setVertexCount(verts.length);
+  factory.setVertexCoordinates(verts);
+  factory.setEdgeCount(inds.length);
+  factory.setEdgeIndices(inds);
+  factory.update();
+  
+  const gridIFS = factory.getIndexedLineSet();
+  const gridComponent = new SceneGraphComponent();
+  gridComponent.setName('grid');
+  gridComponent.setGeometry(gridIFS);
+  const ap = new Appearance();
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
+  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
+  ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+  gridComponent.setAppearance(ap);
+  
+  parent.addChild(gridComponent);
+}
+
+/**
+ * Create test points using PointSetFactory
+ */
+function createTestPointsFactory(parent) {
+  const pointsComponent = SceneGraphUtility.createFullSceneGraphComponent('testPoints');
+
+  const factory = new PointSetFactory();
+  factory.setVertexCount(5);
+  
+  // Create vertex data: 5 points in 3D
+  const vertices = [
+    [0, 0, 0,1],      // Center
+    [2, 0, 0,1],      // Right
+    [-2, 0, 0,1],     // Left  
+    [0, 2, 0,1],      // Up
+    [0, -2, 0,1]      // Down
+  ];
+  
+  const colors = [
+    Color.RED,
+    Color.GREEN,
+    Color.BLUE,
+    Color.YELLOW,
+    Color.PURPLE  // PURPLE is an alias for MAGENTA
+  ];
+  
+  factory.setVertexCoordinates(vertices);
+  factory.setVertexColors(colors);
+  factory.update();
+  
+  const pointSet = factory.getPointSet();
+  pointsComponent.setGeometry(pointSet);
+
+  // Position points component
+  const transform = pointsComponent.getTransformation();
+  transform.setMatrix(MatrixBuilder.euclidean().translate(-2,0,0).scale(.5,.5,1).getArray());
+  
+  const ap = pointsComponent.getAppearance();
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .2);
+  
+  parent.addChild(pointsComponent);
+}
+
+/**
+ * Create test lines using IndexedLineSetFactory
+ */
+function createTestLinesFactory(parent) {
+  const linesComponent = SceneGraphUtility.createFullSceneGraphComponent('testLines');
+
+  // Create vertices for a simple cross pattern
+  const vertices = [
+    [-1, -1, 0,1],    // 0: bottom-left
+    [1, 1, 0,1],      // 1: top-right
+    [-1, 1, 0,1],     // 2: top-left
+    [1, -1, 0,1]      // 3: bottom-right
+  ];
+
+  // Create edge indices for two lines forming an X
+  const edges = [
+    [0, 1],         // Diagonal line 1
+    [2, 3]          // Diagonal line 2
+  ];
+
+  const ecolors = [Color.BLACK, Color.WHITE];
+
+  const factory = new IndexedLineSetFactory();
+  factory.setVertexCount(4);
+  factory.setVertexCoordinates(vertices);
+  factory.setEdgeCount(2);
+  factory.setEdgeIndices(edges);
+  factory.setEdgeColors(ecolors);
+  factory.update();
+  
+  const lineSet = factory.getIndexedLineSet();
+  linesComponent.setGeometry(lineSet);
+
+  const ap = linesComponent.getAppearance();
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+
+  parent.addChild(linesComponent);
+}
+
+/**
+ * Create test triangle using IndexedFaceSetFactory
+ */
+function createTestTriangleFactory(parent) {
+  const triangleComponent = SceneGraphUtility.createFullSceneGraphComponent('testTriangle');
+
+  // Create vertices for a triangle
+  const vertices = [
+    [0, 1, 0,1],      // 0: top
+    [-1, -1, 0,1],    // 1: bottom-left
+    [1, -1, 0,1],     // 2: bottom-right
+    [0, -2, 0,1]      // 3: bottom
+  ];
+
+  // Create face indices
+  const faces = [
+    [0, 1, 2],        // Triangle face
+    [3, 2, 1]         // Triangle face
+  ];
+  
+  // Create edge indices
+  const edges = [
+    [0, 1, 2,0],
+    [3, 1, 2,3]
+  ];
+  
+  const fcolors = [Color.RED, Color.BLUE];
+
+  const factory = new IndexedFaceSetFactory();
+  factory.setVertexCount(4);
+  factory.setVertexCoordinates(vertices);
+  factory.setFaceCount(2);
+  factory.setFaceIndices(faces);
+  factory.setEdgeCount(2);
+  factory.setEdgeIndices(edges);
+  factory.setFaceColors(fcolors);
+  factory.update();
+  
+  const faceSet = factory.getIndexedFaceSet();
+  triangleComponent.setGeometry(faceSet);
+  
+  const ap = triangleComponent.getAppearance();
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .02);
+
+  // Position triangle to the right
+  const transform = triangleComponent.getTransformation();
+  const matrix = MatrixBuilder.euclidean().translate(2,0,0).getArray();
+  transform.setMatrix(matrix);
+
+  parent.addChild(triangleComponent);
+}
+
+function addMiscGeometry(parent) {
+  // const geomList = [Primitives.tetrahedron(), 
+  //   Primitives.icosahedron(), 
+  //   Primitives.octahedron()];
+  //   let i = 0;
+  const geomList = new Array(3);
+  geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
+  geomList[1] = Primitives.regularPolygon(13, .5);
+  geomList[2] = Primitives.getSharedIcosahedron();
+  let i = 0
+  geomList.forEach(geom => {
+    const miscComponent = SceneGraphUtility.createFullSceneGraphComponent('misc');
+    miscComponent.setGeometry(geom);
+    const ap = miscComponent.getAppearance();
+    const matrix = MatrixBuilder.euclidean().translate(i*2-2,2,0).getArray();
+    miscComponent.getTransformation().setMatrix(matrix);
+    if (i==2) {
+      const ap = miscComponent.getAppearance();
+      ap.setAttribute(CommonAttributes.FACE_DRAW, false);
+      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+    }
+    parent.addChild(miscComponent);
+    i++;
+  });
+}
 /**
  * Run the Canvas2D viewer test
  */

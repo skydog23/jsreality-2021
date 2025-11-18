@@ -113,4 +113,28 @@ export class SceneGraphVisitor {
   visitIndexedFaceSet(faceSet) {
     this.visitIndexedLineSet(faceSet);
   }
+
+  /**
+   * Visit a Cylinder
+   * @param {import('./Cylinder.js').Cylinder} cylinder
+   */
+  visitCylinder(cylinder) {
+    this.visitGeometry(cylinder);
+  }
+
+  /**
+   * Visit a Sphere
+   * @param {import('./Sphere.js').Sphere} sphere
+   */
+  visitSphere(sphere) {
+    this.visitGeometry(sphere);
+  }
+
+  /**
+   * Visit a ClippingPlane
+   * @param {import('./ClippingPlane.js').ClippingPlane} clippingPlane
+   */
+  visitClippingPlane(clippingPlane) {
+    this.visitGeometry(clippingPlane);
+  }
 }

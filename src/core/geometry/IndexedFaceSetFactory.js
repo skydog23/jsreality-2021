@@ -23,7 +23,7 @@ import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
 import { RegularDataList } from '../scene/data/RegularDataList.js';
 import { VariableDataList } from '../scene/data/VariableDataList.js';
-import { toDataList } from '../scene/data/DataUtility.js';
+import { toDataList, fromDataList } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN, polarizePlane, setToLength, normalize as PnNormalize, dehomogenize } from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import * as P3 from '../math/P3.js';
@@ -349,13 +349,12 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
     _generateEdgesFromFaces() {
         const faceIndices = this.#indexedFaceSet.getFaceIndices();
         if (!faceIndices) return;
-        
         // Build a set of unique edges
         const edgeSet = new Set();
         const edgeList = [];
         
         // Iterate over all faces
-        for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
+        for (let faceIdx = 0; faceIdx < faceIndices.length(); faceIdx++) {
             const face = faceIndices.item(faceIdx);
             const faceLength = face.length;
             
@@ -366,7 +365,6 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
                 
                 // Create a canonical edge key (smaller index first)
                 const key = v0 < v1 ? `${v0},${v1}` : `${v1},${v0}`;
-                
                 if (!edgeSet.has(key)) {
                     edgeSet.add(key);
                     edgeList.push([v0, v1]);
@@ -388,20 +386,21 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
      * @private
      */
     _generateFaceNormals() {
-        const faceIndices = this.#indexedFaceSet.getFaceIndices();
-        const vertexCoords = this.#indexedFaceSet.getVertexAttribute(GeometryAttribute.COORDINATES);
+        const faceIndicesData = this.#indexedFaceSet.getFaceIndices();
+        const vertexCoordsData = this.#indexedFaceSet.getVertexAttribute(GeometryAttribute.COORDINATES);
         
-        if (!faceIndices || !vertexCoords) return;
+        if (!faceIndicesData || !vertexCoordsData) return;
+        
+        // Convert DataLists to arrays
+        const faceIndices = fromDataList(faceIndicesData);
+        const vertexCoords = fromDataList(vertexCoordsData);
         
         const metric = this.getMetric();
         const normalLength = metric === EUCLIDEAN ? 3 : 4;
         const faceNormals = [];
         
-        // Get vertex data as 2D array
-        const verts = [];
-        for (let i = 0; i < vertexCoords.length; i++) {
-            verts.push(vertexCoords.item(i));
-        }
+        // Copy vertices for dehomogenization (modify in place)
+        const verts = vertexCoords.map(v => [...v]);
         
         // Dehomogenize vertices if they're 4D and metric is Euclidean (matches Java implementation)
         if (metric === EUCLIDEAN && verts.length > 0 && verts[0].length === 4) {
@@ -412,7 +411,7 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         
         // Calculate normal for each face
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
-            const face = faceIndices.item(faceIdx);
+            const face = faceIndices[faceIdx];
             const n = face.length;
             
             if (n < 3) {
