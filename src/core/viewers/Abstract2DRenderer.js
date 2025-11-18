@@ -300,9 +300,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
 
     // Render the scene
     try {
-      console.log('Calling sceneRoot.accept(this)');
+      // console.log('Calling sceneRoot.accept(this)');
       sceneRoot.accept(this);
-      console.log('sceneRoot.accept(this) completed');
+      // console.log('sceneRoot.accept(this) completed');
     } catch (error) {
       console.error('Rendering error:', error);
     }

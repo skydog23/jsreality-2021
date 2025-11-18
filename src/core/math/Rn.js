@@ -245,7 +245,7 @@ export function euclideanNorm(vec) {
  * @returns {number}
  */
 export function euclideanNormSquared(vec) {
-  return innerProductN(vec, vec, 2);
+  return innerProduct(vec, vec);
 };
 
 // innerProduct: dot product
@@ -417,11 +417,12 @@ export function setEuclideanNorm(dst, length, src) {
   if (!dst) dst = new Array(src.length);
   if (dst.length !== src.length) throw new Error('Incompatible lengths');
   const norm = euclideanNorm(src);
+  // console.log('setEuclideanNorm: norm = '+norm+' length = '+length);
   if (norm === 0) {
     for (let i = 0; i < Math.min(src.length, dst.length); ++i) dst[i] = src[i];
     return dst;
   }
-  return times(dst, length / norm, src);
+  return times(dst, length/norm, src);
 };
 
 

@@ -277,11 +277,13 @@ export class SceneGraphInspector {
         flex: 1;
         overflow-y: auto;
         padding: 4px;
+        pointer-events: auto;
       }
       
       .sg-tree-node {
         user-select: none;
         cursor: pointer;
+        pointer-events: auto;
       }
       
       .sg-tree-node-header {
@@ -743,6 +745,10 @@ export class SceneGraphInspector {
     this.#root = root;
     this.#selectedNode = null;
     this.#nodeElements.clear();
+    // Auto-expand the root node for convenience
+    if (root) {
+      this.#expandedNodes.add(root);
+    }
     this.#rebuildTree();
   }
 
@@ -788,10 +794,14 @@ export class SceneGraphInspector {
     
     if (hasChildren) {
       expand.textContent = this.#expandedNodes.has(node) ? '▼' : '▶';
-      expand.onclick = (e) => {
+      expand.style.cursor = 'pointer';
+      expand.style.pointerEvents = 'auto';
+      expand.addEventListener('click', (e) => {
         e.stopPropagation();
+        e.preventDefault();
+        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed');
         this.#toggleExpand(node);
-      };
+      });
     } else {
       expand.classList.add('empty');
     }
@@ -816,9 +826,17 @@ export class SceneGraphInspector {
     header.appendChild(label);
     header.appendChild(type);
     
-    header.onclick = () => {
+    // Use addEventListener instead of onclick for better compatibility
+    header.style.pointerEvents = 'auto';
+    header.addEventListener('click', (e) => {
+      // Don't select if clicking on the expand icon (it handles its own click)
+      // Check if the click target is the expand icon or its children
+      if (expand.contains(e.target)) {
+        return;
+      }
+      console.log('Header clicked for node:', node.getName?.() || 'Unnamed');
       this.#selectNode(node);
-    };
+    });
     
     nodeDiv.appendChild(header);
     

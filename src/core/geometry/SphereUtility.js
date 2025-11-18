@@ -42,7 +42,7 @@ export class SphereUtility {
   
   // Cached tessellated spheres
   static #numberOfTessellatedCubes = 16;
-  static #numberOfTessellatedIcosahedra = 8;
+  static #numberOfTessellatedIcosahedra = 5;
   static #tessellatedIcosahedra = Array(SphereUtility.#numberOfTessellatedIcosahedra).fill(null);
   static #tessellatedCubes = Array(SphereUtility.#numberOfTessellatedCubes).fill(null);
   static #cubePanels = Array(SphereUtility.#numberOfTessellatedCubes).fill(null);
@@ -118,8 +118,12 @@ export class SphereUtility {
         }
         const vlength = verts[0].length;
         Rn.normalizeArray(verts, verts);
+        // console.log('normed verts: '+Rn.toStringArray(verts));
         const coordsDataList = toDataList(verts);
-        SphereUtility.#tessellatedIcosahedra[i].setVertexCountAndAttribute(GeometryAttribute.COORDINATES, coordsDataList);
+        // Use setVertexAttribute instead of setVertexCountAndAttribute to preserve vertex count
+        // setVertexCountAndAttribute updates #numPoints from DataList shape, which can cause issues
+        // The vertex count should already be correct from binaryRefine
+        SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(GeometryAttribute.COORDINATES, coordsDataList);
       }
       
       // Validate verts before using
@@ -127,16 +131,16 @@ export class SphereUtility {
         throw new Error(`No vertex coordinates available for tessellation level ${i}`);
       }
       
-      // // Set texture coordinates
+      // Set texture coordinates
       // const tc = SphereUtility.getTC(verts);
       // const tcDataList = toDataList(tc);
       // SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES, tcDataList);
       
-      // // Set normals (same as coordinates for unit sphere)
-      // SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(
-      //   GeometryAttribute.NORMALS,
-      //   SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES)
-      // );
+      // Set normals (same as coordinates for unit sphere)
+      SphereUtility.#tessellatedIcosahedra[i].setVertexAttribute(
+        GeometryAttribute.NORMALS,
+        SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES)
+      );
       
       // IndexedFaceSetUtility.calculateAndSetFaceNormals(SphereUtility.#tessellatedIcosahedra[i]);
       // IndexedFaceSetUtility.calculateAndSetEdgesFromFaces(SphereUtility.#tessellatedIcosahedra[i]);

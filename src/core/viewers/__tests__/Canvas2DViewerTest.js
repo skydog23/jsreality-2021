@@ -16,6 +16,7 @@ import { PointSetFactory, IndexedLineSetFactory, IndexedFaceSetFactory } from '.
 import { IndexedLineSetUtility } from '../../geometry/IndexedLineSetUtility.js';
 import { Primitives } from '../../geometry/Primitives.js';
 import { SphereUtility } from '../../geometry/SphereUtility.js';
+import { IndexedFaceSetUtility } from '../../geometry/IndexedFaceSetUtility.js';
 /**
  * Create a simple test scene with various geometric shapes
  * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath}}
@@ -427,17 +428,18 @@ function createTestTriangleFactory(parent) {
   parent.addChild(triangleComponent);
 }
 
+const geomList = new Array(3);
+geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
+geomList[1] = Primitives.regularPolygon(13, .5);
+geomList[2] = Primitives.getSharedIcosahedron();
+geomList[2] = SphereUtility.tessellatedIcosahedronSphere(2)
+
 function addMiscGeometry(parent) {
   // const geomList = [Primitives.tetrahedron(), 
   //   Primitives.icosahedron(), 
   //   Primitives.octahedron()];
   //   let i = 0;
-  const geomList = new Array(3);
-  geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
-  geomList[1] = Primitives.regularPolygon(13, .5);
-  geomList[2] = Primitives.getSharedIcosahedron();
-  geomList[2] = SphereUtility.tessellatedIcosahedronSphere(0);
-  const components = [];
+    const components = [];
   let i = 0
   geomList.forEach(geom => {
     const miscComponent = SceneGraphUtility.createFullSceneGraphComponent('misc');
@@ -448,7 +450,7 @@ function addMiscGeometry(parent) {
     if (i==2) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
-      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
+       // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
       // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
     }
     parent.addChild(miscComponent);
@@ -528,7 +530,7 @@ export function runCanvas2DTest() {
     
     // Select the misc component to animate (index 2 is the icosahedron)
     const animatedComponent = miscComponents[2];
-    const icoverts = fromDataList(Primitives.getSharedIcosahedron().getVertexCoordinates());
+    const icoverts = fromDataList(geomList[2].getVertexAttribute(GeometryAttribute.COORDINATES));
     function animate(timestamp) {
       // Initialize start time on first call
       if (animationStartTime === null) {
@@ -547,7 +549,7 @@ export function runCanvas2DTest() {
       // Use setVertexAttribute instead of setVertexCoordinates to avoid updating vertex count
       // which can cause edge data to be invalidated
       const coordList = toDataList(transformedIcoverts);
-      animatedComponent.getGeometry().setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
+      geomList[2].setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
       viewer.render();
       
       // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)
