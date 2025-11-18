@@ -79,8 +79,8 @@ function createTestScene() {
   // Create some test geometry
   createTestGeometry(worldSGC);
   createTestGeometryFactories(worldSGC);
-  addMiscGeometry(worldSGC);
-  return { sceneRoot, cameraPath };
+  const miscComponents = addMiscGeometry(worldSGC);
+  return { sceneRoot, cameraPath, miscComponents };
 }
 
 function createTestGeometry(parent) {
@@ -435,6 +435,7 @@ function addMiscGeometry(parent) {
   geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
   geomList[1] = Primitives.regularPolygon(13, .5);
   geomList[2] = Primitives.getSharedIcosahedron();
+  const components = [];
   let i = 0
   geomList.forEach(geom => {
     const miscComponent = SceneGraphUtility.createFullSceneGraphComponent('misc');
@@ -449,8 +450,10 @@ function addMiscGeometry(parent) {
       ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
     }
     parent.addChild(miscComponent);
+    components.push(miscComponent);
     i++;
   });
+  return components;
 }
 /**
  * Run the Canvas2D viewer test
@@ -481,7 +484,7 @@ export function runCanvas2DTest() {
   }
 
   try {
-    const { sceneRoot, cameraPath } = createTestScene();
+    const { sceneRoot, cameraPath, miscComponents } = createTestScene();
     console.log('✓ Test scene created');
 
    
@@ -516,11 +519,50 @@ export function runCanvas2DTest() {
       console.log('✓ Async render triggered');
     }, 1000);
 
+    // Setup animation timer for one of the misc geometry components
+    // Using requestAnimationFrame for smooth, browser-synced animation
+    let animationStartTime = null;
+    let animationId = null;
+    
+    // Select the misc component to animate (index 2 is the icosahedron)
+    const animatedComponent = miscComponents[2];
+    
+    function animate(timestamp) {
+      // Initialize start time on first call
+      if (animationStartTime === null) {
+        animationStartTime = timestamp;
+      }
+      
+      // Calculate elapsed time in seconds
+      const elapsedSeconds = (timestamp - animationStartTime) / 1000;
+      
+      // Apply rotation transformation (rotating around Y-axis)
+      const rotationAngle = elapsedSeconds * Math.PI * 0.5; // Rotate at 0.5 rad/s
+      const matrix = MatrixBuilder.euclidean()
+        .translate(2, 2, 0)
+        .rotateY(rotationAngle)
+        .getArray();
+      
+      animatedComponent.getTransformation().setMatrix(matrix);
+      viewer.render();
+      
+      // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)
+      animationId = requestAnimationFrame(animate);
+    }
+    
+    // Start animation after a short delay
+    setTimeout(() => {
+      console.log('✓ Starting animation using requestAnimationFrame');
+      animationStartTime = null; // Reset for clean start
+      animationId = requestAnimationFrame(animate);
+    }, 1500);
+
     console.log('✓ Canvas2D viewer test complete');
     console.log('You should see:');
     console.log('  - Red points on the left');
     console.log('  - Blue X-shaped lines in the center');
     console.log('  - Green triangle on the right');
+    console.log('  - Animated rotating circle in the top-left');
 
     return viewer;
 
