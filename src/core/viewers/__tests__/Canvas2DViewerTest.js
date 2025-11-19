@@ -432,7 +432,7 @@ const geomList = new Array(3);
 geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
 geomList[1] = Primitives.regularPolygon(13, .5);
 geomList[2] = Primitives.getSharedIcosahedron();
-geomList[2] = SphereUtility.tessellatedIcosahedronSphere(2)
+geomList[2] = SphereUtility.tessellatedIcosahedronSphere(4)
 
 function addMiscGeometry(parent) {
   // const geomList = [Primitives.tetrahedron(), 
@@ -450,8 +450,11 @@ function addMiscGeometry(parent) {
     if (i==2) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
+      const matrix = MatrixBuilder.euclidean().translate(0,2,0).scale(3).getArray();
+      miscComponent.getTransformation().setMatrix(matrix);
+  
        // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .04);
+      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .005);
     }
     parent.addChild(miscComponent);
     components.push(miscComponent);
@@ -553,7 +556,7 @@ export function runCanvas2DTest() {
       }
       
       // Apply rotation transformation (rotating around Y-axis)
-      const rotationAngle = elapsedSeconds * Math.PI * 0.5; // Rotate at 0.5 rad/s
+      const rotationAngle = elapsedSeconds * Math.PI * 0.125; // Rotate at 0.5 rad/s
       const matrix = MatrixBuilder.euclidean()
         .rotateY(rotationAngle)
         .getArray();
