@@ -451,7 +451,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     ctx.beginPath();
     let firstPoint = true;
     for (const index of indices) {
-      const vertex = vertices.item(index);
+      const vertex = vertices[index];
       const point = this._extractPoint(vertex);
       if (firstPoint) {
         ctx.moveTo(point[0], point[1]);
@@ -478,7 +478,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     ctx.beginPath();
     let firstPoint = true;
     for (const index of indices) {
-      const vertex = vertices.item(index);
+      const vertex = vertices[index];
       const point = this._extractPoint(vertex);
       if (firstPoint) {
         ctx.moveTo(point[0], point[1]);

@@ -777,9 +777,7 @@ export class SceneGraphInspector {
     }
     this.#treeView.innerHTML = '';
     if (this.#root) {
-      console.log('SceneGraphInspector: Building tree for root:', this.#root.getName?.() || 'Unnamed');
       this.#buildTreeNode(this.#root, this.#treeView);
-      console.log('SceneGraphInspector: Tree built. Tree view has', this.#treeView.children.length, 'top-level nodes');
     } else {
       console.warn('SceneGraphInspector: No root set, cannot build tree');
     }
@@ -823,7 +821,6 @@ export class SceneGraphInspector {
       expand.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed', e);
         this.#toggleExpand(node);
       }, false); // Use bubble phase (default)
     } else {
@@ -858,7 +855,6 @@ export class SceneGraphInspector {
       if (expand.contains(e.target)) {
         return;
       }
-      console.log('Header clicked for node:', node.getName?.() || 'Unnamed', e);
       this.#selectNode(node);
     }, false); // Use bubble phase (default)
     
