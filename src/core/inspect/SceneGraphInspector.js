@@ -11,7 +11,6 @@ import { Color } from '../util/Color.js';
 import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
 import { ColorPickerWidget, VectorWidget, NumberWidget } from './widgets/index.js';
-import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader } from '../shader/index.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 
@@ -102,6 +101,16 @@ export class SceneGraphInspector {
    * @type {Map<Appearance, ShaderTreeNode>} Cache of shader tree nodes by appearance
    */
   #shaderNodeCache = new Map();
+
+  /**
+   * @type {number|null} Pending refresh timeout ID for debouncing
+   */
+  #refreshTimeoutId = null;
+
+  /**
+   * @type {boolean} Whether a refresh is currently pending
+   */
+  #refreshPending = false;
 
   /**
    * Create a new SceneGraphInspector
@@ -234,6 +243,7 @@ export class SceneGraphInspector {
         font-size: 13px;
         background: #1e1e1e;
         color: #cccccc;
+        pointer-events: auto;
       }
       
       .sg-tree-panel {
@@ -292,6 +302,9 @@ export class SceneGraphInspector {
         padding: 4px 8px;
         border-radius: 3px;
         transition: background 0.1s;
+        pointer-events: auto;
+        position: relative;
+        z-index: 1;
       }
       
       .sg-tree-node-header:hover {
@@ -757,9 +770,17 @@ export class SceneGraphInspector {
    * @private
    */
   #rebuildTree() {
+    if (!this.#treeView) {
+      console.error('SceneGraphInspector: #treeView is null! Cannot rebuild tree.');
+      return;
+    }
     this.#treeView.innerHTML = '';
     if (this.#root) {
+      console.log('SceneGraphInspector: Building tree for root:', this.#root.getName?.() || 'Unnamed');
       this.#buildTreeNode(this.#root, this.#treeView);
+      console.log('SceneGraphInspector: Tree built. Tree view has', this.#treeView.children.length, 'top-level nodes');
+    } else {
+      console.warn('SceneGraphInspector: No root set, cannot build tree');
     }
   }
 
@@ -772,9 +793,11 @@ export class SceneGraphInspector {
   #buildTreeNode(node, parentElement) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = 'sg-tree-node';
+    nodeDiv.style.pointerEvents = 'auto';
     
     const header = document.createElement('div');
     header.className = 'sg-tree-node-header';
+    header.style.pointerEvents = 'auto';
     if (node === this.#selectedNode) {
       header.classList.add('selected');
     }
@@ -799,9 +822,9 @@ export class SceneGraphInspector {
       expand.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed');
+        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed', e);
         this.#toggleExpand(node);
-      });
+      }, false); // Use bubble phase (default)
     } else {
       expand.classList.add('empty');
     }
@@ -834,9 +857,9 @@ export class SceneGraphInspector {
       if (expand.contains(e.target)) {
         return;
       }
-      console.log('Header clicked for node:', node.getName?.() || 'Unnamed');
+      console.log('Header clicked for node:', node.getName?.() || 'Unnamed', e);
       this.#selectNode(node);
-    });
+    }, false); // Use bubble phase (default)
     
     nodeDiv.appendChild(header);
     
@@ -940,7 +963,8 @@ export class SceneGraphInspector {
     } else {
       this.#expandedNodes.add(node);
     }
-    this.#rebuildTree();
+    // Use immediate refresh for user interactions to feel responsive
+    this.refreshImmediate();
   }
 
   /**
@@ -950,7 +974,8 @@ export class SceneGraphInspector {
    */
   #selectNode(node) {
     this.#selectedNode = node;
-    this.#rebuildTree();
+    // Use immediate refresh for user interactions to feel responsive
+    this.refreshImmediate();
     this.#updatePropertyPanel(node);
   }
 
@@ -1273,13 +1298,91 @@ export class SceneGraphInspector {
    * @private
    */
   #createInheritedButton(attributeKey, currentValue, appearance, schema, refreshNode = null) {
-    const span = document.createElement('span');
-    span.className = 'sg-inherited-indicator';
-    span.textContent = 'Inherited';
-    span.style.color = '#858585';
-    span.style.fontSize = '11px';
-    span.style.fontStyle = 'italic';
-    return span;
+    const isInherited = currentValue === INHERITED;
+    
+    const button = document.createElement('button');
+    button.className = 'sg-inherited-button';
+    button.textContent = isInherited ? 'Inherited' : 'Clear';
+    button.title = isInherited 
+      ? 'Click to set a default value' 
+      : 'Click to remove this attribute (set to inherited)';
+    
+    // Add click handler
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      
+      if (isInherited) {
+        // Set a default value from the schema
+        const attrName = attributeKey.split('.').pop(); // Get attribute name without prefix
+        
+        let defaultValue = null;
+        
+        // Special handling for geometry shader attributes (VERTEX_DRAW, EDGE_DRAW, FACE_DRAW)
+        if (schema === DefaultGeometryShader) {
+          // Geometry shader attributes have defaults in CommonAttributes
+          if (attributeKey === CommonAttributes.VERTEX_DRAW) {
+            defaultValue = CommonAttributes.VERTEX_DRAW_DEFAULT;
+          } else if (attributeKey === CommonAttributes.EDGE_DRAW) {
+            defaultValue = CommonAttributes.EDGE_DRAW_DEFAULT;
+          } else if (attributeKey === CommonAttributes.FACE_DRAW) {
+            defaultValue = CommonAttributes.FACE_DRAW_DEFAULT;
+          }
+        } else {
+          // For other shaders, try to get default from schema's getAllDefaults method
+          if (schema.getAllDefaults && typeof schema.getAllDefaults === 'function') {
+            const allDefaults = schema.getAllDefaults();
+            defaultValue = allDefaults[attrName];
+          }
+          
+          // If not found, try direct property access (e.g., DIFFUSE_COLOR_DEFAULT)
+          if (defaultValue === undefined || defaultValue === null) {
+            // Convert camelCase to UPPER_SNAKE_CASE for constant names
+            const constantName = attrName
+              .replace(/([A-Z])/g, '_$1')
+              .toUpperCase() + '_DEFAULT';
+            defaultValue = schema[constantName];
+          }
+        }
+        
+        if (defaultValue !== undefined && defaultValue !== null) {
+          appearance.setAttribute(attributeKey, defaultValue);
+        } else {
+          // Fallback: use reasonable defaults based on attribute name patterns
+          if (attrName.includes('Color') || attrName.toLowerCase().endsWith('color')) {
+            appearance.setAttribute(attributeKey, new Color(255, 255, 255));
+          } else if (attrName.includes('Size') || attrName.includes('Radius') || attrName.includes('Width')) {
+            appearance.setAttribute(attributeKey, 1.0);
+          } else if (attrName.includes('Coefficient')) {
+            appearance.setAttribute(attributeKey, 1.0);
+          } else if (attrName.includes('Exponent')) {
+            appearance.setAttribute(attributeKey, 60.0);
+          } else if (attrName.includes('Draw') || attrName.includes('Enabled') || attrName.includes('Shading')) {
+            appearance.setAttribute(attributeKey, true);
+          } else {
+            // Unknown type, skip setting
+            console.warn(`No default value found for attribute: ${attributeKey}`);
+            return;
+          }
+        }
+      } else {
+        // Clear the attribute (set to inherited)
+        appearance.setAttribute(attributeKey, INHERITED);
+      }
+      
+      // Trigger viewer render if available
+      if (typeof window !== 'undefined' && window._viewerInstance) {
+        window._viewerInstance.render();
+      }
+      
+      // Refresh the property panel
+      if (refreshNode) {
+        this.#updatePropertyPanel(refreshNode);
+      } else {
+        this.#updatePropertyPanel(appearance);
+      }
+    });
+    
+    return button;
   }
 
   /**
@@ -1506,82 +1609,71 @@ export class SceneGraphInspector {
   /**
    * Create shader tree nodes for an appearance
    * This builds a hierarchy: Geometry Shader -> Point/Line/Polygon Shaders
+   * Organizes attributes by shader namespace for easier inspection
    * @param {Appearance} appearance - The appearance
    * @returns {ShaderTreeNode|null} The root geometry shader node
    * @private
    */
   #createShaderTreeNodes(appearance) {
-    // Find the owning component to build EffectiveAppearance
-    let owningComponent = null;
-    
-    const findOwner = (node) => {
-      if (node instanceof SceneGraphComponent && node.getAppearance() === appearance) {
-        return node;
-      }
-      if (node instanceof SceneGraphComponent) {
-        for (const child of node.getChildComponents()) {
-          const found = findOwner(child);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    
-    if (this.#root) {
-      owningComponent = findOwner(this.#root);
-    }
-    
-    if (!owningComponent) {
-      return null; // Can't build effective appearance without owner
-    }
-    
-    // Build effective appearance
-    const path = this.#buildPathToComponent(owningComponent);
-    if (!path) return null;
-    
-    const effectiveAppearance = EffectiveAppearance.createFromPath(path);
-    const geometryShader = DefaultGeometryShader.createFromEffectiveAppearance(effectiveAppearance);
-    
     // Check cache first to maintain node identity
     let geomNode = this.#shaderNodeCache.get(appearance);
     
     if (geomNode) {
-      // Update existing node with fresh shader data
-      geomNode.updateShaderInstance(geometryShader);
-      
-      // Update sub-shader data
-      const pointShader = geometryShader.getPointShader();
-      const lineShader = geometryShader.getLineShader();
-      const polygonShader = geometryShader.getPolygonShader();
-      
-      if (geomNode.children.length === 3) {
-        geomNode.children[0].updateShaderInstance(pointShader);
-        geomNode.children[1].updateShaderInstance(lineShader);
-        geomNode.children[2].updateShaderInstance(polygonShader);
-      }
-      
+      // Nodes are cached, but we don't need to update them since
+      // we read directly from Appearance when displaying properties
       return geomNode;
     }
+    
+    // Get all attributes from the appearance
+    const allAttributes = appearance.getAttributes();
+    
+    // Organize attributes by shader namespace
+    const pointAttrs = new Map();
+    const lineAttrs = new Map();
+    const polygonAttrs = new Map();
+    const geometryAttrs = new Map();
+    
+    const pointPrefix = CommonAttributes.POINT_SHADER + '.';
+    const linePrefix = CommonAttributes.LINE_SHADER + '.';
+    const polygonPrefix = CommonAttributes.POLYGON_SHADER + '.';
+    
+    for (const [key, value] of allAttributes) {
+      if (key.startsWith(pointPrefix)) {
+        const shortKey = key.substring(pointPrefix.length);
+        pointAttrs.set(shortKey, value);
+      } else if (key.startsWith(linePrefix)) {
+        const shortKey = key.substring(linePrefix.length);
+        lineAttrs.set(shortKey, value);
+      } else if (key.startsWith(polygonPrefix)) {
+        const shortKey = key.substring(polygonPrefix.length);
+        polygonAttrs.set(shortKey, value);
+      } else {
+        // Geometry-level attributes (like vertexDraw, edgeDraw, faceDraw)
+        geometryAttrs.set(key, value);
+      }
+    }
+    
+    // Create simple shader data objects (not actual shader instances)
+    const pointShaderData = Object.fromEntries(pointAttrs);
+    const lineShaderData = Object.fromEntries(lineAttrs);
+    const polygonShaderData = Object.fromEntries(polygonAttrs);
+    const geometryShaderData = Object.fromEntries(geometryAttrs);
     
     // Create new geometry shader node
     geomNode = new ShaderTreeNode(
       'Geometry Shader',
       'geometry',
-      geometryShader,
+      geometryShaderData, // Just the attributes map
       DefaultGeometryShader,
       appearance,
       '' // No prefix
     );
     
     // Create sub-shader nodes
-    const pointShader = geometryShader.getPointShader();
-    const lineShader = geometryShader.getLineShader();
-    const polygonShader = geometryShader.getPolygonShader();
-    
     const pointNode = new ShaderTreeNode(
       'Point Shader',
       'point',
-      pointShader,
+      pointShaderData,
       DefaultPointShader,
       appearance,
       CommonAttributes.POINT_SHADER
@@ -1590,7 +1682,7 @@ export class SceneGraphInspector {
     const lineNode = new ShaderTreeNode(
       'Line Shader',
       'line',
-      lineShader,
+      lineShaderData,
       DefaultLineShader,
       appearance,
       CommonAttributes.LINE_SHADER
@@ -1599,7 +1691,7 @@ export class SceneGraphInspector {
     const polygonNode = new ShaderTreeNode(
       'Polygon Shader',
       'polygon',
-      polygonShader,
+      polygonShaderData,
       DefaultPolygonShader,
       appearance,
       CommonAttributes.POLYGON_SHADER
@@ -1617,32 +1709,57 @@ export class SceneGraphInspector {
 
   /**
    * Add shader-specific properties to the property panel
-   * Displays all attributes of the selected shader
+   * Displays ALL attributes of the selected shader schema, showing "inherited" for unset ones
    * @param {ShaderTreeNode} shaderNode - The shader tree node
    * @private
    */
   #addShaderProperties(shaderNode) {
-    const { shaderInstance, schema, appearance, prefix } = shaderNode;
+    const { schema, appearance, prefix } = shaderNode;
     
-    // Get all attributes from the shader instance
-    const allAttributes = shaderInstance.getAllAttributes();
+    // Get all possible attributes from the shader schema
+    // For GeometryShader (which is a class), use the geometry shader attributes
+    let allAttributeNames;
+    if (schema === DefaultGeometryShader) {
+      // Geometry shader attributes are not namespaced
+      allAttributeNames = [
+        CommonAttributes.VERTEX_DRAW,  // showPoints
+        CommonAttributes.EDGE_DRAW,     // showLines
+        CommonAttributes.FACE_DRAW      // showFaces
+      ];
+    } else {
+      // Other shaders have ATTRIBUTES array
+      allAttributeNames = schema.ATTRIBUTES || [];
+    }
     
-    // Create a row for each attribute
+    // Create a row for each attribute in the schema
     const properties = [];
-    for (const [key, value] of Object.entries(allAttributes)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key;
+    for (const attrName of allAttributeNames) {
+      // For geometry shader, attrName is already the full key (VERTEX_DRAW, etc.)
+      // For other shaders, we need to construct the full key with prefix
+      const fullKey = (schema === DefaultGeometryShader) ? attrName : (prefix ? `${prefix}.${attrName}` : attrName);
       
-      if (value === INHERITED) {
-        // Create inherited button that can be clicked to set value
+      // Check if this attribute is set in the Appearance
+      const value = appearance.getAttribute(fullKey);
+      const isInherited = value === INHERITED;
+      
+      // Create a container for the value display
+      const container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.gap = '5px';
+      container.style.alignItems = 'center';
+      
+      if (isInherited) {
+        // Show "inherited" button that can be clicked to set a default value
         const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema, shaderNode);
-        properties.push({
-          label: this.#formatAttributeName(key),
-          value: inheritedBtn,
-          editable: true
-        });
+        container.appendChild(inheritedBtn);
       } else {
-        // Create widget for the value
-        const widget = this.#createWidgetForValue(key, value, (newValue) => {
+        // Show widget for the actual value
+        // For geometry shader, use the display name (showPoints, showLines, showFaces)
+        const displayName = (schema === DefaultGeometryShader) 
+          ? attrName.replace('VERTEX_DRAW', 'showPoints').replace('EDGE_DRAW', 'showLines').replace('FACE_DRAW', 'showFaces')
+          : attrName;
+        
+        const widget = this.#createWidgetForValue(displayName, value, (newValue) => {
           appearance.setAttribute(fullKey, newValue);
           
           // Trigger viewer render if available
@@ -1653,23 +1770,23 @@ export class SceneGraphInspector {
           // Refresh the property panel
           this.#updatePropertyPanel(shaderNode);
         });
-        
-        // Create a container with the widget and inherited button
-        const container = document.createElement('div');
-        container.style.display = 'flex';
-        container.style.gap = '5px';
-        container.style.alignItems = 'center';
         container.appendChild(widget);
         
+        // Add inherited button to clear it (set back to inherited)
         const inheritedBtn = this.#createInheritedButton(fullKey, value, appearance, schema, shaderNode);
         container.appendChild(inheritedBtn);
-        
-        properties.push({
-          label: this.#formatAttributeName(key),
-          value: container,
-          editable: true
-        });
       }
+      
+      // Format the label - for geometry shader, use friendly names
+      const label = (schema === DefaultGeometryShader)
+        ? attrName.replace('VERTEX_DRAW', 'Show Points').replace('EDGE_DRAW', 'Show Lines').replace('FACE_DRAW', 'Show Faces')
+        : this.#formatAttributeName(attrName);
+      
+      properties.push({
+        label: label,
+        value: container,
+        editable: true
+      });
     }
     
     this.#addPropertyGroup(shaderNode.name + ' Attributes', properties);
@@ -1945,8 +2062,44 @@ export class SceneGraphInspector {
 
   /**
    * Refresh the inspector (rebuild tree and property panel)
+   * Uses debouncing to prevent excessive rebuilds during animations
    */
   refresh() {
+    // Clear any pending refresh
+    if (this.#refreshTimeoutId !== null) {
+      clearTimeout(this.#refreshTimeoutId);
+      this.#refreshTimeoutId = null;
+    }
+
+    // If a refresh is already pending, just mark it as needed again
+    if (this.#refreshPending) {
+      return;
+    }
+
+    // Debounce rapid refresh calls (e.g., during animation)
+    // This prevents constant DOM rebuilds that interfere with click handling
+    this.#refreshPending = true;
+    this.#refreshTimeoutId = setTimeout(() => {
+      this.#refreshPending = false;
+      this.#refreshTimeoutId = null;
+      this.#rebuildTree();
+      if (this.#selectedNode) {
+        this.#updatePropertyPanel(this.#selectedNode);
+      }
+    }, 16); // ~60fps, syncs with requestAnimationFrame
+  }
+
+  /**
+   * Force an immediate refresh (bypasses debouncing)
+   * Use this when you need an immediate update, e.g., after user interaction
+   */
+  refreshImmediate() {
+    // Clear any pending refresh
+    if (this.#refreshTimeoutId !== null) {
+      clearTimeout(this.#refreshTimeoutId);
+      this.#refreshTimeoutId = null;
+    }
+    this.#refreshPending = false;
     this.#rebuildTree();
     if (this.#selectedNode) {
       this.#updatePropertyPanel(this.#selectedNode);

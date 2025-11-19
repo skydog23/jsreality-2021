@@ -32,12 +32,12 @@ function createTestScene() {
   
   // Point rendering attributes
   rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,150, 60)); // Red points
-  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .1);
+  rootAppearance.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .05);
   rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
   
   // Line rendering attributes  
   rootAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 255)); // Black lines
-  rootAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .01);
+  rootAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .01);
   rootAppearance.setAttribute(CommonAttributes.EDGE_DRAW, true);
   
   // Polygon/face rendering attributes
@@ -79,7 +79,7 @@ function createTestScene() {
   worldSGC.setTransformation(new Transformation(mat));
 
   // Create some test geometry
-  createTestGeometry(worldSGC);
+  // createTestGeometry(worldSGC);
   createTestGeometryFactories(worldSGC);
   const miscComponents = addMiscGeometry(worldSGC);
   return { sceneRoot, cameraPath, miscComponents };
@@ -124,7 +124,7 @@ function initGrid(parent) {
   gridComponent.setGeometry(gridIFS);
   const ap = new Appearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.01);
   ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   gridComponent.setAppearance(ap);
   
@@ -166,7 +166,7 @@ function createTestPoints(parent) {
   
   const ap = pointsComponent.getAppearance();
   ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
-  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .2);
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .1);
   
   parent.addChild(pointsComponent);
 }
@@ -202,7 +202,7 @@ function createTestLines(parent) {
 
   const ap = linesComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .04);
 
   parent.addChild(linesComponent);
 }
@@ -241,7 +241,7 @@ function createTestTriangle(parent) {
   triangleComponent.setGeometry(faceSet);
   const ap = triangleComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
-  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .02);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .02);
 
   // Position triangle to the right
   const transform = triangleComponent.getTransformation();
@@ -284,7 +284,7 @@ function initGridFactory(parent) {
   gridComponent.setGeometry(gridIFS);
   const ap = new Appearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
-  ap.setAttribute(CommonAttributes.LINE_WIDTH, 0.01);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.01);
   ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   gridComponent.setAppearance(ap);
   
@@ -330,7 +330,7 @@ function createTestPointsFactory(parent) {
   
   const ap = pointsComponent.getAppearance();
   ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,255,0));
-  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_SIZE, .2);
+  ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .1);
   
   parent.addChild(pointsComponent);
 }
@@ -370,7 +370,7 @@ function createTestLinesFactory(parent) {
 
   const ap = linesComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .02);
 
   parent.addChild(linesComponent);
 }
@@ -418,7 +418,7 @@ function createTestTriangleFactory(parent) {
   
   const ap = triangleComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
-  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .02);
+  ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .02);
 
   // Position triangle to the right
   const transform = triangleComponent.getTransformation();
@@ -451,7 +451,7 @@ function addMiscGeometry(parent) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
        // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.LINE_WIDTH, .04);
+      // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .04);
     }
     parent.addChild(miscComponent);
     components.push(miscComponent);

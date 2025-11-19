@@ -223,8 +223,8 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   /** @type {HTMLCanvasElement} */
   #canvas;
 
-  /** @type {number} Cached point size from current appearance */
-  #pointSize = 0.1;
+  /** @type {number} Cached point radius from current appearance */
+  #pointRadius = 0.1;
 
   /**
    * Create a new Canvas2D renderer
@@ -264,7 +264,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    */
   _applyAppearance() {
     // Cache appearance attributes - will be set per primitive type in _beginPrimitiveGroup
-    this.#pointSize = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_SIZE, 0.1);
+    this.#pointRadius = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_RADIUS, 0.1);
   }
 
   /**
@@ -281,7 +281,9 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     } else if (type === CommonAttributes.LINE) {
       ctx.strokeStyle = this.toCSSColor(
         this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
-      ctx.lineWidth = this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, 1);
+      // TUBE_RADIUS is a radius, but Canvas lineWidth expects diameter, so multiply by 2
+      const tubeRadius = this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.TUBE_RADIUS, 0.05);
+      ctx.lineWidth = tubeRadius * 2;
     } else if (type === CommonAttributes.POLYGON) {
       ctx.fillStyle = this.toCSSColor(
         this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
@@ -432,7 +434,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
       ctx.fillStyle = this.toCSSColor(color);
     }
     ctx.beginPath();
-    ctx.arc(point[0], point[1], this.#pointSize / 2, 0, 2 * Math.PI);
+    ctx.arc(point[0], point[1], this.#pointRadius, 0, 2 * Math.PI);
     ctx.fill();
   }
 

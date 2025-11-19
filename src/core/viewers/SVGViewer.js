@@ -280,14 +280,14 @@ class SVGRenderer extends Abstract2DRenderer {
   /** @type {string} Cached point color */
   #pointColor = '#ff0000';
   
-  /** @type {number} Cached point size */
-  #pointSize = 0.1;
+  /** @type {number} Cached point radius */
+  #pointRadius = 0.1;
   
   /** @type {string} Cached line color */
   #lineColor = '#000000';
   
-  /** @type {number} Cached line width */
-  #lineWidth = 1;
+  /** @type {number} Cached tube radius */
+  #tubeRadius = 0.05;
   
   /** @type {string} Cached polygon/face color */
   #faceColor = '#cccccc';
@@ -352,11 +352,11 @@ class SVGRenderer extends Abstract2DRenderer {
     // Cache appearance attributes - will be used in _beginPrimitiveGroup
     this.#pointColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
-    this.#pointSize = Number(this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_SIZE, 0.1));
+    this.#pointRadius = Number(this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_RADIUS, 0.1));
     
     this.#lineColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
-    this.#lineWidth = Number(this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, 1));
+    this.#tubeRadius = Number(this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.TUBE_RADIUS, 0.05));
     
     this.#faceColor = this.toCSSColor(
       this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
@@ -385,7 +385,8 @@ class SVGRenderer extends Abstract2DRenderer {
       g.setAttribute('fill', this.#pointColor);
     } else if (type === CommonAttributes.LINE) {
       g.setAttribute('stroke', this.#lineColor);
-      g.setAttribute('stroke-width', this.#lineWidth.toFixed(4));
+      // TUBE_RADIUS is a radius, but SVG stroke-width expects diameter, so multiply by 2
+      g.setAttribute('stroke-width', (this.#tubeRadius * 2).toFixed(4));
       g.setAttribute('fill', 'none');
     } else if (type === CommonAttributes.POLYGON) {
       g.setAttribute('fill', this.#faceColor);
@@ -568,7 +569,7 @@ class SVGRenderer extends Abstract2DRenderer {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx',point[0].toFixed(4));
     circle.setAttribute('cy',point[1].toFixed(4));
-    circle.setAttribute('r', (this.#pointSize / 2).toFixed(4));
+    circle.setAttribute('r', this.#pointRadius.toFixed(4));
     // Override fill color if vertex color is provided
     if (color) {
       circle.setAttribute('fill', this.toCSSColor(color));
