@@ -432,38 +432,9 @@
             
             // Create and attach the inspector
             const inspectorContainer = document.getElementById('inspector-container');
-            console.log('Inspector container:', inspectorContainer);
-            console.log('Inspector container computed style:', window.getComputedStyle(inspectorContainer));
             const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
             console.log('✓ Scene Graph Inspector created');
             
-            // Test: Verify tree view exists and is clickable
-            setTimeout(() => {
-              const treeView = inspectorContainer.querySelector('.sg-tree-view');
-              console.log('Tree view element:', treeView);
-              console.log('Tree view computed style:', treeView ? window.getComputedStyle(treeView) : 'NOT FOUND');
-              if (treeView) {
-                console.log('Tree view children count:', treeView.children.length);
-                // Check if expand icons exist and have handlers
-                const expandIcons = treeView.querySelectorAll('.sg-tree-expand');
-                console.log('Found expand icons:', expandIcons.length);
-                expandIcons.forEach((icon, i) => {
-                  console.log(`Expand icon ${i}:`, icon, 'text:', icon.textContent);
-                });
-                // Add a test click listener directly to the tree view (bubble phase, fires AFTER individual handlers)
-                treeView.addEventListener('click', (e) => {
-                  console.log('Tree view clicked!', e.target, e.target.className, e.target.tagName);
-                  // Check if target is a header or expand icon
-                  const header = e.target.closest('.sg-tree-node-header');
-                  const expand = e.target.closest('.sg-tree-expand');
-                  console.log('Closest header:', header);
-                  console.log('Closest expand:', expand);
-                  if (expand) {
-                    console.log('Expand icon found via closest!');
-                  }
-                }, false); // Use bubble phase - fires AFTER individual handlers
-              }
-            }, 100);
             
             // Store viewer reference globally so inspector changes can trigger renders
             window._viewerInstance = viewer;

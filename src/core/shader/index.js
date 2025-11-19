@@ -10,6 +10,7 @@ export { ShaderUtility } from './ShaderUtility.js';
 export { PointShader } from './PointShader.js';
 export { LineShader } from './LineShader.js';
 export { PolygonShader } from './PolygonShader.js';
+export { RenderingHintsShader } from './RenderingHintsShader.js';
 
 // Default shader implementations
 export { 
@@ -21,3 +22,4 @@ export {
 export { DefaultPointShader } from './DefaultPointShader.js';
 export { DefaultLineShader } from './DefaultLineShader.js';
 export { DefaultPolygonShader } from './DefaultPolygonShader.js';
+export { DefaultRenderingHintsShader } from './DefaultRenderingHintsShader.js';

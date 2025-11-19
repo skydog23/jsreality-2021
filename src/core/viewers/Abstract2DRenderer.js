@@ -11,6 +11,7 @@ import { Color } from '../util/Color.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { ShaderUtility } from '../shader/ShaderUtility.js';
+import { fromDataList } from '../scene/data/DataUtility.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/Appearance.js').Appearance} Appearance */
@@ -435,7 +436,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @returns {boolean}
    */
   getBooleanAttribute(attribute, defaultValue) {
-    return Boolean(this.getAppearanceAttribute(null, attribute, defaultValue));
+    const value = this.getAppearanceAttribute(null, attribute, defaultValue);
+    // Handle INHERITED symbol - if attribute is inherited, use default value
+    if (value === INHERITED) {
+      return Boolean(defaultValue);
+    }
+    return Boolean(value);
   }
 
   /**
@@ -467,6 +473,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {IndexedLineSet} lineSet - The line set to render
    */
   visitIndexedLineSet(lineSet) {
+    // console.log('Visiting IndexedLineSet', lineSet);
     // IndexedLineSet renders vertices as points (if VERTEX_DRAW), then edges as lines (if EDGE_DRAW)
     this._renderVerticesAsPoints(lineSet);
     this._renderEdgesAsLines(lineSet);
@@ -477,6 +484,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {IndexedFaceSet} faceSet - The face set to render
    */
   visitIndexedFaceSet(faceSet) {
+    // console.log('Visiting IndexedFaceSet', faceSet);
     // IndexedFaceSet renders all three primitive types based on draw flags:
     // 1. Vertices as points (if VERTEX_DRAW)
     // 2. Edges as lines (if EDGE_DRAW) 
@@ -496,22 +504,20 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = geometry.getVertexCoordinates();
-    const colors = geometry.getVertexColors();
+    const vertices = fromDataList(geometry.getVertexCoordinates());
     if (!vertices) return;
+    const colors = fromDataList(geometry.getVertexColors());
     
-    // Get point color with namespace fallback
-    const pointColor = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000');
-
+    
     const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
                        geometry.getNumVertices ? geometry.getNumVertices() : 
-                       vertices.shape[0];
+                       vertices.length;
     
     // Begin nested group for points
     this._beginPrimitiveGroup(CommonAttributes.POINT);
     
     for (let i = 0; i < numVertices; i++) {
-        this._drawPoint(vertices.getSlice(i), colors ? colors.getSlice(i) : null);
+        this._drawPoint(vertices[i], colors ? colors[i] : null);
     }
     
     // End nested group for points
@@ -527,27 +533,33 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
       return;
     }
-
-    const vertices = geometry.getVertexCoordinates();
+    
+    const vertices = fromDataList(geometry.getVertexCoordinates());
+    if (!vertices) return;
     
     // Get appropriate edge indices - try both convenience method and direct attribute access
-    let indices = geometry.getEdgeIndices();
-     // Fallback: try getting indices directly from edge attributes
+    let indices = fromDataList(geometry.getEdgeIndices());
+    // Fallback: try getting indices directly from edge attributes
     if (!indices && geometry.getEdgeAttributes) {
       const edgeAttrs = geometry.getEdgeAttributes();
       if (edgeAttrs && edgeAttrs.size > 0) {
-        indices = geometry.getEdgeAttribute(GeometryAttribute.INDICES);
+        indices = fromDataList(geometry.getEdgeAttribute(GeometryAttribute.INDICES));
       }
     }
-    const colors = geometry.getEdgeAttribute(GeometryAttribute.COLORS);
+    
+    // Get edge colors and convert from DataList if present
+    let edgeColors = geometry.getEdgeAttribute(GeometryAttribute.COLORS);
+    if (edgeColors) {
+      edgeColors = fromDataList(edgeColors);
+    }
     
     this._beginPrimitiveGroup(CommonAttributes.LINE);
     
     // Render all edges
     if (indices) {
-      // DataList of edge indices - use item() which works for both RegularDataList and VariableDataList
-      for (let i = 0; i < indices.length(); i++) {
-        this._drawPolyline(vertices, colors ? colors.item(i) : null, indices.item(i));
+      // indices is now a JS array (from fromDataList), where each element is an array of vertex indices
+      for (let i = 0; i < indices.length; i++) {
+        this._drawPolyline(vertices, edgeColors ? edgeColors[i] : null, indices[i]);
       }
     } else {
       // Handle flat array case
@@ -568,23 +580,22 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = geometry.getVertexCoordinates();
-    const indices = geometry.getFaceIndices();
+    const vertices = fromDataList(geometry.getVertexCoordinates());
+    const indices = fromDataList(geometry.getFaceIndices());
     if (!vertices || !indices) return;
 
-    const colors = geometry.getFaceAttribute(GeometryAttribute.COLORS);
-
-
-    // Get appearance attributes
-    const faceColor = this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc');
+     // Get face colors and convert from DataList if present
+    let faceColors = geometry.getFaceAttribute(GeometryAttribute.COLORS);
+    if (faceColors) {
+      faceColors = fromDataList(faceColors);
+    }
 
     // Begin nested group for faces
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     
-    // DataList of face indices - use item() which works for both RegularDataList and VariableDataList
-    for (let i = 0; i < indices.length(); i++) {
-      const faceIndices = indices.item(i);
-      this._drawPolygon(vertices, colors ? colors.item(i) : null, faceIndices, true);
+    // indices is now a JS array (from fromDataList), where each element is an array of vertex indices
+    for (let i = 0; i < indices.length; i++) {
+     this._drawPolygon(vertices, faceColors ? faceColors[i] : null, indices[i], true);
     }
     
     // End nested group for faces
