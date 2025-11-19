@@ -531,7 +531,15 @@ export function runCanvas2DTest() {
     // Select the misc component to animate (index 2 is the icosahedron)
     const animatedComponent = miscComponents[2];
     const icoverts = fromDataList(geomList[2].getVertexAttribute(GeometryAttribute.COORDINATES));
+    
+    // Performance profiling: enable to see detailed timing in DevTools Performance tab
+    const ENABLE_PROFILING = true; // Set to false to disable profiling overhead
+    
     function animate(timestamp) {
+      if (ENABLE_PROFILING) {
+        performance.mark('animate-start');
+      }
+      
       // Initialize start time on first call
       if (animationStartTime === null) {
         animationStartTime = timestamp;
@@ -540,17 +548,60 @@ export function runCanvas2DTest() {
       // Calculate elapsed time in seconds
       const elapsedSeconds = (timestamp - animationStartTime) / 1000;
       
+      if (ENABLE_PROFILING) {
+        performance.mark('matrix-build-start');
+      }
+      
       // Apply rotation transformation (rotating around Y-axis)
       const rotationAngle = elapsedSeconds * Math.PI * 0.5; // Rotate at 0.5 rad/s
       const matrix = MatrixBuilder.euclidean()
         .rotateY(rotationAngle)
         .getArray();
+      
+      if (ENABLE_PROFILING) {
+        performance.mark('matrix-build-end');
+        performance.mark('transform-vertices-start');
+      }
+      
       const transformedIcoverts = Rn.matrixTimesVectorArray(null, matrix, icoverts); 
+      
+      if (ENABLE_PROFILING) {
+        performance.mark('transform-vertices-end');
+        performance.mark('update-geometry-start');
+      }
+      
       // Use setVertexAttribute instead of setVertexCoordinates to avoid updating vertex count
       // which can cause edge data to be invalidated
       const coordList = toDataList(transformedIcoverts);
       geomList[2].setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
+      
+      if (ENABLE_PROFILING) {
+        performance.mark('update-geometry-end');
+        performance.mark('render-start');
+      }
+      
       viewer.render();
+      
+      if (ENABLE_PROFILING) {
+        performance.mark('render-end');
+        performance.mark('animate-end');
+        
+        // Create measurements for DevTools Performance panel
+        performance.measure('matrix-build', 'matrix-build-start', 'matrix-build-end');
+        performance.measure('transform-vertices', 'transform-vertices-start', 'transform-vertices-end');
+        performance.measure('update-geometry', 'update-geometry-start', 'update-geometry-end');
+        performance.measure('render', 'render-start', 'render-end');
+        performance.measure('total-frame', 'animate-start', 'animate-end');
+        
+        // Log frame time occasionally (every 60 frames ~= once per second at 60fps)
+        if (Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
+          const measures = performance.getEntriesByType('measure');
+          const lastFrame = measures.filter(m => m.name === 'total-frame').slice(-1)[0];
+          if (lastFrame) {
+            console.log(`Frame time: ${lastFrame.duration.toFixed(2)}ms`);
+          }
+        }
+      }
       
       // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)
       animationId = requestAnimationFrame(animate);
