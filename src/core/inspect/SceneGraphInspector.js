@@ -11,7 +11,7 @@ import { Color } from '../util/Color.js';
 import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
 import { ColorPickerWidget, VectorWidget, NumberWidget } from './widgets/index.js';
-import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader } from '../shader/index.js';
+import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader, DefaultRenderingHintsShader } from '../shader/index.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 
 /**
@@ -98,7 +98,8 @@ export class SceneGraphInspector {
   #expandedNodes = new Set();
 
   /**
-   * @type {Map<Appearance, ShaderTreeNode>} Cache of shader tree nodes by appearance
+   * @type {Map<Appearance, ShaderTreeNode[]>} Cache of shader tree nodes by appearance
+   * Stores an array containing GeometryShader and RenderingHintsShader nodes
    */
   #shaderNodeCache = new Map();
 
@@ -897,7 +898,14 @@ export class SceneGraphInspector {
         // Create shader tree nodes for this appearance
         const shaderNodes = this.#createShaderTreeNodes(node);
         if (shaderNodes) {
-          this.#buildTreeNode(shaderNodes, childrenDiv);
+          // shaderNodes can be a single node or an array
+          if (Array.isArray(shaderNodes)) {
+            for (const shaderNode of shaderNodes) {
+              this.#buildTreeNode(shaderNode, childrenDiv);
+            }
+          } else {
+            this.#buildTreeNode(shaderNodes, childrenDiv);
+          }
         }
       } else if (node instanceof ShaderTreeNode) {
         // Add shader node children
@@ -927,6 +935,7 @@ export class SceneGraphInspector {
     if (node instanceof Camera) return '📷';
     if (node instanceof ShaderTreeNode) {
       if (node.type === 'geometry') return '🎨';
+      if (node.type === 'renderingHints') return '⚙️';
       if (node.type === 'point') return '⚫';
       if (node.type === 'line') return '━';
       if (node.type === 'polygon') return '▲';
@@ -1327,6 +1336,10 @@ export class SceneGraphInspector {
           } else if (attributeKey === CommonAttributes.FACE_DRAW) {
             defaultValue = CommonAttributes.FACE_DRAW_DEFAULT;
           }
+        } else if (schema === DefaultRenderingHintsShader) {
+          // Rendering hints shader attributes have defaults in DefaultRenderingHintsShader
+          const defaults = schema.getAllDefaults();
+          defaultValue = defaults[attrName];
         } else {
           // For other shaders, try to get default from schema's getAllDefaults method
           if (schema.getAllDefaults && typeof schema.getAllDefaults === 'function') {
@@ -1609,19 +1622,20 @@ export class SceneGraphInspector {
   /**
    * Create shader tree nodes for an appearance
    * This builds a hierarchy: Geometry Shader -> Point/Line/Polygon Shaders
+   * Also creates a RenderingHintsShader node
    * Organizes attributes by shader namespace for easier inspection
    * @param {Appearance} appearance - The appearance
-   * @returns {ShaderTreeNode|null} The root geometry shader node
+   * @returns {ShaderTreeNode[]|ShaderTreeNode|null} Array of shader nodes (GeometryShader and RenderingHintsShader)
    * @private
    */
   #createShaderTreeNodes(appearance) {
     // Check cache first to maintain node identity
-    let geomNode = this.#shaderNodeCache.get(appearance);
+    let cachedNodes = this.#shaderNodeCache.get(appearance);
     
-    if (geomNode) {
+    if (cachedNodes) {
       // Nodes are cached, but we don't need to update them since
       // we read directly from Appearance when displaying properties
-      return geomNode;
+      return cachedNodes;
     }
     
     // Get all attributes from the appearance
@@ -1632,10 +1646,14 @@ export class SceneGraphInspector {
     const lineAttrs = new Map();
     const polygonAttrs = new Map();
     const geometryAttrs = new Map();
+    const renderingHintsAttrs = new Map();
     
     const pointPrefix = CommonAttributes.POINT_SHADER + '.';
     const linePrefix = CommonAttributes.LINE_SHADER + '.';
     const polygonPrefix = CommonAttributes.POLYGON_SHADER + '.';
+    
+    // List of rendering hints attribute names (from DefaultRenderingHintsShader.ATTRIBUTES)
+    const renderingHintsAttributeNames = new Set(DefaultRenderingHintsShader.ATTRIBUTES);
     
     for (const [key, value] of allAttributes) {
       if (key.startsWith(pointPrefix)) {
@@ -1647,6 +1665,9 @@ export class SceneGraphInspector {
       } else if (key.startsWith(polygonPrefix)) {
         const shortKey = key.substring(polygonPrefix.length);
         polygonAttrs.set(shortKey, value);
+      } else if (renderingHintsAttributeNames.has(key)) {
+        // Rendering hints attributes (no prefix)
+        renderingHintsAttrs.set(key, value);
       } else {
         // Geometry-level attributes (like vertexDraw, edgeDraw, faceDraw)
         geometryAttrs.set(key, value);
@@ -1658,9 +1679,10 @@ export class SceneGraphInspector {
     const lineShaderData = Object.fromEntries(lineAttrs);
     const polygonShaderData = Object.fromEntries(polygonAttrs);
     const geometryShaderData = Object.fromEntries(geometryAttrs);
+    const renderingHintsShaderData = Object.fromEntries(renderingHintsAttrs);
     
     // Create new geometry shader node
-    geomNode = new ShaderTreeNode(
+    const geomNode = new ShaderTreeNode(
       'Geometry Shader',
       'geometry',
       geometryShaderData, // Just the attributes map
@@ -1701,10 +1723,23 @@ export class SceneGraphInspector {
     geomNode.addChild(lineNode);
     geomNode.addChild(polygonNode);
     
-    // Cache the node
-    this.#shaderNodeCache.set(appearance, geomNode);
+    // Create rendering hints shader node
+    const renderingHintsNode = new ShaderTreeNode(
+      'Rendering Hints Shader',
+      'renderingHints',
+      renderingHintsShaderData,
+      DefaultRenderingHintsShader,
+      appearance,
+      '' // No prefix for rendering hints attributes
+    );
     
-    return geomNode;
+    // Return array of both nodes
+    const nodes = [geomNode, renderingHintsNode];
+    
+    // Cache the nodes
+    this.#shaderNodeCache.set(appearance, nodes);
+    
+    return nodes;
   }
 
   /**
@@ -1718,6 +1753,7 @@ export class SceneGraphInspector {
     
     // Get all possible attributes from the shader schema
     // For GeometryShader (which is a class), use the geometry shader attributes
+    // For RenderingHintsShader, use its ATTRIBUTES array
     let allAttributeNames;
     if (schema === DefaultGeometryShader) {
       // Geometry shader attributes are not namespaced
@@ -1726,6 +1762,9 @@ export class SceneGraphInspector {
         CommonAttributes.EDGE_DRAW,     // showLines
         CommonAttributes.FACE_DRAW      // showFaces
       ];
+    } else if (schema === DefaultRenderingHintsShader) {
+      // Rendering hints shader attributes are not namespaced
+      allAttributeNames = schema.ATTRIBUTES || [];
     } else {
       // Other shaders have ATTRIBUTES array
       allAttributeNames = schema.ATTRIBUTES || [];
@@ -1734,9 +1773,11 @@ export class SceneGraphInspector {
     // Create a row for each attribute in the schema
     const properties = [];
     for (const attrName of allAttributeNames) {
-      // For geometry shader, attrName is already the full key (VERTEX_DRAW, etc.)
+      // For geometry shader and rendering hints shader, attrName is already the full key
       // For other shaders, we need to construct the full key with prefix
-      const fullKey = (schema === DefaultGeometryShader) ? attrName : (prefix ? `${prefix}.${attrName}` : attrName);
+      const fullKey = (schema === DefaultGeometryShader || schema === DefaultRenderingHintsShader) 
+        ? attrName 
+        : (prefix ? `${prefix}.${attrName}` : attrName);
       
       // Check if this attribute is set in the Appearance
       const value = appearance.getAttribute(fullKey);
