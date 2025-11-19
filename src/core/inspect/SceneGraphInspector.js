@@ -104,6 +104,16 @@ export class SceneGraphInspector {
   #shaderNodeCache = new Map();
 
   /**
+   * @type {number|null} Pending refresh timeout ID for debouncing
+   */
+  #refreshTimeoutId = null;
+
+  /**
+   * @type {boolean} Whether a refresh is currently pending
+   */
+  #refreshPending = false;
+
+  /**
    * Create a new SceneGraphInspector
    * @param {HTMLElement} container - The container element for the inspector
    * @param {SceneGraphComponent} root - The root scene graph component
@@ -234,6 +244,7 @@ export class SceneGraphInspector {
         font-size: 13px;
         background: #1e1e1e;
         color: #cccccc;
+        pointer-events: auto;
       }
       
       .sg-tree-panel {
@@ -292,6 +303,9 @@ export class SceneGraphInspector {
         padding: 4px 8px;
         border-radius: 3px;
         transition: background 0.1s;
+        pointer-events: auto;
+        position: relative;
+        z-index: 1;
       }
       
       .sg-tree-node-header:hover {
@@ -757,9 +771,17 @@ export class SceneGraphInspector {
    * @private
    */
   #rebuildTree() {
+    if (!this.#treeView) {
+      console.error('SceneGraphInspector: #treeView is null! Cannot rebuild tree.');
+      return;
+    }
     this.#treeView.innerHTML = '';
     if (this.#root) {
+      console.log('SceneGraphInspector: Building tree for root:', this.#root.getName?.() || 'Unnamed');
       this.#buildTreeNode(this.#root, this.#treeView);
+      console.log('SceneGraphInspector: Tree built. Tree view has', this.#treeView.children.length, 'top-level nodes');
+    } else {
+      console.warn('SceneGraphInspector: No root set, cannot build tree');
     }
   }
 
@@ -772,9 +794,11 @@ export class SceneGraphInspector {
   #buildTreeNode(node, parentElement) {
     const nodeDiv = document.createElement('div');
     nodeDiv.className = 'sg-tree-node';
+    nodeDiv.style.pointerEvents = 'auto';
     
     const header = document.createElement('div');
     header.className = 'sg-tree-node-header';
+    header.style.pointerEvents = 'auto';
     if (node === this.#selectedNode) {
       header.classList.add('selected');
     }
@@ -799,9 +823,9 @@ export class SceneGraphInspector {
       expand.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed');
+        console.log('Expand icon clicked for node:', node.getName?.() || 'Unnamed', e);
         this.#toggleExpand(node);
-      });
+      }, false); // Use bubble phase (default)
     } else {
       expand.classList.add('empty');
     }
@@ -834,9 +858,9 @@ export class SceneGraphInspector {
       if (expand.contains(e.target)) {
         return;
       }
-      console.log('Header clicked for node:', node.getName?.() || 'Unnamed');
+      console.log('Header clicked for node:', node.getName?.() || 'Unnamed', e);
       this.#selectNode(node);
-    });
+    }, false); // Use bubble phase (default)
     
     nodeDiv.appendChild(header);
     
@@ -940,7 +964,8 @@ export class SceneGraphInspector {
     } else {
       this.#expandedNodes.add(node);
     }
-    this.#rebuildTree();
+    // Use immediate refresh for user interactions to feel responsive
+    this.refreshImmediate();
   }
 
   /**
@@ -950,7 +975,8 @@ export class SceneGraphInspector {
    */
   #selectNode(node) {
     this.#selectedNode = node;
-    this.#rebuildTree();
+    // Use immediate refresh for user interactions to feel responsive
+    this.refreshImmediate();
     this.#updatePropertyPanel(node);
   }
 
@@ -1945,8 +1971,44 @@ export class SceneGraphInspector {
 
   /**
    * Refresh the inspector (rebuild tree and property panel)
+   * Uses debouncing to prevent excessive rebuilds during animations
    */
   refresh() {
+    // Clear any pending refresh
+    if (this.#refreshTimeoutId !== null) {
+      clearTimeout(this.#refreshTimeoutId);
+      this.#refreshTimeoutId = null;
+    }
+
+    // If a refresh is already pending, just mark it as needed again
+    if (this.#refreshPending) {
+      return;
+    }
+
+    // Debounce rapid refresh calls (e.g., during animation)
+    // This prevents constant DOM rebuilds that interfere with click handling
+    this.#refreshPending = true;
+    this.#refreshTimeoutId = setTimeout(() => {
+      this.#refreshPending = false;
+      this.#refreshTimeoutId = null;
+      this.#rebuildTree();
+      if (this.#selectedNode) {
+        this.#updatePropertyPanel(this.#selectedNode);
+      }
+    }, 16); // ~60fps, syncs with requestAnimationFrame
+  }
+
+  /**
+   * Force an immediate refresh (bypasses debouncing)
+   * Use this when you need an immediate update, e.g., after user interaction
+   */
+  refreshImmediate() {
+    // Clear any pending refresh
+    if (this.#refreshTimeoutId !== null) {
+      clearTimeout(this.#refreshTimeoutId);
+      this.#refreshTimeoutId = null;
+    }
+    this.#refreshPending = false;
     this.#rebuildTree();
     if (this.#selectedNode) {
       this.#updatePropertyPanel(this.#selectedNode);
