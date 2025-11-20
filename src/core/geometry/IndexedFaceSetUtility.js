@@ -636,7 +636,7 @@ export class IndexedFaceSetUtility {
     ifsf.setFaceIndices(newIndices);
     ifsf.setGenerateEdgesFromFaces(true);
     ifsf.update();
-    console.log("binaryRefine: "+nvd.length+' '+newIndices.length);
+    console.log("binaryRefine: "+nvd.length+' '+ifsf.getEdgeCount()+' '+newIndices.length);
     return ifsf.getIndexedFaceSet();
   }
   
@@ -837,5 +837,200 @@ export class IndexedFaceSetUtility {
     }
     
     return area > 0 ? 1 : -1;
+  }
+  
+  /**
+   * For each face of ifs, replace it with a face gotten by:
+   * - if factor > 0: a shrunken version of the face (factor == 1 gives original face), or
+   * - if factor < 0: a hole is cut out of the face, corresponding to the shrunken version with the
+   *   same absolute value.
+   * 
+   * @param {IndexedFaceSet} ifs - Face set to implode
+   * @param {number} factor - Implode factor (positive = shrink, negative = hole)
+   * @returns {IndexedFaceSet} New imploded face set
+   */
+  static implode(ifs, factor) {
+    // Get metric from geometry attributes
+    let metric = EUCLIDEAN;
+    const metricAttr = ifs.getGeometryAttribute(GeometryUtility.METRIC);
+    if (metricAttr != null && typeof metricAttr === 'number') {
+      metric = metricAttr;
+    }
+    
+    // Check if edges should be created (only if original had edges)
+    const makeEdges = ifs.getEdgeAttribute(GeometryAttribute.INDICES) != null;
+    
+    // Count total vertices needed
+    const indicesData = ifs.getFaceAttribute(GeometryAttribute.INDICES);
+    const indices = fromDataList(indicesData);
+    let vertcount = 0;
+    for (let i = 0; i < indices.length; ++i) {
+      vertcount += indices[i].length;
+    }
+    
+    // Get vertex coordinates
+    const vertsData = ifs.getVertexAttribute(GeometryAttribute.COORDINATES);
+    let oldverts = fromDataList(vertsData);
+    const vectorLength = oldverts[0].length;
+    const fiber = vectorLength;
+    
+    // Dehomogenize if needed (convert 4D to 3D)
+    if (vectorLength !== 3) {
+      const oldverts2 = Array(oldverts.length);
+      for (let i = 0; i < oldverts.length; i++) {
+        oldverts2[i] = new Array(3);
+        Pn.dehomogenize(oldverts2[i], oldverts[i]);
+      }
+      oldverts = oldverts2;
+    }
+    
+    const implode = -factor; // Invert factor for calculation
+    let newind, newverts, imploded;
+    
+    if (implode > 0.0) {
+      // Positive implode: shrink faces toward center
+      newind = Array(indices.length);
+      newverts = Array(vertcount).fill(null).map(() => new Array(3));
+      
+      for (let i = 0, count = 0; i < indices.length; ++i) {
+        const thisf = indices[i];
+        newind[i] = new Array(thisf.length);
+        
+        // Calculate face center
+        const center = new Array(3).fill(0);
+        for (let j = 0; j < thisf.length; ++j) {
+          Rn.add(center, oldverts[thisf[j]], center);
+          newind[i][j] = count + j;
+        }
+        Rn.times(center, 1.0 / thisf.length, center);
+        
+        // Move vertices toward center
+        const diff = new Array(3);
+        for (let j = 0; j < thisf.length; ++j) {
+          Rn.subtract(diff, oldverts[thisf[j]], center);
+          Rn.times(diff, implode, diff);
+          Rn.add(newverts[count + j], center, diff);
+        }
+        count += thisf.length;
+      }
+      
+      // Get face normals and colors if present
+      let fn = null;
+      const faceNormalsData = ifs.getFaceAttribute(GeometryAttribute.NORMALS);
+      if (faceNormalsData != null) {
+        fn = fromDataList(faceNormalsData);
+      } else {
+        fn = IndexedFaceSetUtility.calculateFaceNormalsWithMetric(ifs, metric);
+      }
+      
+      let fc = null;
+      const faceColorsData = ifs.getFaceAttribute(GeometryAttribute.COLORS);
+      if (faceColorsData != null) {
+        fc = fromDataList(faceColorsData);
+      }
+      
+      // Create new IndexedFaceSet
+      const ifsf = new IndexedFaceSetFactory();
+      ifsf.setVertexCount(vertcount);
+      ifsf.setFaceCount(indices.length);
+      
+      // Homogenize if original was 4D
+      if (fiber === 4) {
+        const newverts4 = Array(newverts.length);
+        for (let i = 0; i < newverts.length; i++) {
+          newverts4[i] = new Array(4);
+          Pn.homogenize(newverts4[i], newverts[i]);
+        }
+        newverts = newverts4;
+      }
+      
+      ifsf.setVertexCoordinates(newverts);
+      ifsf.setFaceIndices(newind);
+      ifsf.setMetric(metric);
+      if (fn != null) {
+        ifsf.setFaceNormals(fn);
+      } else {
+        ifsf.setGenerateFaceNormals(true);
+      }
+      if (fc != null) {
+        ifsf.setFaceColors(fc);
+      }
+      ifsf.setGenerateEdgesFromFaces(makeEdges);
+      ifsf.update();
+      imploded = ifsf.getIndexedFaceSet();
+      
+    } else {
+      // Negative implode: create holes (quad faces)
+      const oldcount = oldverts.length;
+      newind = Array(vertcount).fill(null).map(() => new Array(4));
+      newverts = Array(vertcount + oldcount).fill(null).map(() => new Array(3));
+      
+      // Copy original vertices
+      for (let i = 0; i < oldcount; ++i) {
+        newverts[i] = [...oldverts[i]];
+      }
+      
+      let fcd = null, nfcd = null;
+      const faceColorsData = ifs.getFaceAttribute(GeometryAttribute.COLORS);
+      if (faceColorsData != null) {
+        fcd = fromDataList(faceColorsData);
+        nfcd = Array(vertcount);
+      }
+      
+      for (let i = 0, count = 0; i < indices.length; ++i) {
+        const thisf = indices[i];
+        const center = new Array(3).fill(0);
+        
+        for (let j = 0; j < thisf.length; ++j) {
+          Rn.add(center, oldverts[thisf[j]], center);
+          // Create quad face indices
+          newind[count + j][0] = thisf[j];
+          newind[count + j][1] = thisf[(j + 1) % thisf.length];
+          newind[count + j][2] = oldcount + count + ((j + 1) % thisf.length);
+          newind[count + j][3] = oldcount + count + j;
+          if (fcd != null) {
+            nfcd[count + j] = fcd[i];
+          }
+        }
+        Rn.times(center, 1.0 / thisf.length, center);
+        
+        // Move vertices away from center (opposite direction)
+        const diff = new Array(3);
+        for (let j = 0; j < thisf.length; ++j) {
+          Rn.subtract(diff, center, oldverts[thisf[j]]);
+          Rn.times(diff, -implode, diff);
+          Rn.add(newverts[oldcount + count + j], oldverts[thisf[j]], diff);
+        }
+        count += thisf.length;
+      }
+      
+      // Create new IndexedFaceSet
+      const ifsf = new IndexedFaceSetFactory();
+      ifsf.setMetric(metric);
+      ifsf.setVertexCount(vertcount + oldcount);
+      ifsf.setFaceCount(vertcount);
+      
+      // Homogenize if original was 4D
+      if (fiber === 4) {
+        const newverts4 = Array(newverts.length);
+        for (let i = 0; i < newverts.length; i++) {
+          newverts4[i] = new Array(4);
+          Pn.homogenize(newverts4[i], newverts[i]);
+        }
+        newverts = newverts4;
+      }
+      
+      ifsf.setVertexCoordinates(newverts);
+      ifsf.setFaceIndices(newind);
+      if (nfcd != null) {
+        ifsf.setFaceColors(nfcd);
+      }
+      ifsf.setGenerateFaceNormals(true);
+      ifsf.setGenerateEdgesFromFaces(makeEdges);
+      ifsf.update();
+      imploded = ifsf.getIndexedFaceSet();
+    }
+    
+    return imploded;
   }
 }

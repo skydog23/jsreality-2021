@@ -2,6 +2,7 @@
 // Helper methods for shader and appearance attribute handling
 
 import { Color } from '../util/Color.js';
+import { ShaderRegistry } from './ShaderRegistry.js';
 
 /**
  * Utility methods for shader and appearance management.
@@ -48,6 +49,21 @@ export class ShaderUtility {
     const b = diffuseColor.getBlue();
     
     return new Color(r, g, b, Math.round(alpha * 255));
+  }
+  
+  /**
+   * Resolve a shader name to its schema implementation.
+   * Maps shader names (like "default", "implode", "twoSide") to schema objects.
+   * 
+   * This is the JavaScript equivalent of Java's ShaderUtility.resolveEntity().
+   * 
+   * @param {string} type - Shader type: 'point', 'line', or 'polygon'
+   * @param {string} name - Shader name (e.g., 'default', 'implode')
+   * @returns {Object} Shader schema object
+   * @throws {Error} If shader type or name is not found
+   */
+  static resolveShader(type, name) {
+    return ShaderRegistry.resolveShader(type, name);
   }
 }
 

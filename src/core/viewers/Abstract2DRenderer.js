@@ -11,6 +11,7 @@ import { Color } from '../util/Color.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { ShaderUtility } from '../shader/ShaderUtility.js';
+import { DefaultGeometryShader } from '../shader/DefaultGeometryShader.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -512,14 +513,25 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {IndexedFaceSet} faceSet - The face set to render
    */
   visitIndexedFaceSet(faceSet) {
-    // console.log('Visiting IndexedFaceSet', faceSet);
+    // Check for proxy geometry (e.g., implode shader)
+    let geometryToRender = faceSet;
+    const geometryShader = DefaultGeometryShader.createFromEffectiveAppearance(this.#effectiveAppearance);
+    const polygonShader = geometryShader.getPolygonShader();
+    
+    if (polygonShader.providesProxyGeometry()) {
+      const proxyGeometry = polygonShader.getProxyGeometry(faceSet);
+      if (proxyGeometry) {
+        geometryToRender = proxyGeometry;
+      }
+    }
+    
     // IndexedFaceSet renders all three primitive types based on draw flags:
     // 1. Vertices as points (if VERTEX_DRAW)
     // 2. Edges as lines (if EDGE_DRAW) 
     // 3. Faces as filled polygons (if FACE_DRAW)
-    this._renderVerticesAsPoints(faceSet);
-    this._renderEdgesAsLines(faceSet);
-    this._renderFacesAsPolygons(faceSet);
+    this._renderVerticesAsPoints(geometryToRender);
+    this._renderEdgesAsLines(geometryToRender);
+    this._renderFacesAsPolygons(geometryToRender);
   }
 
   /**

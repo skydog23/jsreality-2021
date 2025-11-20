@@ -431,8 +431,8 @@ function createTestTriangleFactory(parent) {
 const geomList = new Array(3);
 geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
 geomList[1] = Primitives.regularPolygon(13, .5);
-geomList[2] = Primitives.getSharedIcosahedron();
-geomList[2] = SphereUtility.tessellatedIcosahedronSphere(5)
+// geomList[2] = Primitives.getSharedIcosahedron();
+geomList[2] = SphereUtility.tessellatedIcosahedronSphere(2)
 
 function addMiscGeometry(parent) {
   // const geomList = [Primitives.tetrahedron(), 
@@ -450,8 +450,8 @@ function addMiscGeometry(parent) {
     if (i==2) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
-      const matrix = MatrixBuilder.euclidean().translate(0,0,0).scale(3).getArray();
-      miscComponent.getTransformation().setMatrix(matrix);
+      // const matrix = MatrixBuilder.euclidean().translate(0,0,0).scale(3).getArray();
+      // miscComponent.getTransformation().setMatrix(matrix);
   
        ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .003);
       ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .00125);
@@ -460,6 +460,20 @@ function addMiscGeometry(parent) {
     components.push(miscComponent);
     i++;
   });
+  
+  // Add a test case for implode shader (on the regular polygon)
+  if (components.length > 1) {
+    const implodeComponent = components[1]; // Use the regular polygon (index 1)
+    const ap = implodeComponent.getAppearance();
+    // Set implode shader
+    ap.setAttribute(CommonAttributes.POLYGON_SHADER, 'implode');
+    ap.setAttribute(CommonAttributes.POLYGON_SHADER + '.' + 'implodeFactor', 0.6);
+    ap.setAttribute(CommonAttributes.POLYGON_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255, 200, 0)); // Orange
+    // Position it separately
+    const matrix = MatrixBuilder.euclidean().translate(0, -2, 0).getArray();
+    implodeComponent.getTransformation().setMatrix(matrix);
+  }
+  
   return components;
 }
 /**
@@ -597,7 +611,7 @@ export function runCanvas2DTest() {
         performance.measure('total-frame', 'animate-start', 'animate-end');
         
         // Log frame time occasionally (every 60 frames ~= once per second at 60fps)
-        if (Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
+        if (false && Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
           const measures = performance.getEntriesByType('measure');
           const lastFrame = measures.filter(m => m.name === 'total-frame').slice(-1)[0];
           if (lastFrame) {

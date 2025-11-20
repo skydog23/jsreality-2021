@@ -5,6 +5,10 @@
 export * from './CommonAttributes.js';
 export { EffectiveAppearance } from './EffectiveAppearance.js';
 export { ShaderUtility } from './ShaderUtility.js';
+export { ShaderRegistry } from './ShaderRegistry.js';
+
+// Register default shaders (side effect import)
+import './registerDefaultShaders.js';
 
 // Base shader interfaces
 export { PointShader } from './PointShader.js';
@@ -23,3 +27,4 @@ export { DefaultPointShader } from './DefaultPointShader.js';
 export { DefaultLineShader } from './DefaultLineShader.js';
 export { DefaultPolygonShader } from './DefaultPolygonShader.js';
 export { DefaultRenderingHintsShader } from './DefaultRenderingHintsShader.js';
+export { ImplodePolygonShader } from './ImplodePolygonShader.js';
