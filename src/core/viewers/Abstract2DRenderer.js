@@ -38,11 +38,23 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   /** @type {EffectiveAppearance[]} Stack of effective appearances for restoring after traversal */
   #effectiveAppearanceStack = [];
 
+  /** @type {{showPoints: boolean, showLines: boolean, showFaces: boolean}[]} Stack of draw flags for restoring after traversal */
+  #drawFlagsStack = [];
+
   /** @type {number[][]} Stack of transformation matrices for hierarchical transformations */
   #transformationStack = [];
 
   /** @type {number[]} Combined world-to-NDC transformation matrix */
   #world2ndc;
+
+  /** @type {boolean} Whether to render vertices as points */
+  #showPoints = true;
+
+  /** @type {boolean} Whether to render edges as lines */
+  #showLines = true;
+
+  /** @type {boolean} Whether to render faces as polygons */
+  #showFaces = true;
 
   /**
    * Create a new Abstract2DRenderer
@@ -351,9 +363,13 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       // Let childrenAccept handle the actual visiting of transformation, appearance, and children
       component.childrenAccept(this);
     } finally {
-      // Restore parent EffectiveAppearance if we visited an Appearance
+      // Restore parent EffectiveAppearance and draw flags if we visited an Appearance
       if (hasAppearance) {
         this.#effectiveAppearance = this.#effectiveAppearanceStack.pop();
+        const flags = this.#drawFlagsStack.pop();
+        this.#showPoints = flags.showPoints;
+        this.#showLines = flags.showLines;
+        this.#showFaces = flags.showFaces;
       }
 
       // Restore transformation state and pop our tracking stack
@@ -390,10 +406,22 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {Appearance} appearance
    */
   visitAppearance(appearance) {
-    // Save current EffectiveAppearance (will be restored in visitComponent's finally block)
+    // Save current EffectiveAppearance and draw flags (will be restored in visitComponent's finally block)
     this.#effectiveAppearanceStack.push(this.#effectiveAppearance);
+    this.#drawFlagsStack.push({
+      showPoints: this.#showPoints,
+      showLines: this.#showLines,
+      showFaces: this.#showFaces
+    });
+    
     // Create a new child EffectiveAppearance
     this.#effectiveAppearance = this.#effectiveAppearance.createChild(appearance);
+    
+    // Update boolean flags based on effective appearance
+    this.#showPoints = this.getBooleanAttribute(CommonAttributes.VERTEX_DRAW, true);
+    this.#showLines = this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true);
+    this.#showFaces = this.getBooleanAttribute(CommonAttributes.FACE_DRAW, true);
+    
     // Apply appearance attributes to device context (set state once)
     this._applyAppearance();
   }
@@ -500,7 +528,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {*} geometry - The geometry object
    */
   _renderVerticesAsPoints(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.VERTEX_DRAW, true)) {
+    if (!this.#showPoints) {
       return;
     }
 
@@ -530,7 +558,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {IndexedLineSet} geometry - The geometry object (IndexedLineSet or IndexedFaceSet)
    */
   _renderEdgesAsLines(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.EDGE_DRAW, true)) {
+    if (!this.#showLines) {
       return;
     }
     
@@ -576,7 +604,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {*} geometry - The geometry object (IndexedFaceSet)
    */
   _renderFacesAsPolygons(geometry) {
-    if (!this.getBooleanAttribute(CommonAttributes.FACE_DRAW, true)) {
+    if (!this.#showFaces) {
       return;
     }
 
