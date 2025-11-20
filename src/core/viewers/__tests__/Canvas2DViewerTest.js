@@ -432,7 +432,7 @@ const geomList = new Array(3);
 geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
 geomList[1] = Primitives.regularPolygon(13, .5);
 geomList[2] = Primitives.getSharedIcosahedron();
-geomList[2] = SphereUtility.tessellatedIcosahedronSphere(4)
+geomList[2] = SphereUtility.tessellatedIcosahedronSphere(5)
 
 function addMiscGeometry(parent) {
   // const geomList = [Primitives.tetrahedron(), 

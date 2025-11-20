@@ -42,7 +42,7 @@ export class SphereUtility {
   
   // Cached tessellated spheres
   static #numberOfTessellatedCubes = 16;
-  static #numberOfTessellatedIcosahedra = 5;
+  static #numberOfTessellatedIcosahedra = 7;
   static #tessellatedIcosahedra = Array(SphereUtility.#numberOfTessellatedIcosahedra).fill(null);
   static #tessellatedCubes = Array(SphereUtility.#numberOfTessellatedCubes).fill(null);
   static #cubePanels = Array(SphereUtility.#numberOfTessellatedCubes).fill(null);
