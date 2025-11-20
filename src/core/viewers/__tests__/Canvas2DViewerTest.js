@@ -450,11 +450,11 @@ function addMiscGeometry(parent) {
     if (i==2) {
       const ap = miscComponent.getAppearance();
       ap.setAttribute(CommonAttributes.FACE_DRAW, false);
-      const matrix = MatrixBuilder.euclidean().translate(0,2,0).scale(3).getArray();
+      const matrix = MatrixBuilder.euclidean().translate(0,0,0).scale(3).getArray();
       miscComponent.getTransformation().setMatrix(matrix);
   
-       // ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(255,0,255));
-      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .005);
+       ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .003);
+      ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .00125);
     }
     parent.addChild(miscComponent);
     components.push(miscComponent);

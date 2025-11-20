@@ -588,7 +588,7 @@ class SVGRenderer extends Abstract2DRenderer {
     // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
     const points = [];
     for (const index of indices) {
-      const vertex = vertices.item(index);
+      const vertex = vertices[index];
       const point = this._extractPoint(vertex);
       points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
     }
@@ -619,7 +619,7 @@ class SVGRenderer extends Abstract2DRenderer {
     // Appearance attributes inherited from primitive group (set in _beginPrimitiveGroup)
     const points = [];
     for (const index of indices) {
-      const vertex = vertices.item(index);
+      const vertex = vertices[index];
       const point = this._extractPoint(vertex);
       points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
     }
