@@ -9,6 +9,7 @@ import * as CommonAttributes from '../../shader/CommonAttributes.js';
 import { Color } from '../../util/Color.js';
 import { SceneGraphUtility } from '../../util/SceneGraphUtility.js';
 import { Canvas2DViewer } from '../Canvas2DViewer.js';
+import { WebGL2DViewer } from '../WebGL2DViewer.js';
 import { MatrixBuilder } from '../../math/MatrixBuilder.js';
 import { Appearance } from '../../scene/Appearance.js';
 import { GeometryAttribute } from '../../scene/GeometryAttribute.js';
@@ -17,11 +18,39 @@ import { IndexedLineSetUtility } from '../../geometry/IndexedLineSetUtility.js';
 import { Primitives } from '../../geometry/Primitives.js';
 import { SphereUtility } from '../../geometry/SphereUtility.js';
 import { IndexedFaceSetUtility } from '../../geometry/IndexedFaceSetUtility.js';
+
+// ============================================================================
+// Animation Control
+// ============================================================================
+
+/** @type {boolean} Module-level flag for animation control */
+let doAnimation = true;
+
+/**
+ * Get the current animation state
+ * @returns {boolean} True if animation is enabled, false otherwise
+ */
+export function getDoAnimation() {
+  return doAnimation;
+}
+
+/**
+ * Set the animation state
+ * @param {boolean} enabled - True to enable animation, false to disable
+ */
+export function setDoAnimation(enabled) {
+  doAnimation = enabled;
+}
+
+// ============================================================================
+// Scene Creation
+// ============================================================================
+
 /**
  * Create a simple test scene with various geometric shapes
- * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath}}
+ * @returns {{sceneRoot: SceneGraphComponent, cameraPath: SceneGraphPath, worldSGC: SceneGraphComponent}}
  */
-function createTestScene() {
+export function createTestScene() {
   // Create scene root 
   const sceneRoot = SceneGraphUtility.createFullSceneGraphComponent("root");
   // Create and configure appearance with namespaced attributes
@@ -457,7 +486,7 @@ const geomList = new Array(3);
 geomList[0] = IndexedLineSetUtility.circle(100, 0, 0, 1);
 geomList[1] = Primitives.regularPolygon(13, .5);
 // geomList[2] = Primitives.getSharedIcosahedron();
-geomList[2] = SphereUtility.tessellatedIcosahedronSphere(2)
+geomList[2] = SphereUtility.tessellatedIcosahedronSphere(5)
 
 function addMiscGeometry(parent) {
   // const geomList = [Primitives.tetrahedron(), 
@@ -567,17 +596,17 @@ export function runCanvas2DTest() {
 
     // Setup animation timer for one of the misc geometry components
     // Using requestAnimationFrame for smooth, browser-synced animation
-    let animationStartTime = null;  
-    const doAnimation = false;
+    let animationStartTime = null;
     
-    // Select the misc component to animate (index 2 is the icosahedron)
+    // Select the misc component to animate (index 6 is the icosahedron)
     const animatedGeometry = worldSGC.getChildComponent(6).getGeometry();
     const icoverts = fromDataList(animatedGeometry.getVertexAttribute(GeometryAttribute.COORDINATES));
     
     // Performance profiling: enable to see detailed timing in DevTools Performance tab
-    const ENABLE_PROFILING = true; // Set to false to disable profiling overhead
+    const ENABLE_PROFILING = false; // Set to false to disable profiling overhead
     
     function animate(timestamp) {
+      if (!getDoAnimation()) return;
       if (ENABLE_PROFILING) {
         performance.mark('animate-start');
       }
@@ -646,16 +675,18 @@ export function runCanvas2DTest() {
       }
       
       // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)
-      if (doAnimation) {
+      if (getDoAnimation()) {
         requestAnimationFrame(animate);
       }
     }
     
     // Start animation after a short delay
     setTimeout(() => {
-      console.log('✓ Starting animation using requestAnimationFrame');
-      animationStartTime = null; // Reset for clean start
-      requestAnimationFrame(animate);
+      if (getDoAnimation()) {
+        console.log('✓ Starting animation using requestAnimationFrame');
+        animationStartTime = null; // Reset for clean start
+        requestAnimationFrame(animate);
+      }
     }, 1500);
 
     console.log('✓ Canvas2D viewer test complete');

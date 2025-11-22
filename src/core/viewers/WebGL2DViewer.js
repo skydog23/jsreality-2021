@@ -228,6 +228,27 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   /** @type {number[]} Current color for rendering */
   #currentColor = [1.0, 1.0, 1.0, 1.0];
 
+  /** @type {Object} Cached WebGL capabilities */
+  #capabilities = null;
+
+  /** @type {number[]} Batched vertices for lines (to combine multiple edges into single draw call) */
+  #batchedVertices = [];
+
+  /** @type {number[]} Batched colors for lines */
+  #batchedColors = [];
+
+  /** @type {number[]} Batched indices for lines */
+  #batchedIndices = [];
+
+  /** @type {number} Current vertex offset for batched indices */
+  #batchedVertexOffset = 0;
+
+  /** @type {number[]|null} Current batched line color */
+  #currentBatchedLineColor = null;
+
+  /** @type {number} Current batched half width for lines */
+  #currentBatchedHalfWidth = 0;
+
   /**
    * Create a new WebGL2D renderer
    * @param {WebGL2DViewer} viewer - The viewer
@@ -247,6 +268,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   #initWebGL() {
     const gl = this.#gl;
+    
+    // Cache WebGL capabilities at startup
+    this.#capabilities = this.#queryWebGLCapabilities(gl);
     
     // Create shader program
     this.#program = this.#createShaderProgram();
@@ -268,6 +292,49 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Enable blending for transparency
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  }
+
+  /**
+   * Query and cache WebGL capabilities at startup
+   * @private
+   * @param {WebGLRenderingContext|WebGL2RenderingContext} gl - WebGL context
+   * @returns {Object} Cached capabilities object
+   */
+  #queryWebGLCapabilities(gl) {
+    const caps = {
+      // Drawing mode constants
+      TRIANGLES: (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004,
+      LINE_STRIP: (gl.LINE_STRIP !== undefined && gl.LINE_STRIP !== null) ? gl.LINE_STRIP : 0x0003,
+      
+      // Line width capabilities
+      maxLineWidth: 1.0,
+      supportsWideLines: false,
+      
+      // Index type constants
+      UNSIGNED_SHORT: gl.UNSIGNED_SHORT
+    };
+    
+    // Query maximum line width (many implementations only support 1.0)
+    const maxLineWidthRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
+    if (maxLineWidthRange && maxLineWidthRange.length >= 2) {
+      caps.maxLineWidth = maxLineWidthRange[1]; // Maximum supported width
+      caps.supportsWideLines = maxLineWidthRange[1] > 1.0;
+    } else {
+      // Fallback: try to query directly (some implementations)
+      try {
+        const maxWidth = gl.getParameter(gl.MAX_LINE_WIDTH);
+        if (maxWidth !== null && maxWidth !== undefined) {
+          caps.maxLineWidth = maxWidth;
+          caps.supportsWideLines = maxWidth > 1.0;
+        }
+      } catch (e) {
+        // If query fails, assume only 1.0 is supported
+        caps.maxLineWidth = 1.0;
+        caps.supportsWideLines = false;
+      }
+    }
+    
+    return caps;
   }
 
   /**
@@ -458,6 +525,16 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Set primitive type
     this.#currentPrimitiveType = type;
+    
+    // Initialize batching for lines
+    if (type === CommonAttributes.LINE) {
+      this.#batchedVertices = [];
+      this.#batchedColors = [];
+      this.#batchedIndices = [];
+      this.#batchedVertexOffset = 0;
+      this.#currentBatchedLineColor = null;
+      this.#currentBatchedHalfWidth = 0;
+    }
   }
 
   /**
@@ -465,7 +542,10 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @protected
    */
   _endPrimitiveGroup() {
-    // No action needed
+    // Flush any batched line data before ending the group
+    if (this.#currentPrimitiveType === CommonAttributes.LINE && this.#batchedVertices.length > 0) {
+      this.#flushBatchedLines();
+    }
   }
 
   /**
@@ -576,8 +656,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     ]);
     
     // Draw using standard triangle rendering (no special fragment shader needed)
-    const trianglesMode = (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004;
-    this.#drawGeometry(vertices, colors, indices, trianglesMode);
+    // Use cached TRIANGLES constant
+    this.#drawGeometry(vertices, colors, indices, this.#capabilities.TRIANGLES);
   }
 
   /**
@@ -594,20 +674,197 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       return;
     }
     
-    // Get tube radius from appearance (in world space, like POINT_RADIUS)
-    // TUBE_RADIUS is a radius, so halfWidth = tubeRadius
-    // Use directly in world space (transformation matrix handles world-to-NDC conversion)
-    const tubeRadius = this.getAppearanceAttribute(
+    // Check if we should draw as tubes (quads) or simple lines (LINE_STRIP)
+    const tubeDraw = this.getAppearanceAttribute(
       CommonAttributes.LINE_SHADER,
-      CommonAttributes.TUBE_RADIUS,
-      CommonAttributes.TUBE_RADIUS_DEFAULT
+      CommonAttributes.TUBES_DRAW,
+      CommonAttributes.TUBES_DRAW_DEFAULT
     );
     
-    const halfWidth = tubeRadius;
+    if (tubeDraw) {
+      // Draw as quads using TUBE_RADIUS (batch same-color edges)
+      const tubeRadius = this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER,
+        CommonAttributes.TUBE_RADIUS,
+        CommonAttributes.TUBE_RADIUS_DEFAULT
+      );
+      const halfWidth = tubeRadius;
+      const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
+      
+      // Check if we can batch this edge with the current batch
+      const canBatch = this.#currentBatchedLineColor !== null &&
+                       this.#arraysEqual(edgeColor, this.#currentBatchedLineColor) &&
+                       Math.abs(halfWidth - this.#currentBatchedHalfWidth) < 1e-6;
+      
+      if (canBatch) {
+        // Add to current batch
+        this.#addPolylineToBatch(vertices, indices, edgeColor, halfWidth);
+      } else {
+        // Flush current batch and start new one
+        if (this.#batchedVertices.length > 0) {
+          this.#flushBatchedLines();
+        }
+        this.#currentBatchedLineColor = edgeColor;
+        this.#currentBatchedHalfWidth = halfWidth;
+        this.#addPolylineToBatch(vertices, indices, edgeColor, halfWidth);
+      }
+    } else {
+      // Draw as simple LINE_STRIP using LINE_WIDTH (no batching for now)
+      const lineWidth = this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER,
+        CommonAttributes.LINE_WIDTH,
+        CommonAttributes.LINE_WIDTH_DEFAULT
+      );
+      this.#drawPolylineAsLineStrip(vertices, colors, indices, lineWidth);
+    }
+  }
+  
+  /**
+   * Add a polyline to the current batch
+   * @private
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]} indices - Array of vertex indices for the polyline
+   * @param {number[]} edgeColor - Color as [r, g, b, a]
+   * @param {number} halfWidth - Half width of the line
+   * @returns {boolean} True if the polyline was added, false if batch was flushed due to overflow
+   */
+  #addPolylineToBatch(vertices, indices, edgeColor, halfWidth) {
+    // Uint16Array can only hold indices up to 65535
+    // Each quad uses 4 vertices, so we can batch up to ~16383 quads before overflow
+    // Flush when we're close to the limit (leave some headroom)
+    const MAX_VERTICES = 60000; // Leave some headroom before 65535 limit
     
-    // Always draw lines as quads (since gl.lineWidth is unreliable)
-    // This ensures consistent line width rendering across all WebGL implementations
-    this.#drawPolylineAsQuads(vertices, colors, indices, halfWidth);
+    // Draw each line segment as a quad
+    for (let i = 0; i < indices.length - 1; i++) {
+      // Check if adding this quad would exceed the limit
+      if (this.#batchedVertexOffset + 4 > MAX_VERTICES) {
+        // Flush current batch before overflow
+        // Preserve color/width so we can continue batching after flush
+        this.#flushBatchedLines(true);
+      }
+      
+      const idx0 = indices[i];
+      const idx1 = indices[i + 1];
+      
+      const v0 = vertices[idx0];
+      const v1 = vertices[idx1];
+      const p0 = this._extractPoint(v0);
+      const p1 = this._extractPoint(v1);
+      
+      // Calculate direction vector and perpendicular
+      const dx = p1[0] - p0[0];
+      const dy = p1[1] - p0[1];
+      const len = Math.sqrt(dx * dx + dy * dy);
+      
+      if (len === 0) continue; // Skip zero-length segments
+      
+      // Normalize and get perpendicular (rotate 90 degrees)
+      const nx = -dy / len;
+      const ny = dx / len;
+      
+      // Create quad vertices (4 corners of the rectangle)
+      const quadVertices = [
+        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth,  // 0: left of p0
+        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth,  // 1: right of p0
+        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth,  // 2: left of p1
+        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth   // 3: right of p1
+      ];
+      
+      // Add vertices
+      this.#batchedVertices.push(...quadVertices);
+      
+      // Add colors (same color for all 4 vertices of the quad)
+      this.#batchedColors.push(...edgeColor, ...edgeColor, ...edgeColor, ...edgeColor);
+      
+      // Add indices for 2 triangles forming the quad
+      this.#batchedIndices.push(
+        this.#batchedVertexOffset + 0, this.#batchedVertexOffset + 1, this.#batchedVertexOffset + 2,  // Triangle 1
+        this.#batchedVertexOffset + 1, this.#batchedVertexOffset + 3, this.#batchedVertexOffset + 2   // Triangle 2
+      );
+      
+      this.#batchedVertexOffset += 4;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Flush batched line data into a single WebGL draw call
+   * @private
+   * @param {boolean} [preserveColor=false] - If true, preserve color/width for continued batching
+   */
+  #flushBatchedLines(preserveColor = false) {
+    if (this.#batchedVertices.length === 0) {
+      return;
+    }
+    
+    const vertexArray = new Float32Array(this.#batchedVertices);
+    const colorArray = new Float32Array(this.#batchedColors);
+    const indexArray = new Uint16Array(this.#batchedIndices);
+    
+    // Single draw call for all batched edges
+    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0);
+    
+    // Reset batching arrays and vertex offset
+    this.#batchedVertices = [];
+    this.#batchedColors = [];
+    this.#batchedIndices = [];
+    this.#batchedVertexOffset = 0;
+    
+    // Only reset color/width if we're not preserving for continued batching
+    if (!preserveColor) {
+      this.#currentBatchedLineColor = null;
+      this.#currentBatchedHalfWidth = 0;
+    }
+  }
+  
+  /**
+   * Check if two arrays are equal (for color comparison)
+   * @private
+   * @param {number[]} a - First array
+   * @param {number[]} b - Second array
+   * @returns {boolean}
+   */
+  #arraysEqual(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (Math.abs(a[i] - b[i]) > 1e-6) return false;
+    }
+    return true;
+  }
+  
+  /**
+   * Draw a polyline using gl.LINE_STRIP (simple line rendering)
+   * @private
+   * @param {*} vertices - Vertex coordinate data
+   * @param {*} colors - Vertex color data
+   * @param {number[]} indices - Array of vertex indices for the polyline
+   * @param {number} lineWidth - Line width in pixels
+   */
+  #drawPolylineAsLineStrip(vertices, colors, indices, lineWidth) {
+    const gl = this.#gl;
+    
+    if (indices.length < 2) {
+      return; // Need at least 2 points for a line
+    }
+    
+    // Convert vertices to Float32Array
+    const vertexArray = this.#verticesToFloat32Array(vertices, indices);
+    const colorArray = this.#colorsToFloat32Array(colors, indices, this.#currentColor);
+    
+    // Set line width using cached capabilities
+    // Clamp to maximum supported width
+    const clampedWidth = Math.min(lineWidth, this.#capabilities.maxLineWidth);
+    gl.lineWidth(clampedWidth);
+    
+    // Draw using LINE_STRIP mode (use cached constant)
+    // Note: We need sequential indices since vertexArray is compacted
+    const sequentialIndices = new Uint16Array(indices.length);
+    for (let i = 0; i < indices.length; i++) {
+      sequentialIndices[i] = i;
+    }
+    
+    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP);
   }
   
   /**
@@ -699,9 +956,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // NOTE: Edge smoothing disabled - distance array not passed
       // const distanceArray = new Float32Array(allQuadDistances);
       const indexArray = new Uint16Array(allQuadIndices);
-      const trianglesMode = (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004;
+      // Use cached TRIANGLES constant
       // NOTE: Edge smoothing disabled - pass null for distances and 0 for lineHalfWidth
-      this.#drawGeometry(vertexArray, colorArray, indexArray, trianglesMode, null, 0);
+      this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0);
     }
   }
 
@@ -721,18 +978,14 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const colorArray = this.#colorsToFloat32Array(colors, indices, this.#currentColor);
     
     // Debug: log vertex count for polygons with more than 3 vertices
-    if (indices && indices.length > 3) {
-      console.log('WebGL2DRenderer: Drawing polygon with', indices.length, 'vertices, vertexArray length:', vertexArray.length);
-    }
-    
+   
     // Triangulate using sequential indices (0, 1, 2, ...) since vertexArray is already compacted
     // The vertexArray contains vertices in the order they appear in indices
     const numVertices = indices.length;
     const indexArray = this.#triangulatePolygonSequential(numVertices);
     
-    // Use numeric constant if gl.TRIANGLES is undefined (TRIANGLES = 0x0004 = 4)
-    const trianglesMode = (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004;
-    this.#drawGeometry(vertexArray, colorArray, indexArray, trianglesMode);
+    // Use cached TRIANGLES constant
+    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES);
   }
 
   /**
@@ -812,8 +1065,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
       
-      // Check if gl.UNSIGNED_SHORT is valid
-      const indexType = gl.UNSIGNED_SHORT;
+      // Use cached UNSIGNED_SHORT constant
+      const indexType = this.#capabilities.UNSIGNED_SHORT;
       if (indexType === undefined || indexType === null) {
         console.error('WebGL2DRenderer: gl.UNSIGNED_SHORT is not available');
         return;
@@ -822,8 +1075,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       gl.drawElements(mode, indices.length, indexType, 0);
     } else {
       const vertexCount = vertices.length / 2;
-      // Ensure mode is a number (not undefined)
-      const drawMode = (typeof mode === 'number' && !isNaN(mode)) ? mode : 0x0003; // Default to LINE_STRIP
+      // Ensure mode is a number (not undefined), default to cached LINE_STRIP
+      const drawMode = (typeof mode === 'number' && !isNaN(mode)) ? mode : this.#capabilities.LINE_STRIP;
       
       // IMPORTANT: Unbind ELEMENT_ARRAY_BUFFER when using drawArrays
       // If ELEMENT_ARRAY_BUFFER is bound from previous drawElements call (e.g., from face rendering),
@@ -834,23 +1087,23 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     }
     
     // Check for WebGL errors immediately after draw call
-    const error = gl.getError();
-    if (error !== gl.NO_ERROR) {
-      const errorNames = {
-        [gl.INVALID_ENUM]: 'INVALID_ENUM',
-        [gl.INVALID_VALUE]: 'INVALID_VALUE',
-        [gl.INVALID_OPERATION]: 'INVALID_OPERATION',
-        [gl.INVALID_FRAMEBUFFER_OPERATION]: 'INVALID_FRAMEBUFFER_OPERATION',
-        [gl.OUT_OF_MEMORY]: 'OUT_OF_MEMORY'
-      };
-      console.error('WebGL error in #drawGeometry:', errorNames[error] || error, 
-        'mode:', mode, 'mode type:', typeof mode,
-        'hasIndices:', !!(indices && indices.length > 0),
-        'vertexCount:', vertices.length / 2,
-        'indicesLength:', indices ? indices.length : 0,
-        'gl.LINE_STRIP:', gl.LINE_STRIP,
-        'gl.TRIANGLES:', gl.TRIANGLES);
-    }
+    // const error = gl.getError();
+    // if (error !== gl.NO_ERROR) {
+    //   const errorNames = {
+    //     [gl.INVALID_ENUM]: 'INVALID_ENUM',
+    //     [gl.INVALID_VALUE]: 'INVALID_VALUE',
+    //     [gl.INVALID_OPERATION]: 'INVALID_OPERATION',
+    //     [gl.INVALID_FRAMEBUFFER_OPERATION]: 'INVALID_FRAMEBUFFER_OPERATION',
+    //     [gl.OUT_OF_MEMORY]: 'OUT_OF_MEMORY'
+    //   };
+    //   console.error('WebGL error in #drawGeometry:', errorNames[error] || error, 
+    //     'mode:', mode, 'mode type:', typeof mode,
+    //     'hasIndices:', !!(indices && indices.length > 0),
+    //     'vertexCount:', vertices.length / 2,
+    //     'indicesLength:', indices ? indices.length : 0,
+    //     'gl.LINE_STRIP:', gl.LINE_STRIP,
+    //     'gl.TRIANGLES:', gl.TRIANGLES);
+    // }
   }
 
   /**

@@ -94,33 +94,36 @@ export class SVGViewer extends Viewer {
   }
 
   render() {
-    console.log('SVGViewer.render() called');
-    console.log('  - Scene root:', this.#sceneRoot?.getName());
-    console.log('  - Camera path:', this.#cameraPath);
-    console.log('  - SVG element:', this.#svgElement);
+    // Temporarily hide SVG to prevent reflows during rendering
+    // This dramatically improves performance for complex scenes
+    const originalDisplay = this.#svgElement.style.display;
+    this.#svgElement.style.display = 'none';
     
-    // Clear previous content
-    while (this.#svgElement.firstChild) {
-      this.#svgElement.removeChild(this.#svgElement.firstChild);
-    }
-    console.log('  - SVG element cleared');
+    try {
+      // Clear previous content
+      while (this.#svgElement.firstChild) {
+        this.#svgElement.removeChild(this.#svgElement.firstChild);
+      }
 
-    // Get camera
-    const camera = this._getCamera();
-    console.log('  - Camera:', camera);
-    if (!camera) {
-      console.warn('No camera found in camera path');
-      return;
-    }
+      // Get camera
+      const camera = this._getCamera();
+      if (!camera) {
+        return;
+      }
 
-    // Create rendering visitor
-    console.log('  - Creating SVGRenderer...');
-    const renderer = new SVGRenderer(this);
-    console.log('  - Calling renderer.render()...');
-    renderer.render();
-    console.log('SVGViewer.render() complete');
-    
-    // Note: Final formatting is now handled by SVGRenderer._endRender()
+      // Create rendering visitor
+      const renderer = new SVGRenderer(this);
+      renderer.render();
+      
+      // Note: Final formatting is now handled by SVGRenderer._endRender()
+    } finally {
+      // Restore display (or remove style if it wasn't set)
+      if (originalDisplay) {
+        this.#svgElement.style.display = originalDisplay;
+      } else {
+        this.#svgElement.style.display = '';
+      }
+    }
   }
 
   hasViewingComponent() {
@@ -136,11 +139,12 @@ export class SVGViewer extends Viewer {
   }
 
   canRenderAsync() {
-    return false; // SVG rendering is synchronous
+    return true; // SVG rendering can be deferred
   }
 
   renderAsync() {
-    this.render();
+    // Defer rendering to avoid blocking event handlers
+    requestAnimationFrame(() => this.render());
   }
 
   // SVG-specific methods
@@ -169,33 +173,23 @@ export class SVGViewer extends Viewer {
    * @returns {Camera|null}
    */
   _getCamera() {
-    console.log('_getCamera() called');
-    console.log('  - cameraPath:', this.#cameraPath);
-    
     if (!this.#cameraPath || this.#cameraPath.getLength() === 0) {
-      console.log('  - No camera path or empty path');
       return null;
     }
     
-    console.log('  - cameraPath length:', this.#cameraPath.getLength());
     const lastElement = this.#cameraPath.getLastElement();
-    console.log('  - lastElement:', lastElement);
-    console.log('  - lastElement type:', lastElement?.constructor?.name);
     
     // The last element is typically a SceneGraphComponent that contains the camera
     if (lastElement && lastElement.getCamera) {
       const camera = lastElement.getCamera();
-      console.log('  - Camera from component:', camera);
       return camera;
     }
     
     // Fallback: check if the element itself is a Camera
     if (lastElement && lastElement.constructor.name === 'Camera') {
-      console.log('  - lastElement is directly a Camera');
       return lastElement;
     }
     
-    console.log('  - No camera found');
     return null;
   }
 
@@ -264,6 +258,9 @@ class SVGRenderer extends Abstract2DRenderer {
   /** @type {SVGSVGElement} */
   #svgElement;
 
+  /** @type {DocumentFragment} Fragment for building SVG structure off-DOM */
+  #documentFragment = null;
+
   /** @type {SVGGElement[]} Stack of SVG group elements for hierarchical transforms */
   #groupStack = [];
 
@@ -292,6 +289,12 @@ class SVGRenderer extends Abstract2DRenderer {
   /** @type {string} Cached polygon/face color */
   #faceColor = '#cccccc';
 
+  /** @type {string[]} Batched path data for lines (to combine multiple edges into single path) */
+  #batchedPathData = [];
+
+  /** @type {string|null} Current line color for batching */
+  #currentBatchedLineColor = null;
+
   /**
    * Create a new SVG renderer
    * @param {SVGViewer} viewer - The viewer
@@ -312,15 +315,15 @@ class SVGRenderer extends Abstract2DRenderer {
    * @protected
    */
   _beginRender() {
-    console.log('SVGRenderer._beginRender()');
+    // Create DocumentFragment to build SVG structure off-DOM
+    // This prevents reflows/repaints during rendering
+    this.#documentFragment = document.createDocumentFragment();
+    
     const rootGroup = this.#createRootGroup();
     
-    // Add comment for root group
-    const comment = document.createComment(' Root group: NDC to screen transform ');
-    this.#svgElement.appendChild(document.createTextNode('\n  '));
-    this.#svgElement.appendChild(comment);
-    this.#svgElement.appendChild(document.createTextNode('\n  '));
-    this.#svgElement.appendChild(rootGroup);
+    // Skip formatting text nodes for performance - they add overhead
+    // Just append the root group directly
+    this.#documentFragment.appendChild(rootGroup);
     
     this.#groupStack.push(rootGroup);
     this.#indentLevel = 1; // Start at indent level 1 (inside root group)
@@ -331,17 +334,18 @@ class SVGRenderer extends Abstract2DRenderer {
 
   /**
    * End rendering - SVG-specific cleanup (implements abstract method)
-   * Adds final formatting newlines
+   * Adds final formatting newlines and appends fragment to DOM
    * @protected
    */
   _endRender() {
-    console.log('SVGRenderer._endRender()');
-    // Add final closing newline for root group
-    const rootGroup = this.#groupStack[0]; // Should be the root group
-    if (rootGroup) {
-      rootGroup.appendChild(document.createTextNode('\n  '));
-    }
-    this.#svgElement.appendChild(document.createTextNode('\n'));
+    // Skip formatting text nodes for performance
+    
+    // Append entire fragment to SVG element in one operation
+    // This triggers only a single reflow/repaint instead of many
+    this.#svgElement.appendChild(this.#documentFragment);
+    
+    // Clear fragment reference
+    this.#documentFragment = null;
   }
 
   /**
@@ -371,14 +375,7 @@ class SVGRenderer extends Abstract2DRenderer {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
-    // Add comment showing primitive type
-    const comment = document.createComment(` ${type} group `);
-    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
-    currentGroup.appendChild(comment);
-    
-    // Add newline and indentation before group
-    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
-    currentGroup.appendChild(document.createTextNode(indent));
+    // Skip formatting text nodes and comments for performance
     
     // Set type-specific attributes on the group
     if (type === CommonAttributes.POINT) {
@@ -388,6 +385,9 @@ class SVGRenderer extends Abstract2DRenderer {
       // TUBE_RADIUS is a radius, but SVG stroke-width expects diameter, so multiply by 2
       g.setAttribute('stroke-width', (this.#tubeRadius * 2).toFixed(4));
       g.setAttribute('fill', 'none');
+      // Initialize batching for lines to reduce DOM elements
+      this.#batchedPathData = [];
+      this.#currentBatchedLineColor = this.#lineColor;
     } else if (type === CommonAttributes.POLYGON) {
       g.setAttribute('fill', this.#faceColor);
       g.setAttribute('stroke', 'none');
@@ -403,13 +403,15 @@ class SVGRenderer extends Abstract2DRenderer {
    * @protected
    */
   _endPrimitiveGroup() {
+    // Flush any batched path data before ending the group
+    if (this.#batchedPathData && this.#batchedPathData.length > 0) {
+      this.#flushBatchedPaths();
+    }
+    
     this.#groupStack.pop();
     this.#indentLevel--;
     
-    // Add newline and indentation after closing group
-    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
-    const parentGroup = this.#groupStack[this.#groupStack.length - 1];
-    parentGroup.appendChild(document.createTextNode(indent));
+    // Skip formatting text nodes for performance
   }
 
   /**
@@ -420,9 +422,7 @@ class SVGRenderer extends Abstract2DRenderer {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
-    // Add newline and indentation before group
-    const indent = '\n' + '  '.repeat(this.#indentLevel + 1);
-    currentGroup.appendChild(document.createTextNode(indent));
+    // Skip formatting text nodes for performance
     currentGroup.appendChild(g);
     
     this.#groupStack.push(g);
@@ -553,8 +553,7 @@ class SVGRenderer extends Abstract2DRenderer {
     // Appearance attributes inherited from group (set in _applyAppearance)
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
-    // Add indentation before element
-    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    // Skip formatting text nodes for performance
     
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx',point[0].toFixed(4));
@@ -583,19 +582,55 @@ class SVGRenderer extends Abstract2DRenderer {
       points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
     }
     
+    // Get the color for this edge
+    const edgeColor = colors ? this.toCSSColor(colors) : null;
+    
+    // Batch edges with the same color into a single path element
+    // This dramatically reduces DOM elements and improves performance
+    if (edgeColor === this.#currentBatchedLineColor || (!edgeColor && !this.#currentBatchedLineColor)) {
+      // Same color - add to batch
+      // Format: "M x y L x y L x y" for each edge
+      const pathData = points.map((p, i) => {
+        const [x, y] = p.split(',');
+        return (i === 0 ? 'M' : 'L') + ' ' + x + ' ' + y;
+      }).join(' ');
+      this.#batchedPathData.push(pathData);
+    } else {
+      // Different color - flush current batch and start new one
+      this.#flushBatchedPaths();
+      this.#currentBatchedLineColor = edgeColor;
+      const pathData = points.map((p, i) => {
+        const [x, y] = p.split(',');
+        return (i === 0 ? 'M' : 'L') + ' ' + x + ' ' + y;
+      }).join(' ');
+      this.#batchedPathData.push(pathData);
+    }
+  }
+
+  /**
+   * Flush batched path data into a single SVG path element
+   * @private
+   */
+  #flushBatchedPaths() {
+    if (this.#batchedPathData.length === 0) {
+      return;
+    }
+    
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', this.#batchedPathData.join(' '));
     
-    // Add indentation before element
-    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
-    
-    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    polyline.setAttribute('points', points.join(' '));
-    // Override stroke color if edge color is provided
-    if (colors) {
-      polyline.setAttribute('stroke', this.toCSSColor(colors));
+    // Set color if it differs from group default
+    if (this.#currentBatchedLineColor && this.#currentBatchedLineColor !== this.#lineColor) {
+      path.setAttribute('stroke', this.#currentBatchedLineColor);
     }
     // Otherwise stroke, stroke-width, fill inherited from primitive group
-    currentGroup.appendChild(polyline);
+    
+    currentGroup.appendChild(path);
+    
+    // Reset batching
+    this.#batchedPathData = [];
+    this.#currentBatchedLineColor = null;
   }
 
   /**
@@ -616,8 +651,7 @@ class SVGRenderer extends Abstract2DRenderer {
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     
-    // Add indentation before element
-    currentGroup.appendChild(document.createTextNode(this.#getIndent()));
+    // Skip formatting text nodes for performance
     
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     polygon.setAttribute('points', points.join(' '));

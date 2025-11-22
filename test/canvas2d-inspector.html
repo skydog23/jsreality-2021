@@ -78,10 +78,18 @@
             overflow: auto;
         }
         
-        #canvas2d-test {
+        #canvas2d-test,
+        #webgl2d-test {
             border: 2px solid #3e3e3e;
             border-radius: 4px;
             background: white;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        #svg2d-test {
             width: 100%;
             height: 100%;
             max-width: 100%;
@@ -189,6 +197,33 @@
             font-size: 11px;
             margin-left: 24px;
         }
+        
+        .menu-radio-group {
+            font-weight: 600;
+            color: #858585;
+            padding: 8px 16px 4px 16px;
+        }
+        
+        .menu-radio-option {
+            padding: 4px 16px;
+        }
+        
+        .menu-radio-option label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            width: 100%;
+            margin: 0;
+        }
+        
+        .menu-radio-option input[type="radio"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        
+        .menu-radio-option:hover {
+            background: #094771;
+        }
     </style>
 </head>
 <body>
@@ -218,6 +253,28 @@
         <div class="menu-item" id="view-menu">
             View
             <div class="dropdown-menu" id="view-dropdown">
+                <div class="menu-option menu-radio-group">
+                    <span>Renderer:</span>
+                </div>
+                <div class="menu-option menu-radio-option" data-viewer-index="0">
+                    <label>
+                        <input type="radio" name="viewer-select" value="0" checked>
+                        <span>Canvas2D</span>
+                    </label>
+                </div>
+                <div class="menu-option menu-radio-option" data-viewer-index="1">
+                    <label>
+                        <input type="radio" name="viewer-select" value="1">
+                        <span>WebGL2D</span>
+                    </label>
+                </div>
+                <div class="menu-option menu-radio-option" data-viewer-index="2">
+                    <label>
+                        <input type="radio" name="viewer-select" value="2">
+                        <span>SVG</span>
+                    </label>
+                </div>
+                <div class="menu-separator"></div>
                 <div class="menu-option" id="reset-camera">
                     <span>Reset Camera</span>
                 </div>
@@ -230,6 +287,8 @@
             <div class="canvas-header">Canvas Viewer</div>
             <div class="canvas-container">
                 <canvas id="canvas2d-test"></canvas>
+                <canvas id="webgl2d-test" style="display: none;"></canvas>
+                <div id="svg2d-test" style="display: none;"></div>
             </div>
             <div id="info-container" class="info"></div>
         </div>
@@ -242,10 +301,15 @@
     <div id="error-container"></div>
 
     <script type="module">
-        import { runCanvas2DTest } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
+        import { runCanvas2DTest, createTestScene, getDoAnimation, setDoAnimation } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
         import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
+        import { Canvas2DViewer } from '../src/core/viewers/Canvas2DViewer.js';
+        import { MatrixBuilder } from '../src/core/math/MatrixBuilder.js';
+        import { toDataList, fromDataList } from '../src/core/scene/data/DataUtility.js';
+        import { GeometryAttribute } from '../src/core/scene/GeometryAttribute.js';
+        import * as Rn from '../src/core/math/Rn.js';
         
         // Setup resizable divider between canvas and inspector
         function setupMainDivider() {
@@ -292,7 +356,8 @@
         }
         
         // Setup menubar functionality
-        function setupMenubar(viewer) {
+        // viewerGetter: function that returns the current viewer (updates when cycling)
+        function setupMenubar(viewerGetter, cycleViewerCallback) {
             let activeMenu = null;
             
             // Close all menus
@@ -336,28 +401,44 @@
                 toggleMenu(viewMenu, viewDropdown);
             });
             
+            // Viewer selection radio buttons will be set up after switchViewer is defined
+            // This is handled in the main initialization code below
+            
             // Export as PNG
             document.getElementById('export-image-png').addEventListener('click', () => {
                 closeAllMenus();
-                const dataURL = viewer.exportImage('image/png');
-                downloadImage(dataURL, 'scene-export.png');
+                const viewer = viewerGetter();
+                // Use current viewer, but only if it supports exportImage
+                if (viewer && viewer.exportImage) {
+                    const dataURL = viewer.exportImage('image/png');
+                    downloadImage(dataURL, 'scene-export.png');
+                } else {
+                    alert('Current viewer does not support PNG export');
+                }
             });
             
             // Export as JPEG
             document.getElementById('export-image-jpeg').addEventListener('click', () => {
                 closeAllMenus();
-                const dataURL = viewer.exportImage('image/jpeg', 0.95);
-                downloadImage(dataURL, 'scene-export.jpg');
+                const viewer = viewerGetter();
+                // Use current viewer, but only if it supports exportImage
+                if (viewer && viewer.exportImage) {
+                    const dataURL = viewer.exportImage('image/jpeg', 0.95);
+                    downloadImage(dataURL, 'scene-export.jpg');
+                } else {
+                    alert('Current viewer does not support JPEG export');
+                }
             });
             
             // Export as SVG
             document.getElementById('export-svg').addEventListener('click', () => {
                 closeAllMenus();
+                const viewer = viewerGetter();
                 
-                // Get canvas dimensions
-                const canvas = viewer.getViewingComponent();
-                const width = canvas.clientWidth;
-                const height = canvas.clientHeight;
+                // Get canvas dimensions from current viewer
+                const viewingComponent = viewer.getViewingComponent();
+                const width = viewingComponent.clientWidth || viewingComponent.offsetWidth;
+                const height = viewingComponent.clientHeight || viewingComponent.offsetHeight;
                 
                 // Create a temporary HTML container (doesn't need to be in DOM)
                 const tempContainer = document.createElement('div');
@@ -365,7 +446,7 @@
                 // Create SVGViewer with the container and dimensions
                 const svgViewer = new SVGViewer(tempContainer, { width, height });
                 
-                // Copy scene setup from Canvas2DViewer
+                // Copy scene setup from current viewer
                 svgViewer.setSceneRoot(viewer.getSceneRoot());
                 svgViewer.setCameraPath(viewer.getCameraPath());
                 
@@ -384,12 +465,13 @@
             // Export WebGL with anti-aliasing (2x supersampling)
             document.getElementById('export-webgl').addEventListener('click', () => {
                 closeAllMenus();
+                const viewer = viewerGetter();
                 
                 try {
-                    // Get canvas dimensions
-                    const canvas = viewer.getViewingComponent();
-                    const width = canvas.clientWidth;
-                    const height = canvas.clientHeight;
+                    // Get canvas dimensions from current viewer
+                    const viewingComponent = viewer.getViewingComponent();
+                    const width = viewingComponent.clientWidth || viewingComponent.offsetWidth;
+                    const height = viewingComponent.clientHeight || viewingComponent.offsetHeight;
                     
                     // Anti-aliasing: render at 4x resolution, then scale down by factor of 2
                     // Result: 2x canvas size with anti-aliasing
@@ -419,7 +501,7 @@
                             pixelRatio: renderScaleFactor // Use 4x pixel ratio for supersampling
                         });
                     
-                        // Copy scene setup from Canvas2DViewer
+                        // Copy scene setup from current viewer
                         webglViewer.setSceneRoot(viewer.getSceneRoot());
                         webglViewer.setCameraPath(viewer.getCameraPath());
                         
@@ -517,38 +599,236 @@
         }
         
         try {
-            // Run the test
-            const viewer = runCanvas2DTest();
+            // Create test scene (reuse logic from runCanvas2DTest)
+            // We'll create the scene separately and then create all viewers
+            const canvas = document.getElementById('canvas2d-test');
+            const webglCanvas = document.getElementById('webgl2d-test');
+            const svgContainer = document.getElementById('svg2d-test');
+            
+            // Create the test scene directly (without running the test which starts animation)
+            const { sceneRoot, cameraPath, worldSGC } = createTestScene();
+            console.log('✓ Test scene created');
+            
+            // Now create all 3 viewers with the same scene
+            const canvasViewer = new Canvas2DViewer(canvas);
+            canvasViewer.setSceneRoot(sceneRoot);
+            canvasViewer.setCameraPath(cameraPath);
+            canvasViewer.render();
+            
+            const webglViewer = new WebGL2DViewer(webglCanvas);
+            webglViewer.setSceneRoot(sceneRoot);
+            webglViewer.setCameraPath(cameraPath);
+            webglViewer.render();
+            
+            // Get canvas container dimensions - use the canvas-container div which should have proper size
+            const canvasContainer = canvas.parentElement;
+            const canvasWidth = canvas.clientWidth || canvas.offsetWidth || canvasContainer.clientWidth || 800;
+            const canvasHeight = canvas.clientHeight || canvas.offsetHeight || canvasContainer.clientHeight || 600;
+            
+            console.log('Creating SVGViewer with dimensions:', canvasWidth, 'x', canvasHeight);
+            
+            const svgViewer = new SVGViewer(svgContainer, {
+                width: canvasWidth,
+                height: canvasHeight
+            });
+            svgViewer.setSceneRoot(sceneRoot);
+            svgViewer.setCameraPath(cameraPath);
+            svgViewer.render();
+            
+            // Create viewers array and set current viewer
+            const viewers = [canvasViewer, webglViewer, svgViewer];
+            const viewerNames = ['Canvas2D', 'WebGL2D', 'SVG'];
+            let currentViewerIndex = 0;
+            let currentViewer = viewers[currentViewerIndex];
+            
+            // Function to switch to a specific viewer
+            function switchViewer(index) {
+                // Hide all viewing components
+                canvas.style.display = 'none';
+                webglCanvas.style.display = 'none';
+                svgContainer.style.display = 'none';
+                
+                // Show the selected viewer's component
+                currentViewerIndex = index;
+                currentViewer = viewers[currentViewerIndex];
+                
+                if (currentViewer === canvasViewer) {
+                    canvas.style.display = 'block';
+                } else if (currentViewer === webglViewer) {
+                    webglCanvas.style.display = 'block';
+                } else if (currentViewer === svgViewer) {
+                    svgContainer.style.display = 'block';
+                    // SVG viewer needs container dimensions - update SVG element directly
+                    const svgElement = svgViewer.getViewingComponent();
+                    // Get dimensions from canvas container (which should be properly sized)
+                    const canvasContainer = canvas.parentElement;
+                    const width = canvas.clientWidth || canvas.offsetWidth || canvasContainer.clientWidth || 800;
+                    const height = canvas.clientHeight || canvas.offsetHeight || canvasContainer.clientHeight || 600;
+                    console.log('Updating SVGViewer dimensions to:', width, 'x', height);
+                    svgElement.setAttribute('width', width);
+                    svgElement.setAttribute('height', height);
+                    svgElement.setAttribute('viewBox', `0 0 ${width} ${height}`);
+                }
+                
+                // Re-render with the new viewer (use async to avoid blocking click handler)
+                // This prevents performance violations when rendering complex scenes
+                currentViewer.renderAsync();
+                
+                console.log(`✓ Switched to ${viewerNames[currentViewerIndex]} viewer`);
+            }
+            
+            // Initialize: show Canvas2D viewer
+            switchViewer(0);
+            
+            // Setup viewer selection radio buttons
+            const viewerRadios = document.querySelectorAll('input[name="viewer-select"]');
+            viewerRadios.forEach((radio) => {
+                radio.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        const viewerIndex = parseInt(e.target.value);
+                        // Close menu when selection changes
+                        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                            menu.classList.remove('show');
+                        });
+                        document.querySelectorAll('.menu-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        switchViewer(viewerIndex);
+                    }
+                });
+            });
+            
+            // Setup animation for the icosahedron (same as in Canvas2DViewerTest)
+            // Animation state is controlled via getDoAnimation/setDoAnimation from Canvas2DViewerTest
+            let animationStartTime = null;
+            
+            // Select the misc component to animate (index 6 is the icosahedron)
+            const animatedGeometry = worldSGC.getChildComponent(6).getGeometry();
+            const icoverts = fromDataList(animatedGeometry.getVertexAttribute(GeometryAttribute.COORDINATES));
+            
+            // Performance profiling: enable to see detailed timing in DevTools Performance tab
+            const ENABLE_PROFILING = true;
+            
+            function animate(timestamp) {
+                if (!getDoAnimation()) return; // Early exit if animation is disabled
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('animate-start');
+                }
+                
+                // Initialize start time on first call
+                if (animationStartTime === null) {
+                    animationStartTime = timestamp;
+                }
+                
+                // Calculate elapsed time in seconds
+                const elapsedSeconds = (timestamp - animationStartTime) / 1000;
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('matrix-build-start');
+                }
+                
+                // Apply rotation transformation (rotating around Y-axis)
+                const rotationAngle = elapsedSeconds * Math.PI * 0.125; // Rotate at 0.5 rad/s
+                const matrix = MatrixBuilder.euclidean()
+                    .rotateY(rotationAngle)
+                    .getArray();
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('matrix-build-end');
+                    performance.mark('transform-vertices-start');
+                }
+                
+                const transformedIcoverts = Rn.matrixTimesVectorArray(null, matrix, icoverts);
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('transform-vertices-end');
+                    performance.mark('update-geometry-start');
+                }
+                
+                // Use setVertexAttribute instead of setVertexCoordinates to avoid updating vertex count
+                const coordList = toDataList(transformedIcoverts);
+                animatedGeometry.setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('update-geometry-end');
+                    performance.mark('render-start');
+                }
+                
+                // Render using the CURRENT viewer (not hardcoded)
+                currentViewer.render();
+                
+                if (ENABLE_PROFILING) {
+                    performance.mark('render-end');
+                    performance.mark('animate-end');
+                    
+                    // Create measurements for DevTools Performance panel
+                    performance.measure('matrix-build', 'matrix-build-start', 'matrix-build-end');
+                    performance.measure('transform-vertices', 'transform-vertices-start', 'transform-vertices-end');
+                    performance.measure('update-geometry', 'update-geometry-start', 'update-geometry-end');
+                    performance.measure('render', 'render-start', 'render-end');
+                    performance.measure('total-frame', 'animate-start', 'animate-end');
+                    
+                    // Log frame time occasionally (every 60 frames ~= once per second at 60fps)
+                    if (Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
+                        const measures = performance.getEntriesByType('measure');
+                        const lastFrame = measures.filter(m => m.name === 'total-frame').slice(-1)[0];
+                        if (lastFrame) {
+                            console.log(`[${viewerNames[currentViewerIndex]}] Frame time: ${lastFrame.duration.toFixed(2)}ms`);
+                        }
+                    }
+                }
+                
+                // Schedule next frame
+                if (getDoAnimation()) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            
+            // Start animation after a short delay (only if enabled)
+            if (getDoAnimation()) {
+                setTimeout(() => {
+                    console.log('✓ Starting animation using requestAnimationFrame');
+                    animationStartTime = null; // Reset for clean start
+                    requestAnimationFrame(animate);
+                }, 1500);
+            } else {
+                console.log('Animation disabled (use setDoAnimation(true) to enable)');
+            }
             
             // Add some extra debug info
             console.log('---');
-            console.log('Canvas size:', viewer.getViewingComponentSize());
+            console.log('Canvas size:', currentViewer.getViewingComponentSize());
             console.log('Pixel ratio:', window.devicePixelRatio || 1);
-            
-            // Get the scene root from the viewer
-            const sceneRoot = viewer.getSceneRoot();
             console.log('Scene root:', sceneRoot.getName());
+            console.log('✓ All 3 viewers created and initialized');
             
             // Create and attach the inspector
             const inspectorContainer = document.getElementById('inspector-container');
             const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
             console.log('✓ Scene Graph Inspector created');
             
+            // Store current viewer reference globally so inspector changes can trigger renders
+            window._viewerInstance = currentViewer;
             
-            // Store viewer reference globally so inspector changes can trigger renders
-            window._viewerInstance = viewer;
+            // Expose switchViewer globally for radio button handlers
+            window._switchViewer = switchViewer;
+            
+            // Update switchViewer to sync radio buttons and inspector reference
+            const originalSwitchViewer = switchViewer;
+            switchViewer = function(index) {
+                originalSwitchViewer(index);
+                // Update radio button to match current viewer
+                const radios = document.querySelectorAll('input[name="viewer-select"]');
+                if (radios[index]) {
+                    radios[index].checked = true;
+                }
+                // Update inspector's viewer reference
+                window._viewerInstance = currentViewer;
+            };
             
             // Auto-expand the root node for convenience
             inspector.refresh();
-            
-            // Add a hook to refresh inspector when viewer renders
-            // NOTE: Commented out because constant refresh might interfere with click handling
-            // Uncomment if you need live updates, but be aware it rebuilds the tree on every render
-            // const originalRender = viewer.render.bind(viewer);
-            // viewer.render = function() {
-            //     originalRender();
-            //     inspector.refresh();
-            // };
             
             console.log('✓ Inspector integrated with viewer');
             console.log('✓ You can now edit appearance attributes and see changes in real-time!');
@@ -556,8 +836,8 @@
             // Setup resizable main divider
             setupMainDivider();
             
-            // Setup menubar
-            setupMenubar(viewer);
+            // Setup menubar (pass getter function for current viewer)
+            setupMenubar(() => currentViewer, null);
             console.log('✓ Menubar initialized');
             
             // Add a test to verify console.log is working
@@ -575,7 +855,7 @@
                     console.log('BEFORE: grid visibility =', grid.isVisible());
                     grid.setVisible(newVis);
                     console.log('AFTER: grid visibility =', grid.isVisible());
-                    viewer.render();
+                    currentViewer.render();
                     console.log('Render called');
                 } else {
                     console.log('Grid component not found');
