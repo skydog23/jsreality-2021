@@ -484,6 +484,27 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     return Number(ret);
   }
 
+  /**
+   * Get the background color from the scene root's appearance
+   * All backends should use this method to ensure consistent background color extraction
+   * @protected
+   * @returns {*} Background color (Color object, array, or CSS string)
+   */
+  _getBackgroundColor() {
+    const sceneRoot = this.#viewer.getSceneRoot();
+    let backgroundColor = CommonAttributes.BACKGROUND_COLOR_DEFAULT;
+    
+    if (sceneRoot && sceneRoot.getAppearance()) {
+      const rootApp = sceneRoot.getAppearance();
+      const bgColor = rootApp.getAttribute(CommonAttributes.BACKGROUND_COLOR);
+      if (bgColor !== undefined && bgColor !== null && bgColor !== INHERITED) {
+        backgroundColor = bgColor;
+      }
+    }
+    
+    return backgroundColor;
+  }
+
   // ============================================================================
   // GEOMETRY RENDERING - Device-independent rendering logic
   // ============================================================================
@@ -527,11 +548,11 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     
     // IndexedFaceSet renders all three primitive types based on draw flags:
     // 1. Vertices as points (if VERTEX_DRAW)
-    // 2. Edges as lines (if EDGE_DRAW) 
-    // 3. Faces as filled polygons (if FACE_DRAW)
+    // 2. Faces as filled polygons (if FACE_DRAW) - render first so edges appear on top
+    // 3. Edges as lines (if EDGE_DRAW) - render last so they're visible over faces
     this._renderVerticesAsPoints(geometryToRender);
-    this._renderEdgesAsLines(geometryToRender);
     this._renderFacesAsPolygons(geometryToRender);
+    this._renderEdgesAsLines(geometryToRender);
   }
 
   /**
@@ -596,14 +617,11 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this._beginPrimitiveGroup(CommonAttributes.LINE);
     
     // Render all edges
-    if (indices) {
+    if (indices && indices.length > 0) {
       // indices is now a JS array (from fromDataList), where each element is an array of vertex indices
       for (let i = 0; i < indices.length; i++) {
         this._drawPolyline(vertices, edgeColors ? edgeColors[i] : null, indices[i]);
       }
-    } else {
-      // Handle flat array case
-      console.warn('Edge indices format not supported yet');
     }
     
     // End nested group for lines

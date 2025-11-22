@@ -74,6 +74,25 @@ export class Color {
     }
 
     /**
+     * 
+     * @param {number} max 
+     * @returns {number[]} [r, g, b, a] in range [0, 1]
+     */
+    toFloatArray(max = 255.0) {
+        return [this.r / max, this.g / max, this.b / max, this.a / max];
+    }
+
+    /**
+     * 
+     * @param {number[]} floatArray 
+     * @returns {Color}
+     */
+    fromFloatArray(floatArray) {
+        return floatArray.length === 3 ? 
+        new Color(floatArray[0] * max, floatArray[1] * max, floatArray[2] * max) : 
+        new Color(floatArray[0] * max, floatArray[1] * max, floatArray[2] * max, floatArray[3] * max);
+    }
+    /**
      * Create Color from float RGB values (0.0-1.0)
      * @param {number} r
      * @param {number} g 
@@ -82,7 +101,7 @@ export class Color {
      * @returns {Color}
      */
     static fromFloats(r, g, b, a = 1.0) {
-        return new Color(r * 255, g * 255, b * 255, a * 255);
+        return fromFloatArray([r, g, b, a]);
     }
 
     /**

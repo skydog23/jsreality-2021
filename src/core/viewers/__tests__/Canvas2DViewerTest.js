@@ -78,11 +78,22 @@ function createTestScene() {
   const mat = MatrixBuilder.euclidean().scale(.5,.5,1).getArray();
   worldSGC.setTransformation(new Transformation(mat));
 
+  getContent(worldSGC);
+
   // Create some test geometry
   // createTestGeometry(worldSGC);
-  createTestGeometryFactories(worldSGC);
-  const miscComponents = addMiscGeometry(worldSGC);
-  return { sceneRoot, cameraPath, miscComponents };
+  // createTestGeometryFactories(worldSGC);
+  // const miscComponents = addMiscGeometry(worldSGC);
+  return { sceneRoot, cameraPath, worldSGC };
+}
+
+function getContent(parent) {
+  createTestGeometryFactories(parent);
+  addMiscGeometry(parent);
+
+//  createTestGeometry(parent);
+  //  addMiscGeometry(parent);
+  // return parent;
 }
 
 function createTestGeometry(parent) {
@@ -190,6 +201,7 @@ function createTestLines(parent) {
     [0, 1],         // Diagonal line 1
     [2, 3]          // Diagonal line 2
   ];
+  
 
   const ecolors = [Color.BLACK, Color.WHITE];
 
@@ -221,19 +233,26 @@ function createTestTriangle(parent) {
     [0, -2, 0,1]      // 2: bottom-right
   ];
 
+  const edges = [
+    [0, 1],
+    [1, 2],
+    [2, 0],
+    [3, 1],
+    [3, 2]
+  ];
   // Create face indices
   const faces = [
     [0, 1, 2],        // Triangle face
     [3, 2, 1]        // Triangle face
   ];
  // Create face indices
-  const edges = [
+  const fedges = [
     [0, 1, 2,0],
     [3, 1, 2,3]       // Triangle face
 ];
   const fcolors = [Color.RED, Color.BLUE];
 
-  const faceSet = new IndexedFaceSet(3, 1);
+  const faceSet = new IndexedFaceSet(4, 2);
   faceSet.setVertexCoordinates(vertices, 4);
   faceSet.setFaceIndices(faces);
   faceSet.setEdgeIndices(edges);
@@ -350,17 +369,22 @@ function createTestLinesFactory(parent) {
   ];
 
   // Create edge indices for two lines forming an X
+  // 
   const edges = [
     [0, 1],         // Diagonal line 1
-    [2, 3]          // Diagonal line 2
+    [2, 3],          // Diagonal line 2
+    [0, 2],
+    [1, 3],
+    [0, 3],
+    [1, 2]
   ];
 
-  const ecolors = [Color.BLACK, Color.WHITE];
+  const ecolors = [Color.BLACK, Color.WHITE, Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW];
 
   const factory = new IndexedLineSetFactory();
   factory.setVertexCount(4);
   factory.setVertexCoordinates(vertices);
-  factory.setEdgeCount(2);
+  // factory.setEdgeCount(2);
   factory.setEdgeIndices(edges);
   factory.setEdgeColors(ecolors);
   factory.update();
@@ -401,6 +425,7 @@ function createTestTriangleFactory(parent) {
     [3, 1, 2,3]
   ];
   
+  
   const fcolors = [Color.RED, Color.BLUE];
 
   const factory = new IndexedFaceSetFactory();
@@ -408,7 +433,7 @@ function createTestTriangleFactory(parent) {
   factory.setVertexCoordinates(vertices);
   factory.setFaceCount(2);
   factory.setFaceIndices(faces);
-  factory.setEdgeCount(2);
+  // factory.setEdgeCount(2);
   factory.setEdgeIndices(edges);
   factory.setFaceColors(fcolors);
   factory.update();
@@ -505,7 +530,7 @@ export function runCanvas2DTest() {
   }
 
   try {
-    const { sceneRoot, cameraPath, miscComponents } = createTestScene();
+    const { sceneRoot, cameraPath, worldSGC } = createTestScene();
     console.log('✓ Test scene created');
 
    
@@ -542,12 +567,12 @@ export function runCanvas2DTest() {
 
     // Setup animation timer for one of the misc geometry components
     // Using requestAnimationFrame for smooth, browser-synced animation
-    let animationStartTime = null;
-    let animationId = null;
+    let animationStartTime = null;  
+    const doAnimation = false;
     
     // Select the misc component to animate (index 2 is the icosahedron)
-    const animatedComponent = miscComponents[2];
-    const icoverts = fromDataList(geomList[2].getVertexAttribute(GeometryAttribute.COORDINATES));
+    const animatedGeometry = worldSGC.getChildComponent(6).getGeometry();
+    const icoverts = fromDataList(animatedGeometry.getVertexAttribute(GeometryAttribute.COORDINATES));
     
     // Performance profiling: enable to see detailed timing in DevTools Performance tab
     const ENABLE_PROFILING = true; // Set to false to disable profiling overhead
@@ -590,7 +615,7 @@ export function runCanvas2DTest() {
       // Use setVertexAttribute instead of setVertexCoordinates to avoid updating vertex count
       // which can cause edge data to be invalidated
       const coordList = toDataList(transformedIcoverts);
-      geomList[2].setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
+      animatedGeometry.setVertexAttribute(GeometryAttribute.COORDINATES, coordList);
       
       if (ENABLE_PROFILING) {
         performance.mark('update-geometry-end');
@@ -611,7 +636,7 @@ export function runCanvas2DTest() {
         performance.measure('total-frame', 'animate-start', 'animate-end');
         
         // Log frame time occasionally (every 60 frames ~= once per second at 60fps)
-        if (false && Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
+        if ( Math.floor(elapsedSeconds * 60) % 60 === 0 && Math.floor(elapsedSeconds * 60) > 0) {
           const measures = performance.getEntriesByType('measure');
           const lastFrame = measures.filter(m => m.name === 'total-frame').slice(-1)[0];
           if (lastFrame) {
@@ -621,14 +646,16 @@ export function runCanvas2DTest() {
       }
       
       // Schedule next frame (requestAnimationFrame automatically syncs with browser refresh rate)
-      animationId = requestAnimationFrame(animate);
+      if (doAnimation) {
+        requestAnimationFrame(animate);
+      }
     }
     
     // Start animation after a short delay
     setTimeout(() => {
       console.log('✓ Starting animation using requestAnimationFrame');
       animationStartTime = null; // Reset for clean start
-      animationId = requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
     }, 1500);
 
     console.log('✓ Canvas2D viewer test complete');

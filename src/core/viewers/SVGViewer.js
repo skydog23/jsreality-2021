@@ -510,18 +510,8 @@ class SVGRenderer extends Abstract2DRenderer {
    * @private
    */
   #renderBackground() {
-    // Get background color from scene root's appearance
-    // Background color must be defined in the root appearance
-    const sceneRoot = this._getViewer().getSceneRoot();
-    let backgroundColor = CommonAttributes.BACKGROUND_COLOR_DEFAULT;
-    
-    if (sceneRoot && sceneRoot.getAppearance()) {
-      const rootApp = sceneRoot.getAppearance();
-      const bgColor = rootApp.getAttribute(CommonAttributes.BACKGROUND_COLOR);
-      if (bgColor !== undefined && bgColor !== null && bgColor !== INHERITED) {
-        backgroundColor = bgColor;
-      }
-    }
+    // Get background color using shared method from Abstract2DRenderer
+    const backgroundColor = this._getBackgroundColor();
     
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', '-1');

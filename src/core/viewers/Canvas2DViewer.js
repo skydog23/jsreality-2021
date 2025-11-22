@@ -391,18 +391,8 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     // First, completely clear the canvas to transparent
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Get background color from scene root's appearance
-    // Background color must be defined in the root appearance
-    const sceneRoot = this._getViewer().getSceneRoot();
-    let backgroundColor = CommonAttributes.BACKGROUND_COLOR_DEFAULT;
-    
-    if (sceneRoot && sceneRoot.getAppearance()) {
-      const rootApp = sceneRoot.getAppearance();
-      const bgColor = rootApp.getAttribute(CommonAttributes.BACKGROUND_COLOR);
-      if (bgColor !== undefined && bgColor !== null && bgColor !== INHERITED) {
-        backgroundColor = bgColor;
-      }
-    }
+    // Get background color using shared method from Abstract2DRenderer
+    const backgroundColor = this._getBackgroundColor();
     
     ctx.fillStyle = this.toCSSColor(backgroundColor);
     // console.log('backgroundColor', backgroundColor, this.toCSSColor(backgroundColor));

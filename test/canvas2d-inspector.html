@@ -210,6 +210,9 @@
                 <div class="menu-option" id="export-svg">
                     <span>Export as SVG</span>
                 </div>
+                <div class="menu-option" id="export-webgl">
+                    <span>Export WebGL</span>
+                </div>
             </div>
         </div>
         <div class="menu-item" id="view-menu">
@@ -242,6 +245,7 @@
         import { runCanvas2DTest } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
+        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
         
         // Setup resizable divider between canvas and inspector
         function setupMainDivider() {
@@ -375,6 +379,101 @@
                 downloadSVG(svgString, 'scene-export.svg');
                 
                 console.log('✓ SVG exported successfully');
+            });
+            
+            // Export WebGL with anti-aliasing (2x supersampling)
+            document.getElementById('export-webgl').addEventListener('click', () => {
+                closeAllMenus();
+                
+                try {
+                    // Get canvas dimensions
+                    const canvas = viewer.getViewingComponent();
+                    const width = canvas.clientWidth;
+                    const height = canvas.clientHeight;
+                    
+                    // Anti-aliasing: render at 4x resolution, then scale down by factor of 2
+                    // Result: 2x canvas size with anti-aliasing
+                    const renderScaleFactor = 4; // Render at 4x resolution
+                    const outputScaleFactor = 2; // Output at 2x canvas size
+                    const renderWidth = width * renderScaleFactor;
+                    const renderHeight = height * renderScaleFactor;
+                    const outputWidth = width * outputScaleFactor;
+                    const outputHeight = height * outputScaleFactor;
+                    
+                    // Create a temporary canvas for WebGL rendering at 4x resolution
+                    const webglCanvas = document.createElement('canvas');
+                    // Set CSS dimensions to original size (WebGL2DViewer will multiply by pixelRatio)
+                    webglCanvas.style.width = width + 'px';
+                    webglCanvas.style.height = height + 'px';
+                    // Temporarily add to DOM so clientWidth/clientHeight are available
+                    webglCanvas.style.position = 'absolute';
+                    webglCanvas.style.left = '-9999px';
+                    document.body.appendChild(webglCanvas);
+                    
+                    try {
+                        // Create WebGL2DViewer with pixelRatio=4 to render at 4x resolution
+                        // CSS size is 1x, pixelRatio is 4x, so canvas.width = width * 4 = renderWidth
+                        const webglViewer = new WebGL2DViewer(webglCanvas, {
+                            preserveDrawingBuffer: true,
+                            autoResize: false, // Don't auto-resize since we're setting dimensions manually
+                            pixelRatio: renderScaleFactor // Use 4x pixel ratio for supersampling
+                        });
+                    
+                        // Copy scene setup from Canvas2DViewer
+                        webglViewer.setSceneRoot(viewer.getSceneRoot());
+                        webglViewer.setCameraPath(viewer.getCameraPath());
+                        
+                        // Render the scene to WebGL at 4x resolution
+                        webglViewer.render();
+                        
+                        // Small delay to ensure rendering completes
+                        setTimeout(() => {
+                            // Verify actual canvas dimensions after WebGL setup
+                            const actualWidth = webglCanvas.width;
+                            const actualHeight = webglCanvas.height;
+                            console.log('WebGL canvas actual size (4x):', actualWidth, 'x', actualHeight);
+                            console.log('Output size (2x canvas):', outputWidth, 'x', outputHeight);
+                            
+                            // Create a temporary canvas at 2x resolution for downscaling
+                            const outputCanvas = document.createElement('canvas');
+                            outputCanvas.width = outputWidth;
+                            outputCanvas.height = outputHeight;
+                            const ctx = outputCanvas.getContext('2d');
+                            
+                            // Enable smooth scaling for better anti-aliasing
+                            ctx.imageSmoothingEnabled = true;
+                            ctx.imageSmoothingQuality = 'high';
+                            
+                            // Scale down the 4x resolution WebGL canvas to 2x canvas size
+                            // This provides anti-aliasing through supersampling (4x → 2x = 2x downscale)
+                            // Use actual canvas dimensions
+                            ctx.drawImage(webglCanvas, 0, 0, actualWidth, actualHeight, 0, 0, outputWidth, outputHeight);
+                            
+                            // Export the downscaled canvas as PNG
+                            const dataURL = outputCanvas.toDataURL('image/png');
+                            if (dataURL && dataURL !== 'data:,') {
+                                downloadImage(dataURL, 'scene-export-webgl.png');
+                                console.log('✓ WebGL exported successfully: 4x render → 2x output with anti-aliasing, dataURL length:', dataURL.length);
+                            } else {
+                                console.error('Output canvas appears to be empty');
+                                alert('Failed to export WebGL: Canvas appears to be empty. Check console for errors.');
+                            }
+                            
+                            // Clean up temporary canvases
+                            document.body.removeChild(webglCanvas);
+                        }, 100);
+                    } catch (error) {
+                        console.error('Error exporting WebGL:', error);
+                        alert('Failed to export WebGL: ' + error.message);
+                        // Clean up temporary canvas on error
+                        if (webglCanvas.parentNode) {
+                            document.body.removeChild(webglCanvas);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error setting up WebGL export:', error);
+                    alert('Failed to export WebGL: ' + error.message);
+                }
             });
             
             // Reset camera (placeholder for now)
