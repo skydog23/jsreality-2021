@@ -1,3 +1,13 @@
+/**
+ * Abstract base class for 2D renderers.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
 // Abstract base class for 2D renderers
 // Handles device-independent scene graph traversal and state management
 // Subclasses implement device-specific drawing operations

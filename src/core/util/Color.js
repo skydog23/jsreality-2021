@@ -1,6 +1,12 @@
 /**
- * A minimal Color class equivalent to java.awt.Color for jReality JavaScript translation.
+ * A minimal Color class equivalent to java.awt.Color for jsReality JavaScript translation.
  * Represents colors as RGBA values with utilities for common operations.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  * 
  * @author JavaScript translation
  */
@@ -75,7 +81,7 @@ export class Color {
 
     /**
      * 
-     * @param {number} max 
+     * @param {number} [max=255.0] 
      * @returns {number[]} [r, g, b, a] in range [0, 1]
      */
     toFloatArray(max = 255.0) {
