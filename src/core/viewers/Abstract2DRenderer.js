@@ -306,6 +306,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * Render the scene (device-independent orchestration)
    */
   render() {
+    // Reset render statistics for this call
+    this.#viewer._resetRenderStatistics();
+
     const sceneRoot = this.#viewer.getSceneRoot();
 
     if (!this.beginRender()) {
@@ -322,6 +325,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
 
     this.endRender();
+
+    // Finalize render statistics (increments counter and prints if needed)
+    this.#viewer._finalizeRenderStatistics();
   }
 
   /**
@@ -581,6 +587,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
         this._drawPoint(vertices[i], colors ? colors[i] : null);
     }
     
+    // Track number of points rendered
+    this.#viewer._incrementPointsRendered(numVertices);
+    
     // End nested group for points
     this._endPrimitiveGroup();
   }
@@ -622,6 +631,8 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       for (let i = 0; i < indices.length; i++) {
         this._drawPolyline(vertices, edgeColors ? edgeColors[i] : null, indices[i]);
       }
+      // Track number of edges rendered
+      this.#viewer._incrementEdgesRendered(indices.length);
     }
     
     // End nested group for lines
@@ -655,6 +666,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     for (let i = 0; i < indices.length; i++) {
      this._drawPolygon(vertices, faceColors ? faceColors[i] : null, indices[i], true);
     }
+    
+    // Track number of faces rendered
+    this.#viewer._incrementFacesRendered(indices.length);
     
     // End nested group for faces
     this._endPrimitiveGroup();

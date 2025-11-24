@@ -23,7 +23,7 @@ import { Color } from '../util/Color.js';
  * An SVG-based viewer implementation for jReality scene graphs.
  * Renders geometry as vector graphics using SVG DOM elements.
  */
-export class SVGViewer extends Viewer {
+export class SVGViewer extends Abstract2DViewer {
 
   /** @type {SVGSVGElement} */
   #svgElement;

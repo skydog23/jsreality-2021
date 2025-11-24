@@ -24,6 +24,18 @@ export class Abstract2DViewer extends Viewer {
   /** @type {SceneGraphPath|null} */
   #cameraPath = null;
 
+  /** @type {number} Counter for render calls */
+  #renderCallCount = 0;
+
+  /** @type {number} Number of points rendered in current render call */
+  #pointsRendered = 0;
+
+  /** @type {number} Number of edges rendered in current render call */
+  #edgesRendered = 0;
+
+  /** @type {number} Number of faces rendered in current render call */
+  #facesRendered = 0;
+
   /**
    * Create a new Abstract2DViewer
    */
@@ -55,6 +67,75 @@ export class Abstract2DViewer extends Viewer {
    */
   render() {
     throw new Error('Abstract method render() must be implemented by subclass');
+  }
+
+  /**
+   * Get render statistics (for internal use by renderer)
+   * @protected
+   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
+   */
+  _getRenderStatistics() {
+    return {
+      renderCallCount: this.#renderCallCount,
+      pointsRendered: this.#pointsRendered,
+      edgesRendered: this.#edgesRendered,
+      facesRendered: this.#facesRendered
+    };
+  }
+
+  /**
+   * Reset render statistics for a new render call
+   * @protected
+   */
+  _resetRenderStatistics() {
+    this.#pointsRendered = 0;
+    this.#edgesRendered = 0;
+    this.#facesRendered = 0;
+  }
+
+  /**
+   * Increment points rendered count
+   * @protected
+   * @param {number} count - Number of points rendered
+   */
+  _incrementPointsRendered(count) {
+    this.#pointsRendered += count;
+  }
+
+  /**
+   * Increment edges rendered count
+   * @protected
+   * @param {number} count - Number of edges rendered
+   */
+  _incrementEdgesRendered(count) {
+    this.#edgesRendered += count;
+  }
+
+  /**
+   * Increment faces rendered count
+   * @protected
+   * @param {number} count - Number of faces rendered
+   */
+  _incrementFacesRendered(count) {
+    this.#facesRendered += count;
+  }
+
+  /**
+   * Finalize render statistics (called after render completes)
+   * @protected
+   */
+  _finalizeRenderStatistics() {
+    this.#renderCallCount++;
+    
+    // Print statistics after every 100th render call
+    if (this.#renderCallCount % 100 === 0) {
+      console.log(`[Render Statistics - Call #${this.#renderCallCount}]`, {
+        points: this.#pointsRendered,
+        edges: this.#edgesRendered,
+        faces: this.#facesRendered,
+        total: this.#pointsRendered + this.#edgesRendered + this.#facesRendered
+      });
+    }
   }
 
   hasViewingComponent() {
