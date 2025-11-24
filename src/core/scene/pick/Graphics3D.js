@@ -99,7 +99,7 @@ export class Graphics3D {
       }
     }
     this.#setCameraPath(cp);
-    this.#setCurrentPath(sgp);
+    this.setCurrentPath(sgp);
     this.setAspectRatio(ar);
   }
   

@@ -21,4 +21,5 @@ export { AABB } from './AABB.js';
 export { AABBTree } from './AABBTree.js';
 export { AABBPickSystem } from './AABBPickSystem.js';
 export { PosWHitFilter } from './PosWHitFilter.js';
+export { PickUtility } from './PickUtility.js';
 

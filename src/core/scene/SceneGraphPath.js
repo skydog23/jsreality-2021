@@ -11,7 +11,6 @@
 // JavaScript port of jReality's SceneGraphPath class (from SceneGraphPath.java)
 // Represents a directed path through the scene graph hierarchy
 
-import { Matrix } from '../math/Matrix.js';
 import * as Rn from '../math/Rn.js';
 import { SceneGraphComponent } from './SceneGraphComponent.js';
 
