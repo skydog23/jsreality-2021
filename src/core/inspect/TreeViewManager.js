@@ -1,3 +1,13 @@
+/**
+ * JavaScript port/translation of jReality.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
 // Tree View Manager - handles tree building, expansion, selection, and node rendering
 
 import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
@@ -5,6 +15,7 @@ import { Transformation } from '../scene/Transformation.js';
 import { Appearance } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
+import { Tool } from '../scene/tool/Tool.js';
 
 /**
  * Wrapper class for shader nodes in the tree view
@@ -47,6 +58,28 @@ export class ShaderTreeNode {
    */
   updateShaderInstance(newShaderInstance) {
     this.shaderInstance = newShaderInstance;
+  }
+}
+
+/**
+ * Wrapper class for tool nodes in the tree view
+ * Allows tools to be displayed as tree nodes
+ */
+export class ToolTreeNode {
+  /**
+   * @param {Tool} tool - The tool instance
+   */
+  constructor(tool) {
+    this.tool = tool;
+    this.name = tool.constructor.name;
+  }
+  
+  getName() {
+    return this.name;
+  }
+  
+  getChildren() {
+    return []; // Tools don't have children
   }
 }
 
@@ -163,7 +196,8 @@ export class TreeViewManager {
                         node.getTransformation() || 
                         node.getAppearance() || 
                         node.getGeometry() ||
-                        node.getCamera())) ||
+                        node.getCamera() ||
+                        (node.getTools && node.getTools().length > 0))) ||
                        (node instanceof Appearance) ||
                        (node instanceof ShaderTreeNode && node.children.length > 0);
     
@@ -242,6 +276,15 @@ export class TreeViewManager {
             this.#buildTreeNode(child, childrenDiv);
           }
         }
+        
+        // Add tools after component children
+        if (node.getTools) {
+          const tools = node.getTools();
+          for (const tool of tools) {
+            const toolNode = new ToolTreeNode(tool);
+            this.#buildTreeNode(toolNode, childrenDiv);
+          }
+        }
       } else if (node instanceof Appearance) {
         // Create shader tree nodes for this appearance
         const shaderNodes = this.#createShaderTreeNodes(node);
@@ -260,6 +303,8 @@ export class TreeViewManager {
         for (const child of node.children) {
           this.#buildTreeNode(child, childrenDiv);
         }
+      } else if (node instanceof ToolTreeNode) {
+        // Tools don't have children, so nothing to add
       }
       
       nodeDiv.appendChild(childrenDiv);
@@ -281,6 +326,7 @@ export class TreeViewManager {
     if (node instanceof Appearance) return '🎨';
     if (node instanceof Geometry) return '▲';
     if (node instanceof Camera) return '📷';
+    if (node instanceof ToolTreeNode) return '🔧';
     if (node instanceof ShaderTreeNode) {
       if (node.type === 'geometry') return '🎨';
       if (node.type === 'renderingHints') return '⚙️';
@@ -305,6 +351,7 @@ export class TreeViewManager {
       return node.constructor.name;
     }
     if (node instanceof Camera) return 'Camera';
+    if (node instanceof ToolTreeNode) return 'Tool';
     if (node instanceof ShaderTreeNode) return 'Shader';
     return 'Node';
   }

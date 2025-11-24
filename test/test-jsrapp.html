@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="fav_icon.png">
+    <title>TestJSRApp with Inspector</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e1e1e;
+            color: #cccccc;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 16px;
+            border-bottom: 1px solid #3e3e3e;
+        }
+        
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #858585;
+            font-size: 14px;
+        }
+        
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .canvas-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+        }
+        
+        .main-divider {
+            width: 4px;
+            background: #3e3e3e;
+            cursor: ew-resize;
+            flex-shrink: 0;
+        }
+        
+        .main-divider:hover {
+            background: #007acc;
+        }
+        
+        .canvas-header {
+            background: #2d2d2d;
+            padding: 8px 12px;
+            border-bottom: 1px solid #3e3e3e;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #252526;
+            padding: 0;
+            overflow: auto;
+        }
+        
+        #test-canvas {
+            border: 2px solid #3e3e3e;
+            border-radius: 4px;
+            background: white;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .inspector-panel {
+            flex: 0 0 40%;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+            min-width: 300px;
+            overflow: hidden;
+        }
+        
+        .inspector-header {
+            background: #2d2d2d;
+            padding: 8px 12px;
+            border-bottom: 1px solid #3e3e3e;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .inspector-content {
+            flex: 1;
+            overflow: auto;
+            padding: 8px;
+        }
+        
+        .info {
+            background: #2d2d2d;
+            padding: 8px 12px;
+            border-top: 1px solid #3e3e3e;
+            font-size: 12px;
+            color: #858585;
+        }
+        
+        #error-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #a1260d;
+            color: white;
+            padding: 12px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        #error-container.show {
+            display: block;
+        }
+        
+        /* Menubar styles */
+        .menubar {
+            background: #2d2d2d;
+            border-bottom: 1px solid #3e3e3e;
+            display: flex;
+            padding: 0;
+            font-size: 13px;
+            user-select: none;
+        }
+        
+        .menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            position: relative;
+            color: #cccccc;
+        }
+        
+        .menu-item:hover {
+            background: #3e3e3e;
+        }
+        
+        .menu-item.active {
+            background: #094771;
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #2d2d2d;
+            border: 1px solid #3e3e3e;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        .menu-option {
+            padding: 8px 16px;
+            cursor: pointer;
+            color: #cccccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .menu-option:hover {
+            background: #094771;
+        }
+        
+        .menu-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .menu-option.disabled:hover {
+            background: transparent;
+        }
+        
+        .menu-separator {
+            height: 1px;
+            background: #3e3e3e;
+            margin: 4px 0;
+        }
+        
+        .menu-shortcut {
+            color: #858585;
+            font-size: 11px;
+            margin-left: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 TestJSRApp with Scene Graph Inspector</h1>
+        <p>Interactive viewer and inspector for TestJSRApp</p>
+    </div>
+    
+    <div class="menubar">
+        <div class="menu-item" id="file-menu">
+            File
+            <div class="dropdown-menu" id="file-dropdown">
+                <div class="menu-option" id="export-image-png">
+                    <span>Export as PNG</span>
+                </div>
+                <div class="menu-option" id="export-image-jpeg">
+                    <span>Export as JPEG</span>
+                </div>
+                <div class="menu-option" id="export-svg">
+                    <span>Export as SVG</span>
+                </div>
+                <div class="menu-option" id="export-webgl">
+                    <span>Export WebGL</span>
+                </div>
+            </div>
+        </div>
+        <div class="menu-item" id="view-menu">
+            View
+            <div class="dropdown-menu" id="view-dropdown">
+                <div class="menu-option" id="reset-camera">
+                    <span>Reset Camera</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="canvas-panel" id="canvas-panel">
+            <div class="canvas-header">Canvas Viewer</div>
+            <div class="canvas-container">
+                <canvas id="test-canvas"></canvas>
+            </div>
+            <div id="info-container" class="info">
+                Click on nodes in the inspector to explore the scene graph
+            </div>
+        </div>
+        
+        <div class="main-divider" id="main-divider"></div>
+        
+        <div class="inspector-panel" id="inspector-container">
+            <div class="inspector-header">Scene Graph Inspector</div>
+            <div class="inspector-content" id="inspector-content"></div>
+        </div>
+    </div>
+
+    <div id="error-container"></div>
+
+    <script type="module">
+        import { TestJSRApp } from '../src/core/examples/TestJSRApp.js';
+        import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
+        import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
+        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
+        
+        // Setup resizable divider between canvas and inspector
+        function setupMainDivider() {
+            const divider = document.getElementById('main-divider');
+            const canvasPanel = document.getElementById('canvas-panel');
+            const inspectorPanel = document.getElementById('inspector-container');
+            const mainContainer = document.querySelector('.main-container');
+            
+            let isDragging = false;
+            let startX = 0;
+            let startCanvasWidth = 0;
+            
+            divider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startCanvasWidth = canvasPanel.offsetWidth;
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const delta = e.clientX - startX;
+                const containerWidth = mainContainer.offsetWidth;
+                const newCanvasWidth = startCanvasWidth + delta;
+                const minWidth = 300; // Minimum panel width
+                
+                if (newCanvasWidth > minWidth && (containerWidth - newCanvasWidth) > minWidth) {
+                    const percentage = (newCanvasWidth / containerWidth) * 100;
+                    canvasPanel.style.flex = `0 0 ${percentage}%`;
+                    inspectorPanel.style.flex = '1';
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+        
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.textContent = `Error: ${message}`;
+            errorContainer.classList.add('show');
+            console.error(message);
+        }
+        
+        function hideError() {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.classList.remove('show');
+        }
+        
+        // Setup menubar functionality
+        function setupMenubar(viewerGetter) {
+            let activeMenu = null;
+            
+            // Close all menus
+            function closeAllMenus() {
+                document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                activeMenu = null;
+            }
+            
+            // Toggle menu
+            function toggleMenu(menuItem, dropdown) {
+                const wasActive = dropdown.classList.contains('show');
+                closeAllMenus();
+                
+                if (!wasActive) {
+                    dropdown.classList.add('show');
+                    menuItem.classList.add('active');
+                    activeMenu = dropdown;
+                }
+            }
+            
+            // Setup File menu
+            const fileMenu = document.getElementById('file-menu');
+            const fileDropdown = document.getElementById('file-dropdown');
+            
+            fileMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMenu(fileMenu, fileDropdown);
+            });
+            
+            // Setup View menu
+            const viewMenu = document.getElementById('view-menu');
+            const viewDropdown = document.getElementById('view-dropdown');
+            
+            viewMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMenu(viewMenu, viewDropdown);
+            });
+            
+            // Export as PNG
+            document.getElementById('export-image-png').addEventListener('click', () => {
+                closeAllMenus();
+                const viewer = viewerGetter();
+                if (viewer && viewer.exportImage) {
+                    const dataURL = viewer.exportImage('image/png');
+                    downloadImage(dataURL, 'scene-export.png');
+                } else {
+                    alert('Current viewer does not support PNG export');
+                }
+            });
+            
+            // Export as JPEG
+            document.getElementById('export-image-jpeg').addEventListener('click', () => {
+                closeAllMenus();
+                const viewer = viewerGetter();
+                if (viewer && viewer.exportImage) {
+                    const dataURL = viewer.exportImage('image/jpeg', 0.95);
+                    downloadImage(dataURL, 'scene-export.jpg');
+                } else {
+                    alert('Current viewer does not support JPEG export');
+                }
+            });
+            
+            // Export as SVG
+            document.getElementById('export-svg').addEventListener('click', () => {
+                closeAllMenus();
+                const viewer = viewerGetter();
+                
+                const viewingComponent = viewer.getViewingComponent();
+                const width = viewingComponent.clientWidth || viewingComponent.offsetWidth;
+                const height = viewingComponent.clientHeight || viewingComponent.offsetHeight;
+                
+                const tempContainer = document.createElement('div');
+                const svgViewer = new SVGViewer(tempContainer, { width, height });
+                
+                svgViewer.setSceneRoot(viewer.getSceneRoot());
+                svgViewer.setCameraPath(viewer.getCameraPath());
+                svgViewer.render();
+                
+                const svgString = svgViewer.exportSVG();
+                downloadSVG(svgString, 'scene-export.svg');
+                
+                console.log('✓ SVG exported successfully');
+            });
+            
+            // Export WebGL with anti-aliasing (2x supersampling)
+            document.getElementById('export-webgl').addEventListener('click', () => {
+                closeAllMenus();
+                const viewer = viewerGetter();
+                
+                try {
+                    const viewingComponent = viewer.getViewingComponent();
+                    const width = viewingComponent.clientWidth || viewingComponent.offsetWidth;
+                    const height = viewingComponent.clientHeight || viewingComponent.offsetHeight;
+                    
+                    const renderScaleFactor = 4;
+                    const outputScaleFactor = 2;
+                    const renderWidth = width * renderScaleFactor;
+                    const renderHeight = height * renderScaleFactor;
+                    const outputWidth = width * outputScaleFactor;
+                    const outputHeight = height * outputScaleFactor;
+                    
+                    const webglCanvas = document.createElement('canvas');
+                    webglCanvas.style.width = width + 'px';
+                    webglCanvas.style.height = height + 'px';
+                    webglCanvas.style.position = 'absolute';
+                    webglCanvas.style.left = '-9999px';
+                    document.body.appendChild(webglCanvas);
+                    
+                    try {
+                        const webglViewer = new WebGL2DViewer(webglCanvas, {
+                            preserveDrawingBuffer: true,
+                            autoResize: false,
+                            pixelRatio: renderScaleFactor
+                        });
+                    
+                        webglViewer.setSceneRoot(viewer.getSceneRoot());
+                        webglViewer.setCameraPath(viewer.getCameraPath());
+                        webglViewer.render();
+                        
+                        setTimeout(() => {
+                            const actualWidth = webglCanvas.width;
+                            const actualHeight = webglCanvas.height;
+                            
+                            const outputCanvas = document.createElement('canvas');
+                            outputCanvas.width = outputWidth;
+                            outputCanvas.height = outputHeight;
+                            const ctx = outputCanvas.getContext('2d');
+                            
+                            ctx.imageSmoothingEnabled = true;
+                            ctx.imageSmoothingQuality = 'high';
+                            
+                            ctx.drawImage(webglCanvas, 0, 0, actualWidth, actualHeight, 0, 0, outputWidth, outputHeight);
+                            
+                            const dataURL = outputCanvas.toDataURL('image/png');
+                            if (dataURL && dataURL !== 'data:,') {
+                                downloadImage(dataURL, 'scene-export-webgl.png');
+                                console.log('✓ WebGL exported successfully');
+                            } else {
+                                console.error('Output canvas appears to be empty');
+                                alert('Failed to export WebGL: Canvas appears to be empty.');
+                            }
+                            
+                            document.body.removeChild(webglCanvas);
+                        }, 100);
+                    } catch (error) {
+                        console.error('Error exporting WebGL:', error);
+                        alert('Failed to export WebGL: ' + error.message);
+                        if (webglCanvas.parentNode) {
+                            document.body.removeChild(webglCanvas);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error setting up WebGL export:', error);
+                    alert('Failed to export WebGL: ' + error.message);
+                }
+            });
+            
+            // Reset camera
+            document.getElementById('reset-camera').addEventListener('click', () => {
+                closeAllMenus();
+                console.log('Reset camera - not yet implemented');
+            });
+            
+            // Close menus when clicking outside
+            document.addEventListener('click', (e) => {
+                if (activeMenu && !e.target.closest('.menu-item')) {
+                    closeAllMenus();
+                }
+            });
+            
+            // Helper function to download image
+            function downloadImage(dataURL, filename) {
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                console.log(`✓ Image exported as ${filename}`);
+            }
+            
+            // Helper function to download SVG
+            function downloadSVG(svgString, filename) {
+                const blob = new Blob([svgString], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                console.log(`✓ SVG exported as ${filename}`);
+            }
+        }
+        
+        async function init() {
+            try {
+                hideError();
+                
+                // Get canvas element
+                const canvas = document.getElementById('test-canvas');
+                if (!canvas) {
+                    throw new Error('Canvas element not found');
+                }
+                
+                // Set canvas size
+                canvas.width = 800;
+                canvas.height = 600;
+                
+                // Create TestJSRApp instance
+                console.log('Creating TestJSRApp...');
+                const app = new TestJSRApp(canvas);
+                
+                // Get the scene root from the viewer
+                const sceneRoot = app.getViewer().getSceneRoot();
+                if (!sceneRoot) {
+                    throw new Error('Scene root not found');
+                }
+                
+                console.log('Scene root:', sceneRoot);
+                
+                // Create inspector
+                const inspectorContainer = document.getElementById('inspector-content');
+                console.log('Creating SceneGraphInspector...');
+                const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
+                
+                // Hook up inspector to viewer for automatic rendering on property changes
+                // The inspector looks for window._viewerInstance to trigger renders
+                window._viewerInstance = app.getViewer();
+                console.log('✓ Inspector connected to viewer for auto-rendering');
+                
+                // Auto-expand the root node for convenience
+                inspector.refresh();
+                
+                // Display the app
+                console.log('Calling app.display()...');
+                app.display();
+                
+                // Setup resizable divider
+                setupMainDivider();
+                
+                // Setup menubar (pass getter function for viewer)
+                setupMenubar(() => app.getViewer());
+                console.log('✓ Menubar initialized');
+                
+                console.log('✓ TestJSRApp initialized successfully');
+                
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                showError(error.message || 'Unknown error occurred');
+                throw error;
+            }
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
+

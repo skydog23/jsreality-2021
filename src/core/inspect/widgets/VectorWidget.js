@@ -1,3 +1,13 @@
+/**
+ * JavaScript port/translation of jReality.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
 // VectorWidget - A horizontal array of labeled number inputs
 // Handles vectors of any length (2D, 3D, 4D, etc.)
 

@@ -1,3 +1,13 @@
+/**
+ * JavaScript port of jReality's SceneGraphComponent class.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
 // JavaScript port of jReality's SceneGraphComponent class (from SceneGraphComponent.java)
 // Simplified for JavaScript environment with modern event system
 
@@ -8,6 +18,7 @@ import { SceneGraphNode } from './SceneGraphNode.js';
 /** @typedef {import('./Appearance.js').Appearance} Appearance */
 /** @typedef {import('./Camera.js').Camera} Camera */
 /** @typedef {import('./Geometry.js').Geometry} Geometry */
+/** @typedef {import('./tool/Tool.js').Tool} Tool */
 
 /**
  * Exception thrown when a scene graph loop is detected
@@ -122,7 +133,7 @@ export class SceneGraphComponent extends SceneGraphNode {
   #children = [];
   
   /**
-   * @type {*[]} Tools (will be defined later)
+   * @type {Tool[]} Tools attached to this component
    */
   #tools = [];
 
@@ -477,6 +488,86 @@ export class SceneGraphComponent extends SceneGraphNode {
       }
     } finally {
       this.finishWriter();
+    }
+  }
+
+  /**
+   * Add a tool to this component. When the tool was added before, nothing happens.
+   * @param {Tool} tool - The tool to add
+   */
+  addTool(tool) {
+    this.checkReadOnly();
+    this.startWriter();
+    try {
+      if (this.#tools.includes(tool)) {
+        return; // Prevent duplicates
+      }
+      this.#tools.push(tool);
+      this.#fireToolAdded(tool);
+    } finally {
+      this.finishWriter();
+    }
+  }
+
+  /**
+   * Remove a tool from this component
+   * @param {Tool} tool - The tool to remove
+   * @returns {boolean} True if the tool was removed, false if it wasn't present
+   */
+  removeTool(tool) {
+    this.checkReadOnly();
+    this.startWriter();
+    try {
+      const index = this.#tools.indexOf(tool);
+      if (index === -1) {
+        return false;
+      }
+      this.#tools.splice(index, 1);
+      this.#fireToolRemoved(tool);
+      return true;
+    } finally {
+      this.finishWriter();
+    }
+  }
+
+  /**
+   * Get all tools attached to this component
+   * @returns {Tool[]} Copy of the tools array
+   */
+  getTools() {
+    this.startReader();
+    try {
+      return [...this.#tools];
+    } finally {
+      this.finishReader();
+    }
+  }
+
+  /**
+   * Fire tool added event
+   * @private
+   */
+  #fireToolAdded(tool) {
+    // Emit custom event for tool added
+    if (typeof window !== 'undefined' && this.dispatchEvent) {
+      this.dispatchEvent(new CustomEvent('toolAdded', { 
+        detail: { tool },
+        bubbles: false 
+      }));
+    }
+  }
+
+  /**
+   * Fire tool removed event
+   * @private
+   */
+  #fireToolRemoved(tool) {
+    // Emit custom event for tool removed
+    if (typeof window !== 'undefined' && this.dispatchEvent) {
+      this.dispatchEvent(new CustomEvent('toolRemoved', { 
+        detail: { tool },
+        bubbles: false 
+      }));
     }
   }
 
