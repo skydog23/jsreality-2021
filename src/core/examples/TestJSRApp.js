@@ -14,6 +14,8 @@ import { SphereUtility } from '../geometry/SphereUtility.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { Color } from '../util/Color.js';
 import { TestTool } from './TestTool.js';
+import { Primitives } from '../geometry/Primitives.js';
+import { MatrixBuilder } from '../math/MatrixBuilder.js';
 
 /**
  * Abstract base class for jsReality applications.
@@ -25,7 +27,7 @@ export class TestJSRApp extends JSRApp {
     
     getContent() {
         const world = SceneGraphUtility.createFullSceneGraphComponent("world");
-        world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
+        // world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
         const ap = world.getAppearance();
         ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
         ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,0,0));
@@ -34,7 +36,18 @@ export class TestJSRApp extends JSRApp {
         ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,1,0));
          ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
         ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
-        
+        const geo = Primitives.regularPolygon(13, .5);
+        for (let i = 0; i < 2; i++) {
+          for (let j = 0; j < 2; j++) {
+              const sgc = SceneGraphUtility.createFullSceneGraphComponent("sgc"+i+","+j);
+              sgc.setGeometry(geo);
+              sgc.getTransformation().setMatrix(MatrixBuilder.euclidean().translate(i-1,j-1,0).scale(0.5).getArray());
+              world.addChild(sgc);
+              const tool = new TestTool();
+              tool.setName("testTool"+i+","+j);
+              sgc.addTool(tool);
+          }
+        }
         
         return world;
       }

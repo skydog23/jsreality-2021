@@ -20,7 +20,16 @@ import { InputSlot } from './InputSlot.js';
  * Provides default implementations for tool lifecycle methods and slot management.
  */
 export class AbstractTool extends Tool {
-  /** @type {number} Static counter for hash generation */
+  #name = "Tool";
+
+  getName() {
+    return this.#name;
+  }
+
+  setName(name) {
+    this.#name = name;
+  }
+/** @type {number} Static counter for hash generation */
   static #counter = 0;
   
   /** @type {number} Instance hash code */

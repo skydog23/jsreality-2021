@@ -11,6 +11,7 @@
 /**
  * @typedef {import('./InputSlot.js').InputSlot} InputSlot
  * @typedef {import('./ToolContext.js').ToolContext} ToolContext
+ * @typedef {import('../SceneGraphNode.js').SceneGraphNode} SceneGraphNode
  */
 
 /**
@@ -46,7 +47,8 @@
  * 
  * @interface
  */
-export class Tool {
+export class Tool  {
+ 
   /**
    * Get the list of InputSlots for activating the tool.
    * 

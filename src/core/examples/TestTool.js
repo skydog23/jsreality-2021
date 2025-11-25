@@ -21,7 +21,7 @@ const logger = getLogger('TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('TestTool', Level.FINER);
+setModuleLevel('TestTool', Level.FINEST);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -44,8 +44,7 @@ export class TestTool extends AbstractTool {
    * @param {ToolContext} tc - The tool context
    */
   perform(tc) {
-    logger.finer(Category.IO, 'perform() called, source slot:', tc.getSource()?.getName());
-    
+    logger.finer(Category.IO, 'perform() called, source slot:', this.getName(), tc.getSource()?.getName());
     // Get mouse position from POINTER_TRANSFORMATION slot
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     
@@ -56,7 +55,8 @@ export class TestTool extends AbstractTool {
       const xndc = pointerTrafo[3];  // Entry (0,3) - X coordinate in NDC space [-1, 1]
       const yndc = pointerTrafo[7];  // Entry (1,3) - Y coordinate in NDC space [-1, 1]
       
-      logger.finest(Category.IO, `Mouse coordinates (NDC): x=${xndc.toFixed(3)}, y=${yndc.toFixed(3)}`);
+      // logger.finest(Category.IO, `Mouse coordinates (NDC): x=${xndc.toFixed(3)}, y=${yndc.toFixed(3)}`);
+      logger.finest(Category.IO, `Path to local:`, tc.getRootToLocal());
     } else {
       logger.finer(Category.IO, 'POINTER_TRANSFORMATION matrix is null');
     }
