@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "JavaScript port of jReality's core mathematical libraries",
   "type": "module",
-  "main": "src-core/de/jreality/index.js",
+  "main": "src/core/index.js",
   "files": [
-    "src-core/de/jreality/**/*.js",
-    "!src-core/de/jreality/**/__tests__/**",
-    "!src-core/de/jreality/**/*.test.js"
+    "src/core/**/*.js",
+    "!src/core/**/__tests__/**",
+    "!src/core/**/*.test.js"
   ],
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
@@ -25,4 +25,4 @@
   "devDependencies": {
     "jest": "^29.0.0"
   }
-} 
+}
