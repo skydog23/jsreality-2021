@@ -694,7 +694,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Extract 2D coordinates for quad rendering
       const x = extractedPoint[0];
       const y = extractedPoint[1];
-      const halfSize = pointRadius / 2.0;
+      const halfSize = pointRadius; // / 2.0;
       
       // Create 2 triangles forming an axis-oriented square centered at the point
       // Triangle 1: bottom-left, bottom-right, top-left

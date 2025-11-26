@@ -270,7 +270,7 @@
     <div id="error-container"></div>
 
     <script type="module">
-        import { TestToolApp } from '../src/core/examples/TestToolApp.js';
+        import { TestJSRApp } from '../src/core/examples/TestJSRApp.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
         import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
@@ -550,7 +550,7 @@
                 
                 // Create TestJSRApp instance
                 console.log('Creating TestJSRApp...');
-                const app = new TestToolApp(canvas);
+                const app = new TestJSRApp(canvas);
                 
                 // Get the scene root from the viewer
                 const sceneRoot = app.getViewer().getSceneRoot();

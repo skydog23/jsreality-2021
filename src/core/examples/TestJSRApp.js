@@ -27,7 +27,7 @@ export class TestJSRApp extends JSRApp {
 
   getContent() {
     const world = SceneGraphUtility.createFullSceneGraphComponent("world");
-    world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
+    world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(0));
     const ap = world.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 0));
@@ -35,7 +35,7 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 1, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
 
     return world;
   }
