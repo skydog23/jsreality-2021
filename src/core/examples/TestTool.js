@@ -21,7 +21,7 @@ const logger = getLogger('TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('TestTool', Level.FINEST);
+setModuleLevel('TestTool', Level.FINER);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -44,7 +44,7 @@ export class TestTool extends AbstractTool {
    * @param {ToolContext} tc - The tool context
    */
   perform(tc) {
-    logger.finer(Category.IO, 'perform() called, source slot:', this.getName(), tc.getSource()?.getName());
+    logger.finer(Category.IO, 'perform() called, tc:', this.getName(), tc);
     // Get mouse position from POINTER_TRANSFORMATION slot
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     

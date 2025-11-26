@@ -315,14 +315,26 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Drawing mode constants
       TRIANGLES: (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004,
       LINE_STRIP: (gl.LINE_STRIP !== undefined && gl.LINE_STRIP !== null) ? gl.LINE_STRIP : 0x0003,
+      POINTS: (gl.POINTS !== undefined && gl.POINTS !== null) ? gl.POINTS : 0x0000,
       
       // Line width capabilities
       maxLineWidth: 1.0,
       supportsWideLines: false,
       
+      // Point size capabilities
+      maxPointSize: 1.0,
+      minPointSize: 1.0,
+      
       // Index type constants
       UNSIGNED_SHORT: gl.UNSIGNED_SHORT
     };
+    
+    // Query point size range
+    const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+    if (pointSizeRange && pointSizeRange.length >= 2) {
+      caps.minPointSize = pointSizeRange[0];
+      caps.maxPointSize = pointSizeRange[1];
+    }
     
     // Query maximum line width (many implementations only support 1.0)
     const maxLineWidthRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
@@ -357,22 +369,33 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Vertex shader source
     const vertexShaderSource = `
-      attribute vec2 a_position;
+      attribute vec4 a_position;
       attribute vec4 a_color;
       // NOTE: Edge smoothing disabled - see fragment shader for re-enabling instructions
       // attribute float a_distance; // Distance from centerline (for line edge smoothing)
       
       uniform mat4 u_transform;
+      uniform float u_pointSize;
       
       varying vec4 v_color;
       // NOTE: Edge smoothing disabled - see fragment shader for re-enabling instructions
       // varying float v_distance; // Pass distance to fragment shader
       
       void main() {
-        vec4 position = vec4(a_position, 0.0, 1.0);
+        // a_position is vec4, can be 2D, 3D, or 4D depending on gl.vertexAttribPointer size
+        // For 2D: a_position.xy is used, z defaults to 0.0, w defaults to 0.0
+        // For 3D: a_position.xyz is used, w defaults to 0.0
+        // For 4D: a_position.xyzw is used
+        vec4 position = a_position;
+        // Ensure w is 1.0 if not provided (for 2D/3D points where w=0.0 indicates padding)
+        // This handles homogeneous coordinates correctly
+        if (position.w == 0.0) {
+          position.w = 1.0;
+        }
         // u_transform already includes world2ndc transformation
         position = u_transform * position;
         gl_Position = position;
+        gl_PointSize = u_pointSize;
         v_color = a_color;
         // NOTE: Edge smoothing disabled - uncomment to re-enable
         // v_distance = a_distance;
@@ -414,6 +437,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         // gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
         //
         // Current code (edge smoothing disabled):
+        // For point rendering, gl_PointCoord is available but we use solid color for now
         gl_FragColor = v_color;
       }
     `;
@@ -590,8 +614,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * Update WebGL uniforms with current transformation matrices
    * @private
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing in world space (0 for non-lines)
+   * @param {number} [pointSize=1.0] - Size of points in pixels (1.0 for non-points)
    */
-  #updateUniforms(lineHalfWidth = 0) {
+  #updateUniforms(lineHalfWidth = 0, pointSize = 1.0) {
     const gl = this.#gl;
     const program = this.#program;
     
@@ -605,6 +630,12 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Set transpose to true so WebGL transposes the matrices for us
     gl.uniformMatrix4fv(transformLoc, true, currentTransform);
     
+    // Set point size uniform
+    const pointSizeLoc = gl.getUniformLocation(program, 'u_pointSize');
+    if (pointSizeLoc !== null) {
+      gl.uniform1f(pointSizeLoc, pointSize);
+    }
+    
     // NOTE: Edge smoothing disabled - uniform not set
     // To re-enable: uncomment this block and update shaders (see fragment shader comments)
     // Set line half width for edge smoothing (0 disables smoothing for non-lines)
@@ -617,57 +648,137 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /**
    * Draw a single point (implements abstract method)
+   * Supports two rendering modes based on spheresDraw attribute:
+   * 1. spheresDraw=true: Draw as quad using pointRadius (world space)
+   * 2. spheresDraw=false: Draw as native GL point using pointSize (pixel space, no NDC conversion)
+   * 
+   * Supports 2D, 3D, and 4D points natively by using vec4 in the shader and setting
+   * the appropriate component count in gl.vertexAttribPointer.
+   * 
    * @protected
-   * @param {number[]} point - Point coordinates [x, y, z, w]
+   * @param {number[]} point - Point coordinates [x, y] or [x, y, z] or [x, y, z, w]
    * @param {*} color - Optional color override
    */
   _drawPoint(point, color = null) {
     const gl = this.#gl;
     
-    // Get point radius from appearance (in world space, like TUBE_RADIUS)
-    const pointRadius = this.getAppearanceAttribute(
+    // Use pass-through _extractPoint to get the point (unchanged)
+    const extractedPoint = this._extractPoint(point);
+    
+    // Detect point dimension from array length
+    const pointDim = extractedPoint.length;
+    if (pointDim < 2) {
+      console.warn('WebGL2DRenderer: Point must have at least 2 coordinates');
+      return;
+    }
+    
+    // Clamp dimension to valid range (2, 3, or 4)
+    const validDim = Math.min(Math.max(pointDim, 2), 4);
+    
+    // Check spheresDraw attribute to determine rendering mode
+    const spheresDrawValue = this.getAppearanceAttribute(
       CommonAttributes.POINT_SHADER,
-      CommonAttributes.POINT_RADIUS,
-      CommonAttributes.POINT_RADIUS_DEFAULT
+      CommonAttributes.SPHERES_DRAW,
+      CommonAttributes.SPHERES_DRAW_DEFAULT
     );
+    const spheresDraw = Boolean(spheresDrawValue);
     
-    // Convert pixel size to NDC (normalized device coordinates)
-    // NDC ranges from -1 to 1 in both X and Y (total range of 2.0)
-    // Use the smaller canvas dimension to maintain square points
-    // const canvas = this.#canvas;
-    // const canvasSize = Math.min(canvas.width, canvas.height);
-    // const pixelToNDC = 2.0 / canvasSize;
-    const halfSize = (pointRadius / 2.0); // * pixelToNDC;
-    
-    // Extract 2D coordinates
-    const x = point[0];
-    const y = point[1];
-    
-    // Create 2 triangles forming an axis-oriented square centered at the point
-    // Triangle 1: bottom-left, bottom-right, top-left
-    // Triangle 2: bottom-right, top-right, top-left
-    const vertices = new Float32Array([
-      x - halfSize, y - halfSize,  // 0: bottom-left
-      x + halfSize, y - halfSize,  // 1: bottom-right
-      x - halfSize, y + halfSize,  // 2: top-left
-      x + halfSize, y + halfSize   // 3: top-right
-    ]);
-    
-    // Indices for 2 triangles
-    const indices = new Uint16Array([
-      0, 1, 2,  // Triangle 1: bottom-left, bottom-right, top-left
-      1, 3, 2   // Triangle 2: bottom-right, top-right, top-left
-    ]);
-    
-    // Get color
-    const pointColor = color ? this.#toWebGLColor(color) : this.#currentColor;
-    const colors = new Float32Array([
-      ...pointColor, ...pointColor, ...pointColor, ...pointColor
-    ]);
-    
-    // Draw using standard triangle rendering (no special fragment shader needed)
-    // Use cached TRIANGLES constant
-    this.#drawGeometry(vertices, colors, indices, this.#capabilities.TRIANGLES);
+    if (spheresDraw) {
+      // Draw as quad using pointRadius (world space)
+      const pointRadius = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.POINT_RADIUS,
+        CommonAttributes.POINT_RADIUS_DEFAULT
+      );
+      
+      // Extract 2D coordinates for quad rendering
+      const x = extractedPoint[0];
+      const y = extractedPoint[1];
+      const halfSize = pointRadius / 2.0;
+      
+      // Create 2 triangles forming an axis-oriented square centered at the point
+      // Triangle 1: bottom-left, bottom-right, top-left
+      // Triangle 2: bottom-right, top-right, top-left
+      const vertices = new Float32Array([
+        x - halfSize, y - halfSize,  // 0: bottom-left
+        x + halfSize, y - halfSize,  // 1: bottom-right
+        x - halfSize, y + halfSize,  // 2: top-left
+        x + halfSize, y + halfSize   // 3: top-right
+      ]);
+      
+      // Indices for 2 triangles
+      const indices = new Uint16Array([
+        0, 1, 2,  // Triangle 1: bottom-left, bottom-right, top-left
+        1, 3, 2   // Triangle 2: bottom-right, top-right, top-left
+      ]);
+      
+      // Get color
+      const pointColor = color ? this.#toWebGLColor(color) : this.#currentColor;
+      const colors = new Float32Array([
+        ...pointColor, ...pointColor, ...pointColor, ...pointColor
+      ]);
+      
+      // Draw using standard triangle rendering
+      this.#updateUniforms(0, 1.0); // pointSize not used for quad rendering
+      this.#drawGeometry(vertices, colors, indices, this.#capabilities.TRIANGLES);
+    } else {
+      // Draw as native GL point using pointSize (pixel space, no NDC conversion)
+      const pointSize = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.POINT_SIZE,
+        CommonAttributes.POINT_SIZE_DEFAULT
+      );
+      
+      // Create vertex array with appropriate dimension
+      let coords;
+      if (validDim === 2) {
+        coords = [extractedPoint[0], extractedPoint[1]];
+      } else if (validDim === 3) {
+        coords = [extractedPoint[0], extractedPoint[1], extractedPoint[2]];
+      } else { // validDim === 4
+        coords = [extractedPoint[0], extractedPoint[1], extractedPoint[2], extractedPoint[3]];
+      }
+      
+      // Create vertex array
+      const vertices = new Float32Array(coords);
+      
+      // Get color
+      const pointColor = color ? this.#toWebGLColor(color) : this.#currentColor;
+      const colors = new Float32Array(pointColor);
+      
+      // Use native WebGL point rendering
+      // Update uniforms with point size (direct pixel value, no conversion)
+      this.#updateUniforms(0, pointSize);
+      
+      // Bind buffers
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+      
+      const positionLoc = gl.getAttribLocation(this.#program, 'a_position');
+      if (positionLoc === -1) {
+        console.error('WebGL2DRenderer: a_position attribute not found in shader');
+        return;
+      }
+      gl.enableVertexAttribArray(positionLoc);
+      // Use the detected dimension to set the component count (2, 3, or 4)
+      // The shader uses vec4, but we tell GL how many components to read
+      gl.vertexAttribPointer(positionLoc, validDim, gl.FLOAT, false, 0, 0);
+      
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+      
+      const colorLoc = gl.getAttribLocation(this.#program, 'a_color');
+      if (colorLoc === -1) {
+        console.error('WebGL2DRenderer: a_color attribute not found in shader');
+        return;
+      }
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      
+      // Draw using native WebGL points
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+      gl.drawArrays(this.#capabilities.POINTS, 0, 1);
+    }
   }
 
   /**
@@ -1026,8 +1137,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Ensure program is active
     gl.useProgram(program);
     
-    // Update uniforms with current transformation and line width
-    this.#updateUniforms(lineHalfWidth);
+    // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
+    this.#updateUniforms(lineHalfWidth, 1.0);
     
     // Bind buffers
     gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
@@ -1117,13 +1228,17 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   }
 
   /**
-   * Extract 2D point from vertex data (overrides abstract method)
+   * Extract point from vertex data (overrides abstract method)
+   * Pass-through implementation: returns the vertex unchanged.
+   * The dimension is detected in _drawPoint and used to set the appropriate
+   * gl.vertexAttribPointer size (2, 3, or 4 components).
+   * 
    * @protected
-   * @param {number[]} vertex - Vertex coordinates [x, y, z, w]
-   * @returns {number[]} 2D point [x, y]
+   * @param {number[]} vertex - Vertex coordinates [x, y] or [x, y, z] or [x, y, z, w]
+   * @returns {number[]} Vertex unchanged (pass-through)
    */
   _extractPoint(vertex) {
-    // Extract x, y from vertex array [x, y, z, w]
+    // Pass-through: return vertex as-is
     return [vertex[0], vertex[1]];
   }
 

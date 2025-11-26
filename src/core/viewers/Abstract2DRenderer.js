@@ -198,11 +198,19 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   }
 
   /**
-   * Extract 2D point from vertex data (device-specific)
+   * Extract point from vertex data (device-specific)
+   * 
+   * Default implementation is a pass-through that returns the vertex unchanged.
+   * Subclasses may override to extract specific coordinates (e.g., 2D backends
+   * may extract only [x, y] from [x, y, z, w]).
+   * 
+   * Note: This method may be unnecessary and could potentially be omitted in
+   * favor of direct vertex access, but is kept for consistency with subclasses
+   * that need coordinate extraction.
+   * 
    * @protected
-   * @abstract
    * @param {number[]} vertex - Vertex coordinates [x, y, z, w]
-   * @returns {{x: number, y: number}} 2D point
+   * @returns {number[]} Point coordinates (default: returns vertex unchanged)
    */
   _extractPoint(vertex) {
     return vertex;    // by default, return the vertex as is
