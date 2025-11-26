@@ -11,4 +11,6 @@
 // Scene Graph Inspector exports
 
 export { SceneGraphInspector } from './SceneGraphInspector.js';
+export { TabbedInspector } from './TabbedInspector.js';
+export { RenderStatisticsPanel } from './RenderStatisticsPanel.js';
 

@@ -94,6 +94,14 @@ export class Abstract2DViewer extends Viewer {
   }
 
   /**
+   * Get render statistics (public API for inspector)
+   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
+   */
+  getRenderStatistics() {
+    return this._getRenderStatistics();
+  }
+
+  /**
    * Reset render statistics for a new render call
    * @protected
    */
