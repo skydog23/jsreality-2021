@@ -150,7 +150,7 @@ export class DeviceManager {
       return new DeviceSystemTimer();
     }
     
-    logger.warning(Category.IO, `Unknown raw device class: ${className}`);
+    logger.warn(Category.IO, `Unknown raw device class: ${className}`);
     return null;
   }
 
@@ -219,7 +219,7 @@ export class DeviceManager {
           }
         }
       } catch (e) {
-        logger.warning(Category.IO, `Couldn't create RawDevice ${rdc.getRawDevice()}:`, e);
+        logger.warn(Category.IO, `Couldn't create RawDevice ${rdc.getRawDevice()}:`, e);
       }
     }
 
@@ -228,7 +228,7 @@ export class DeviceManager {
     for (const rm of rawMappings) {
       const rd = this.#rawDevices.get(rm.getDeviceID());
       if (rd === null || rd === undefined) {
-        logger.warning(Category.IO, `Ignoring mapping ${rm.toString()}: device not found`);
+        logger.warn(Category.IO, `Ignoring mapping ${rm.toString()}: device not found`);
         continue;
       }
       try {
@@ -243,7 +243,7 @@ export class DeviceManager {
           this.setAxisState(initialValue.getInputSlot(), initialValue.getAxisState());
         }
       } catch (e) {
-        logger.warning(Category.IO, `Cannot map slot ${rm.toString()}:`, e);
+        logger.warn(Category.IO, `Cannot map slot ${rm.toString()}:`, e);
       }
     }
 
@@ -443,7 +443,7 @@ export class DeviceManager {
       } catch (mse) {
         if (mse instanceof MissingSlotException) {
           // Log warning but continue
-          logger.warning(Category.SCENE, `Slot for virtual device missing: ${mse.getSlot().getName()}`);
+          logger.warn(Category.SCENE, `Slot for virtual device missing: ${mse.getSlot().getName()}`);
         } else {
           throw mse;
         }

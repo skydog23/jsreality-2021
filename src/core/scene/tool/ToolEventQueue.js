@@ -9,6 +9,7 @@
  */
 
 import { ToolEvent } from './ToolEvent.js';
+import { getLogger, Category } from '../../util/LoggingSystem.js';
 
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
@@ -33,6 +34,8 @@ export class ToolEventReceiver {
  * In JavaScript, this uses requestAnimationFrame instead of a separate thread.
  */
 export class ToolEventQueue {
+  #logger = getLogger('ToolEventQueue');
+
   /** @type {ToolEventReceiver} Receiver for processed events */
   #receiver;
 
@@ -84,7 +87,7 @@ export class ToolEventQueue {
         try {
           this.#receiver.processToolEvent(event);
         } catch (error) {
-          logger.severe(Category.SCENE, 'Error processing tool event:', error);
+          this.#logger.severe(Category.SCENE, 'Error processing tool event:', error);
         }
       }
     }

@@ -376,7 +376,7 @@ export class ToolSystem extends ToolEventReceiver {
       return ts;
     }
     const logger = getLogger('ToolSystem');
-    logger.warning(Category.SCENE, 'Viewer has no tool system, allocating default');
+    logger.warn(Category.SCENE, 'Viewer has no tool system, allocating default');
     ts = new ToolSystem(viewer, null, null);
     ToolSystem.#globalTable.set(viewer, ts);
     return ts;
@@ -732,7 +732,7 @@ export class ToolSystem extends ToolEventReceiver {
       if (newEvents.length === 0) break;
       this.#compQueue.push(...newEvents);
       if (iterCnt > 5000) {
-        this.#logger.warning(Category.SCENE, 'ToolSystem may be stuck in endless loop');
+        this.#logger.warn(Category.SCENE, 'ToolSystem may be stuck in endless loop');
         iterCnt = 0;
       }
     } while (true);
@@ -855,7 +855,7 @@ export class ToolSystem extends ToolEventReceiver {
         if (slot === InputSlot.POINTER_TRANSFORMATION) {
           this.#logger.finer(Category.IO, `noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
           if (active.size === 0) {
-            this.#logger.warning(Category.IO, 'No active tools found for POINTER_TRANSFORMATION!');
+            this.#logger.warn(Category.IO, 'No active tools found for POINTER_TRANSFORMATION!');
           }
         }
         for (const tool of active) {
@@ -958,7 +958,7 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setCurrentTool(tool);
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       if (resolvedSlot === null) {
-        this.#logger.warning(Category.SCENE, `activate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
+        this.#logger.warn(Category.SCENE, `activate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
         continue;
       }
       
@@ -986,7 +986,7 @@ export class ToolSystem extends ToolEventReceiver {
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       const paths = this.#getActivePathsForTool(tool);
       if (paths.length === 0 && tool.getActivationSlots().length === 0) {
-        this.#logger.warning(Category.SCENE, `Always-active tool ${tool.constructor.name} has no active paths`);
+        this.#logger.warn(Category.SCENE, `Always-active tool ${tool.constructor.name} has no active paths`);
       }
       for (const path of paths) {
         this.#toolContext.setRootToLocal(path);
@@ -1005,7 +1005,7 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setCurrentTool(tool);
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       if (resolvedSlot === null) {
-        this.#logger.warning(Category.SCENE, `deactivate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
+        this.#logger.warn(Category.SCENE, `deactivate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
         continue;
       }
       const paths = this.#getActivePathsForTool(tool);
