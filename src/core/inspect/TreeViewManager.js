@@ -123,6 +123,11 @@ export class TreeViewManager {
   #selectedNode = null;
   
   /**
+   * @type {SceneGraphComponent|null}
+   */
+  #root = null;
+  
+  /**
    * @param {HTMLElement} treeView - The tree view DOM element
    * @param {Function} onNodeSelect - Callback when a node is selected
    * @param {Function} onNodeToggleExpand - Callback when a node is expanded/collapsed
@@ -160,6 +165,7 @@ export class TreeViewManager {
       console.error('TreeViewManager: #treeView is null! Cannot rebuild tree.');
       return;
     }
+    this.#root = root; // Store root for checking if Appearance is root
     this.#treeView.innerHTML = '';
     this.#nodeElements.clear();
     if (root) {
@@ -286,8 +292,11 @@ export class TreeViewManager {
           }
         }
       } else if (node instanceof Appearance) {
+        // Check if this is the root Appearance
+        const isRootAppearance = this.#root && this.#root.getAppearance?.() === node;
+        
         // Create shader tree nodes for this appearance
-        const shaderNodes = this.#createShaderTreeNodes(node);
+        const shaderNodes = this.#createShaderTreeNodes(node, isRootAppearance);
         if (shaderNodes) {
           // shaderNodes can be a single node or an array
           if (Array.isArray(shaderNodes)) {

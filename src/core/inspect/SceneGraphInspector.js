@@ -124,8 +124,8 @@ export class SceneGraphInspector {
       this.refreshImmediate();
     };
     
-    const createShaderTreeNodes = (appearance) => {
-      return this.#shaderPropertyManager.createShaderTreeNodes(appearance);
+    const createShaderTreeNodes = (appearance, isRootAppearance = false) => {
+      return this.#shaderPropertyManager.createShaderTreeNodes(appearance, isRootAppearance);
     };
     
     this.#treeViewManager = new TreeViewManager(

@@ -12,7 +12,7 @@
 
 import { Appearance, INHERITED } from '../scene/Appearance.js';
 import { Color } from '../util/Color.js';
-import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader, DefaultRenderingHintsShader, ShaderRegistry, ShaderUtility } from '../shader/index.js';
+import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader, DefaultRenderingHintsShader, DefaultRootAppearance, ShaderRegistry, ShaderUtility } from '../shader/index.js';
 import { ImplodePolygonShader } from '../shader/ImplodePolygonShader.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { ShaderTreeNode } from './TreeViewManager.js';
@@ -58,10 +58,12 @@ export class ShaderPropertyManager {
    * Create shader tree nodes for an appearance
    * This builds a hierarchy: Geometry Shader -> Point/Line/Polygon Shaders
    * Also creates a RenderingHintsShader node
+   * If isRootAppearance is true, also creates a RootAppearance node
    * @param {Appearance} appearance - The appearance
+   * @param {boolean} isRootAppearance - Whether this is the root Appearance
    * @returns {ShaderTreeNode[]|ShaderTreeNode|null} Array of shader nodes
    */
-  createShaderTreeNodes(appearance) {
+  createShaderTreeNodes(appearance, isRootAppearance = false) {
     // Get all attributes from the appearance first to check shader name
     const allAttributes = appearance.getAttributes();
     
@@ -104,19 +106,19 @@ export class ShaderPropertyManager {
           // If shader type changed, invalidate cache
           if (cachedIsDefault !== currentIsDefault) {
             cachedNodes = null; // Force recreation
-            this.#shaderNodeCache.delete(appearance);
+            this.#shaderNodeCache.delete(cacheKey);
           } else if (!currentIsDefault) {
             // Both are non-default, check if they match
             try {
               const currentSchema = ShaderRegistry.resolveShader('polygon', polygonShaderName);
               if (cachedSchema !== currentSchema) {
                 cachedNodes = null; // Force recreation
-                this.#shaderNodeCache.delete(appearance);
+                this.#shaderNodeCache.delete(cacheKey);
               }
             } catch (e) {
               // Shader not found, invalidate cache
               cachedNodes = null;
-              this.#shaderNodeCache.delete(appearance);
+              this.#shaderNodeCache.delete(cacheKey);
             }
           }
         }
@@ -134,6 +136,7 @@ export class ShaderPropertyManager {
     const polygonAttrs = new Map();
     const geometryAttrs = new Map();
     const renderingHintsAttrs = new Map();
+    const rootAppearanceAttrs = new Map();
     
     const pointPrefix = CommonAttributes.POINT_SHADER + '.';
     const linePrefix = CommonAttributes.LINE_SHADER + '.';
@@ -141,6 +144,12 @@ export class ShaderPropertyManager {
     
     // List of rendering hints attribute names (from DefaultRenderingHintsShader.ATTRIBUTES)
     const renderingHintsAttributeNames = new Set(DefaultRenderingHintsShader.ATTRIBUTES);
+    
+    // List of root appearance attribute names (from DefaultRootAppearance.ATTRIBUTES)
+    // Only used when isRootAppearance is true
+    const rootAppearanceAttributeNames = isRootAppearance 
+      ? new Set(DefaultRootAppearance.ATTRIBUTES)
+      : new Set();
     
     for (const [key, value] of allAttributes) {
       if (key.startsWith(pointPrefix)) {
@@ -152,6 +161,9 @@ export class ShaderPropertyManager {
       } else if (key.startsWith(polygonPrefix)) {
         const shortKey = key.substring(polygonPrefix.length);
         polygonAttrs.set(shortKey, value);
+      } else if (isRootAppearance && rootAppearanceAttributeNames.has(key)) {
+        // Root appearance attributes (no prefix, only for root Appearance)
+        rootAppearanceAttrs.set(key, value);
       } else if (renderingHintsAttributeNames.has(key)) {
         // Rendering hints attributes (no prefix)
         renderingHintsAttrs.set(key, value);
@@ -254,11 +266,26 @@ export class ShaderPropertyManager {
       '' // No prefix for rendering hints attributes
     );
     
-    // Return array of both nodes
+    // Return array of nodes
     const nodes = [geomNode, renderingHintsNode];
     
-    // Cache the nodes
-    this.#shaderNodeCache.set(appearance, nodes);
+    // If this is the root Appearance, also add RootAppearance shader node
+    if (isRootAppearance) {
+      const rootAppearanceShaderData = Object.fromEntries(rootAppearanceAttrs);
+      const rootAppearanceNode = new ShaderTreeNode(
+        'Root Appearance',
+        'rootAppearance',
+        rootAppearanceShaderData,
+        DefaultRootAppearance,
+        appearance,
+        '' // No prefix for root appearance attributes
+      );
+      nodes.push(rootAppearanceNode);
+    }
+    
+    // Cache the nodes (use appearance + isRootAppearance as key to handle both cases)
+    const cacheKey = isRootAppearance ? `${appearance}_root` : appearance;
+    this.#shaderNodeCache.set(cacheKey, nodes);
     
     return nodes;
   }
@@ -284,6 +311,9 @@ export class ShaderPropertyManager {
     } else if (schema === DefaultRenderingHintsShader) {
       // Rendering hints shader attributes are not namespaced
       allAttributeNames = schema.ATTRIBUTES || [];
+    } else if (schema === DefaultRootAppearance) {
+      // Root appearance shader attributes are not namespaced
+      allAttributeNames = schema.ATTRIBUTES || [];
     } else {
       // Other shaders have ATTRIBUTES array
       allAttributeNames = schema.ATTRIBUTES || [];
@@ -292,9 +322,9 @@ export class ShaderPropertyManager {
     // Create a row for each attribute in the schema
     const properties = [];
     for (const attrName of allAttributeNames) {
-      // For geometry shader and rendering hints shader, attrName is already the full key
+      // For geometry shader, rendering hints shader, and root appearance shader, attrName is already the full key
       // For other shaders, we need to construct the full key with prefix
-      const fullKey = (schema === DefaultGeometryShader || schema === DefaultRenderingHintsShader) 
+      const fullKey = (schema === DefaultGeometryShader || schema === DefaultRenderingHintsShader || schema === DefaultRootAppearance) 
         ? attrName 
         : (prefix ? `${prefix}.${attrName}` : attrName);
       
@@ -433,6 +463,10 @@ export class ShaderPropertyManager {
           }
         } else if (schema === DefaultRenderingHintsShader) {
           // Rendering hints shader attributes have defaults in DefaultRenderingHintsShader
+          const defaults = schema.getAllDefaults();
+          defaultValue = defaults[attrName];
+        } else if (schema === DefaultRootAppearance) {
+          // Root appearance shader attributes have defaults in DefaultRootAppearance
           const defaults = schema.getAllDefaults();
           defaultValue = defaults[attrName];
         } else {

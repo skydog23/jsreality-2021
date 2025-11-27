@@ -25,6 +25,7 @@ export { PointShader } from './PointShader.js';
 export { LineShader } from './LineShader.js';
 export { PolygonShader } from './PolygonShader.js';
 export { RenderingHintsShader } from './RenderingHintsShader.js';
+export { RootAppearance } from './RootAppearance.js';
 
 // Default shader implementations
 export { 
@@ -37,4 +38,5 @@ export { DefaultPointShader } from './DefaultPointShader.js';
 export { DefaultLineShader } from './DefaultLineShader.js';
 export { DefaultPolygonShader } from './DefaultPolygonShader.js';
 export { DefaultRenderingHintsShader } from './DefaultRenderingHintsShader.js';
+export { DefaultRootAppearance } from './DefaultRootAppearance.js';
 export { ImplodePolygonShader } from './ImplodePolygonShader.js';
