@@ -8,14 +8,11 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { JSRApp } from '../viewers/JSRApp.js';
-import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
-import { SphereUtility } from '../geometry/SphereUtility.js';
-import * as CommonAttributes from '../shader/CommonAttributes.js';
-import { Color } from '../util/Color.js';
-import { TestTool } from './TestTool.js';
-import { Primitives } from '../geometry/Primitives.js';
-import { MatrixBuilder } from '../math/MatrixBuilder.js';
+import { JSRApp } from '../JSRApp.js';
+import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { SphereUtility } from '../../core/geometry/SphereUtility.js';
+import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { Color } from '../../core/util/Color.js';
 
 /**
  * Abstract base class for jsReality applications.

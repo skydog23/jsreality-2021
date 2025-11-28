@@ -8,13 +8,13 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { AbstractTool } from '../scene/tool/AbstractTool.js';
-import { InputSlot } from '../scene/tool/InputSlot.js';
-import { getLogger, setModuleLevel } from '../util/LoggingSystem.js';
-import { Level, Category } from '../util/LoggingSystem.js';
+import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
+import { InputSlot } from '../../core/scene/tool/InputSlot.js';
+import { getLogger, setModuleLevel } from '../../core/util/LoggingSystem.js';
+import { Level, Category } from '../../core/util/LoggingSystem.js';
 
 /**
- * @typedef {import('../scene/tool/ToolContext.js').ToolContext} ToolContext
+ * @typedef {import('../../core/scene/tool/ToolContext.js').ToolContext} ToolContext
  */
 
 const logger = getLogger('TestTool');

@@ -1,4 +1,12 @@
-# Web-Native Viewer Strategy: JRViewer Functionality Without Plugin System
+# Web-Native Viewer Strategy: JSRViewer Functionality Without Plugin System
+
+## Folder Structure
+
+The `JSRViewer` class and related components will be located in:
+- **Main class**: `src/core/viewers/app/JSRViewer.js`
+- **Supporting classes**: `src/core/viewers/app/` (ContentManager, Menubar, Toolbar, etc.)
+
+This places the application-level viewer functionality as a subfolder of the `viewers` folder, since `JSRViewer` is essentially a viewer with additional application-level features (menus, panels, content management, etc.).
 
 ## What Information Do Plugins Receive?
 
@@ -127,9 +135,9 @@ Plugins receive via `Controller.getPlugin(Class)`:
 
 Instead of a plugin system, use a **component-based architecture** with explicit dependencies and composition.
 
-### Core Concept: ViewerApplication Class
+### Core Concept: JSRViewer Class
 
-A single `ViewerApplication` class that:
+A single `JSRViewer` class that:
 1. **Manages all core systems** (Viewer, Scene, ToolSystem, Content)
 2. **Provides access points** for UI components to integrate
 3. **Handles lifecycle** (initialization, cleanup)
@@ -138,7 +146,7 @@ A single `ViewerApplication` class that:
 ### Architecture Design
 
 ```
-ViewerApplication
+JSRViewer
 ├── Core Systems (private, managed internally)
 │   ├── Viewer (Canvas2DViewer, SVGViewer, WebGL2DViewer)
 │   ├── Scene (SceneGraphComponent root, paths)
@@ -161,10 +169,12 @@ ViewerApplication
 
 ## Detailed Design
 
-### 1. ViewerApplication Class
+### 1. JSRViewer Class
+
+**Location:** `src/core/viewers/app/JSRViewer.js`
 
 ```javascript
-class ViewerApplication {
+class JSRViewer {
   // Core systems (private)
   #viewer
   #sceneRoot
@@ -213,10 +223,10 @@ class ViewerApplication {
 ### 2. Core Systems Management
 
 **What plugins access:**
-- `View.getViewer()` → `viewerApplication.getViewer()`
-- `Scene.getSceneRoot()` → `viewerApplication.getSceneRoot()`
-- `Scene.getCameraPath()` → `viewerApplication.getCameraPath()`
-- `ToolSystemPlugin.getToolSystem()` → `viewerApplication.getToolSystem()`
+- `View.getViewer()` → `jsrViewer.getViewer()`
+- `Scene.getSceneRoot()` → `jsrViewer.getSceneRoot()`
+- `Scene.getCameraPath()` → `jsrViewer.getCameraPath()`
+- `ToolSystemPlugin.getToolSystem()` → `jsrViewer.getToolSystem()`
 
 **Implementation:**
 - All core systems created and managed internally
@@ -234,7 +244,7 @@ menuBar.addMenuItem(getClass(), priority, menuItem, "File");
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.addMenuItem('File', {
+jsrViewer.addMenuItem('File', {
   label: 'Export PNG',
   action: () => { /* export */ },
   priority: 10
@@ -255,10 +265,10 @@ toolbar.addTool(getClass(), tool);
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.addToolbarButton({
+jsrViewer.addToolbarButton({
   icon: '...',
   tooltip: 'Reset Camera',
-  action: () => { viewerApp.resetCamera() },
+  action: () => { jsrViewer.resetCamera() },
   priority: 5
 });
 ```
@@ -272,7 +282,7 @@ shrinkPanel.add(component);
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.addSidePanel({
+jsrViewer.addSidePanel({
   title: 'Inspector',
   component: inspectorElement,
   position: 'right', // 'left' | 'right' | 'top' | 'bottom'
@@ -290,9 +300,9 @@ content.setContent(node);
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.setContent(sceneGraphComponent);
+jsrViewer.setContent(sceneGraphComponent);
 // Or with content strategy:
-viewerApp.setContent(node, {
+jsrViewer.setContent(node, {
   strategy: 'centeredAndScaled', // 'direct' | 'centeredAndScaled' | 'terrainAligned'
   encompass: true
 });
@@ -313,11 +323,11 @@ scene.addChangeListener(this);
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.on('sceneChanged', (event) => {
+jsrViewer.on('sceneChanged', (event) => {
   // Handle scene change
 });
 
-viewerApp.on('contentChanged', (event) => {
+jsrViewer.on('contentChanged', (event) => {
   // Handle content change
 });
 ```
@@ -339,8 +349,8 @@ String color = c.getProperty(getClass(), "color", defaultValue);
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.setPreference('backgroundColor', 'white');
-const color = viewerApp.getPreference('backgroundColor', 'gray');
+jsrViewer.setPreference('backgroundColor', 'white');
+const color = jsrViewer.getPreference('backgroundColor', 'gray');
 ```
 
 **Implementation:**
@@ -359,16 +369,16 @@ exportMenu.add(new ExportImage("Image", viewer, parent));
 
 **Web-Native Pattern:**
 ```javascript
-viewerApp.registerExporter('png', {
+jsrViewer.registerExporter('png', {
   label: 'Export as PNG',
   action: async () => {
-    const dataURL = viewerApp.getViewer().exportImage('image/png');
+    const dataURL = jsrViewer.getViewer().exportImage('image/png');
     downloadImage(dataURL, 'export.png');
   }
 });
 
 // Or simpler:
-viewerApp.addExportOption('png', 'Export as PNG', () => {
+jsrViewer.addExportOption('png', 'Export as PNG', () => {
   // export logic
 });
 ```
@@ -385,7 +395,7 @@ viewerApp.addExportOption('png', 'Export as PNG', () => {
 - Handles scene path updates
 
 **Web-Native:**
-- `ViewerApplication` creates viewer internally
+- `JSRViewer` creates viewer internally
 - Auto-rendering handled by viewer
 - Scene path updates via event system
 
@@ -396,7 +406,7 @@ viewerApp.addExportOption('png', 'Export as PNG', () => {
 - Provides scene root
 
 **Web-Native:**
-- `ViewerApplication` creates scene structure
+- `JSRViewer` creates scene structure
 - Paths managed internally
 - Exposed via getters
 
@@ -407,7 +417,7 @@ viewerApp.addExportOption('png', 'Export as PNG', () => {
 - Updates paths on scene changes
 
 **Web-Native:**
-- `ViewerApplication` creates ToolSystem
+- `JSRViewer` creates ToolSystem
 - Configuration via options
 - Auto-updates via event listeners
 
@@ -453,14 +463,16 @@ viewerApp.addExportOption('png', 'Export as PNG', () => {
 **Web-Native:**
 - `Menubar` class
 - Priority-based ordering
-- Built into ViewerApplication
+- Built into JSRViewer
 
 ## Implementation Strategy
 
-### Phase 1: Core ViewerApplication
+### Phase 1: Core JSRViewer
+
+**Location:** `src/core/viewers/app/JSRViewer.js`
 
 ```javascript
-class ViewerApplication {
+class JSRViewer {
   constructor(options) {
     // 1. Create core systems
     this.#viewer = new Canvas2DViewer(options.canvas);
@@ -510,22 +522,22 @@ Instead of plugins, provide built-in features:
 
 ```javascript
 // Built-in menu items
-viewerApp.addMenuItem('File', {
+jsrViewer.addMenuItem('File', {
   label: 'Export PNG',
-  action: () => viewerApp.exportImage('png')
+  action: () => jsrViewer.exportImage('png')
 });
 
-viewerApp.addMenuItem('Viewer', {
+jsrViewer.addMenuItem('Viewer', {
   label: 'Background Color',
   submenu: [
-    { label: 'White', action: () => viewerApp.setBackgroundColor('white') },
-    { label: 'Gray', action: () => viewerApp.setBackgroundColor('gray') },
+    { label: 'White', action: () => jsrViewer.setBackgroundColor('white') },
+    { label: 'Gray', action: () => jsrViewer.setBackgroundColor('gray') },
     // ...
   ]
 });
 
 // Built-in content strategies
-viewerApp.setContent(node, {
+jsrViewer.setContent(node, {
   strategy: 'centeredAndScaled',
   encompass: true
 });
@@ -537,17 +549,17 @@ Allow external code to extend functionality:
 
 ```javascript
 // External code can extend
-viewerApp.addMenuItem('Tools', {
+jsrViewer.addMenuItem('Tools', {
   label: 'My Custom Tool',
   action: () => { /* custom action */ }
 });
 
-viewerApp.registerExporter('custom', {
+jsrViewer.registerExporter('custom', {
   label: 'Export Custom Format',
   action: async () => { /* export logic */ }
 });
 
-viewerApp.on('contentChanged', (event) => {
+jsrViewer.on('contentChanged', (event) => {
   // React to content changes
 });
 ```
@@ -583,11 +595,11 @@ viewerApp.on('contentChanged', (event) => {
 
 | Plugin System | Web-Native Approach |
 |--------------|---------------------|
-| `c.getPlugin(View.class)` | `viewerApp.getViewer()` |
-| `c.getPlugin(Scene.class)` | `viewerApp.getSceneRoot()` |
-| `menuBar.addMenuItem(...)` | `viewerApp.addMenuItem(...)` |
-| `scene.addChangeListener(...)` | `viewerApp.on('sceneChanged', ...)` |
-| `c.storeProperty(...)` | `viewerApp.setPreference(...)` |
+| `c.getPlugin(View.class)` | `jsrViewer.getViewer()` |
+| `c.getPlugin(Scene.class)` | `jsrViewer.getSceneRoot()` |
+| `menuBar.addMenuItem(...)` | `jsrViewer.addMenuItem(...)` |
+| `scene.addChangeListener(...)` | `jsrViewer.on('sceneChanged', ...)` |
+| `c.storeProperty(...)` | `jsrViewer.setPreference(...)` |
 | `extends Plugin` | No base class needed |
 | `install(Controller)` | Constructor or `initialize()` |
 
@@ -621,19 +633,19 @@ public class BackgroundColor extends Plugin {
 
 **Web-Native Equivalent:**
 ```javascript
-// Built into ViewerApplication:
-viewerApp.addMenuItem('Viewer', {
+// Built into JSRViewer:
+jsrViewer.addMenuItem('Viewer', {
   label: 'Background',
   submenu: [
-    { label: 'White', action: () => viewerApp.setBackgroundColor('white') },
-    { label: 'Gray', action: () => viewerApp.setBackgroundColor('gray') },
+    { label: 'White', action: () => jsrViewer.setBackgroundColor('white') },
+    { label: 'Gray', action: () => jsrViewer.setBackgroundColor('gray') },
     // ...
   ],
   priority: 10
 });
 
 // Or external code:
-viewerApp.addMenuItem('Viewer', {
+jsrViewer.addMenuItem('Viewer', {
   label: 'Background Color',
   submenu: backgroundColorMenu,
   priority: 10
@@ -642,10 +654,12 @@ viewerApp.addMenuItem('Viewer', {
 
 ## Detailed API Design
 
-### ViewerApplication Public API
+### JSRViewer Public API
+
+**Location:** `src/core/viewers/app/JSRViewer.js`
 
 ```javascript
-class ViewerApplication {
+class JSRViewer {
   // ========================================================================
   // CORE SYSTEM ACCESS (replaces c.getPlugin())
   // ========================================================================
@@ -836,8 +850,8 @@ SceneGraphComponent root = scene.getSceneRoot();
 
 **Web-Native:**
 ```javascript
-const viewer = viewerApp.getViewer();
-const root = viewerApp.getSceneRoot();
+const viewer = jsrViewer.getViewer();
+const root = jsrViewer.getSceneRoot();
 ```
 
 ### Pattern 2: Adding Menu Items
@@ -850,7 +864,7 @@ menuBar.addMenuItem(getClass(), 10.0, menuItem, "Viewer");
 
 **Web-Native:**
 ```javascript
-viewerApp.addMenuItem('Viewer', {
+jsrViewer.addMenuItem('Viewer', {
   label: 'Background Color',
   action: () => { /* ... */ },
   priority: 10
@@ -871,7 +885,7 @@ scene.addChangeListener(new ChangeListener() {
 
 **Web-Native:**
 ```javascript
-viewerApp.on('sceneChanged', (event) => {
+jsrViewer.on('sceneChanged', (event) => {
   // Handle change
 });
 ```
@@ -886,8 +900,8 @@ String color = c.getProperty(getClass(), "backgroundColor", "gray");
 
 **Web-Native:**
 ```javascript
-viewerApp.setPreference('backgroundColor', 'white');
-const color = viewerApp.getPreference('backgroundColor', 'gray');
+jsrViewer.setPreference('backgroundColor', 'white');
+const color = jsrViewer.getPreference('backgroundColor', 'gray');
 ```
 
 ### Pattern 5: Adding UI Components
@@ -900,7 +914,7 @@ mainPanel.addComponent(getClass(), panel, 0.0, "Content");
 
 **Web-Native:**
 ```javascript
-viewerApp.addSidePanel({
+jsrViewer.addSidePanel({
   title: 'Content',
   component: panelElement,
   position: 'right',
@@ -910,10 +924,12 @@ viewerApp.addSidePanel({
 
 ## Implementation Example
 
-### Complete ViewerApplication Skeleton
+### Complete JSRViewer Skeleton
+
+**Location:** `src/core/viewers/app/JSRViewer.js`
 
 ```javascript
-export class ViewerApplication {
+export class JSRViewer {
   // Core systems
   #viewer = null;
   #sceneRoot = null;
@@ -1227,7 +1243,7 @@ export class ViewerApplication {
 
 ```javascript
 const canvas = document.getElementById('canvas');
-const viewerApp = new ViewerApplication({
+const jsrViewer = new JSRViewer({
   canvas,
   container: document.body,
   menubarContainer: document.getElementById('menubar'),
@@ -1235,13 +1251,13 @@ const viewerApp = new ViewerApplication({
 });
 
 // Set content
-viewerApp.setContent(mySceneGraphComponent, {
+jsrViewer.setContent(mySceneGraphComponent, {
   strategy: 'centeredAndScaled',
   encompass: true
 });
 
 // Add custom menu item
-viewerApp.addMenuItem('Tools', {
+jsrViewer.addMenuItem('Tools', {
   label: 'My Custom Tool',
   action: () => {
     console.log('Custom tool executed');
@@ -1249,28 +1265,28 @@ viewerApp.addMenuItem('Tools', {
 });
 
 // Listen to events
-viewerApp.on('contentChanged', (event) => {
+jsrViewer.on('contentChanged', (event) => {
   console.log('Content changed:', event.node);
 });
 
 // Render
-viewerApp.render();
+jsrViewer.render();
 ```
 
 ### Advanced Usage
 
 ```javascript
 // Register custom exporter
-viewerApp.registerExporter('custom', {
+jsrViewer.registerExporter('custom', {
   label: 'Export Custom Format',
   action: async () => {
-    const data = await processScene(viewerApp.getSceneRoot());
+    const data = await processScene(jsrViewer.getSceneRoot());
     downloadCustomFormat(data);
   }
 });
 
 // Add side panel
-viewerApp.addSidePanel({
+jsrViewer.addSidePanel({
   title: 'Custom Panel',
   component: myPanelElement,
   position: 'left',
@@ -1278,13 +1294,13 @@ viewerApp.addSidePanel({
 });
 
 // Set preferences
-viewerApp.setPreference('lastExportFormat', 'png');
-const lastFormat = viewerApp.getPreference('lastExportFormat', 'svg');
+jsrViewer.setPreference('lastExportFormat', 'png');
+const lastFormat = jsrViewer.getPreference('lastExportFormat', 'svg');
 ```
 
 ## Conclusion
 
-A web-native `ViewerApplication` class can provide all the functionality of JRViewer's plugin system through:
+A web-native `JSRViewer` class can provide all the functionality of JRViewer's plugin system through:
 
 1. **Direct composition** instead of dependency injection
 2. **Extension APIs** instead of plugin interfaces

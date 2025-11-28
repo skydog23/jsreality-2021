@@ -23,6 +23,8 @@ import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { ShaderUtility } from '../shader/ShaderUtility.js';
 import { DefaultGeometryShader } from '../shader/DefaultGeometryShader.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
+// Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
+import '../shader/index.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/Appearance.js').Appearance} Appearance */

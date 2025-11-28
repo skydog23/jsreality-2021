@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestJSRApp Example</title>
+    <style>
+        :root {
+            --canvas-padding: 0px; /* Change this to adjust padding around canvas */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #cccccc;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2d2d2d;
+            padding: 16px;
+            border-bottom: 1px solid #3e3e3e;
+        }
+
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+
+        .header p {
+            margin: 0;
+            color: #858585;
+            font-size: 14px;
+        }
+
+        .viewer-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #252526;
+            padding: var(--canvas-padding);
+            overflow: hidden;
+            min-height: 0;
+            position: relative;
+        }
+
+        #viewer-canvas {
+            border: 2px solid #3e3e3e;
+            border-radius: 4px;
+            background: white;
+            width: calc(100% - calc(var(--canvas-padding) * 2));
+            height: calc(100% - calc(var(--canvas-padding) * 2));
+            display: block;
+        }
+
+        .info {
+            background: #2d2d2d;
+            padding: 12px 16px;
+            border-top: 1px solid #3e3e3e;
+            font-size: 12px;
+            color: #858585;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TestJSRApp Example</h1>
+        <p>Demonstrates JSRApp with TestJSRApp subclass</p>
+    </div>
+
+    <div class="viewer-container" id="viewer-container">
+        <canvas id="viewer-canvas"></canvas>
+    </div>
+
+    <div class="info" id="info">
+        Initializing...
+    </div>
+
+    <script type="module">
+        import { TestJSRApp } from '../src/app/examples/TestJSRApp.js';
+
+        // Get canvas element
+        const canvas = document.getElementById('viewer-canvas');
+        const container = document.getElementById('viewer-container');
+        const info = document.getElementById('info');
+
+        // Canvas sizing is handled by CSS and Canvas2DViewer's ResizeObserver
+        // Ensure canvas has proper initial CSS dimensions before creating viewer
+        // The viewer's ResizeObserver will handle resize automatically
+
+        try {
+            info.textContent = 'Creating TestJSRApp instance...';
+            
+            // Ensure canvas has dimensions before creating viewer
+            // Canvas2DViewer reads clientWidth/clientHeight from CSS
+            if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+                // Fallback: set initial size if CSS didn't apply
+                const containerRect = container.getBoundingClientRect();
+                const size = Math.min(containerRect.width - 40, containerRect.height - 40, 800);
+                canvas.style.width = size + 'px';
+                canvas.style.height = size + 'px';
+            }
+            
+            // Create TestJSRApp instance
+            // Canvas2DViewer will handle sizing via ResizeObserver
+            const app = new TestJSRApp(canvas);
+            
+            info.textContent = 'TestJSRApp created. Calling display()...';
+            
+            // Call display() method to render
+            app.display();
+            
+            info.textContent = '✓ Display rendered successfully! Canvas will auto-resize.';
+            
+            // Expose app globally for debugging
+            window.testApp = app;
+            console.log('TestJSRApp instance available as window.testApp');
+            console.log('Viewer:', app.getViewer());
+            console.log('Tool System:', app.getToolSystem());
+            console.log('Scene Root:', app.getViewer().getSceneRoot());
+            console.log('Canvas size:', canvas.clientWidth, 'x', canvas.clientHeight);
+            
+        } catch (error) {
+            console.error('Error creating TestJSRApp:', error);
+            info.textContent = '✗ Error: ' + error.message;
+            info.style.color = '#ff6b6b';
+        }
+    </script>
+</body>
+</html>
+
