@@ -20,6 +20,8 @@ import { ToolEvent } from '../core/scene/tool/ToolEvent.js';
 import { AxisState } from '../core/scene/tool/AxisState.js';
 import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
+import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
+import { SplitPane } from './ui/SplitPane.js';
 
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -52,15 +54,29 @@ export class JSRApp extends Animated {
   _toolSystem = null;
 
   /**
+   * @type {SceneGraphInspector|null} The scene graph inspector instance (private)
+   */
+  #inspector = null;
+
+  /**
+   * @type {SplitPane|null} The split pane instance (private)
+   */
+  #splitPane = null;
+
+  /**
    * Create a new JSRApp instance.
    * @param {HTMLCanvasElement} canvas - The canvas element to render to
+   * @param {Object} [options] - Optional configuration
+   * @param {HTMLElement} [options.menubarContainer] - Container element for the menu bar
    */
-  constructor(canvas) {
+  constructor(canvas, options = {}) {
     super(); // Call super constructor first
     
     if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
       throw new Error('JSRApp requires an HTMLCanvasElement');
     }
+
+    const { menubarContainer = null } = options;
 
     // Create a container div for JSRViewer
     const container = document.createElement('div');
@@ -82,6 +98,7 @@ export class JSRApp extends Animated {
     const canvasViewer = new Canvas2DViewer(canvas);
     this.#jsrViewer = new JSRViewer({
       container: container,
+      menubarContainer: menubarContainer,
       viewers: [canvasViewer],
       viewerNames: ['Canvas2D']
     });
@@ -100,15 +117,7 @@ export class JSRApp extends Animated {
     // Set up system time updates (unique to JSRApp for animation support)
     this._setupSystemTimeUpdates();
 
-    // Set default appearance (transparent background, no vertex drawing)
-    const sceneRoot = this.#jsrViewer.getSceneRoot();
-    if (sceneRoot) {
-      const ap = sceneRoot.getAppearance();
-      if (ap) {
-        ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
-        ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(0, 0, 0, 0));
-      }
-    }
+    
   }
 
   /**
@@ -171,6 +180,134 @@ export class JSRApp extends Animated {
    */
   display() {
     this.#jsrViewer.render();
+    // Refresh inspector if enabled
+    if (this.#inspector) {
+      this.#inspector.refresh();
+    }
+  }
+
+  /**
+   * Enable the scene graph inspector.
+   * Creates a SceneGraphInspector instance and sets it up to refresh on renders.
+   * Creates a split pane to allow resizing between viewer and inspector.
+   * @param {HTMLElement} [container] - Optional container element for the inspector.
+   *                                    If not provided, a split pane will be created.
+   * @param {Object} [options] - Inspector options
+   * @param {string} [options.position='right'] - Position of inspector ('left' | 'right' | 'top' | 'bottom')
+   * @param {number} [options.initialSize=300] - Initial size of inspector panel in pixels
+   * @returns {SceneGraphInspector} The inspector instance
+   */
+  enableInspector(container = null, options = {}) {
+    if (this.#inspector) {
+      return this.#inspector; // Already enabled
+    }
+
+    const { position = 'right', initialSize = 300 } = options;
+
+    // Get viewer container
+    const viewerContainer = this.#jsrViewer.getViewer().getViewingComponent().parentElement;
+    if (!viewerContainer) {
+      throw new Error('Cannot enable inspector: viewer container not found');
+    }
+
+    // Determine orientation based on position
+    const orientation = (position === 'left' || position === 'right') ? 'horizontal' : 'vertical';
+
+    // Create inspector container
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'jsrapp-inspector-container';
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.overflow = 'auto';
+    }
+
+    // Get scene root
+    const sceneRoot = this.#jsrViewer.getSceneRoot();
+    if (!sceneRoot) {
+      throw new Error('Cannot enable inspector: scene root is not available');
+    }
+
+    // Create split pane if container was not provided
+    if (!container.parentElement) {
+      // Create split pane container
+      const splitPaneContainer = document.createElement('div');
+      splitPaneContainer.style.width = '100%';
+      splitPaneContainer.style.height = '100%';
+      splitPaneContainer.style.position = 'relative';
+
+      // Replace viewer container's content with split pane
+      const parent = viewerContainer.parentElement;
+      parent.replaceChild(splitPaneContainer, viewerContainer);
+      splitPaneContainer.appendChild(viewerContainer);
+
+      // Determine which panel is left/top and which is right/bottom
+      let leftPanel, rightPanel;
+      if (position === 'left') {
+        leftPanel = container;
+        rightPanel = viewerContainer;
+      } else if (position === 'right') {
+        leftPanel = viewerContainer;
+        rightPanel = container;
+      } else if (position === 'top') {
+        leftPanel = container;
+        rightPanel = viewerContainer;
+      } else { // bottom
+        leftPanel = viewerContainer;
+        rightPanel = container;
+      }
+
+      // Calculate initial size for left panel
+      // If inspector is on right/bottom, left panel (viewer) should be larger
+      let leftPanelInitialSize;
+      if (position === 'left' || position === 'top') {
+        leftPanelInitialSize = initialSize; // Inspector size
+      } else {
+        // Inspector is on right/bottom, so viewer (left panel) gets remaining space
+        // Use a reasonable calculation based on available space
+        const containerSize = orientation === 'horizontal' 
+          ? (splitPaneContainer.offsetWidth || window.innerWidth)
+          : (splitPaneContainer.offsetHeight || window.innerHeight);
+        leftPanelInitialSize = Math.max(containerSize - initialSize - 4, 200); // 4px for splitter, min 200px
+      }
+
+      // Create split pane
+      this.#splitPane = new SplitPane(splitPaneContainer, {
+        leftPanel: leftPanel,
+        rightPanel: rightPanel,
+        orientation: orientation,
+        initialSize: leftPanelInitialSize,
+        minSize: 100,
+        splitterWidth: 4
+      });
+    } else {
+      // Container was provided, just append it (no split pane)
+      if (!container.parentElement) {
+        viewerContainer.parentElement.appendChild(container);
+      }
+    }
+
+    // Create inspector
+    this.#inspector = new SceneGraphInspector(container, sceneRoot);
+
+    // Set up viewer instance reference for inspector property changes to trigger renders
+    // The inspector's onPropertyChange callback looks for window._viewerInstance
+    if (typeof window !== 'undefined') {
+      window._viewerInstance = this.#jsrViewer;
+    }
+
+    // Initial refresh
+    this.#inspector.refresh();
+
+    return this.#inspector;
+  }
+
+  /**
+   * Get the scene graph inspector instance.
+   * @returns {SceneGraphInspector|null} The inspector instance, or null if not enabled
+   */
+  getInspector() {
+    return this.#inspector;
   }
 
   /**
@@ -209,6 +346,10 @@ export class JSRApp extends Animated {
    * Dispose of resources.
    */
   dispose() {
+    if (this.#inspector) {
+      // Inspector doesn't have a dispose method, but we can clear the reference
+      this.#inspector = null;
+    }
     if (this.#jsrViewer) {
       this.#jsrViewer.dispose();
       this.#jsrViewer = null;

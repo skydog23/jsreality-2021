@@ -78,6 +78,12 @@ export class JSRViewer {
   /** @type {HTMLElement|null} */
   #menubarContainer = null;
 
+  /** @type {HTMLElement|null} */
+  #container = null;
+
+  /** @type {boolean} */
+  #menubarEnabled = true; // Enabled by default
+
   /** @type {Map<string, Object>} */
   #exporters = new Map();
 
@@ -118,6 +124,9 @@ export class JSRViewer {
     if (!container) {
       throw new Error('JSRViewer requires a container element');
     }
+
+    // Store container reference
+    this.#container = container;
 
     // Initialize core systems
     this.#initializeViewers(container, viewers, viewerNames);
@@ -280,14 +289,18 @@ export class JSRViewer {
   }
 
   /**
-   * Initialize UI components.
-   * @param {HTMLElement|null} menubarContainer - Container for menu bar
+   * Initialize UI components (menubar).
+   * @param {HTMLElement|null} menubarContainer - Container for menu bar (optional)
    * @private
    */
   #initializeUI(menubarContainer) {
-    if (menubarContainer) {
-      this.#menubarContainer = menubarContainer;
-      this.#menubar = new Menubar(menubarContainer);
+    // Store menubar container if provided, but don't create menubar yet
+    // It will be created by enableMenubar() if enabled
+    this.#menubarContainer = menubarContainer;
+    
+    // Create menubar if enabled by default
+    if (this.#menubarEnabled) {
+      this.enableMenubar(menubarContainer);
     }
   }
 
@@ -296,42 +309,10 @@ export class JSRViewer {
    * @private
    */
   #registerDefaults() {
-    // Register default menu items
-    if (this.#menubar) {
-      // File menu
-      this.addMenuItem('File', {
-        label: 'Export PNG',
-        action: () => this.exportImage('png')
-      }, 10);
+    // Note: Default menu items are registered in enableMenubar(), not here
+    // This prevents duplicate registration
 
-      this.addMenuItem('File', {
-        label: 'Export JPEG',
-        action: () => this.exportImage('jpeg', 0.95)
-      }, 11);
-
-      this.addMenuItem('File', {
-        label: 'Export SVG',
-        action: () => this.exportSVG()
-      }, 12);
-
-      this.addMenuSeparator('File', 20);
-
-      // Viewer menu
-      this.addMenuItem('Viewer', {
-        label: 'Background',
-        submenu: [
-          { label: 'White', action: () => this.setBackgroundColor('white') },
-          { label: 'Gray', action: () => this.setBackgroundColor('gray') },
-          { label: 'Black', action: () => this.setBackgroundColor('black') },
-          { label: 'Transparent', action: () => this.setBackgroundColor('transparent') }
-        ]
-      }, 10);
-
-      this.addMenuItem('Viewer', {
-        label: 'Reset Camera',
-        action: () => this.resetCamera()
-      }, 20);
-    }
+    // Register default exporters
 
     // Register default exporters
     this.registerExporter('png', {
@@ -624,6 +605,92 @@ export class JSRViewer {
   // ========================================================================
 
   /**
+   * Enable the menu bar.
+   * Creates a Menubar instance and sets it up with default menu items.
+   * @param {HTMLElement} [container] - Optional container element for the menubar.
+   *                                    If not provided, a default container will be created.
+   * @returns {Menubar} The menubar instance
+   */
+  enableMenubar(container = null) {
+    if (this.#menubar) {
+      return this.#menubar; // Already enabled
+    }
+
+    // Create container if not provided
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'jsrviewer-menubar-container';
+      container.style.width = '100%';
+      container.style.height = 'auto';
+      
+      // Insert menubar at the top of the viewer container
+      const viewerComponent = this.#viewerSwitch.getViewingComponent();
+      if (viewerComponent && viewerComponent.parentElement) {
+        viewerComponent.parentElement.insertBefore(container, viewerComponent);
+      } else if (this.#container) {
+        // If viewer component isn't in DOM yet, prepend to container
+        this.#container.insertBefore(container, this.#container.firstChild);
+      }
+    }
+
+    this.#menubarContainer = container;
+    
+    // Create menubar with default menu provider
+    // The provider function receives the menubar instance and registers menu items
+    const defaultMenuProvider = (menubar) => {
+      // File menu
+      menubar.addMenuItem('File', {
+        label: 'Export PNG',
+        action: () => this.exportImage('png')
+      }, 10);
+
+      menubar.addMenuItem('File', {
+        label: 'Export JPEG',
+        action: () => this.exportImage('jpeg', 0.95)
+      }, 11);
+
+      menubar.addMenuItem('File', {
+        label: 'Export SVG',
+        action: () => this.exportSVG()
+      }, 12);
+
+      menubar.addMenuSeparator('File', 20);
+
+      // Viewer menu
+      menubar.addMenuItem('Viewer', {
+        label: 'Background',
+        submenu: [
+          { label: 'White', action: () => this.setBackgroundColor('white') },
+          { label: 'Gray', action: () => this.setBackgroundColor('gray') },
+          { label: 'Black', action: () => this.setBackgroundColor('black') },
+          { label: 'Transparent', action: () => this.setBackgroundColor('transparent') }
+        ]
+      }, 10);
+
+      menubar.addMenuItem('Viewer', {
+        label: 'Reset Camera',
+        action: () => this.resetCamera()
+      }, 20);
+    };
+    
+    this.#menubar = new Menubar(container, {
+      defaultMenuProviders: [defaultMenuProvider]
+    });
+    this.#menubarEnabled = true;
+
+    return this.#menubar;
+  }
+
+
+  /**
+   * Get the menubar instance.
+   * @returns {Menubar|null} The menubar instance, or null if not enabled
+   */
+  getMenubar() {
+    return this.#menubar;
+  }
+
+  /**
    * Add a menu item to a menu.
    * @param {string} menuName - Name of the menu
    * @param {Object} item - Menu item definition
@@ -726,7 +793,14 @@ export class JSRViewer {
     }
 
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-    return viewer.exportImage(mimeType, quality);
+    const dataURL = viewer.exportImage(mimeType, quality);
+    
+    // Trigger download
+    const extension = format === 'jpeg' ? 'jpg' : 'png';
+    const filename = `jsreality-export-${Date.now()}.${extension}`;
+    this.#downloadDataURL(dataURL, filename);
+    
+    return dataURL;
   }
 
   /**
@@ -760,10 +834,50 @@ export class JSRViewer {
 
       // Export SVG
       const svgString = svgViewer.exportSVG();
+      
+      // Trigger download
+      const filename = `jsreality-export-${Date.now()}.svg`;
+      this.#downloadSVG(svgString, filename);
+      
       return svgString;
     } finally {
       document.body.removeChild(tempContainer);
     }
+  }
+
+  /**
+   * Download a data URL as a file.
+   * @param {string} dataURL - Data URL to download
+   * @param {string} filename - Filename for the download
+   * @private
+   */
+  #downloadDataURL(dataURL, filename) {
+    const link = document.createElement('a');
+    link.href = dataURL;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  /**
+   * Download SVG string as a file.
+   * @param {string} svgString - SVG string to download
+   * @param {string} filename - Filename for the download
+   * @private
+   */
+  #downloadSVG(svgString, filename) {
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   // ========================================================================

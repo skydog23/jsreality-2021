@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TestJSRApp Example</title>
+    <title>JSRApp Example</title>
     <style>
         :root {
             --canvas-padding: 0px; /* Change this to adjust padding around canvas */
@@ -75,8 +75,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>TestJSRApp Example</h1>
-        <p>Demonstrates JSRApp with TestJSRApp subclass</p>
+        <h1>JSRApp Example</h1>
+        <p>Demonstrates JSRApp with configurable subclass</p>
     </div>
 
     <div class="viewer-container" id="viewer-container">
@@ -88,7 +88,14 @@
     </div>
 
     <script type="module">
-        import { TestJSRApp } from '../src/app/examples/TestJSRApp.js';
+        // ============================================================================
+        // CONFIGURATION: Change these values to use a different JSRApp subclass
+        // ============================================================================
+        const APP_CONFIG = {
+            modulePath: '../src/app/examples/TestGeometryApp.js',
+            className: 'TestGeometryApp'
+        }
+        // ============================================================================
 
         // Get canvas element
         const canvas = document.getElementById('viewer-canvas');
@@ -100,7 +107,18 @@
         // The viewer's ResizeObserver will handle resize automatically
 
         try {
-            info.textContent = 'Creating TestJSRApp instance...';
+            info.textContent = `Loading ${APP_CONFIG.className}...`;
+            
+            // Dynamically import the module
+            const module = await import(APP_CONFIG.modulePath);
+            
+            // Get the class from the imported module
+            const AppClass = module[APP_CONFIG.className];
+            if (!AppClass) {
+                throw new Error(`Class "${APP_CONFIG.className}" not found in module "${APP_CONFIG.modulePath}"`);
+            }
+            
+            info.textContent = `Creating ${APP_CONFIG.className} instance...`;
             
             // Ensure canvas has dimensions before creating viewer
             // Canvas2DViewer reads clientWidth/clientHeight from CSS
@@ -112,11 +130,11 @@
                 canvas.style.height = size + 'px';
             }
             
-            // Create TestJSRApp instance
+            // Create app instance using the dynamically loaded class
             // Canvas2DViewer will handle sizing via ResizeObserver
-            const app = new TestJSRApp(canvas);
+            const app = new AppClass(canvas);
             
-            info.textContent = 'TestJSRApp created. Calling display()...';
+            info.textContent = `${APP_CONFIG.className} created. Calling display()...`;
             
             // Call display() method to render
             app.display();
@@ -125,14 +143,14 @@
             
             // Expose app globally for debugging
             window.testApp = app;
-            console.log('TestJSRApp instance available as window.testApp');
+            console.log(`${APP_CONFIG.className} instance available as window.testApp`);
             console.log('Viewer:', app.getViewer());
             console.log('Tool System:', app.getToolSystem());
             console.log('Scene Root:', app.getViewer().getSceneRoot());
             console.log('Canvas size:', canvas.clientWidth, 'x', canvas.clientHeight);
             
         } catch (error) {
-            console.error('Error creating TestJSRApp:', error);
+            console.error(`Error creating ${APP_CONFIG.className}:`, error);
             info.textContent = '✗ Error: ' + error.message;
             info.style.color = '#ff6b6b';
         }

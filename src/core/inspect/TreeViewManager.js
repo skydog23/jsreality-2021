@@ -208,9 +208,11 @@ export class TreeViewManager {
                        (node instanceof ShaderTreeNode && node.children.length > 0);
     
     if (hasChildren) {
-      expand.textContent = this.#expandedNodes.has(node) ? '▼' : '▶';
+      const isExpanded = this.#expandedNodes.has(node);
+      expand.textContent = isExpanded ? '▼' : '▶';
       expand.style.cursor = 'pointer';
       expand.style.pointerEvents = 'auto';
+      
       expand.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -243,8 +245,28 @@ export class TreeViewManager {
     // Use addEventListener instead of onclick for better compatibility
     header.style.pointerEvents = 'auto';
     header.addEventListener('click', (e) => {
+      // Check if this is the GeometryShader expand under rootAppearance
+      if (node instanceof ShaderTreeNode && node.type === 'geometry') {
+        const appearance = node.appearance;
+        const isRootAppearance = this.#root && this.#root.getAppearance?.() === appearance;
+        if (isRootAppearance) {
+          console.error('=== HEADER CLICKED ON ROOT GEOMETRY SHADER ===', {
+            target: e.target,
+            targetClass: e.target.className,
+            expandElement: expand,
+            expandContains: expand.contains(e.target),
+            expandIsTarget: e.target === expand
+          });
+        }
+      }
+      
       // Don't select if clicking on the expand icon (it handles its own click)
-      if (expand.contains(e.target)) {
+      if (expand.contains(e.target) || e.target === expand) {
+        console.error('[TreeViewManager] Header click ignored - expand icon was clicked', {
+          target: e.target,
+          expand: expand,
+          node: node instanceof ShaderTreeNode ? node.type : 'not shader'
+        });
         return;
       }
       this.#selectNode(node);

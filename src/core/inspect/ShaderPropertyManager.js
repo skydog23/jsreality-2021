@@ -91,7 +91,9 @@ export class ShaderPropertyManager {
     }
     
     // Check cache, but invalidate if shader name has changed
-    let cachedNodes = this.#shaderNodeCache.get(appearance);
+    // Use the same cache key logic as when storing (line 287)
+    const cacheKey = isRootAppearance ? `${appearance}_root` : appearance;
+    let cachedNodes = this.#shaderNodeCache.get(cacheKey);
     if (cachedNodes) {
       // Find the polygon shader node in cached nodes
       const geomNode = cachedNodes.find(n => n.type === 'geometry');
@@ -284,7 +286,7 @@ export class ShaderPropertyManager {
     }
     
     // Cache the nodes (use appearance + isRootAppearance as key to handle both cases)
-    const cacheKey = isRootAppearance ? `${appearance}_root` : appearance;
+    // cacheKey was already declared at line 95
     this.#shaderNodeCache.set(cacheKey, nodes);
     
     return nodes;

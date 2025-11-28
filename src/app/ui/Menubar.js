@@ -25,11 +25,16 @@ export class Menubar {
   /** @type {Map<string, Array<{item: Object, priority: number, element: HTMLElement}>>} */
   #items = new Map();
 
+  /** @type {Function[]} Callbacks to register default menu items */
+  #defaultMenuProviders = [];
+
   /**
    * Create a new Menubar.
    * @param {HTMLElement} container - Container element for the menu bar
+   * @param {Object} [options] - Configuration options
+   * @param {Function[]} [options.defaultMenuProviders] - Array of functions that register default menu items
    */
-  constructor(container) {
+  constructor(container, options = {}) {
     if (!container) {
       throw new Error('Menubar requires a container element');
     }
@@ -39,6 +44,48 @@ export class Menubar {
     this.#container.style.flexDirection = 'row';
     this.#container.style.backgroundColor = '#2d2d2d';
     this.#container.style.borderBottom = '1px solid #3e3e3e';
+
+    // Store default menu providers
+    if (options.defaultMenuProviders) {
+      this.#defaultMenuProviders = options.defaultMenuProviders;
+    }
+
+    // Register default menu items if providers are available
+    if (this.#defaultMenuProviders.length > 0) {
+      this.#registerDefaultMenus();
+    }
+  }
+
+  /**
+   * Register default menu items from providers.
+   * @private
+   */
+  #registerDefaultMenus() {
+    this.#defaultMenuProviders.forEach(provider => {
+      try {
+        provider(this);
+      } catch (error) {
+        logger.error(`Error registering default menu items: ${error.message}`);
+      }
+    });
+  }
+
+  /**
+   * Add a default menu provider function.
+   * The function will be called with this Menubar instance as an argument.
+   * @param {Function} provider - Function that registers menu items (receives Menubar instance)
+   */
+  addDefaultMenuProvider(provider) {
+    if (typeof provider !== 'function') {
+      throw new Error('Menu provider must be a function');
+    }
+    this.#defaultMenuProviders.push(provider);
+    // Immediately register menu items from this provider
+    try {
+      provider(this);
+    } catch (error) {
+      logger.error(`Error registering menu items from provider: ${error.message}`);
+    }
   }
 
   /**
