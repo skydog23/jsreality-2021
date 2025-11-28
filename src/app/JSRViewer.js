@@ -244,8 +244,8 @@ export class JSRViewer {
   #initializeToolSystem(toolSystemConfig) {
     let config = toolSystemConfig;
     if (!config) {
-      // Use default configuration
-      config = ToolSystemConfiguration.loadDefaultConfiguration();
+      // Use default configuration with devices
+      config = ToolSystem.getDefaultToolSystemConfiguration();
     }
 
     this.#toolSystem = new ToolSystem(

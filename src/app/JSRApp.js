@@ -114,6 +114,14 @@ export class JSRApp extends Animated {
     this._viewer = this.#jsrViewer.getViewer().getCurrentViewer();
     this._toolSystem = this.#jsrViewer.getToolSystem();
 
+    // Re-discover scene tools after content is set
+    // This ensures tools added in getContent() are discovered and registered
+    // Use rediscoverSceneTools() instead of initializeSceneTools() to avoid
+    // restarting the event queue which was already started during JSRViewer initialization
+    if (this._toolSystem) {
+      this._toolSystem.rediscoverSceneTools();
+    }
+
     // Set up system time updates (unique to JSRApp for animation support)
     this._setupSystemTimeUpdates();
 
@@ -181,7 +189,8 @@ export class JSRApp extends Animated {
   display() {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
-
+    this.enableInspector();
+  
     this.#jsrViewer.getViewer().render();
     // Refresh inspector if enabled
     if (this.#inspector) {

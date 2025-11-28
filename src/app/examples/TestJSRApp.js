@@ -13,6 +13,8 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
+import { toDataList } from '../../core/scene/data/DataUtility.js';
+import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 
 /**
  * Abstract base class for jsReality applications.
@@ -24,13 +26,25 @@ export class TestJSRApp extends JSRApp {
 
   getContent() {
     const world = SceneGraphUtility.createFullSceneGraphComponent("world");
+    const ifs = SphereUtility.tessellatedIcosahedronSphere(3)
     world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
+    const n = ifs.getNumFaces();
+    // generate a random color for each face
+    const colors = new Array(n).map(() => new Color(255*Math.random(), 255*Math.random(), 255*Math.random()));
+    for (let i = 0; i < n; i++) {
+      colors[i] = new Color(255*Math.random(), 255*Math.random(), 255*Math.random());
+    }
+    const data = toDataList(colors, null, 'float32');
+    ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
+    world.setGeometry(ifs);
+  
+
     const ap = world.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
-    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 0));
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,128,255));
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 1, 0));
+    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
 

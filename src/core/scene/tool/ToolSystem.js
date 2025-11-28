@@ -510,7 +510,32 @@ export class ToolSystem extends ToolEventReceiver {
     // Set up listeners for automatic tool registration
     this.#setupToolListeners();
     
-    this.#eventQueue.start();
+    // Only start the queue if it hasn't been started yet
+    if (!this.#eventQueue.isStarted()) {
+      this.#eventQueue.start();
+    }
+  }
+
+  /**
+   * Re-discover tools in the scene graph without restarting the event queue.
+   * Useful when content is added after initial initialization.
+   */
+  rediscoverSceneTools() {
+    if (this.#disposed) return;
+    
+    // Update scene root references
+    if (this.#emptyPickPath.getLength() === 0) {
+      this.#emptyPickPath.push(this.#viewer.getSceneRoot());
+    }
+    if (this.#pickSystem) {
+      this.#pickSystem.setSceneRoot(this.#viewer.getSceneRoot());
+    }
+    
+    // Discover and register tools from scene graph
+    this.#discoverSceneTools();
+    
+    // Set up listeners for automatic tool registration (idempotent)
+    this.#setupToolListeners();
   }
 
   /**
@@ -717,10 +742,6 @@ export class ToolSystem extends ToolEventReceiver {
     if (this.#disposed) return;
     this.#executing = true;
     
-    if (event.getInputSlot() === InputSlot.POINTER_TRANSFORMATION) {
-      this.#logger.finest(Category.IO, 'Processing POINTER_TRANSFORMATION event');
-    }
-    
     this.#compQueue.push(event);
     let iterCnt = 0;
     
@@ -765,6 +786,7 @@ export class ToolSystem extends ToolEventReceiver {
     while (this.#compQueue.length > 0) {
       const event = this.#compQueue.shift();
       this.#deviceManager.evaluateEvent(event, this.#compQueue);
+      
       if (this.#isTrigger(event) && !event.isConsumed()) {
         this.#triggerQueue.push(event);
       }
@@ -781,9 +803,6 @@ export class ToolSystem extends ToolEventReceiver {
     const slot = event.getInputSlot();
     const isActive = this.#slotManager.isActiveSlot(slot);
     const isActivation = this.#slotManager.isActivationSlot(slot);
-    if (slot === InputSlot.POINTER_TRANSFORMATION && (isActive || isActivation)) {
-      this.#logger.finest(Category.IO, `POINTER_TRANSFORMATION is trigger: isActive=${isActive}, isActivation=${isActivation}`);
-    }
     return isActive || isActivation;
   }
 
@@ -853,9 +872,12 @@ export class ToolSystem extends ToolEventReceiver {
       if (noTrigger) {
         const active = this.#slotManager.getActiveToolsForSlot(slot);
         if (slot === InputSlot.POINTER_TRANSFORMATION) {
-          this.#logger.finer(Category.IO, `noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
+          this.#logger.finer(Category.IO, `[ToolSystem] noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
           if (active.size === 0) {
-            this.#logger.warn(Category.IO, 'No active tools found for POINTER_TRANSFORMATION!');
+            this.#logger.warn(Category.IO, '[ToolSystem] No active tools found for POINTER_TRANSFORMATION!');
+          } else {
+            const toolNames = Array.from(active).map(t => `${t.constructor.name}(${t.getName()})`);
+            this.#logger.finer(Category.IO, `[ToolSystem] Active tools: ${toolNames.join(', ')}`);
           }
         }
         for (const tool of active) {
@@ -985,6 +1007,7 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setCurrentTool(tool);
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       const paths = this.#getActivePathsForTool(tool);
+      
       if (paths.length === 0 && tool.getActivationSlots().length === 0) {
         this.#logger.warn(Category.SCENE, `Always-active tool ${tool.constructor.name} has no active paths`);
       }

@@ -677,9 +677,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     let faceColors = geometry.getFaceAttribute(GeometryAttribute.COLORS);
     if (faceColors) {
       faceColors = fromDataList(faceColors);
+      // faceColors = faceColors.map(color => new Color(color[0], color[1], color[2]));
     }
-
-    // Begin nested group for faces
+     // Begin nested group for faces
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     
     // indices is now a JS array (from fromDataList), where each element is an array of vertex indices

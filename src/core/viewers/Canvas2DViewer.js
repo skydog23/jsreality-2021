@@ -473,7 +473,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    */
   _drawPolygon(vertices, color, indices, fill) {
     const ctx = this.#context;
-    
+    // console.log('color', color);
     // fillStyle already set by _beginPrimitiveGroup('face')
     ctx.beginPath();
     let firstPoint = true;

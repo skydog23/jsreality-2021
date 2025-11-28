@@ -154,11 +154,7 @@ export class SlotManager {
    * @returns {Set<Tool>} Set of tools
    */
   getActiveToolsForSlot(slot) {
-    const tools = new Set(this.#getSlot2active(slot));
-    if (slot.getName() === 'PointerTransformation' && tools.size > 0) {
-      logger.finest(Category.IO, `getActiveToolsForSlot(${slot.getName()}): ${tools.size} tools`);
-    }
-    return tools;
+    return new Set(this.#getSlot2active(slot));
   }
 
   /**
@@ -193,12 +189,7 @@ export class SlotManager {
    * @returns {boolean} True if active
    */
   isActiveSlot(slot) {
-    const isActive = this.#slot2active.has(slot);
-    if (slot.getName() === 'PointerTransformation') {
-      const tools = this.#getSlot2active(slot);
-      logger.finest(Category.IO, `isActiveSlot(PointerTransformation): ${isActive}, tools: ${tools.size}`);
-    }
-    return isActive;
+    return this.#slot2active.has(slot);
   }
 
   /**

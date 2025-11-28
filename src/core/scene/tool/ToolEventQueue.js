@@ -72,6 +72,14 @@ export class ToolEventQueue {
   }
 
   /**
+   * Check if the queue has been started.
+   * @returns {boolean} True if the queue has been started
+   */
+  isStarted() {
+    return this.#started;
+  }
+
+  /**
    * Process the event queue using requestAnimationFrame.
    * @private
    */
@@ -87,7 +95,8 @@ export class ToolEventQueue {
         try {
           this.#receiver.processToolEvent(event);
         } catch (error) {
-          this.#logger.severe(Category.SCENE, 'Error processing tool event:', error);
+          const slotName = event.getInputSlot()?.getName() || 'unknown';
+          this.#logger.severe(Category.SCENE, `Error processing tool event (${slotName}):`, error);
         }
       }
     }
@@ -105,6 +114,7 @@ export class ToolEventQueue {
    */
   addEvent(event) {
     if (!this.#started) {
+      this.#logger.warning(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
       return false;
     }
     return this.#placeEvent(event);

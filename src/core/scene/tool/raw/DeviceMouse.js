@@ -14,6 +14,8 @@ import { ToolEventQueue } from '../ToolEventQueue.js';
 import { InputSlot } from '../InputSlot.js';
 import { AxisState } from '../AxisState.js';
 import * as Rn from '../../../math/Rn.js';
+import { getLogger, Category } from '../../../util/LoggingSystem.js';
+import { ViewerSwitch } from '../../../viewers/ViewerSwitch.js';
 
 /**
  * @typedef {import('../ToolEventQueue.js').ToolEventQueue} ToolEventQueue
@@ -50,7 +52,23 @@ export class DeviceMouse extends AbstractDeviceMouse {
     if (!viewer.hasViewingComponent()) {
       throw new Error('Viewer must have a viewing component');
     }
-    const component = viewer.getViewingComponent();
+    
+    // If viewer is ViewerSwitch, get the actual current viewer's component
+    let component = viewer.getViewingComponent();
+    
+    // Check if viewer has getCurrentViewer method (ViewerSwitch)
+    if (typeof viewer.getCurrentViewer === 'function') {
+      const currentViewer = viewer.getCurrentViewer();
+      if (currentViewer && currentViewer.hasViewingComponent()) {
+        component = currentViewer.getViewingComponent();
+      }
+    } else if (viewer instanceof ViewerSwitch) {
+      const currentViewer = viewer.getCurrentViewer();
+      if (currentViewer && currentViewer.hasViewingComponent()) {
+        component = currentViewer.getViewingComponent();
+      }
+    }
+    
     if (!(component instanceof HTMLElement)) {
       throw new Error('Viewing component must be an HTMLElement');
     }

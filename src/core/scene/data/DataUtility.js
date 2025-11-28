@@ -346,7 +346,7 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
     const isColorArray = !isNested && data.length > 0 && 
     typeof data[0] === 'object' && data[0] !== null && 
     ('r' in data[0] || data[0] instanceof Color);   
-
+  
   if (isColorArray) {
     // Convert Color objects to arrays [r, g, b, a] or [r, g, b]
     // Auto-detect number of channels from Color objects (ignore fiberLength parameter)
