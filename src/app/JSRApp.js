@@ -179,7 +179,10 @@ export class JSRApp extends Animated {
    * specific attributes.
    */
   display() {
-    this.#jsrViewer.render();
+    const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
+    ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
+
+    this.#jsrViewer.getViewer().render();
     // Refresh inspector if enabled
     if (this.#inspector) {
       this.#inspector.refresh();

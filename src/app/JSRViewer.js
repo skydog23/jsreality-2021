@@ -29,6 +29,7 @@ import { getLogger } from '../core/util/LoggingSystem.js';
 import { ContentManager } from './ContentManager.js';
 import { Menubar } from './ui/Menubar.js';
 import { SVGViewer } from '../core/viewers/SVGViewer.js';
+import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -654,6 +655,11 @@ export class JSRViewer {
         action: () => this.exportSVG()
       }, 12);
 
+      menubar.addMenuItem('File', {
+        label: 'Export WebGL',
+        action: () => this.exportWebGL()
+      }, 13);
+
       menubar.addMenuSeparator('File', 20);
 
       // Viewer menu
@@ -878,6 +884,57 @@ export class JSRViewer {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Export the scene as an image rendered by WebGL.
+   * @param {string} [format='png'] - Image format ('png' | 'jpeg')
+   * @param {number} [quality=0.95] - JPEG quality (0-1)
+   * @returns {string} Data URL of the exported image
+   */
+  exportWebGL(format = 'png', quality = 0.95) {
+    if (!this.#viewerSwitch) {
+      throw new Error('Viewer not initialized');
+    }
+
+    const viewer = this.#viewerSwitch.getCurrentViewer();
+    const viewingComponent = viewer.getViewingComponent();
+    const width = viewingComponent.clientWidth || viewingComponent.offsetWidth || 800;
+    const height = viewingComponent.clientHeight || viewingComponent.offsetHeight || 600;
+
+    // Create temporary container
+    const tempContainer = document.createElement('div');
+    tempContainer.style.width = `${width}px`;
+    tempContainer.style.height = `${height}px`;
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    document.body.appendChild(tempContainer);
+
+    try {
+      // Create WebGL viewer
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      tempContainer.appendChild(canvas);
+
+      const webglViewer = new WebGL2DViewer(canvas, { autoResize: false });
+      webglViewer.setSceneRoot(this.#sceneRoot);
+      webglViewer.setCameraPath(this.#cameraPath);
+      webglViewer.render();
+
+      // Export image
+      const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const dataURL = webglViewer.exportImage(mimeType, quality);
+      
+      // Trigger download
+      const extension = format === 'jpeg' ? 'jpg' : 'png';
+      const filename = `jsreality-webgl-export-${Date.now()}.${extension}`;
+      this.#downloadDataURL(dataURL, filename);
+      
+      return dataURL;
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
   }
 
   // ========================================================================

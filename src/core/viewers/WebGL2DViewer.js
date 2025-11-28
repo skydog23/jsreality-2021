@@ -203,6 +203,16 @@ export class WebGL2DViewer extends Abstract2DViewer {
 
     return super._computeCam2NDCMatrix(camera, aspect);
   }
+
+  /**
+   * Export canvas as image
+   * @param {string} [format='image/png'] - Image format
+   * @param {number} [quality] - Image quality (0-1 for lossy formats)
+   * @returns {string} Data URL of the image
+   */
+  exportImage(format = 'image/png', quality) {
+    return this.#canvas.toDataURL(format, quality);
+  }
 }
 
 /**

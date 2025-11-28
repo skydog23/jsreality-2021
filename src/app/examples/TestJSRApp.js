@@ -24,7 +24,7 @@ export class TestJSRApp extends JSRApp {
 
   getContent() {
     const world = SceneGraphUtility.createFullSceneGraphComponent("world");
-    world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(0));
+    world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
     const ap = world.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 0));
@@ -44,9 +44,7 @@ export class TestJSRApp extends JSRApp {
   display() {
     super.display();
     this.enableInspector();
-    const ap = this._viewer.getSceneRoot().getAppearance();
-    ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 150, 100));
-
+  
     this._viewer.render();
   }
 
