@@ -665,7 +665,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * @param {*} geometry - The geometry object (IndexedFaceSet)
    */
   _renderFacesAsPolygons(geometry) {
-    console.error('🟢 Abstract2DRenderer._renderFacesAsPolygons called, showFaces:', this.#showFaces);
+    // console.error('🟢 Abstract2DRenderer._renderFacesAsPolygons called, showFaces:', this.#showFaces);
     if (!this.#showFaces) {
       return;
     }

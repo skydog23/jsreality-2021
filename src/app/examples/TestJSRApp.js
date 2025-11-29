@@ -57,8 +57,7 @@ export class TestJSRApp extends JSRApp {
    */
   display() {
     super.display();
-    this.enableInspector();
-  
+    
     this._viewer.render();
   }
 
