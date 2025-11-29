@@ -1101,13 +1101,15 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number[]} indices - Array of vertex indices
    * @param {boolean} fill - Whether to fill the polygon
    */
-  _drawPolygon(vertices, colors, indices, fill) {
+  _drawPolygon(vertices, color, indices, fill) {
     const gl = this.#gl;
-    
+    console.error('🔵 WebGL2DRenderer._drawPolygon CALLED - color:', color);
+    color = color.map(c => c/255);
     // Convert vertices to Float32Array (creates compacted array)
     const vertexArray = this.#verticesToFloat32Array(vertices, indices);
-    const colorArray = this.#colorsToFloat32Array(colors, indices, this.#currentColor);
-    
+    // colors is a single color per face (or null) - replicate it for all vertices
+    const colorArray = this.#colorsToFloat32Array(color, indices, this.#currentColor);
+  
     // Debug: log vertex count for polygons with more than 3 vertices
    
     // Triangulate using sequential indices (0, 1, 2, ...) since vertexArray is already compacted
