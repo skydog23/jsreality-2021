@@ -1,0 +1,167 @@
+# Inspector Timing Issue - Canvas2D Reliability
+
+## Problem
+
+When modifying appearance properties in the SceneGraphInspector, Canvas2DViewer sometimes fails to display the updated values on the first render, while WebGL2DViewer and SVGViewer are more reliable.
+
+## Root Cause
+
+**Race condition between appearance updates and rendering:**
+
+The issue occurs because fast renderers (especially Canvas2D) can complete their render cycle before the appearance changes have fully propagated through the system. This creates a timing-dependent bug where:
+
+1. User modifies property in inspector
+2. Widget callback fires → `appearance.setAttribute(key, newValue)`
+3. Inspector schedules render with `setTimeout(..., delay)`
+4. **Fast renderers may read appearance values before changes fully settle**
+
+## Observed Behavior
+
+**Reliability by renderer speed:**
+- **Canvas2D**: Least reliable (fastest renderer, ~microseconds)
+- **WebGL2D**: More reliable (moderate speed, GPU overhead)
+- **SVGViewer**: Most reliable (slowest, DOM manipulation overhead)
+
+The correlation between renderer speed and reliability confirms this is a timing issue.
+
+## Solution
+
+Implemented a **16ms debounce delay** in `SceneGraphInspector.onPropertyChange()`:
+
+```javascript
+this.#renderTimeoutId = setTimeout(() => {
+  this.#renderTimeoutId = null;
+  if (typeof window !== 'undefined' && window._viewerInstance) {
+    window._viewerInstance.render();
+  }
+}, 16); // ~1 frame at 60fps - gives time for DOM/state updates
+```
+
+### Why 16ms?
+
+- **One frame at 60fps** gives the browser time to complete all pending updates
+- Allows appearance changes to fully propagate before rendering
+- Synchronizes with browser's natural render cycle
+- Balance between responsiveness and reliability
+
+## Why Canvas2D Is Most Affected
+
+Canvas2D is the fastest renderer because:
+1. **Direct pixel manipulation** - no GPU overhead
+2. **No DOM operations** - unlike SVG
+3. **Simple 2D context** - unlike WebGL setup
+4. **Immediate draw operations** - no batching or compilation
+
+This speed means it can complete a render in microseconds, easily outpacing the appearance change propagation.
+
+## Technical Details
+
+### Appearance Change Flow
+```
+1. User changes color in UI
+2. Widget callback: appearance.setAttribute('backgroundColor', color)
+3. Appearance stores value in internal Map
+4. Appearance fires 'appearanceChanged' event (async)
+5. Inspector calls onPropertyChange()
+6. Debounce timer starts (16ms)
+7. [Timer delay - changes propagate]
+8. Timer fires → render() called
+9. Renderer reads appearance.getAttribute('backgroundColor')
+10. Fresh value is returned
+```
+
+### Without Delay (Race Condition)
+```
+1-5. Same as above
+6. Render happens immediately
+7. Renderer reads appearance BEFORE event propagation completes
+8. Stale or intermediate value may be returned
+```
+
+## Future Improvements
+
+### Option 1: requestAnimationFrame
+```javascript
+const onPropertyChange = () => {
+  if (this.#renderFrameId !== null) {
+    cancelAnimationFrame(this.#renderFrameId);
+  }
+  this.#renderFrameId = requestAnimationFrame(() => {
+    this.#renderFrameId = null;
+    window._viewerInstance.render();
+  });
+};
+```
+
+**Benefits:**
+- Synchronizes with browser's natural render cycle
+- Guarantees render happens at optimal time
+- Prevents unnecessary renders between frames
+
+### Option 2: Synchronous Appearance Changes
+Make appearance changes fully synchronous by:
+1. Removing async event propagation
+2. Making setAttribute() complete all state updates before returning
+3. Adding explicit "changes complete" signal
+
+### Option 3: Explicit Render Invalidation
+```javascript
+class Appearance {
+  setAttribute(key, value) {
+    this.#attributes.set(key, value);
+    this.#notifyViewers(); // Immediate notification
+  }
+}
+```
+
+### Option 4: Renderer-Specific Timing
+Allow each renderer to specify its preferred update timing:
+```javascript
+class Canvas2DViewer {
+  getPreferredRenderDelay() {
+    return 16; // Needs more time due to speed
+  }
+}
+
+class SVGViewer {
+  getPreferredRenderDelay() {
+    return 0; // Naturally slower, no delay needed
+  }
+}
+```
+
+## Workarounds for Users
+
+If appearance changes don't appear immediately:
+1. **Switch viewers** - This forces a full re-render with fresh state
+2. **Wait a moment** - Changes become more reliable over time
+3. **Modify property again** - Triggers another render cycle
+
+## Code Location
+
+The timing mitigation is in:
+- **File**: `src/core/inspect/SceneGraphInspector.js`
+- **Method**: Constructor, `onPropertyChange` callback
+- **Lines**: ~90-120 (with extensive comment explaining the issue)
+
+## Testing
+
+To verify the timing issue:
+1. Use Canvas2DViewer (fastest, most affected)
+2. Rapidly change background color multiple times
+3. Without delay: Some changes don't appear
+4. With 16ms delay: All changes appear reliably
+
+## Related Issues
+
+This timing issue may affect:
+- Other appearance attribute changes (line colors, point sizes, etc.)
+- Geometry modifications (if not properly synchronized)
+- Camera transformations (if modified during render)
+
+## Recommendation
+
+**Leave at 16ms delay for now.** This provides good reliability without noticeable lag. If future optimizations are needed, consider `requestAnimationFrame` as the next step.
+
+The issue is fundamentally about synchronizing UI updates with renderer timing, which is a common challenge in real-time graphics applications.
+

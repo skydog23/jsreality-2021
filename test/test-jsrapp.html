@@ -271,7 +271,7 @@
 
     <script type="module">
         import { TestJSRApp } from '../src/core/examples/TestJSRApp.js';
-        import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
+        import { InspectorPlugin } from '../src/app/plugins/InspectorPlugin.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
         import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
         
@@ -560,18 +560,11 @@
                 
                 console.log('Scene root:', sceneRoot);
                 
-                // Create inspector
+                // Register InspectorPlugin
                 const inspectorContainer = document.getElementById('inspector-content');
-                console.log('Creating SceneGraphInspector...');
-                const inspector = new SceneGraphInspector(inspectorContainer, sceneRoot);
-                
-                // Hook up inspector to viewer for automatic rendering on property changes
-                // The inspector looks for window._viewerInstance to trigger renders
-                window._viewerInstance = app.getViewer();
-                console.log('✓ Inspector connected to viewer for auto-rendering');
-                
-                // Auto-expand the root node for convenience
-                inspector.refresh();
+                console.log('Registering InspectorPlugin...');
+                await app.getViewer().registerPlugin(new InspectorPlugin(inspectorContainer));
+                console.log('✓ InspectorPlugin registered and connected to viewer');
                 
                 // Display the app
                 console.log('Calling app.display()...');

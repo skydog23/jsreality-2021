@@ -30,6 +30,8 @@ import { ContentManager } from './ContentManager.js';
 import { Menubar } from './ui/Menubar.js';
 import { SVGViewer } from '../core/viewers/SVGViewer.js';
 import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
+import { EventBus } from './plugin/EventBus.js';
+import { PluginManager } from './plugin/PluginManager.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -91,7 +93,14 @@ export class JSRViewer {
   /** @type {Map<string, Object>} */
   #sidePanels = new Map();
 
-  // Event system
+  // Plugin system
+  /** @type {EventBus|null} */
+  #eventBus = null;
+
+  /** @type {PluginManager|null} */
+  #pluginManager = null;
+
+  // Event system (deprecated - use #eventBus instead)
   /** @type {Map<string, Function[]>} */
   #eventListeners = new Map();
 
@@ -128,6 +137,10 @@ export class JSRViewer {
 
     // Store container reference
     this.#container = container;
+
+    // Initialize plugin system first (so plugins can hook into other systems)
+    this.#eventBus = new EventBus();
+    this.#pluginManager = new PluginManager(this, this.#eventBus);
 
     // Initialize core systems
     this.#initializeViewers(container, viewers, viewerNames);
@@ -639,25 +652,14 @@ export class JSRViewer {
       container.style.width = '100%';
       container.style.height = 'auto';
       
-      // Debug: Log container structure
-      console.log('Creating menubar container');
-      console.log('this.#container:', this.#container);
-      console.log('viewerComponent:', this.#viewerSwitch.getViewingComponent());
-      console.log('viewerComponent.parentElement:', this.#viewerSwitch.getViewingComponent().parentElement);
-      
       // Insert menubar at the top of the viewer container
       const viewerComponent = this.#viewerSwitch.getViewingComponent();
       if (viewerComponent && viewerComponent.parentElement) {
         viewerComponent.parentElement.insertBefore(container, viewerComponent);
-        console.log('Menubar inserted before viewer component');
       } else if (this.#container) {
         // If viewer component isn't in DOM yet, prepend to container
         this.#container.insertBefore(container, this.#container.firstChild);
-        console.log('Menubar prepended to container');
       }
-      
-      console.log('Menubar container created:', container);
-      console.log('Menubar container in DOM:', document.contains(container));
     }
 
     this.#menubarContainer = container;
@@ -1029,6 +1031,13 @@ export class JSRViewer {
   dispose() {
     logger.info('Disposing JSRViewer');
 
+    // Uninstall all plugins first
+    if (this.#pluginManager) {
+      this.#pluginManager.uninstallAll().catch(error => {
+        logger.severe(`Error uninstalling plugins during dispose: ${error.message}`);
+      });
+    }
+
     if (this.#viewerSwitch) {
       this.#viewerSwitch.dispose();
       this.#viewerSwitch = null;
@@ -1047,11 +1056,103 @@ export class JSRViewer {
     // Clear event listeners
     this.#eventListeners.clear();
 
+    // Clear event bus
+    if (this.#eventBus) {
+      this.#eventBus.clear();
+      this.#eventBus = null;
+    }
+
     // Clear exporters and panels
     this.#exporters.clear();
     this.#sidePanels.clear();
 
     logger.info('JSRViewer disposed');
+  }
+
+  // ========================================================================
+  // PUBLIC API: Plugin System
+  // ========================================================================
+
+  /**
+   * Register a plugin.
+   * Plugins extend JSRViewer functionality in a structured way.
+   * 
+   * @param {import('./plugin/JSRPlugin.js').JSRPlugin} plugin - The plugin to register
+   * @returns {Promise<void>}
+   * @throws {Error} If plugin registration fails
+   */
+  async registerPlugin(plugin) {
+    return await this.#pluginManager.registerPlugin(plugin);
+  }
+
+  /**
+   * Uninstall a plugin.
+   * 
+   * @param {string} pluginId - ID of the plugin to uninstall
+   * @returns {Promise<void>}
+   */
+  async uninstallPlugin(pluginId) {
+    return await this.#pluginManager.uninstallPlugin(pluginId);
+  }
+
+  /**
+   * Get a plugin by ID.
+   * 
+   * @param {string} pluginId - The plugin ID
+   * @returns {import('./plugin/JSRPlugin.js').JSRPlugin|null} The plugin instance or null
+   */
+  getPlugin(pluginId) {
+    return this.#pluginManager.getPlugin(pluginId);
+  }
+
+  /**
+   * Check if a plugin is registered.
+   * 
+   * @param {string} pluginId - The plugin ID
+   * @returns {boolean} True if registered
+   */
+  hasPlugin(pluginId) {
+    return this.#pluginManager.hasPlugin(pluginId);
+  }
+
+  /**
+   * Get all registered plugins.
+   * 
+   * @returns {import('./plugin/JSRPlugin.js').JSRPlugin[]} Array of plugins
+   */
+  getAllPlugins() {
+    return this.#pluginManager.getAllPlugins();
+  }
+
+  /**
+   * Get plugin information for all registered plugins.
+   * 
+   * @returns {Array<import('./plugin/JSRPlugin.js').PluginInfo>} Array of plugin info
+   */
+  getAllPluginInfo() {
+    return this.#pluginManager.getAllPluginInfo();
+  }
+
+  /**
+   * Emit an event to all plugins via the event bus.
+   * Plugins can listen to events using their PluginContext.
+   * 
+   * @param {string} eventType - Type of event
+   * @param {*} data - Event data
+   */
+  emitPluginEvent(eventType, data) {
+    this.#eventBus.emit(eventType, data);
+  }
+
+  /**
+   * Subscribe to plugin events.
+   * 
+   * @param {string} eventType - Type of event to listen for
+   * @param {Function} callback - Callback function
+   * @returns {Function} Unsubscribe function
+   */
+  onPluginEvent(eventType, callback) {
+    return this.#eventBus.on(eventType, callback);
   }
 }
 
