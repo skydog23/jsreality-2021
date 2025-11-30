@@ -1,0 +1,606 @@
+# JSRViewer Plugin System Proposal
+
+## Executive Summary
+
+This document proposes a lightweight plugin architecture for jsReality that captures the essential structure of jReality's plugin system without the heavy Java infrastructure (reflection, annotations, XML serialization).
+
+## Current State Analysis
+
+### jReality Plugin System (Java)
+**Key Components:**
+1. **Plugin interface** - Base type with lifecycle methods (`install()`, `uninstall()`)
+2. **Controller** - Central registry managing plugins, dependencies, and lifecycle
+3. **PluginInfo** - Metadata (name, vendor, icon, version)
+4. **Flavors/Types** - Marker interfaces for capabilities (PropertiesFlavor, ShutdownFlavor)
+5. **Side containers** - UI placement system (left, right, bottom panels)
+6. **Properties** - Persistent state management via XStream
+
+**Strengths:**
+- Clear separation of concerns
+- Declarative dependencies
+- Consistent lifecycle management
+- Automatic UI integration
+- State persistence
+
+**Java-specific features we can't/won't replicate:**
+- Java reflection for auto-discovery
+- Annotation-based configuration
+- XML serialization via XStream
+- Complex Swing container management
+
+### jsReality Current State (JavaScript)
+**Ad-hoc components:**
+- Menubar - directly instantiated in JSRViewer
+- SceneGraphInspector - manually managed
+- No clear extension points
+- No standard lifecycle
+- No dependency management
+
+## Proposed Solution: Lightweight Plugin Architecture
+
+### Core Principles
+1. **Simple over complete** - Focus on 80% use case
+2. **Explicit over magic** - No reflection, clear registration
+3. **Composable** - Plugins can depend on other plugins
+4. **Consistent lifecycle** - Standard init/cleanup pattern
+5. **Event-based communication** - Loose coupling
+
+### Architecture Overview
+
+```
+JSRViewer (Plugin Host)
+    ├── Plugin Registry
+    ├── Plugin Lifecycle Manager
+    ├── Event System
+    └── UI Integration Points
+        ├── Menubar
+        ├── Toolbar
+        ├── Side Panels
+        └── Overlays
+```
+
+## Implementation Design
+
+### 1. Plugin Base Class
+
+```javascript
+/**
+ * Base class for all JSRViewer plugins.
+ * Plugins extend this class and override lifecycle methods.
+ */
+export class JSRPlugin {
+  /**
+   * Plugin metadata
+   * @returns {PluginInfo}
+   */
+  getInfo() {
+    return {
+      id: 'base-plugin',  // Unique identifier
+      name: 'Base Plugin',
+      vendor: 'jsReality',
+      version: '1.0.0',
+      dependencies: []  // Array of plugin IDs this depends on
+    };
+  }
+
+  /**
+   * Called when plugin is installed
+   * @param {JSRViewer} viewer - The viewer instance
+   * @param {PluginContext} context - Context with access to other plugins, events, etc.
+   */
+  async install(viewer, context) {
+    this.viewer = viewer;
+    this.context = context;
+  }
+
+  /**
+   * Called when plugin is being removed
+   */
+  async uninstall() {
+    // Cleanup resources
+  }
+
+  /**
+   * Optional: Get UI components to add to viewer
+   * @returns {PluginUI|null}
+   */
+  getUI() {
+    return null;
+  }
+
+  /**
+   * Optional: Get menu items to add
+   * @returns {MenuItem[]|null}
+   */
+  getMenuItems() {
+    return null;
+  }
+
+  /**
+   * Optional: Handle events from the viewer
+   * @param {string} eventType
+   * @param {*} data
+   */
+  onEvent(eventType, data) {
+    // Override to handle events
+  }
+}
+```
+
+### 2. Plugin Context
+
+```javascript
+/**
+ * Context provided to plugins during installation.
+ * Provides access to viewer services and other plugins.
+ */
+export class PluginContext {
+  #viewer;
+  #plugins;
+  #eventBus;
+
+  constructor(viewer, plugins, eventBus) {
+    this.#viewer = viewer;
+    this.#plugins = plugins;
+    this.#eventBus = eventBus;
+  }
+
+  /**
+   * Get another plugin by ID
+   * @param {string} pluginId
+   * @returns {JSRPlugin|null}
+   */
+  getPlugin(pluginId) {
+    return this.#plugins.get(pluginId);
+  }
+
+  /**
+   * Emit an event to other plugins
+   * @param {string} eventType
+   * @param {*} data
+   */
+  emit(eventType, data) {
+    this.#eventBus.emit(eventType, data);
+  }
+
+  /**
+   * Subscribe to events
+   * @param {string} eventType
+   * @param {Function} callback
+   * @returns {Function} Unsubscribe function
+   */
+  on(eventType, callback) {
+    return this.#eventBus.on(eventType, callback);
+  }
+
+  /**
+   * Get the viewer instance
+   * @returns {JSRViewer}
+   */
+  getViewer() {
+    return this.#viewer;
+  }
+}
+```
+
+### 3. Plugin Manager (integrated into JSRViewer)
+
+```javascript
+/**
+ * Manages plugin lifecycle and dependencies
+ */
+class PluginManager {
+  #plugins = new Map();  // id -> plugin instance
+  #viewer;
+  #eventBus;
+
+  constructor(viewer, eventBus) {
+    this.#viewer = viewer;
+    this.#eventBus = eventBus;
+  }
+
+  /**
+   * Register and install a plugin
+   * @param {JSRPlugin} plugin
+   */
+  async registerPlugin(plugin) {
+    const info = plugin.getInfo();
+    
+    // Check if already registered
+    if (this.#plugins.has(info.id)) {
+      throw new Error(`Plugin ${info.id} already registered`);
+    }
+
+    // Check dependencies
+    for (const depId of info.dependencies) {
+      if (!this.#plugins.has(depId)) {
+        throw new Error(`Plugin ${info.id} depends on ${depId} which is not registered`);
+      }
+    }
+
+    // Create context
+    const context = new PluginContext(this.#viewer, this.#plugins, this.#eventBus);
+
+    // Install plugin
+    await plugin.install(this.#viewer, context);
+    
+    // Register
+    this.#plugins.set(info.id, plugin);
+
+    // Integrate UI if provided
+    this.#integrateUI(plugin);
+
+    // Emit event
+    this.#eventBus.emit('plugin:installed', { plugin, info });
+  }
+
+  /**
+   * Uninstall a plugin
+   * @param {string} pluginId
+   */
+  async uninstallPlugin(pluginId) {
+    const plugin = this.#plugins.get(pluginId);
+    if (!plugin) return;
+
+    // Check if other plugins depend on this
+    for (const [id, p] of this.#plugins) {
+      if (p.getInfo().dependencies.includes(pluginId)) {
+        throw new Error(`Cannot uninstall ${pluginId}: ${id} depends on it`);
+      }
+    }
+
+    // Uninstall
+    await plugin.uninstall();
+    this.#plugins.delete(pluginId);
+
+    // Emit event
+    this.#eventBus.emit('plugin:uninstalled', { pluginId });
+  }
+
+  /**
+   * Get a plugin by ID
+   * @param {string} pluginId
+   * @returns {JSRPlugin|null}
+   */
+  getPlugin(pluginId) {
+    return this.#plugins.get(pluginId) || null;
+  }
+
+  /**
+   * Get all registered plugins
+   * @returns {JSRPlugin[]}
+   */
+  getAllPlugins() {
+    return Array.from(this.#plugins.values());
+  }
+
+  /**
+   * Integrate plugin UI into viewer
+   * @param {JSRPlugin} plugin
+   * @private
+   */
+  #integrateUI(plugin) {
+    const ui = plugin.getUI();
+    if (ui) {
+      // Add to side panel, overlay, etc.
+      if (ui.sidePanel) {
+        // Add to side panel system
+      }
+    }
+
+    const menuItems = plugin.getMenuItems();
+    if (menuItems && this.#viewer.getMenubar()) {
+      for (const item of menuItems) {
+        this.#viewer.getMenubar().addMenuItem(item.menu, item, item.priority);
+      }
+    }
+  }
+}
+```
+
+### 4. Event Bus (Simple Implementation)
+
+```javascript
+/**
+ * Simple event bus for plugin communication
+ */
+export class EventBus {
+  #listeners = new Map();
+
+  /**
+   * Emit an event
+   * @param {string} eventType
+   * @param {*} data
+   */
+  emit(eventType, data) {
+    const callbacks = this.#listeners.get(eventType) || [];
+    for (const callback of callbacks) {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`Error in event listener for ${eventType}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to an event
+   * @param {string} eventType
+   * @param {Function} callback
+   * @returns {Function} Unsubscribe function
+   */
+  on(eventType, callback) {
+    if (!this.#listeners.has(eventType)) {
+      this.#listeners.set(eventType, []);
+    }
+    this.#listeners.get(eventType).push(callback);
+
+    // Return unsubscribe function
+    return () => {
+      const callbacks = this.#listeners.get(eventType);
+      const index = callbacks.indexOf(callback);
+      if (index !== -1) {
+        callbacks.splice(index, 1);
+      }
+    };
+  }
+}
+```
+
+## Example Plugins
+
+### Example 1: Inspector Plugin
+
+```javascript
+export class InspectorPlugin extends JSRPlugin {
+  #inspector = null;
+  #container = null;
+
+  getInfo() {
+    return {
+      id: 'scene-inspector',
+      name: 'Scene Graph Inspector',
+      vendor: 'jsReality',
+      version: '1.0.0',
+      dependencies: []
+    };
+  }
+
+  async install(viewer, context) {
+    await super.install(viewer, context);
+
+    // Create inspector UI
+    this.#container = document.createElement('div');
+    this.#container.id = 'inspector-panel';
+    this.#inspector = new SceneGraphInspector(
+      this.#container,
+      viewer.getSceneRoot()
+    );
+
+    // Listen for scene changes
+    this.unsubscribe = context.on('scene:changed', () => {
+      this.#inspector.refresh();
+    });
+  }
+
+  async uninstall() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
+    if (this.#container && this.#container.parentElement) {
+      this.#container.parentElement.removeChild(this.#container);
+    }
+  }
+
+  getUI() {
+    return {
+      sidePanel: {
+        container: this.#container,
+        position: 'right',
+        title: 'Inspector',
+        icon: '🔍'
+      }
+    };
+  }
+
+  getMenuItems() {
+    return [
+      {
+        menu: 'View',
+        label: 'Toggle Inspector',
+        action: () => this.#toggleVisibility(),
+        priority: 20
+      }
+    ];
+  }
+
+  #toggleVisibility() {
+    // Toggle inspector visibility
+  }
+}
+```
+
+### Example 2: Background Color Plugin
+
+```javascript
+export class BackgroundColorPlugin extends JSRPlugin {
+  #colors = {
+    'White': new Color(255, 255, 255),
+    'Gray': new Color(225, 225, 225),
+    'Black': new Color(0, 0, 0),
+    'Transparent': new Color(0, 0, 0, 0)
+  };
+  #currentColor = 'Gray';
+
+  getInfo() {
+    return {
+      id: 'background-color',
+      name: 'Background Color',
+      vendor: 'jsReality',
+      version: '1.0.0',
+      dependencies: []
+    };
+  }
+
+  async install(viewer, context) {
+    await super.install(viewer, context);
+    this.setBackgroundColor(this.#currentColor);
+  }
+
+  getMenuItems() {
+    const menuItems = [];
+    
+    // Create submenu with radio buttons
+    for (const [name, color] of Object.entries(this.#colors)) {
+      menuItems.push({
+        menu: 'View',
+        label: name,
+        type: 'radio',
+        groupName: 'background-color',
+        checked: name === this.#currentColor,
+        action: () => this.setBackgroundColor(name),
+        priority: 30
+      });
+    }
+
+    return menuItems;
+  }
+
+  setBackgroundColor(colorName) {
+    if (!this.#colors[colorName]) return;
+    
+    this.#currentColor = colorName;
+    const color = this.#colors[colorName];
+    
+    const appearance = this.viewer.getSceneRoot().getAppearance();
+    if (appearance) {
+      appearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, color);
+      this.viewer.render();
+    }
+  }
+}
+```
+
+## Integration with JSRViewer
+
+### Modified JSRViewer Constructor
+
+```javascript
+constructor(options) {
+  // ... existing code ...
+
+  // Initialize plugin system
+  this.#eventBus = new EventBus();
+  this.#pluginManager = new PluginManager(this, this.#eventBus);
+
+  // ... existing initialization ...
+}
+
+/**
+ * Register a plugin
+ * @param {JSRPlugin} plugin
+ */
+async registerPlugin(plugin) {
+  await this.#pluginManager.registerPlugin(plugin);
+}
+
+/**
+ * Get a plugin by ID
+ * @param {string} pluginId
+ * @returns {JSRPlugin|null}
+ */
+getPlugin(pluginId) {
+  return this.#pluginManager.getPlugin(pluginId);
+}
+
+/**
+ * Emit an event to all plugins
+ * @param {string} eventType
+ * @param {*} data
+ */
+emit(eventType, data) {
+  this.#eventBus.emit(eventType, data);
+}
+```
+
+### Usage Example
+
+```javascript
+const viewer = new JSRViewer({
+  container: container,
+  viewers: [canvasViewer, webglViewer, svgViewer],
+  viewerNames: ['Canvas2D', 'WebGL2D', 'SVG']
+});
+
+// Register plugins
+await viewer.registerPlugin(new InspectorPlugin());
+await viewer.registerPlugin(new BackgroundColorPlugin());
+await viewer.registerPlugin(new ExportMenuPlugin());
+
+// Set content
+viewer.setContent(mySceneGraph);
+```
+
+## Benefits
+
+1. **Extensibility** - Easy to add new features without modifying JSRViewer
+2. **Modularity** - Plugins are self-contained and can be developed independently
+3. **Consistency** - Standard lifecycle and integration points
+4. **Maintainability** - Clear separation of concerns
+5. **Testability** - Plugins can be tested in isolation
+6. **Discovery** - Easy to see what features are available (list plugins)
+
+## Migration Strategy
+
+### Phase 1: Core Infrastructure
+1. Implement JSRPlugin base class
+2. Implement PluginManager
+3. Implement EventBus
+4. Add plugin methods to JSRViewer
+
+### Phase 2: Convert Existing Features
+1. Extract menubar to MenubarPlugin (or keep as core)
+2. Convert Inspector to InspectorPlugin
+3. Convert export functions to ExportMenuPlugin
+4. Convert background color to BackgroundColorPlugin
+
+### Phase 3: New Features
+1. Create new plugins for additional features
+2. Document plugin API
+3. Create plugin examples
+
+## What to Keep in Core vs Plugins
+
+### Core (Built into JSRViewer)
+- ViewerSwitch management
+- Scene graph structure
+- Camera/paths
+- ToolSystem
+- ContentManager
+- Basic menubar (framework)
+
+### Plugins (Separate, Optional)
+- Inspector
+- Export menus
+- Background color
+- Camera presets
+- Display options
+- Content loaders
+- Custom tools
+- Analytics/logging
+- Theme switcher
+
+## Open Questions
+
+1. **State persistence** - Do we need plugin state persistence? (localStorage?)
+2. **Side panel system** - Do we need a formal side panel container system?
+3. **Plugin configuration** - Should plugins accept configuration in constructor?
+4. **Async initialization** - Should plugin loading be fully async?
+5. **Error handling** - What happens if a plugin fails to install?
+
+## Conclusion
+
+This proposal provides a lightweight, JavaScript-friendly plugin architecture that captures the essential benefits of jReality's plugin system while avoiding unnecessary complexity. The system is simple enough to implement quickly but flexible enough to support future growth.
+
+The key insight is that JavaScript's dynamic nature allows us to achieve similar extensibility without the heavy infrastructure required in Java (reflection, annotations, XML). We can keep it simple and add complexity only as needed.
+
