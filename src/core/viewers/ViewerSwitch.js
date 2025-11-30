@@ -211,7 +211,7 @@ export class ViewerSwitch extends Viewer {
 
     const component = viewer.getViewingComponent();
     if (!(component instanceof HTMLElement)) {
-      logger.warning(`Viewer ${viewer.constructor.name} has viewing component but it's not an HTMLElement`);
+      logger.warn(`Viewer ${viewer.constructor.name} has viewing component but it's not an HTMLElement`);
       return;
     }
 
@@ -344,6 +344,14 @@ export class ViewerSwitch extends Viewer {
     }
 
     this.#currentViewer = newViewer;
+
+    // Render the new viewer to display the scene immediately
+    // Use renderAsync if available to avoid blocking
+    if (newViewer.canRenderAsync()) {
+      newViewer.renderAsync();
+    } else {
+      newViewer.render();
+    }
   }
 
   /**
@@ -426,7 +434,7 @@ export class ViewerSwitch extends Viewer {
         // Only set if not already set (setToolSystemForViewer throws if already set)
         ToolSystem.setToolSystemForViewer(this, toolSystem);
       } else {
-        logger.warning('ViewerSwitch already has a tool system, cannot replace it');
+        logger.warn('ViewerSwitch already has a tool system, cannot replace it');
       }
     }
 
@@ -440,7 +448,7 @@ export class ViewerSwitch extends Viewer {
             ToolSystem.setToolSystemForViewer(viewer, toolSystem);
             logger.fine(`Tool system set for viewer ${viewer.constructor.name}`);
           } catch (error) {
-            logger.warning(`Could not set tool system for viewer ${viewer.constructor.name}: ${error.message}`);
+            logger.warn(`Could not set tool system for viewer ${viewer.constructor.name}: ${error.message}`);
           }
         } else {
           logger.fine(`Viewer ${viewer.constructor.name} already has tool system ${existingForViewer}`);
@@ -468,7 +476,7 @@ export class ViewerSwitch extends Viewer {
           viewer.dispose();
         }
       } catch (error) {
-        logger.warning(`Exception when disposing viewer ${this.#viewerNames[i]}: ${error.message}`);
+        logger.warn(`Exception when disposing viewer ${this.#viewerNames[i]}: ${error.message}`);
       }
     }
 

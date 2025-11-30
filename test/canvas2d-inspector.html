@@ -440,11 +440,13 @@
                 const width = viewingComponent.clientWidth || viewingComponent.offsetWidth;
                 const height = viewingComponent.clientHeight || viewingComponent.offsetHeight;
                 
-                // Create a temporary HTML container (doesn't need to be in DOM)
+                // Create a temporary HTML container with explicit dimensions
                 const tempContainer = document.createElement('div');
+                tempContainer.style.width = `${width}px`;
+                tempContainer.style.height = `${height}px`;
                 
-                // Create SVGViewer with the container and dimensions
-                const svgViewer = new SVGViewer(tempContainer, { width, height });
+                // Create SVGViewer - dimensions will be read from container
+                const svgViewer = new SVGViewer(tempContainer);
                 
                 // Copy scene setup from current viewer
                 svgViewer.setSceneRoot(viewer.getSceneRoot());
@@ -620,17 +622,9 @@
             webglViewer.setCameraPath(cameraPath);
             webglViewer.render();
             
-            // Get canvas container dimensions - use the canvas-container div which should have proper size
-            const canvasContainer = canvas.parentElement;
-            const canvasWidth = canvas.clientWidth || canvas.offsetWidth || canvasContainer.clientWidth || 800;
-            const canvasHeight = canvas.clientHeight || canvas.offsetHeight || canvasContainer.clientHeight || 600;
+            console.log('Creating SVGViewer - dimensions will auto-size from container');
             
-            console.log('Creating SVGViewer with dimensions:', canvasWidth, 'x', canvasHeight);
-            
-            const svgViewer = new SVGViewer(svgContainer, {
-                width: canvasWidth,
-                height: canvasHeight
-            });
+            const svgViewer = new SVGViewer(svgContainer);
             svgViewer.setSceneRoot(sceneRoot);
             svgViewer.setCameraPath(cameraPath);
             svgViewer.render();

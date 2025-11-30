@@ -592,12 +592,27 @@ export class JSRViewer {
    */
   selectViewer(viewer) {
     if (this.#viewerSwitch) {
+      // Get old viewer index before switching
+      const oldViewer = this.#viewerSwitch.getCurrentViewer();
+      const oldIndex = this.#viewerSwitch.getViewers().indexOf(oldViewer);
+      
+      // Switch viewer
       if (typeof viewer === 'number') {
         this.#viewerSwitch.selectViewer(viewer);
       } else {
         this.#viewerSwitch.selectViewerByName(viewer);
       }
-      this.#emit('viewerChanged', { viewer });
+      
+      // Get new viewer index after switching
+      const newViewer = this.#viewerSwitch.getCurrentViewer();
+      const newIndex = this.#viewerSwitch.getViewers().indexOf(newViewer);
+      
+      // Update menubar radio buttons if menubar exists and multiple viewers
+      if (this.#menubar && this.#viewerSwitch.getNumViewers() > 1) {
+        this.#menubar.updateRadioSelection('Viewer', 'renderer', newIndex);
+      }
+      
+      this.#emit('viewerChanged', { viewer, oldIndex, newIndex });
     }
   }
 
@@ -624,14 +639,25 @@ export class JSRViewer {
       container.style.width = '100%';
       container.style.height = 'auto';
       
+      // Debug: Log container structure
+      console.log('Creating menubar container');
+      console.log('this.#container:', this.#container);
+      console.log('viewerComponent:', this.#viewerSwitch.getViewingComponent());
+      console.log('viewerComponent.parentElement:', this.#viewerSwitch.getViewingComponent().parentElement);
+      
       // Insert menubar at the top of the viewer container
       const viewerComponent = this.#viewerSwitch.getViewingComponent();
       if (viewerComponent && viewerComponent.parentElement) {
         viewerComponent.parentElement.insertBefore(container, viewerComponent);
+        console.log('Menubar inserted before viewer component');
       } else if (this.#container) {
         // If viewer component isn't in DOM yet, prepend to container
         this.#container.insertBefore(container, this.#container.firstChild);
+        console.log('Menubar prepended to container');
       }
+      
+      console.log('Menubar container created:', container);
+      console.log('Menubar container in DOM:', document.contains(container));
     }
 
     this.#menubarContainer = container;
@@ -662,21 +688,29 @@ export class JSRViewer {
 
       menubar.addMenuSeparator('File', 20);
 
-      // Viewer menu
-      menubar.addMenuItem('Viewer', {
-        label: 'Background',
-        submenu: [
-          { label: 'White', action: () => this.setBackgroundColor('white') },
-          { label: 'Gray', action: () => this.setBackgroundColor('gray') },
-          { label: 'Black', action: () => this.setBackgroundColor('black') },
-          { label: 'Transparent', action: () => this.setBackgroundColor('transparent') }
-        ]
-      }, 10);
+      // Viewer menu - only show viewer selection radio buttons
+      // (Background and Reset Camera items removed as requested)
 
-      menubar.addMenuItem('Viewer', {
-        label: 'Reset Camera',
-        action: () => this.resetCamera()
-      }, 20);
+      // Add viewer selection radio buttons if ViewerSwitch has multiple viewers
+      const numViewers = this.#viewerSwitch.getNumViewers();
+      if (numViewers > 1) {
+        const viewerNames = this.#viewerSwitch.getViewerNames();
+        const currentViewer = this.#viewerSwitch.getCurrentViewer();
+        const currentIndex = this.#viewerSwitch.getViewers().indexOf(currentViewer);
+        
+        viewerNames.forEach((name, index) => {
+          menubar.addMenuItem('Viewer', {
+            label: name,
+            type: 'radio',
+            groupName: 'viewer-select',
+            checked: index === currentIndex,
+            action: () => {
+              this.selectViewer(index);
+              this.render();
+            }
+          }, 10 + index);
+        });
+      }
     };
     
     this.#menubar = new Menubar(container, {
@@ -832,8 +866,8 @@ export class JSRViewer {
     document.body.appendChild(tempContainer);
 
     try {
-      // Create SVG viewer
-      const svgViewer = new SVGViewer(tempContainer, { width, height });
+      // Create SVG viewer - dimensions will be read from container
+      const svgViewer = new SVGViewer(tempContainer);
       svgViewer.setSceneRoot(this.#sceneRoot);
       svgViewer.setCameraPath(this.#cameraPath);
       svgViewer.render();

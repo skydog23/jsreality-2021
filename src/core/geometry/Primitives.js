@@ -15,7 +15,8 @@ import { IndexedFaceSet } from '../scene/IndexedFaceSet.js';
 import { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
 import { IndexedFaceSetUtility } from './IndexedFaceSetUtility.js';
 import { PointSet } from '../scene/PointSet.js';
-import { PointSetFactory } from './PointSetFactory.js';
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
+import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
 import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
 import { Sphere } from '../scene/Sphere.js';
 import { Appearance } from '../scene/Appearance.js';
@@ -629,6 +630,29 @@ export class Primitives {
     return verts;
   }
   
+  static regularGrid(size, incr) {
+
+    const xmin = -size / 2, xmax = size / 2, ymin = -size / 2, ymax = size / 2;
+    const num = size / incr + 1;
+    const topV = Array(num).fill(0).map((_, i) => [xmin + i * incr, ymax, 0, 1]);
+    const bottomV = Array(num).fill(0).map((_, i) => [xmin + i * incr, ymin, 0, 1]);
+    const leftH = Array(num).fill(0).map((_, i) => [xmin, ymin + i * incr, 0, 1]);
+    const rightH = Array(num).fill(0).map((_, i) => [xmax, ymin + i * incr, 0, 1]);
+    const verts = [...topV, ...bottomV, ...leftH, ...rightH];
+    const indup = Array(num).fill(0).map((_, i) => [i, i + num]);
+    const indlr = Array(num).fill(0).map((_, i) => [2 * num + i, 2 * num + i + num]);
+    const inds = [...indup, ...indlr];
+    
+    const factory = new IndexedLineSetFactory();
+    factory.setVertexCount(verts.length);
+    factory.setVertexCoordinates(verts);
+    factory.setEdgeCount(inds.length);
+    factory.setEdgeIndices(inds);
+    factory.update();
+    
+    const gridIFS = factory.getIndexedLineSet();
+    return gridIFS;
+  }
   // Note: cylinder() and torus() methods require QuadMeshFactory - skipped for now
   // Note: wireframeSphere() methods require IndexedLineSetFactory - can be added later
   // Note: regularAnnulus() requires QuadMeshFactory - skipped for now

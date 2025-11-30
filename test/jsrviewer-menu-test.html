@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSRViewer with Menu-Based Viewer Switching</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e1e1e;
+            color: #cccccc;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 16px;
+            border-bottom: 1px solid #3e3e3e;
+        }
+        
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #858585;
+            font-size: 14px;
+        }
+        
+        #viewer-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .info {
+            background: #2d2d2d;
+            padding: 10px 12px;
+            border-top: 1px solid #3e3e3e;
+            font-family: monospace;
+            font-size: 11px;
+            color: #858585;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎨 JSRViewer with Menu-Based Viewer Switching</h1>
+        <p>Use the Viewer menu to switch between Canvas2D, WebGL2D, and SVG renderers</p>
+    </div>
+    
+    <div id="viewer-container"></div>
+    
+    <div class="info" id="info-display">Loading...</div>
+
+    <script type="module">
+        import { JSRViewer } from '../src/app/JSRViewer.js';
+        import { Canvas2DViewer } from '../src/core/viewers/Canvas2DViewer.js';
+        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
+        import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
+        import { IndexedLineSet } from '../src/core/scene/IndexedLineSet.js';
+        import { SceneGraphComponent } from '../src/core/scene/SceneGraphComponent.js';
+        import { Appearance } from '../src/core/scene/Appearance.js';
+        import { Color } from '../src/core/util/Color.js';
+        import { Primitives } from '../src/core/geometry/Primitives.js';
+        import * as CommonAttributes from '../src/core/shader/CommonAttributes.js';
+        import { toDataList } from '../src/core/scene/data/DataUtility.js';
+        import { IndexedLineSetFactory } from '../src/core/geometry/IndexedLineSetFactory.js';
+        import { MatrixBuilder } from '../src/core/math/MatrixBuilder.js';
+        import { Transformation } from '../src/core/scene/Transformation.js';
+        import { IndexedLineSetUtility } from '../src/core/geometry/IndexedLineSetUtility.js';
+        import {SceneGraphUtility} from '../src/core/util/SceneGraphUtility.js';
+        // Create viewer container elements
+        const viewerContainer = document.getElementById('viewer-container');
+        
+        // Create three canvas/container elements for the three viewers
+        const canvas1 = document.createElement('canvas');
+        canvas1.style.width = '100%';
+        canvas1.style.height = '100%';
+        
+        const canvas2 = document.createElement('canvas');
+        canvas2.style.width = '100%';
+        canvas2.style.height = '100%';
+        
+        const svgContainer = document.createElement('div');
+        svgContainer.style.width = '100%';
+        svgContainer.style.height = '100%';
+        
+        // Create the three viewers
+        const viewers = [
+            new Canvas2DViewer(canvas1),
+            new WebGL2DViewer(canvas2),
+            new SVGViewer(svgContainer)
+        ];
+        
+        const viewerNames = ['Canvas2D', 'WebGL2D', 'SVG'];
+        
+        // Create JSRViewer with all three viewers
+        const jsrViewer = new JSRViewer({
+            container: viewerContainer,
+            viewers: viewers,
+            viewerNames: viewerNames
+        });
+        
+        console.log('✓ JSRViewer created with 3 viewers');
+        
+        // Create a simple test scene - grid with a circle
+        const sceneRoot = jsrViewer.getSceneRoot();
+  
+    const gridIFS = Primitives.regularGrid(2, 0.25);
+    const gridComponent = SceneGraphUtility.createFullSceneGraphComponent('grid');  
+    gridComponent.getTransformation().setMatrix(MatrixBuilder.euclidean().translate(0,0,0).scale(0.5).getArray());
+    gridComponent.setGeometry(gridIFS);
+    const ap = gridComponent.getAppearance();
+    ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
+    ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.01);
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);    
+        
+        sceneRoot.addChild(gridComponent);
+
+        const circleComponent = SceneGraphUtility.createFullSceneGraphComponent('circle');
+        circleComponent.getTransformation().setMatrix(MatrixBuilder.euclidean().scale(0.5).getArray());
+        const circleGeometry = Primitives.regularPolygon(100);
+        circleComponent.setGeometry(circleGeometry);
+
+        const circleAppearance = circleComponent.getAppearance();
+        circleAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 150, 255));
+        circleAppearance.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.03);
+        
+        sceneRoot.addChild(circleComponent);
+        
+        // Initial render
+        jsrViewer.render();
+        
+        console.log('✓ Scene created and rendered');
+        
+        // Listen for viewer changes
+        jsrViewer.on('viewerChanged', (data) => {
+            const currentViewer = jsrViewer.getViewer().getCurrentViewer();
+            const viewerName = currentViewer.constructor.name;
+            const info = document.getElementById('info-display');
+            info.textContent = `Current viewer: ${viewerName} | Switched from index ${data.oldIndex} to ${data.newIndex}`;
+            console.log(`✓ Viewer changed to: ${viewerName}`);
+        });
+        
+        // Update initial info
+        const currentViewer = jsrViewer.getViewer().getCurrentViewer();
+        const info = document.getElementById('info-display');
+        info.textContent = `Current viewer: ${currentViewer.constructor.name}`;
+        
+        console.log('✓ JSRViewer menu test ready');
+        console.log('Use the "Viewer" menu to switch between Canvas2D, WebGL2D, and SVG renderers');
+    </script>
+</body>
+</html>
+

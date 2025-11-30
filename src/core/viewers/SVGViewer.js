@@ -50,12 +50,17 @@ export class SVGViewer extends Abstract2DViewer {
   /** @type {number} */
   #height = 600;
 
+  /** @type {HTMLElement} */
+  #container;
+
+  /** @type {boolean} */
+  #autoResize = true;
+
   /**
    * Create a new SVG viewer
    * @param {HTMLElement} container - The container element for the SVG
    * @param {Object} [options] - Configuration options
-   * @param {number} [options.width=800] - SVG width
-   * @param {number} [options.height=600] - SVG height
+   * @param {boolean} [options.autoResize=true] - Whether to auto-resize SVG when container changes
    */
   constructor(container, options = {}) {
     super();
@@ -64,11 +69,23 @@ export class SVGViewer extends Abstract2DViewer {
       throw new Error('SVGViewer requires an HTMLElement container');
     }
 
-    this.#width = options.width || 800;
-    this.#height = options.height || 600;
+    this.#container = container;
+    this.#autoResize = options.autoResize !== false;
+
+    // Start with default dimensions
+    this.#width = 800;
+    this.#height = 600;
 
     this.#svgElement = this.#createSVG();
     container.appendChild(this.#svgElement);
+
+    // Immediately try to size from container (like Canvas2DViewer does)
+    this.#updateSize();
+
+    // Setup resize handling for future changes
+    if (this.#autoResize) {
+      this.#setupResizeHandling();
+    }
   }
 
   /**
@@ -83,6 +100,46 @@ export class SVGViewer extends Abstract2DViewer {
     svg.setAttribute('viewBox', `0 0 ${this.#width} ${this.#height}`);
     svg.style.border = '1px solid #ccc';
     return svg;
+  }
+
+  /**
+   * Setup automatic SVG resizing when container changes size
+   * @private
+   */
+  #setupResizeHandling() {
+    // Use ResizeObserver to watch for container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      this.#updateSize();
+      this.render();
+    });
+
+    // Observe the container element
+    resizeObserver.observe(this.#container);
+  }
+
+  /**
+   * Update SVG dimensions based on container size
+   * @private
+   */
+  #updateSize() {
+    // Get container dimensions
+    let width = this.#container.clientWidth;
+    let height = this.#container.clientHeight;
+
+    // If container has no dimensions, keep current dimensions
+    if (width === 0) width = this.#width;
+    if (height === 0) height = this.#height;
+
+    // Only update if dimensions actually changed
+    if (width !== this.#width || height !== this.#height) {
+      this.#width = width;
+      this.#height = height;
+
+      // Update SVG element attributes
+      this.#svgElement.setAttribute('width', this.#width);
+      this.#svgElement.setAttribute('height', this.#height);
+      this.#svgElement.setAttribute('viewBox', `0 0 ${this.#width} ${this.#height}`);
+    }
   }
 
   // Viewer interface implementation

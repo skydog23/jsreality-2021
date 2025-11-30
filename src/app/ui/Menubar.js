@@ -25,6 +25,9 @@ export class Menubar {
   /** @type {Map<string, Array<{item: Object, priority: number, element: HTMLElement}>>} */
   #items = new Map();
 
+  /** @type {Map<string, Set<HTMLElement>>} Radio button groups */
+  #radioGroups = new Map();
+
   /** @type {Function[]} Callbacks to register default menu items */
   #defaultMenuProviders = [];
 
@@ -95,6 +98,9 @@ export class Menubar {
    * @param {string} item.label - Item label
    * @param {Function} [item.action] - Action callback
    * @param {Object[]} [item.submenu] - Submenu items
+   * @param {string} [item.type] - Item type ('radio' for radio buttons)
+   * @param {string} [item.radioGroup] - Radio button group name (for type='radio')
+   * @param {boolean} [item.checked] - Initial checked state (for type='radio')
    * @param {number} [priority=50] - Priority (lower = earlier)
    */
   addMenuItem(menuName, item, priority = 50) {
@@ -104,7 +110,7 @@ export class Menubar {
     }
 
     const items = this.#items.get(menuName);
-    const element = this.#createMenuItemElement(item);
+    const element = this.#createMenuItemElement(item, menuName);
     
     items.push({ item, priority, element });
     items.sort((a, b) => a.priority - b.priority);
@@ -178,10 +184,11 @@ export class Menubar {
   /**
    * Create a menu item element.
    * @param {Object} item - Menu item definition
+   * @param {string} menuName - Name of the menu this item belongs to
    * @returns {HTMLElement} Menu item element
    * @private
    */
-  #createMenuItemElement(item) {
+  #createMenuItemElement(item, menuName) {
     if (item.separator) {
       const separator = document.createElement('div');
       separator.className = 'jsr-menu-separator';
@@ -193,62 +200,132 @@ export class Menubar {
 
     const itemElement = document.createElement('div');
     itemElement.className = 'jsr-menu-item';
-    itemElement.textContent = item.label;
     itemElement.style.padding = '6px 12px';
     itemElement.style.cursor = 'pointer';
     itemElement.style.color = '#cccccc';
     itemElement.style.fontSize = '13px';
     itemElement.style.userSelect = 'none';
 
-    // Hover effect
-    itemElement.addEventListener('mouseenter', () => {
-      itemElement.style.backgroundColor = '#007acc';
-    });
-    itemElement.addEventListener('mouseleave', () => {
-      itemElement.style.backgroundColor = 'transparent';
-    });
-
-    if (item.submenu) {
-      // Has submenu - create nested dropdown
-      itemElement.style.position = 'relative';
-      const submenu = document.createElement('div');
-      submenu.className = 'jsr-menu-submenu';
-      submenu.style.display = 'none';
-      submenu.style.position = 'absolute';
-      submenu.style.left = '100%';
-      submenu.style.top = '0';
-      submenu.style.backgroundColor = '#2d2d2d';
-      submenu.style.border = '1px solid #3e3e3e';
-      submenu.style.minWidth = '150px';
-      submenu.style.zIndex = '1001';
-      submenu.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-
-      // Add submenu items
-      item.submenu.forEach(subItem => {
-        const subItemElement = this.#createMenuItemElement(subItem);
-        submenu.appendChild(subItemElement);
-      });
-
-      itemElement.appendChild(submenu);
-
-      // Toggle submenu on hover
-      itemElement.addEventListener('mouseenter', () => {
-        submenu.style.display = 'block';
-      });
-      itemElement.addEventListener('mouseleave', () => {
-        submenu.style.display = 'none';
-      });
-    } else if (item.action) {
-      // Regular menu item with action
+    // Handle radio button items
+    if (item.type === 'radio') {
+      const radioGroup = item.radioGroup || 'default';
+      const groupKey = `${menuName}:${radioGroup}`;
+      
+      // Initialize radio group if it doesn't exist
+      if (!this.#radioGroups.has(groupKey)) {
+        this.#radioGroups.set(groupKey, new Set());
+      }
+      this.#radioGroups.get(groupKey).add(itemElement);
+      
+      // Create radio button UI
+      const radioContainer = document.createElement('label');
+      radioContainer.style.display = 'flex';
+      radioContainer.style.alignItems = 'center';
+      radioContainer.style.width = '100%';
+      radioContainer.style.cursor = 'pointer';
+      radioContainer.style.margin = '0';
+      
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = groupKey;
+      radio.checked = item.checked || false;
+      radio.style.marginRight = '8px';
+      radio.style.cursor = 'pointer';
+      
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      
+      radioContainer.appendChild(radio);
+      radioContainer.appendChild(label);
+      itemElement.appendChild(radioContainer);
+      
+      // Store radio input for later access
+      itemElement._radioInput = radio;
+      itemElement._radioGroup = groupKey;
+      
+      // Click handler
       itemElement.addEventListener('click', (e) => {
         e.stopPropagation();
+        
+        // Uncheck all other radios in group
+        const group = this.#radioGroups.get(groupKey);
+        if (group) {
+          group.forEach(elem => {
+            if (elem._radioInput) {
+              elem._radioInput.checked = false;
+            }
+          });
+        }
+        
+        // Check this radio
+        radio.checked = true;
+        
+        // Close dropdown
         this.#closeAllDropdowns();
-        try {
-          item.action();
-        } catch (error) {
-          logger.error(`Error executing menu action for "${item.label}": ${error.message}`);
+        
+        // Execute action
+        if (item.action) {
+          try {
+            item.action();
+          } catch (error) {
+            logger.severe(`Error executing menu action for "${item.label}": ${error.message}`);
+          }
         }
       });
+    } else {
+      // Regular menu item (non-radio)
+      itemElement.textContent = item.label;
+      
+      // Hover effect
+      itemElement.addEventListener('mouseenter', () => {
+        itemElement.style.backgroundColor = '#007acc';
+      });
+      itemElement.addEventListener('mouseleave', () => {
+        itemElement.style.backgroundColor = 'transparent';
+      });
+
+      if (item.submenu) {
+        // Has submenu - create nested dropdown
+        itemElement.style.position = 'relative';
+        const submenu = document.createElement('div');
+        submenu.className = 'jsr-menu-submenu';
+        submenu.style.display = 'none';
+        submenu.style.position = 'absolute';
+        submenu.style.left = '100%';
+        submenu.style.top = '0';
+        submenu.style.backgroundColor = '#2d2d2d';
+        submenu.style.border = '1px solid #3e3e3e';
+        submenu.style.minWidth = '150px';
+        submenu.style.zIndex = '1001';
+        submenu.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+
+        // Add submenu items
+        item.submenu.forEach(subItem => {
+          const subItemElement = this.#createMenuItemElement(subItem, menuName);
+          submenu.appendChild(subItemElement);
+        });
+
+        itemElement.appendChild(submenu);
+
+        // Toggle submenu on hover
+        itemElement.addEventListener('mouseenter', () => {
+          submenu.style.display = 'block';
+        });
+        itemElement.addEventListener('mouseleave', () => {
+          submenu.style.display = 'none';
+        });
+      } else if (item.action) {
+        // Regular menu item with action
+        itemElement.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.#closeAllDropdowns();
+          try {
+            item.action();
+          } catch (error) {
+            logger.error(`Error executing menu action for "${item.label}": ${error.message}`);
+          }
+        });
+      }
     }
 
     return itemElement;
@@ -326,6 +403,43 @@ export class Menubar {
     }
     this.#menus.delete(menuName);
     this.#items.delete(menuName);
+  }
+
+  /**
+   * Update radio button selection programmatically.
+   * @param {string} menuName - Name of the menu
+   * @param {string} radioGroup - Radio button group name
+   * @param {number} selectedIndex - Index of the item to select (0-based, within the radio group)
+   */
+  updateRadioSelection(menuName, radioGroup, selectedIndex) {
+    const groupKey = `${menuName}:${radioGroup}`;
+    const group = this.#radioGroups.get(groupKey);
+    
+    if (!group) {
+      logger.warning(`Radio group "${groupKey}" not found`);
+      return;
+    }
+    
+    // Convert Set to Array for indexing
+    const groupArray = Array.from(group);
+    
+    if (selectedIndex < 0 || selectedIndex >= groupArray.length) {
+      logger.warning(`Radio index ${selectedIndex} out of range for group "${groupKey}"`);
+      return;
+    }
+    
+    // Uncheck all radios in group
+    groupArray.forEach(elem => {
+      if (elem._radioInput) {
+        elem._radioInput.checked = false;
+      }
+    });
+    
+    // Check the selected radio
+    const selectedElem = groupArray[selectedIndex];
+    if (selectedElem && selectedElem._radioInput) {
+      selectedElem._radioInput.checked = true;
+    }
   }
 }
 

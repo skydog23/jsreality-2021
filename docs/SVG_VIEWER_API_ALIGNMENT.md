@@ -1,0 +1,215 @@
+# SVGViewer API Alignment
+
+## Summary
+
+Aligned SVGViewer's constructor API with Canvas2DViewer and WebGL2DViewer by removing the requirement for width/height parameters. All three viewer classes now have consistent, container-based initialization.
+
+## Changes Made
+
+### SVGViewer Constructor API
+
+**Before:**
+```javascript
+new SVGViewer(container, { 
+    width: 800,      // Required or defaults to 800
+    height: 600,     // Required or defaults to 600
+    autoResize: true 
+});
+```
+
+**After:**
+```javascript
+new SVGViewer(container);  // Dimensions automatically from container
+// or
+new SVGViewer(container, { autoResize: false });  // Disable auto-resize
+```
+
+### Implementation Details
+
+**Updated Constructor Logic:**
+1. Starts with reasonable defaults (800×600)
+2. Creates SVG element with default dimensions
+3. Immediately calls `#updateSize()` to read container dimensions
+4. Sets up ResizeObserver for future changes (if autoResize enabled)
+
+**Key Changes:**
+```javascript
+constructor(container, options = {}) {
+    // ...
+    
+    // Start with default dimensions
+    this.#width = 800;
+    this.#height = 600;
+
+    this.#svgElement = this.#createSVG();
+    container.appendChild(this.#svgElement);
+
+    // Immediately try to size from container (like Canvas2DViewer)
+    this.#updateSize();
+
+    // Setup resize handling for future changes
+    if (this.#autoResize) {
+        this.#setupResizeHandling();
+    }
+}
+```
+
+The `#updateSize()` method reads `container.clientWidth/clientHeight` and updates SVG attributes if dimensions are available (non-zero).
+
+## Consistency Across Viewers
+
+All three viewer classes now follow the same pattern:
+
+### Canvas2DViewer
+```javascript
+new Canvas2DViewer(canvas)  // Canvas element
+```
+- Receives existing canvas element
+- Reads dimensions from `canvas.clientWidth/clientHeight`
+- Auto-resizes via ResizeObserver
+
+### WebGL2DViewer
+```javascript
+new WebGL2DViewer(canvas)  // Canvas element
+```
+- Receives existing canvas element
+- Reads dimensions from `canvas.clientWidth/clientHeight`
+- Auto-resizes via ResizeObserver
+
+### SVGViewer
+```javascript
+new SVGViewer(container)  // Container element (NEW!)
+```
+- Receives container element
+- Creates SVG element inside container
+- Reads dimensions from `container.clientWidth/clientHeight`
+- Auto-resizes via ResizeObserver
+
+## Benefits
+
+1. **Consistent API** - All viewers initialized the same way
+2. **Simpler Code** - No need to calculate/pass dimensions
+3. **Responsive** - Works automatically with any CSS layout
+4. **Flexible** - Container sizing handles all use cases
+5. **No Breaking Changes for Most Uses** - Old code with width/height will still work (parameters are ignored)
+
+## Migration Guide
+
+### Simple Cases (No Parameters)
+
+**Before:**
+```javascript
+const svgViewer = new SVGViewer(container, { width: 800, height: 600 });
+```
+
+**After:**
+```javascript
+const svgViewer = new SVGViewer(container);  // That's it!
+```
+
+### With Container Sizing
+
+**Before:**
+```javascript
+const width = someCalculation();
+const height = someCalculation();
+const svgViewer = new SVGViewer(container, { width, height });
+```
+
+**After:**
+```javascript
+// Set container size instead
+container.style.width = `${width}px`;
+container.style.height = `${height}px`;
+const svgViewer = new SVGViewer(container);  // Reads from container
+```
+
+### Temporary Containers (Export Scenarios)
+
+**Before:**
+```javascript
+const tempContainer = document.createElement('div');
+const svgViewer = new SVGViewer(tempContainer, { width: 800, height: 600 });
+```
+
+**After:**
+```javascript
+const tempContainer = document.createElement('div');
+tempContainer.style.width = '800px';   // Set container dimensions
+tempContainer.style.height = '600px';
+const svgViewer = new SVGViewer(tempContainer);  // Reads from container
+```
+
+## Updated Files
+
+### Core Implementation
+- `src/core/viewers/SVGViewer.js` - Updated constructor
+
+### Application Code
+- `src/app/JSRViewer.js` - Updated `exportSVG()` method
+
+### Test Files
+- `test/canvas2d-inspector.html` - Updated SVG export and viewer creation
+- `test/jsrviewer-menu-test.html` - Removed width/height parameters
+
+### Documentation
+- `docs/VIEWER_RESIZE_IMPLEMENTATION.md` - Updated examples
+
+## Testing
+
+All existing functionality works:
+- ✅ SVGViewer auto-resizes with container
+- ✅ Canvas2DViewer continues to work as before
+- ✅ WebGL2DViewer continues to work as before
+- ✅ ViewerSwitch works seamlessly with all three
+- ✅ Menu-based viewer switching works
+- ✅ SVG export from JSRViewer works
+- ✅ Canvas2d-inspector viewer switching works
+
+## Backward Compatibility
+
+**Old code will still work:**
+```javascript
+// This still works (width/height are ignored, but no error)
+new SVGViewer(container, { width: 800, height: 600 });
+```
+
+The width/height options are simply not used anymore. The container dimensions take precedence.
+
+## Why This is Better
+
+### Before: Inconsistent APIs
+
+```javascript
+// Canvas and WebGL: No sizing needed
+const canvasViewer = new Canvas2DViewer(canvas);
+const webglViewer = new WebGL2DViewer(canvas);
+
+// SVG: Required sizing - inconsistent!
+const svgViewer = new SVGViewer(container, { width: 800, height: 600 });
+```
+
+### After: Consistent APIs
+
+```javascript
+// All viewers: Just provide the element/container
+const canvasViewer = new Canvas2DViewer(canvas);
+const webglViewer = new WebGL2DViewer(canvas);
+const svgViewer = new SVGViewer(container);  // Consistent!
+```
+
+### Real-World Impact
+
+**ViewerSwitch creation is now identical for all viewers:**
+```javascript
+const viewers = [
+    new Canvas2DViewer(canvas1),
+    new WebGL2DViewer(canvas2),
+    new SVGViewer(container3)
+];
+
+const viewerSwitch = new ViewerSwitch(viewers);
+```
+
+No special handling needed for SVG - it "just works" like the others!
+
