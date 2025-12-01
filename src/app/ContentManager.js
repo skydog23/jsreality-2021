@@ -84,10 +84,10 @@ export class ContentManager {
       this.#addContentCenteredAndScaled(node, encompass);
     } else if (strategy === 'terrainAligned') {
       // TODO: Implement terrain alignment
-      logger.warning('Terrain alignment strategy not yet implemented, using direct');
+      logger.warn('Terrain alignment strategy not yet implemented, using direct');
       this.#addContentDirect(node);
     } else {
-      logger.warning(`Unknown content strategy: ${strategy}, using direct`);
+      logger.warn(`Unknown content strategy: ${strategy}, using direct`);
       this.#addContentDirect(node);
     }
 
@@ -189,7 +189,7 @@ export class ContentManager {
     try {
       bbox = BoundingBoxUtility.calculateBoundingBox(contentComponent);
     } catch (error) {
-      logger.warning(`Could not calculate bounding box: ${error.message}, using defaults`);
+      logger.warn(`Could not calculate bounding box: ${error.message}, using defaults`);
       bbox = new Rectangle3D([0, 0, 0], [1, 1, 1]);
     }
 

@@ -91,13 +91,14 @@ export class WebGL2DViewer extends Abstract2DViewer {
     this.#gl = gl;
     this.#autoResize = options.autoResize !== false;
     this._pixelRatio = options.pixelRatio || window.devicePixelRatio || 1;
-
-    // Setup canvas
-    this.#setupCanvas();
     
-    // Setup resize handling
+    // Setup resize handling first - it will trigger setupCanvas when canvas has dimensions
     if (this.#autoResize) {
       this.#setupResizeHandling();
+    } else {
+      // Only setup canvas immediately if not auto-resizing
+      // (auto-resize will be triggered by ResizeObserver when canvas has size)
+      this.#setupCanvas();
     }
   }
 
@@ -109,28 +110,25 @@ export class WebGL2DViewer extends Abstract2DViewer {
     const canvas = this.#canvas;
     const ratio = this._pixelRatio;
 
-    // Get display size from CSS (or use explicit width/height if set)
-    let displayWidth = canvas.clientWidth;
-    let displayHeight = canvas.clientHeight;
+    // Get display size from CSS
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
     
-    // If canvas isn't in DOM or has no CSS dimensions, use explicit width/height
-    if (displayWidth === 0 && canvas.width > 0) {
-      displayWidth = canvas.width;
+    // If canvas has no size yet, skip (ResizeObserver will call us again)
+    if (displayWidth === 0 || displayHeight === 0) {
+      return;
     }
-    if (displayHeight === 0 && canvas.height > 0) {
-      displayHeight = canvas.height;
-    }
-    
-    // If still no dimensions, use a default
-    if (displayWidth === 0) displayWidth = 800;
-    if (displayHeight === 0) displayHeight = 600;
 
-    // Set actual canvas size in memory (scaled up for retina)
+    // Set actual canvas buffer size (scaled up for retina)
     canvas.width = displayWidth * ratio;
     canvas.height = displayHeight * ratio;
-
-    // Set viewport to match canvas size
+    
+    // Set viewport to match canvas buffer size
     this.#gl.viewport(0, 0, canvas.width, canvas.height);
+    
+    // Note: We don't set canvas.style.width/height here to allow CSS to control sizing.
+    // The canvas element should have its dimensions set via CSS (either inline or stylesheet).
+    // Setting inline styles here would override CSS and break responsive layouts.
   }
 
   /**
@@ -140,7 +138,9 @@ export class WebGL2DViewer extends Abstract2DViewer {
   #setupResizeHandling() {
     const resizeObserver = new ResizeObserver(() => {
       this.#setupCanvas();
-      this.render();
+      // Note: We don't call render() here. The ResizeObserver fires during initialization
+      // before the viewer is selected, and we don't want to render inactive viewers.
+      // The caller is responsible for triggering render() when needed.
     });
 
     resizeObserver.observe(this.#canvas);

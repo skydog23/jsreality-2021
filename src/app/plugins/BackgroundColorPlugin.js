@@ -11,6 +11,7 @@
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { Color } from '../../core/util/Color.js';
+import { Appearance } from '../../core/scene/Appearance.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 
 /**
@@ -106,7 +107,7 @@ export class BackgroundColorPlugin extends JSRPlugin {
     if (sceneRoot) {
       let appearance = sceneRoot.getAppearance();
       if (!appearance) {
-        appearance = new (await import('../../core/scene/Appearance.js')).Appearance('root-appearance');
+        appearance = new Appearance('root-appearance');
         sceneRoot.setAppearance(appearance);
       }
       

@@ -73,16 +73,21 @@ export class SceneGraphInspector {
    */
   #logger = getLogger('SceneGraphInspector');
 
-  /** @type {number|null} Timeout ID for debouncing render calls */
-  #renderTimeoutId = null;
+  /**
+   * @type {Function|null} Callback to trigger render when properties change
+   */
+  #renderCallback = null;
 
   /**
    * Create a new SceneGraphInspector
    * @param {HTMLElement} container - The container element for the inspector
    * @param {SceneGraphComponent} root - The root scene graph component
+   * @param {Object} [options] - Configuration options
+   * @param {Function} [options.onRender] - Callback to trigger render when properties change
    */
-  constructor(container, root = null) {
+  constructor(container, root = null, options = {}) {
     this.#container = container;
+    this.#renderCallback = options.onRender || null;
     
     // Initialize managers
     this.#uiManager = new UIManager(container);
@@ -92,35 +97,14 @@ export class SceneGraphInspector {
     
     // Create callbacks for property changes
     const onPropertyChange = () => {
-      // Debounce render calls - wait for all property updates to complete
-      // before triggering a single render
-      if (this.#renderTimeoutId !== null) {
-        clearTimeout(this.#renderTimeoutId);
+      // Use the render callback if provided, otherwise fall back to global (deprecated)
+      if (this.#renderCallback) {
+        this.#renderCallback();
+      } else if (typeof window !== 'undefined' && window._viewerInstance) {
+        // DEPRECATED: This fallback will be removed in a future version.
+        // Use options.onRender callback instead.
+        window._viewerInstance.render();
       }
-      
-      this.#renderTimeoutId = setTimeout(() => {
-        this.#renderTimeoutId = null;
-        // Trigger viewer render if available
-        if (typeof window !== 'undefined' && window._viewerInstance) {
-          window._viewerInstance.render();
-        }
-      }, 16); // ~1 frame at 60fps - gives time for DOM/state updates
-      
-      // NOTE: Timing Issue with Fast Renderers
-      // The 16ms delay helps ensure appearance changes are fully applied before rendering.
-      // Without this delay, fast renderers (especially Canvas2D) may render before the
-      // appearance.setAttribute() call completes, resulting in stale values being displayed.
-      // The slower renderers (WebGL, SVG) are less affected because they have more overhead.
-      // 
-      // Observable behavior:
-      // - Canvas2D: Least reliable without delay (fastest renderer)
-      // - WebGL2D: More reliable (moderate speed)
-      // - SVGViewer: Most reliable (slowest, more processing time)
-      //
-      // Future improvements:
-      // - Consider using requestAnimationFrame() for better browser sync
-      // - Investigate if appearance changes can be made synchronous
-      // - Add explicit appearance change events that renderers can listen to
     };
     
     const onRefreshPropertyPanel = (node) => {
@@ -166,6 +150,14 @@ export class SceneGraphInspector {
     if (root) {
       this.setRoot(root);
     }
+  }
+
+  /**
+   * Get the root scene graph component
+   * @returns {SceneGraphComponent|null} The root component
+   */
+  getRoot() {
+    return this.#root;
   }
 
   /**

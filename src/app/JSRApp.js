@@ -24,6 +24,8 @@ import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
 import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 import { SplitPane } from './ui/SplitPane.js';
+import { MenubarPlugin } from './plugins/MenubarPlugin.js';
+import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -66,6 +68,11 @@ export class JSRApp extends Animated {
   #splitPane = null;
 
   /**
+   * @type {HTMLElement|null} The menubar container element (private)
+   */
+  #menubarContainer = null;
+
+  /**
    * Create a new JSRApp instance.
    * @param {HTMLCanvasElement} canvas - The canvas element to render to
    * @param {Object} [options] - Optional configuration
@@ -106,6 +113,9 @@ export class JSRApp extends Animated {
         // Insert menubar container BEFORE the canvas (so it's above)
         originalParent.insertBefore(menubarContainer, canvas);
       }
+      
+      // Store menubar container reference for plugin registration
+      this.#menubarContainer = menubarContainer;
       
       // Replace canvas with viewer container
       originalParent.replaceChild(container, canvas);
@@ -150,11 +160,11 @@ export class JSRApp extends Animated {
     // Pass the container to JSRViewer, along with all three viewers
     // JSRViewer will append the ViewerSwitch wrapper to the container
     // ViewerSwitch will handle showing/hiding the appropriate viewer
+    // Note: We don't pass menubarContainer to JSRViewer - we use MenubarPlugin instead
     this.#jsrViewer = new JSRViewer({
       container: container,  // Pass container div
-      menubarContainer: menubarContainer,  // Pass the menubar container we created
-      viewers: [canvasViewer, webglViewer, svgViewer],
-      viewerNames: ['Canvas2D', 'WebGL2D', 'SVG']
+      viewers: [svgViewer, canvasViewer, webglViewer ],
+      viewerNames: ['SVG', 'Canvas2D', 'WebGL2D']
     });
 
     // Get content from subclass and set it
@@ -179,7 +189,25 @@ export class JSRApp extends Animated {
     // Set up system time updates (unique to JSRApp for animation support)
     this._setupSystemTimeUpdates();
 
-    
+    // Register plugins asynchronously
+    // We use an IIFE to handle async plugin registration
+    this.#initializePlugins();
+  }
+
+  /**
+   * Initialize plugins asynchronously.
+   * @private
+   */
+  async #initializePlugins() {
+    try {
+      // Register MenubarPlugin first (creates the menubar structure)
+      await this.#jsrViewer.registerPlugin(new MenubarPlugin(this.#menubarContainer));
+      
+      // Register ExportMenuPlugin (adds export menu items)
+      await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
+    } catch (error) {
+      console.error('Failed to initialize plugins:', error);
+    }
   }
 
   /**
@@ -353,14 +381,15 @@ export class JSRApp extends Animated {
       }
     }
 
-    // Create inspector
-    this.#inspector = new SceneGraphInspector(container, sceneRoot);
-
-    // Set up viewer instance reference for inspector property changes to trigger renders
-    // The inspector's onPropertyChange callback looks for window._viewerInstance
-    if (typeof window !== 'undefined') {
-      window._viewerInstance = this.#jsrViewer;
-    }
+    // Create inspector with render callback - no global variable needed
+    // The inspector will call this callback when properties change
+    const renderCallback = () => {
+      this.#jsrViewer.render();
+    };
+    
+    this.#inspector = new SceneGraphInspector(container, sceneRoot, {
+      onRender: renderCallback
+    });
 
     // Initial refresh
     this.#inspector.refresh();

@@ -155,7 +155,8 @@ export class Canvas2DViewer extends Abstract2DViewer {
   }
 
   getViewingComponentSize() {
-    return new Dimension(this.#canvas.width, this.#canvas.height);
+    // Return CSS display size, not buffer size (which is scaled by pixelRatio)
+    return new Dimension(this.#canvas.clientWidth, this.#canvas.clientHeight);
   }
 
   // canRenderAsync() and renderAsync() inherited from Abstract2DViewer

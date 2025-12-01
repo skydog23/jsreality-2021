@@ -110,12 +110,42 @@ export class PluginContext {
   }
 
   /**
-   * Get the viewer's menubar.
+   * Get the MenubarPlugin instance.
+   * Returns the menubar plugin if registered, null otherwise.
    * 
-   * @returns {import('../ui/Menubar.js').Menubar|null} The menubar instance or null
+   * @returns {import('../plugins/MenubarPlugin.js').MenubarPlugin|null} The menubar plugin or null
    */
-  getMenubar() {
-    return this.#viewer.getMenubar();
+  getMenubarPlugin() {
+    return this.getPlugin('menubar') || null;
+  }
+
+  /**
+   * Add a menu item via the MenubarPlugin.
+   * Convenience method that delegates to MenubarPlugin if available.
+   * 
+   * @param {string} menuName - Name of the menu (e.g., 'File', 'View')
+   * @param {Object} item - Menu item configuration
+   * @param {number} [priority=50] - Priority for ordering
+   */
+  addMenuItem(menuName, item, priority = 50) {
+    const menubarPlugin = this.getMenubarPlugin();
+    if (menubarPlugin) {
+      menubarPlugin.addMenuItem(menuName, item, priority);
+    }
+  }
+
+  /**
+   * Add a menu separator via the MenubarPlugin.
+   * Convenience method that delegates to MenubarPlugin if available.
+   * 
+   * @param {string} menuName - Name of the menu
+   * @param {number} [priority=50] - Priority for ordering
+   */
+  addMenuSeparator(menuName, priority = 50) {
+    const menubarPlugin = this.getMenubarPlugin();
+    if (menubarPlugin) {
+      menubarPlugin.addMenuSeparator(menuName, priority);
+    }
   }
 
   /**

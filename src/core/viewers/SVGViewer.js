@@ -110,7 +110,9 @@ export class SVGViewer extends Abstract2DViewer {
     // Use ResizeObserver to watch for container size changes
     const resizeObserver = new ResizeObserver(() => {
       this.#updateSize();
-      this.render();
+      // Note: We don't call render() here. The ResizeObserver fires during initialization
+      // before the viewer is selected, and we don't want to render inactive viewers.
+      // The caller is responsible for triggering render() when needed.
     });
 
     // Observe the container element

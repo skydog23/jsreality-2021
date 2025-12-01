@@ -416,7 +416,7 @@ export class Menubar {
     const group = this.#radioGroups.get(groupKey);
     
     if (!group) {
-      logger.warning(`Radio group "${groupKey}" not found`);
+      logger.warn(`Radio group "${groupKey}" not found`);
       return;
     }
     
@@ -424,7 +424,7 @@ export class Menubar {
     const groupArray = Array.from(group);
     
     if (selectedIndex < 0 || selectedIndex >= groupArray.length) {
-      logger.warning(`Radio index ${selectedIndex} out of range for group "${groupKey}"`);
+      logger.warn(`Radio index ${selectedIndex} out of range for group "${groupKey}"`);
       return;
     }
     

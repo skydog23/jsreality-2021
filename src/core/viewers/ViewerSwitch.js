@@ -165,6 +165,25 @@ export class ViewerSwitch extends Viewer {
     // Set initial viewer
     this.#currentViewer = this.#viewers[0];
     this.#registerComponent(this.#currentViewer);
+    
+    // Setup resize handling - only render the current viewer on resize
+    this.#setupResizeHandling();
+  }
+  
+  /**
+   * Setup resize handling for the wrapper element.
+   * When the wrapper resizes, re-render the current viewer.
+   * @private
+   */
+  #setupResizeHandling() {
+    const resizeObserver = new ResizeObserver(() => {
+      // Only render the current viewer - it will have already updated its canvas size
+      // via its own ResizeObserver
+      if (this.#currentViewer) {
+        this.#currentViewer.render();
+      }
+    });
+    resizeObserver.observe(this.#wrapperElement);
   }
 
   /**
@@ -325,17 +344,9 @@ export class ViewerSwitch extends Viewer {
     // Register new component
     this.#registerComponent(newViewer);
 
-    // Copy component size if both have viewing components
-    if (this.#currentViewer.hasViewingComponent() && newViewer.hasViewingComponent()) {
-      const currentSize = this.#currentViewer.getViewingComponentSize();
-      if (currentSize) {
-        const newComponent = newViewer.getViewingComponent();
-        if (newComponent instanceof HTMLElement) {
-          newComponent.style.width = `${currentSize.width}px`;
-          newComponent.style.height = `${currentSize.height}px`;
-        }
-      }
-    }
+    // Note: We don't copy component sizes here. All viewers should use CSS-driven
+    // sizing (e.g., width: 100%, height: 100%) and rely on ResizeObserver to
+    // adjust their buffer sizes when they become visible.
 
     // Update ToolSystem for all viewers
     const toolSystem = ToolSystem.getToolSystemForViewer(this);

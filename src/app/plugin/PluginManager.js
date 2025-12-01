@@ -112,7 +112,7 @@ export class PluginManager {
   async uninstallPlugin(pluginId) {
     const plugin = this.#plugins.get(pluginId);
     if (!plugin) {
-      logger.warning(`Attempted to uninstall non-existent plugin: ${pluginId}`);
+      logger.warn(`Attempted to uninstall non-existent plugin: ${pluginId}`);
       return;
     }
 
@@ -232,11 +232,11 @@ export class PluginManager {
           try {
             menubar.addMenuItem(item.menu, item, item.priority || 50);
           } catch (error) {
-            logger.warning(`Failed to add menu item for plugin ${info.id}: ${error.message}`);
+            logger.warn(`Failed to add menu item for plugin ${info.id}: ${error.message}`);
           }
         }
       } else {
-        logger.warning(`Plugin ${info.id} provides menu items but menubar is not enabled`);
+        logger.warn(`Plugin ${info.id} provides menu items but menubar is not enabled`);
       }
     }
 

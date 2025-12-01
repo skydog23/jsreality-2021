@@ -332,27 +332,23 @@ export class PropertyPanelManager {
    * @private
    */
   #addAppearanceProperties(appearance) {
-    // Show flat attribute list
-    // (Shader hierarchy is now displayed in the tree view)
-    const attrs = appearance.getStoredAttributes();
-    const properties = [];
+    // NOTE: Appearance properties are NOT displayed in the property panel.
+    // The appearance is represented through the shader hierarchy in the tree view:
+    // - GeometryShader (with Point/Line/Polygon sub-shaders)
+    // - RenderingHintsShader
+    // - RootAppearance shader (if applicable)
+    // 
+    // Users should select the specific shader nodes in the tree to view/edit properties.
+    // This design ensures that the EffectiveAppearance hierarchy is the canonical
+    // representation of appearance state, rather than showing raw attribute keys.
     
-    for (const key of attrs) {
-      const value = appearance.getAttribute(key);
-      const propertyDef = this.#widgetFactory.createEditableProperty(key, value, (newValue) => {
-        // Update the appearance attribute
-        appearance.setAttribute(key, newValue);
-        this.#onPropertyChange();
-        this.#onRefreshPropertyPanel(appearance);
-      });
-      properties.push(propertyDef);
-    }
-    
-    if (properties.length === 0) {
-      properties.push({ label: '(empty)', value: 'No attributes set', editable: false });
-    }
-    
-    this.#addPropertyGroup('Attributes', properties);
+    const message = document.createElement('div');
+    message.className = 'sg-info-message';
+    message.style.padding = '16px';
+    message.style.color = '#858585';
+    message.style.fontStyle = 'italic';
+    message.textContent = 'Select a shader node in the tree to view and edit appearance properties.';
+    this.#propertyPanel.appendChild(message);
   }
   
   /**

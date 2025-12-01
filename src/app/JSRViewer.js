@@ -85,7 +85,7 @@ export class JSRViewer {
   #container = null;
 
   /** @type {boolean} */
-  #menubarEnabled = true; // Enabled by default
+  #menubarEnabled = false; // Disabled by default - use MenubarPlugin instead
 
   /** @type {Map<string, Object>} */
   #exporters = new Map();
@@ -290,7 +290,7 @@ export class JSRViewer {
    */
   #initializeContentManager() {
     if (!this.#contentComponent) {
-      logger.warning('Content component not initialized, creating default');
+      logger.warn('Content component not initialized, creating default');
       this.#contentComponent = SceneGraphUtility.createFullSceneGraphComponent('content');
       if (this.#sceneRoot) {
         this.#sceneRoot.addChild(this.#contentComponent);
@@ -497,7 +497,7 @@ export class JSRViewer {
     try {
       localStorage.setItem(storageKey, JSON.stringify(value));
     } catch (error) {
-      logger.warning(`Failed to save preference ${key}: ${error.message}`);
+      logger.warn(`Failed to save preference ${key}: ${error.message}`);
     }
   }
 
@@ -523,7 +523,7 @@ export class JSRViewer {
         return value;
       }
     } catch (error) {
-      logger.warning(`Failed to load preference ${key}: ${error.message}`);
+      logger.warn(`Failed to load preference ${key}: ${error.message}`);
     }
 
     return defaultValue;
@@ -539,7 +539,7 @@ export class JSRViewer {
     try {
       localStorage.removeItem(storageKey);
     } catch (error) {
-      logger.warning(`Failed to clear preference ${key}: ${error.message}`);
+      logger.warn(`Failed to clear preference ${key}: ${error.message}`);
     }
   }
 
@@ -740,7 +740,7 @@ export class JSRViewer {
    */
   addMenuItem(menuName, item, priority = 50) {
     if (!this.#menubar) {
-      logger.warning('Menubar not initialized, menu item not added');
+      logger.warn('Menubar not initialized, menu item not added');
       return;
     }
     this.#menubar.addMenuItem(menuName, item, priority);

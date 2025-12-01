@@ -237,9 +237,11 @@
             viewer.setSceneRoot(root);
             viewer.render();
             
-            // Create inspector
+            // Create inspector with render callback
             const inspectorContainer = document.getElementById('inspector-container');
-            const inspector = new SceneGraphInspector(inspectorContainer, root);
+            const inspector = new SceneGraphInspector(inspectorContainer, root, {
+                onRender: () => viewer.render()
+            });
             
             // Expand root node by default
             inspector.refresh();

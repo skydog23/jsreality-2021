@@ -114,7 +114,7 @@ export class ToolEventQueue {
    */
   addEvent(event) {
     if (!this.#started) {
-      this.#logger.warning(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
+      this.#logger.warn(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
       return false;
     }
     return this.#placeEvent(event);
