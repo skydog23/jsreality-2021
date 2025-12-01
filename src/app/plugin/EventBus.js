@@ -28,21 +28,8 @@ export class EventBus {
    * @param {*} data - Event data
    */
   emit(eventType, data) {
-    const callbacks = this.#listeners.get(eventType);
-    if (!callbacks || callbacks.size === 0) {
-      return;
-    }
-
-    logger.fine(`Emitting event: ${eventType} to ${callbacks.size} listener(s)`);
-
-    for (const callback of callbacks) {
-      try {
-        callback(data);
-      } catch (error) {
-        logger.severe(`Error in event listener for ${eventType}: ${error.message}`);
-        console.error(error);
-      }
-    }
+    this.#notify(eventType, data);
+    this.#notify('*', { eventType, data });
   }
 
   /**
@@ -127,6 +114,30 @@ export class EventBus {
    */
   eventTypes() {
     return Array.from(this.#listeners.keys());
+  }
+
+  /**
+   * Internal helper to notify listeners (including wildcard).
+   * @param {string} eventType
+   * @param {*} payload
+   * @private
+   */
+  #notify(eventType, payload) {
+    const callbacks = this.#listeners.get(eventType);
+    if (!callbacks || callbacks.size === 0) {
+      return;
+    }
+
+    logger.fine(`Emitting event: ${eventType} to ${callbacks.size} listener(s)`);
+
+    for (const callback of callbacks) {
+      try {
+        callback(payload);
+      } catch (error) {
+        logger.severe(`Error in event listener for ${eventType}: ${error.message}`);
+        console.error(error);
+      }
+    }
   }
 }
 

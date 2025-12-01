@@ -13,6 +13,7 @@
 export * as CameraUtility from './CameraUtility.js';
 export { Color } from './Color.js';
 export { SceneGraphUtility } from './SceneGraphUtility.js';
+export { DisposableCollection } from './Disposable.js';
 export { 
   getLogger, 
   setGlobalLevel, 

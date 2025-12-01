@@ -32,6 +32,7 @@ import { SVGViewer } from '../core/viewers/SVGViewer.js';
 import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
 import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
+import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -100,6 +101,9 @@ export class JSRViewer {
   /** @type {PluginManager|null} */
   #pluginManager = null;
 
+  /** @type {ViewerEventBridge|null} */
+  #viewerEventBridge = null;
+
   // Event system (deprecated - use #eventBus instead)
   /** @type {Map<string, Function[]>} */
   #eventListeners = new Map();
@@ -141,6 +145,7 @@ export class JSRViewer {
     // Initialize plugin system first (so plugins can hook into other systems)
     this.#eventBus = new EventBus();
     this.#pluginManager = new PluginManager(this, this.#eventBus);
+    this.#viewerEventBridge = new ViewerEventBridge(this, this.#eventBus);
 
     // Initialize core systems
     this.#initializeViewers(container, viewers, viewerNames);
@@ -1055,6 +1060,11 @@ export class JSRViewer {
 
     // Clear event listeners
     this.#eventListeners.clear();
+
+    if (this.#viewerEventBridge) {
+      this.#viewerEventBridge.dispose();
+      this.#viewerEventBridge = null;
+    }
 
     // Clear event bus
     if (this.#eventBus) {

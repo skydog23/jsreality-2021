@@ -258,5 +258,53 @@ export class EffectiveAppearance {
     
     return names.join(':');
   }
+
+  /**
+   * Resolve a shader schema (e.g., DefaultPointShader) using this EffectiveAppearance.
+   * Each attribute defined by the schema will be pulled from the appearance using
+   * the provided prefix (e.g., CommonAttributes.POINT_SHADER).
+   *
+   * @param {{ATTRIBUTES?: string[], type?: string}} shaderSchema
+   * @param {string} attributePrefix - Prefix such as CommonAttributes.POINT_SHADER
+   * @param {*} defaultInstance - Optional default value to fall back on
+   * @returns {Object} Map of attribute -> value
+   */
+  resolveShaderAttributes(shaderSchema, attributePrefix = '', defaultInstance = {}) {
+    if (!shaderSchema) {
+      return {};
+    }
+
+    const attributes = shaderSchema?.ATTRIBUTES || [];
+    const defaults =
+      typeof shaderSchema?.getAllDefaults === 'function'
+        ? shaderSchema.getAllDefaults()
+        : defaultInstance;
+    const resolved = { ...defaults };
+
+    for (const attr of attributes) {
+      const key = attributePrefix ? `${attributePrefix}.${attr}` : attr;
+      const value = this.getAttribute(key, resolved[attr]);
+      if (value !== undefined && value !== null) {
+        resolved[attr] = value;
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Create a shader data object (simple POJO) from a schema and prefix.
+   * Adds a canonical $type property for downstream consumers.
+   * @param {{ATTRIBUTES?: string[], type?: string}} shaderSchema
+   * @param {string} attributePrefix
+   * @returns {Object}
+   */
+  createShaderInstance(shaderSchema, attributePrefix = '') {
+    const resolved = this.resolveShaderAttributes(shaderSchema, attributePrefix, {});
+    if (shaderSchema?.type) {
+      resolved.$type = shaderSchema.type;
+    }
+    return resolved;
+  }
 }
 

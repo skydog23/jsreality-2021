@@ -18,6 +18,9 @@ import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import * as Rn from '../math/Rn.js';
+import { DefaultPointShader } from '../shader/DefaultPointShader.js';
+import { DefaultLineShader } from '../shader/DefaultLineShader.js';
+import { DefaultPolygonShader } from '../shader/DefaultPolygonShader.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -237,6 +240,13 @@ class Canvas2DRenderer extends Abstract2DRenderer {
   /** @type {number} Cached point radius from current appearance */
   #pointRadius = 0.1;
 
+  /** @type {{point: Object, line: Object, polygon: Object}} */
+  #resolvedShaders = {
+    point: {},
+    line: {},
+    polygon: {}
+  };
+
   /**
    * Create a new Canvas2D renderer
    * @param {Canvas2DViewer} viewer - The viewer
@@ -270,12 +280,18 @@ class Canvas2DRenderer extends Abstract2DRenderer {
 
   /**
    * Apply appearance attributes to canvas context (implements abstract method)
-   * Sets all drawing properties from current appearance stack
+   * Resolves shader data using EffectiveAppearance helper.
    * @protected
    */
   _applyAppearance() {
-    // Cache appearance attributes - will be set per primitive type in _beginPrimitiveGroup
-    this.#pointRadius = this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.POINT_RADIUS, 0.1);
+    const effective = this._getEffectiveAppearance();
+    this.#resolvedShaders = {
+      point: effective.createShaderInstance(DefaultPointShader, CommonAttributes.POINT_SHADER),
+      line: effective.createShaderInstance(DefaultLineShader, CommonAttributes.LINE_SHADER),
+      polygon: effective.createShaderInstance(DefaultPolygonShader, CommonAttributes.POLYGON_SHADER)
+    };
+
+    this.#pointRadius = this.#resolvedShaders.point.pointRadius ?? 0.1;
   }
 
   /**
@@ -288,16 +304,15 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     
     if (type === CommonAttributes.POINT) {
       ctx.fillStyle = this.toCSSColor(
-        this.getAppearanceAttribute(CommonAttributes.POINT_SHADER, CommonAttributes.DIFFUSE_COLOR, '#ff0000'));
+        this.#resolvedShaders.point.diffuseColor || '#ff0000');
     } else if (type === CommonAttributes.LINE) {
       ctx.strokeStyle = this.toCSSColor(
-        this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.DIFFUSE_COLOR, '#000000'));
-      // TUBE_RADIUS is a radius, but Canvas lineWidth expects diameter, so multiply by 2
-      const tubeRadius = this.getAppearanceAttribute(CommonAttributes.LINE_SHADER, CommonAttributes.TUBE_RADIUS, 0.05);
+        this.#resolvedShaders.line.diffuseColor || '#000000');
+      const tubeRadius = this.#resolvedShaders.line.tubeRadius ?? 0.05;
       ctx.lineWidth = tubeRadius * 2;
     } else if (type === CommonAttributes.POLYGON) {
       ctx.fillStyle = this.toCSSColor(
-        this.getAppearanceAttribute(CommonAttributes.POLYGON_SHADER, CommonAttributes.DIFFUSE_COLOR, '#cccccc'));
+        this.#resolvedShaders.polygon.diffuseColor || '#cccccc');
     }
   }
 
@@ -374,18 +389,8 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    * @private
    */
  pushTransform(ctx, tform) {
-// Extract the 2D transformation components from the 4x4 matrix
-    // Canvas 2D uses: [a c e]  where a,c,e = scale/skew X, translate X
-    //                 [b d f]        b,d,f = skew/scale Y, translate Y
-    //                 [0 0 1]
-    ctx.transform(
-      tform[0], // a: x-scale
-      tform[1], // b: y-skew  
-      tform[4], // c: x-skew
-      tform[5], // d: y-scale
-      tform[3], // e: x-translate
-      tform[7]
-    );
+    const [a, b, c, d, e, f] = this._extractAffine2D(tform);
+    ctx.transform(a, b, c, d, e, f);
   }
 
   /**

@@ -15,7 +15,7 @@ import { Transformation } from '../scene/Transformation.js';
 import { Appearance } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
-import { Tool } from '../scene/tool/Tool.js';
+import { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
 
 /**
  * Wrapper class for shader nodes in the tree view
@@ -62,28 +62,6 @@ export class ShaderTreeNode {
 }
 
 /**
- * Wrapper class for tool nodes in the tree view
- * Allows tools to be displayed as tree nodes
- */
-export class ToolTreeNode {
-  /**
-   * @param {Tool} tool - The tool instance
-   */
-  constructor(tool) {
-    this.tool = tool;
-    this.name = tool.constructor.name;
-  }
-  
-  getName() {
-    return this.name;
-  }
-  
-  getChildren() {
-    return []; // Tools don't have children
-  }
-}
-
-/**
  * Manages the tree view for the SceneGraphInspector
  */
 export class TreeViewManager {
@@ -123,9 +101,14 @@ export class TreeViewManager {
   #selectedNode = null;
   
   /**
-   * @type {SceneGraphComponent|null}
+   * @type {*|null}
    */
   #root = null;
+
+  /**
+   * @type {SceneGraphTreeModel|null}
+   */
+  #treeModel = null;
   
   /**
    * @param {HTMLElement} treeView - The tree view DOM element
@@ -165,13 +148,17 @@ export class TreeViewManager {
       console.error('TreeViewManager: #treeView is null! Cannot rebuild tree.');
       return;
     }
-    this.#root = root; // Store root for checking if Appearance is root
+    this.#root = root;
+    this.#treeModel = new SceneGraphTreeModel(this.#createShaderTreeNodes, root);
     this.#treeView.innerHTML = '';
     this.#nodeElements.clear();
-    if (root) {
-      this.#buildTreeNode(root, this.#treeView);
-    } else {
+    if (!root) {
       console.warn('TreeViewManager: No root set, cannot build tree');
+      return;
+    }
+    const descriptor = this.#treeModel.build(root);
+    if (descriptor) {
+      this.#buildTreeNode(descriptor, this.#treeView);
     }
   }
   
@@ -181,7 +168,14 @@ export class TreeViewManager {
    * @param {HTMLElement} parentElement - Parent DOM element
    * @private
    */
-  #buildTreeNode(node, parentElement) {
+  /**
+   * @param {import('./SceneGraphTreeModel.js').InspectorTreeNode} descriptor
+   * @param {HTMLElement} parentElement
+   * @private
+   */
+  #buildTreeNode(descriptor, parentElement) {
+    if (!descriptor) return;
+    const node = descriptor.data;
     const nodeDiv = document.createElement('div');
     nodeDiv.className = 'sg-tree-node';
     nodeDiv.style.pointerEvents = 'auto';
@@ -197,15 +191,7 @@ export class TreeViewManager {
     const expand = document.createElement('span');
     expand.className = 'sg-tree-expand';
     
-    const hasChildren = (node instanceof SceneGraphComponent && 
-                       (node.getChildComponentCount() > 0 || 
-                        node.getTransformation() || 
-                        node.getAppearance() || 
-                        node.getGeometry() ||
-                        node.getCamera() ||
-                        (node.getTools && node.getTools().length > 0))) ||
-                       (node instanceof Appearance) ||
-                       (node instanceof ShaderTreeNode && node.children.length > 0);
+    const hasChildren = descriptor.children && descriptor.children.length > 0;
     
     if (hasChildren) {
       const isExpanded = this.#expandedNodes.has(node);
@@ -225,17 +211,17 @@ export class TreeViewManager {
     // Icon
     const icon = document.createElement('span');
     icon.className = 'sg-tree-icon';
-    icon.textContent = this.#getNodeIcon(node);
+    icon.textContent = descriptor.icon || this.#getNodeIcon(node, descriptor.type);
     
     // Label
     const label = document.createElement('span');
     label.className = 'sg-tree-label';
-    label.textContent = node.getName?.() || 'Unnamed';
+    label.textContent = descriptor.label || node.getName?.() || 'Unnamed';
     
     // Type
     const type = document.createElement('span');
     type.className = 'sg-tree-type';
-    type.textContent = this.#getNodeType(node);
+    type.textContent = this.#getNodeType(node, descriptor.type);
     
     header.appendChild(expand);
     header.appendChild(icon);
@@ -282,60 +268,8 @@ export class TreeViewManager {
         childrenDiv.classList.add('collapsed');
       }
       
-      // Handle different node types
-      if (node instanceof SceneGraphComponent) {
-        // Add non-component children first
-        if (node.getTransformation?.()) {
-          this.#buildTreeNode(node.getTransformation(), childrenDiv);
-        }
-        if (node.getAppearance?.()) {
-          this.#buildTreeNode(node.getAppearance(), childrenDiv);
-        }
-        if (node.getCamera?.()) {
-          this.#buildTreeNode(node.getCamera(), childrenDiv);
-        }
-        if (node.getGeometry?.()) {
-          this.#buildTreeNode(node.getGeometry(), childrenDiv);
-        }
-        
-        // Add component children
-        if (node.getChildComponents) {
-          for (const child of node.getChildComponents()) {
-            this.#buildTreeNode(child, childrenDiv);
-          }
-        }
-        
-        // Add tools after component children
-        if (node.getTools) {
-          const tools = node.getTools();
-          for (const tool of tools) {
-            const toolNode = new ToolTreeNode(tool);
-            this.#buildTreeNode(toolNode, childrenDiv);
-          }
-        }
-      } else if (node instanceof Appearance) {
-        // Check if this is the root Appearance
-        const isRootAppearance = this.#root && this.#root.getAppearance?.() === node;
-        
-        // Create shader tree nodes for this appearance
-        const shaderNodes = this.#createShaderTreeNodes(node, isRootAppearance);
-        if (shaderNodes) {
-          // shaderNodes can be a single node or an array
-          if (Array.isArray(shaderNodes)) {
-            for (const shaderNode of shaderNodes) {
-              this.#buildTreeNode(shaderNode, childrenDiv);
-            }
-          } else {
-            this.#buildTreeNode(shaderNodes, childrenDiv);
-          }
-        }
-      } else if (node instanceof ShaderTreeNode) {
-        // Add shader node children
-        for (const child of node.children) {
-          this.#buildTreeNode(child, childrenDiv);
-        }
-      } else if (node instanceof ToolTreeNode) {
-        // Tools don't have children, so nothing to add
+      for (const childDescriptor of descriptor.children) {
+        this.#buildTreeNode(childDescriptor, childrenDiv);
       }
       
       nodeDiv.appendChild(childrenDiv);
@@ -351,21 +285,32 @@ export class TreeViewManager {
    * @returns {string}
    * @private
    */
-  #getNodeIcon(node) {
-    if (node instanceof SceneGraphComponent) return '📦';
-    if (node instanceof Transformation) return '🔄';
-    if (node instanceof Appearance) return '🎨';
-    if (node instanceof Geometry) return '▲';
-    if (node instanceof Camera) return '📷';
-    if (node instanceof ToolTreeNode) return '🔧';
-    if (node instanceof ShaderTreeNode) {
-      if (node.type === 'geometry') return '🎨';
-      if (node.type === 'renderingHints') return '⚙️';
-      if (node.type === 'point') return '⚫';
-      if (node.type === 'line') return '━';
-      if (node.type === 'polygon') return '▲';
+  #getNodeIcon(node, descriptorType = null) {
+    const type = descriptorType || this.#inferTypeFromNode(node);
+    switch (type) {
+      case 'component': return '📦';
+      case 'transform': return '🔄';
+      case 'appearance': return '🎨';
+      case 'geometry': return '▲';
+      case 'camera': return '📷';
+      case 'tool': return '🔧';
+      case 'shader':
+      case 'shader.geometry': return '🎨';
+      case 'shader.renderingHints': return '⚙️';
+      case 'shader.point': return '⚫';
+      case 'shader.line': return '━';
+      case 'shader.polygon': return '▲';
+      case 'shader.rootAppearance': return '🧱';
+      default:
+        if (node instanceof ShaderTreeNode) {
+          if (node.type === 'geometry') return '🎨';
+          if (node.type === 'renderingHints') return '⚙️';
+          if (node.type === 'point') return '⚫';
+          if (node.type === 'line') return '━';
+          if (node.type === 'polygon') return '▲';
+        }
+        return '•';
     }
-    return '•';
   }
   
   /**
@@ -374,17 +319,30 @@ export class TreeViewManager {
    * @returns {string}
    * @private
    */
-  #getNodeType(node) {
-    if (node instanceof SceneGraphComponent) return 'Component';
-    if (node instanceof Transformation) return 'Transform';
-    if (node instanceof Appearance) return 'Appearance';
-    if (node instanceof Geometry) {
-      return node.constructor.name;
+  #getNodeType(node, descriptorType = null) {
+    const type = descriptorType || this.#inferTypeFromNode(node);
+    if (type?.startsWith('shader.')) return 'Shader';
+    switch (type) {
+      case 'component': return 'Component';
+      case 'transform': return 'Transform';
+      case 'appearance': return 'Appearance';
+      case 'geometry': return node?.constructor?.name || 'Geometry';
+      case 'camera': return 'Camera';
+      case 'tool': return 'Tool';
+      case 'shader': return 'Shader';
+      default:
+        return 'Node';
     }
-    if (node instanceof Camera) return 'Camera';
-    if (node instanceof ToolTreeNode) return 'Tool';
-    if (node instanceof ShaderTreeNode) return 'Shader';
-    return 'Node';
+  }
+
+  #inferTypeFromNode(node) {
+    if (node instanceof SceneGraphComponent) return 'component';
+    if (node instanceof Transformation) return 'transform';
+    if (node instanceof Appearance) return 'appearance';
+    if (node instanceof Geometry) return 'geometry';
+    if (node instanceof Camera) return 'camera';
+    if (node instanceof ShaderTreeNode) return `shader.${node.type || ''}`;
+    return null;
   }
   
   /**
