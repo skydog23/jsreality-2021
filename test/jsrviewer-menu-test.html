@@ -62,10 +62,7 @@
     <div class="info" id="info-display">Loading...</div>
 
     <script type="module">
-        import { JSRViewer } from '../src/app/JSRViewer.js';
-        import { Canvas2DViewer } from '../src/core/viewers/Canvas2DViewer.js';
-        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
-        import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
+        import { JSRViewer, ViewerTypes } from '../src/app/JSRViewer.js';
         import { IndexedLineSet } from '../src/core/scene/IndexedLineSet.js';
         import { SceneGraphComponent } from '../src/core/scene/SceneGraphComponent.js';
         import { Appearance } from '../src/core/scene/Appearance.js';
@@ -77,38 +74,22 @@
         import { MatrixBuilder } from '../src/core/math/MatrixBuilder.js';
         import { Transformation } from '../src/core/scene/Transformation.js';
         import { IndexedLineSetUtility } from '../src/core/geometry/IndexedLineSetUtility.js';
-        import {SceneGraphUtility} from '../src/core/util/SceneGraphUtility.js';
+        import { SceneGraphUtility } from '../src/core/util/SceneGraphUtility.js';
+        import { MenubarPlugin } from '../src/app/plugins/MenubarPlugin.js';
+        import { ExportMenuPlugin } from '../src/app/plugins/ExportMenuPlugin.js';
+        
         // Create viewer container elements
         const viewerContainer = document.getElementById('viewer-container');
         
-        // Create three canvas/container elements for the three viewers
-        const canvas1 = document.createElement('canvas');
-        canvas1.style.width = '100%';
-        canvas1.style.height = '100%';
-        
-        const canvas2 = document.createElement('canvas');
-        canvas2.style.width = '100%';
-        canvas2.style.height = '100%';
-        
-        const svgContainer = document.createElement('div');
-        svgContainer.style.width = '100%';
-        svgContainer.style.height = '100%';
-        
-        // Create the three viewers
-        const viewers = [
-            new Canvas2DViewer(canvas1),
-            new WebGL2DViewer(canvas2),
-            new SVGViewer(svgContainer)
-        ];
-        
-        const viewerNames = ['Canvas2D', 'WebGL2D', 'SVG'];
-        
-        // Create JSRViewer with all three viewers
+        // Create JSRViewer with viewerTypes - it will create the viewer instances
         const jsrViewer = new JSRViewer({
             container: viewerContainer,
-            viewers: viewers,
-            viewerNames: viewerNames
+            viewerTypes: [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG]
         });
+        
+        // Register plugins for menubar functionality
+        await jsrViewer.registerPlugin(new MenubarPlugin());
+        await jsrViewer.registerPlugin(new ExportMenuPlugin());
         
         console.log('✓ JSRViewer created with 3 viewers');
         

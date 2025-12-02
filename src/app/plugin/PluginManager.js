@@ -215,6 +215,9 @@ export class PluginManager {
   /**
    * Integrate plugin UI into viewer.
    * 
+   * Note: Menu items are now handled by MenubarPlugin via the 'plugin:installed' event.
+   * This method only handles other UI integration (side panels, toolbars, overlays).
+   * 
    * @param {import('./JSRPlugin.js').JSRPlugin} plugin - The plugin
    * @returns {Promise<void>}
    * @private
@@ -222,23 +225,8 @@ export class PluginManager {
   async #integrateUI(plugin) {
     const info = plugin.getInfo();
 
-    // Integrate menu items
-    const menuItems = plugin.getMenuItems();
-    if (menuItems && menuItems.length > 0) {
-      const menubar = this.#viewer.getMenubar();
-      if (menubar) {
-        logger.fine(`Adding ${menuItems.length} menu item(s) for plugin ${info.id}`);
-        for (const item of menuItems) {
-          try {
-            menubar.addMenuItem(item.menu, item, item.priority || 50);
-          } catch (error) {
-            logger.warn(`Failed to add menu item for plugin ${info.id}: ${error.message}`);
-          }
-        }
-      } else {
-        logger.warn(`Plugin ${info.id} provides menu items but menubar is not enabled`);
-      }
-    }
+    // Note: Menu items are handled by MenubarPlugin via 'plugin:installed' event
+    // MenubarPlugin listens for this event and calls plugin.getMenuItems()
 
     // Integrate other UI (side panels, toolbars, overlays)
     // TODO: Implement side panel system when needed

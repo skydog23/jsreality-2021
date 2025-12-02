@@ -27,13 +27,22 @@ import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { MatrixBuilder } from '../core/math/MatrixBuilder.js';
 import { getLogger } from '../core/util/LoggingSystem.js';
 import { ContentManager } from './ContentManager.js';
-import { Menubar } from './ui/Menubar.js';
 import { SVGViewer } from '../core/viewers/SVGViewer.js';
 import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
 import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
+
+/**
+ * Standardized viewer type names.
+ * @type {Object<string, string>}
+ */
+export const ViewerTypes = {
+  CANVAS2D: 'Canvas2D',
+  WEBGL2D: 'WebGL2D',
+  SVG: 'SVG'
+};
 
 const logger = getLogger('JSRViewer');
 
@@ -75,17 +84,8 @@ export class JSRViewer {
   #contentManager = null;
 
   // UI components
-  /** @type {Menubar|null} */
-  #menubar = null;
-
-  /** @type {HTMLElement|null} */
-  #menubarContainer = null;
-
   /** @type {HTMLElement|null} */
   #container = null;
-
-  /** @type {boolean} */
-  #menubarEnabled = false; // Disabled by default - use MenubarPlugin instead
 
   /** @type {Map<string, Object>} */
   #exporters = new Map();
@@ -114,17 +114,17 @@ export class JSRViewer {
   /**
    * Create a new JSRViewer instance.
    * @param {Object} options - Configuration options
-   * @param {HTMLElement|HTMLCanvasElement} options.container - Container element for the viewer
-   * @param {HTMLElement} [options.menubarContainer] - Container for menu bar (optional)
-   * @param {Viewer[]} [options.viewers] - Array of viewer instances (defaults to Canvas2DViewer)
-   * @param {string[]} [options.viewerNames] - Names for the viewers
+   * @param {HTMLElement} options.container - Container element for the viewer
+   * @param {string[]} [options.viewerTypes] - Array of viewer type names ('Canvas2D', 'WebGL2D', 'SVG')
+   * @param {Viewer[]} [options.viewers] - Array of pre-instantiated viewer instances (alternative to viewerTypes)
+   * @param {string[]} [options.viewerNames] - Names for pre-instantiated viewers (required if viewers provided)
    * @param {SceneGraphComponent} [options.sceneRoot] - Existing scene root (creates default if not provided)
    * @param {Object} [options.toolSystemConfig] - Tool system configuration
    */
   constructor(options) {
     const {
       container,
-      menubarContainer = null,
+      viewerTypes = null,
       viewers = null,
       viewerNames = null,
       sceneRoot = null,
@@ -143,11 +143,10 @@ export class JSRViewer {
     this.#pluginManager = new PluginManager(this, this.#eventBus);
 
     // Initialize core systems
-    this.#initializeViewers(container, viewers, viewerNames);
+    this.#initializeViewers(container, viewerTypes, viewers, viewerNames);
     this.#initializeScene(sceneRoot);
     this.#initializeToolSystem(toolSystemConfig);
     this.#initializeContentManager();
-    this.#initializeUI(menubarContainer);
     this.#registerDefaults();
 
     logger.info('JSRViewer initialized');
@@ -155,19 +154,28 @@ export class JSRViewer {
 
   /**
    * Initialize viewer system.
+   * Creates viewers based on viewerTypes array, or uses pre-instantiated viewers.
+   * 
    * @param {HTMLElement} container - Container element
-   * @param {Viewer[]|null} viewers - Optional array of viewers
-   * @param {string[]|null} viewerNames - Optional viewer names
+   * @param {string[]|null} viewerTypes - Array of viewer type names ('Canvas2D', 'WebGL2D', 'SVG')
+   * @param {Viewer[]|null} viewers - Optional array of pre-instantiated viewers
+   * @param {string[]|null} viewerNames - Optional viewer names (for pre-instantiated viewers)
    * @private
    */
-  #initializeViewers(container, viewers, viewerNames) {
-    if (!viewers || viewers.length === 0) {
-      // Create default Canvas2DViewer
+  #initializeViewers(container, viewerTypes, viewers, viewerNames) {
+    // If viewerTypes provided, create viewers from types
+    if (viewerTypes && viewerTypes.length > 0) {
+      const { viewers: createdViewers, names } = this.#createViewersFromTypes(container, viewerTypes);
+      viewers = createdViewers;
+      viewerNames = names;
+    } else if (!viewers || viewers.length === 0) {
+      // Default: create a single Canvas2DViewer
       const canvas = document.createElement('canvas');
       canvas.style.width = '100%';
       canvas.style.height = '100%';
       container.appendChild(canvas);
       viewers = [new Canvas2DViewer(canvas)];
+      viewerNames = [ViewerTypes.CANVAS2D];
     }
 
     // Create ViewerSwitch
@@ -179,7 +187,84 @@ export class JSRViewer {
     wrapperElement.style.height = '100%';
     container.appendChild(wrapperElement);
 
-    logger.info(`ViewerSwitch created with ${viewers.length} viewer(s)`);
+    logger.info(`ViewerSwitch created with ${viewers.length} viewer(s): ${viewerNames.join(', ')}`);
+  }
+
+  /**
+   * Create viewer instances from type names.
+   * 
+   * @param {HTMLElement} container - Container element for viewer DOM elements
+   * @param {string[]} viewerTypes - Array of viewer type names
+   * @returns {{viewers: Viewer[], names: string[]}} Created viewers and their names
+   * @private
+   */
+  #createViewersFromTypes(container, viewerTypes) {
+    const viewers = [];
+    const names = [];
+
+    for (const type of viewerTypes) {
+      const normalizedType = this.#normalizeViewerType(type);
+      
+      switch (normalizedType) {
+        case ViewerTypes.CANVAS2D: {
+          const canvas = document.createElement('canvas');
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          container.appendChild(canvas);
+          viewers.push(new Canvas2DViewer(canvas));
+          names.push(ViewerTypes.CANVAS2D);
+          break;
+        }
+        case ViewerTypes.WEBGL2D: {
+          const canvas = document.createElement('canvas');
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          container.appendChild(canvas);
+          viewers.push(new WebGL2DViewer(canvas));
+          names.push(ViewerTypes.WEBGL2D);
+          break;
+        }
+        case ViewerTypes.SVG: {
+          const svgContainer = document.createElement('div');
+          svgContainer.style.width = '100%';
+          svgContainer.style.height = '100%';
+          svgContainer.style.position = 'absolute';
+          svgContainer.style.top = '0';
+          svgContainer.style.left = '0';
+          container.appendChild(svgContainer);
+          viewers.push(new SVGViewer(svgContainer));
+          names.push(ViewerTypes.SVG);
+          break;
+        }
+        default:
+          logger.warn(`Unknown viewer type: ${type}. Skipping.`);
+      }
+    }
+
+    if (viewers.length === 0) {
+      throw new Error('No valid viewer types provided');
+    }
+
+    return { viewers, names };
+  }
+
+  /**
+   * Normalize a viewer type string to the standardized format.
+   * 
+   * @param {string} type - Viewer type string (case-insensitive)
+   * @returns {string} Normalized viewer type
+   * @private
+   */
+  #normalizeViewerType(type) {
+    const normalized = type.toLowerCase();
+    if (normalized === 'canvas2d' || normalized === 'canvas') {
+      return ViewerTypes.CANVAS2D;
+    } else if (normalized === 'webgl2d' || normalized === 'webgl') {
+      return ViewerTypes.WEBGL2D;
+    } else if (normalized === 'svg') {
+      return ViewerTypes.SVG;
+    }
+    return type; // Return as-is if not recognized
   }
 
   /**
@@ -303,31 +388,10 @@ export class JSRViewer {
   }
 
   /**
-   * Initialize UI components (menubar).
-   * @param {HTMLElement|null} menubarContainer - Container for menu bar (optional)
-   * @private
-   */
-  #initializeUI(menubarContainer) {
-    // Store menubar container if provided, but don't create menubar yet
-    // It will be created by enableMenubar() if enabled
-    this.#menubarContainer = menubarContainer;
-    
-    // Create menubar if enabled by default
-    if (this.#menubarEnabled) {
-      this.enableMenubar(menubarContainer);
-    }
-  }
-
-  /**
-   * Register default menu items and exporters.
+   * Register default exporters.
    * @private
    */
   #registerDefaults() {
-    // Note: Default menu items are registered in enableMenubar(), not here
-    // This prevents duplicate registration
-
-    // Register default exporters
-
     // Register default exporters
     this.registerExporter('png', {
       label: 'Export as PNG',
@@ -355,6 +419,14 @@ export class JSRViewer {
    */
   getViewer() {
     return this.#viewerSwitch;
+  }
+
+  /**
+   * Get the container element.
+   * @returns {HTMLElement|null} The container element
+   */
+  getContainer() {
+    return this.#container;
   }
 
   /**
@@ -620,142 +692,10 @@ export class JSRViewer {
       const newViewer = this.#viewerSwitch.getCurrentViewer();
       const newIndex = this.#viewerSwitch.getViewers().indexOf(newViewer);
       
-      // Update menubar radio buttons if menubar exists and multiple viewers
-      if (this.#menubar && this.#viewerSwitch.getNumViewers() > 1) {
-        this.#menubar.updateRadioSelection('Viewer', 'renderer', newIndex);
-      }
-      
+      // Emit event for plugins (e.g., MenubarPlugin) to handle UI updates
       this.#emit('viewerChanged', { viewer, oldIndex, newIndex });
+      this.#eventBus.emit('viewer:changed', { viewer, oldIndex, newIndex });
     }
-  }
-
-  // ========================================================================
-  // PUBLIC API: Menu System
-  // ========================================================================
-
-  /**
-   * Enable the menu bar.
-   * Creates a Menubar instance and sets it up with default menu items.
-   * @param {HTMLElement} [container] - Optional container element for the menubar.
-   *                                    If not provided, a default container will be created.
-   * @returns {Menubar} The menubar instance
-   */
-  enableMenubar(container = null) {
-    if (this.#menubar) {
-      return this.#menubar; // Already enabled
-    }
-
-    // Create container if not provided
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'jsrviewer-menubar-container';
-      container.style.width = '100%';
-      container.style.height = 'auto';
-      
-      // Insert menubar at the top of the viewer container
-      const viewerComponent = this.#viewerSwitch.getViewingComponent();
-      if (viewerComponent && viewerComponent.parentElement) {
-        viewerComponent.parentElement.insertBefore(container, viewerComponent);
-      } else if (this.#container) {
-        // If viewer component isn't in DOM yet, prepend to container
-        this.#container.insertBefore(container, this.#container.firstChild);
-      }
-    }
-
-    this.#menubarContainer = container;
-    
-    // Create menubar with default menu provider
-    // The provider function receives the menubar instance and registers menu items
-    const defaultMenuProvider = (menubar) => {
-      // File menu
-      menubar.addMenuItem('File', {
-        label: 'Export PNG',
-        action: () => this.exportImage('png')
-      }, 10);
-
-      menubar.addMenuItem('File', {
-        label: 'Export JPEG',
-        action: () => this.exportImage('jpeg', 0.95)
-      }, 11);
-
-      menubar.addMenuItem('File', {
-        label: 'Export SVG',
-        action: () => this.exportSVG()
-      }, 12);
-
-      menubar.addMenuItem('File', {
-        label: 'Export WebGL',
-        action: () => this.exportWebGL()
-      }, 13);
-
-      menubar.addMenuSeparator('File', 20);
-
-      // Viewer menu - only show viewer selection radio buttons
-      // (Background and Reset Camera items removed as requested)
-
-      // Add viewer selection radio buttons if ViewerSwitch has multiple viewers
-      const numViewers = this.#viewerSwitch.getNumViewers();
-      if (numViewers > 1) {
-        const viewerNames = this.#viewerSwitch.getViewerNames();
-        const currentViewer = this.#viewerSwitch.getCurrentViewer();
-        const currentIndex = this.#viewerSwitch.getViewers().indexOf(currentViewer);
-        
-        viewerNames.forEach((name, index) => {
-          menubar.addMenuItem('Viewer', {
-            label: name,
-            type: 'radio',
-            groupName: 'viewer-select',
-            checked: index === currentIndex,
-            action: () => {
-              this.selectViewer(index);
-              this.render();
-            }
-          }, 10 + index);
-        });
-      }
-    };
-    
-    this.#menubar = new Menubar(container, {
-      defaultMenuProviders: [defaultMenuProvider]
-    });
-    this.#menubarEnabled = true;
-
-    return this.#menubar;
-  }
-
-
-  /**
-   * Get the menubar instance.
-   * @returns {Menubar|null} The menubar instance, or null if not enabled
-   */
-  getMenubar() {
-    return this.#menubar;
-  }
-
-  /**
-   * Add a menu item to a menu.
-   * @param {string} menuName - Name of the menu
-   * @param {Object} item - Menu item definition
-   * @param {number} [priority=50] - Priority (lower = earlier)
-   */
-  addMenuItem(menuName, item, priority = 50) {
-    if (!this.#menubar) {
-      logger.warn('Menubar not initialized, menu item not added');
-      return;
-    }
-    this.#menubar.addMenuItem(menuName, item, priority);
-  }
-
-  /**
-   * Add a separator to a menu.
-   * @param {string} menuName - Name of the menu
-   * @param {number} [priority=50] - Priority
-   */
-  addMenuSeparator(menuName, priority = 50) {
-    if (!this.#menubar) {
-      return;
-    }
-    this.#menubar.addMenuSeparator(menuName, priority);
   }
 
   // ========================================================================
