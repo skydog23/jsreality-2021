@@ -78,22 +78,17 @@ export class MenubarPlugin extends JSRPlugin {
   async install(viewer, context) {
     await super.install(viewer, context);
 
-    // Create container if not provided
-    if (!this.#container) {
-      this.#container = document.createElement('div');
-      this.#container.id = 'menubar-plugin-container';
-      this.#container.style.width = '100%';
-      this.#container.style.height = 'auto';
-      this.#container.style.flexShrink = '0';
+    const info = this.getInfo();
 
-      // Insert above the viewer
-      const viewerSwitch = viewer.getViewer();
-      if (viewerSwitch) {
-        const viewerComponent = viewerSwitch.getViewingComponent();
-        if (viewerComponent && viewerComponent.parentElement) {
-          viewerComponent.parentElement.insertBefore(this.#container, viewerComponent);
-        }
+    // Create/request container if not provided
+    if (!this.#container) {
+      if (typeof context?.requestRegion === 'function') {
+        this.#container = context.requestRegion('top', { id: info.id });
+      } else {
+        throw new Error('MenubarPlugin requires a layout region but PluginContext.requestRegion is unavailable');
       }
+      this.#container.id = 'menubar-plugin-container';
+      this.#container.style.flexShrink = '0';
     }
 
     // Create the menubar

@@ -24,17 +24,22 @@ export class PluginContext {
   /** @type {import('./EventBus.js').EventBus} */
   #eventBus;
 
+  /** @type {import('./PluginLayoutManager.js').PluginLayoutManager} */
+  #layoutManager;
+
   /**
    * Create a new plugin context.
    * 
    * @param {import('../JSRViewer.js').JSRViewer} viewer - The viewer instance
    * @param {Map<string, import('./JSRPlugin.js').JSRPlugin>} plugins - Map of registered plugins
    * @param {import('./EventBus.js').EventBus} eventBus - The event bus instance
+   * @param {import('./PluginLayoutManager.js').PluginLayoutManager} layoutManager - Layout manager
    */
-  constructor(viewer, plugins, eventBus) {
+  constructor(viewer, plugins, eventBus, layoutManager) {
     this.#viewer = viewer;
     this.#plugins = plugins;
     this.#eventBus = eventBus;
+    this.#layoutManager = layoutManager;
   }
 
   /**
@@ -107,6 +112,29 @@ export class PluginContext {
    */
   getViewer() {
     return this.#viewer;
+  }
+
+  /**
+   * Get the centralized layout manager.
+   * @returns {import('./PluginLayoutManager.js').PluginLayoutManager}
+   */
+  getLayoutManager() {
+    return this.#layoutManager;
+  }
+
+  /**
+   * Request a layout region (top bar, left panel, etc.) for UI mounting.
+   * Convenience wrapper around PluginLayoutManager.
+   *
+   * @param {string} regionName
+   * @param {Object} [options]
+   * @returns {HTMLElement}
+   */
+  requestRegion(regionName, options = {}) {
+    if (!this.#layoutManager) {
+      throw new Error('Layout manager is not available in this context');
+    }
+    return this.#layoutManager.requestRegion(regionName, options);
   }
 
   /**

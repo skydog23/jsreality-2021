@@ -185,6 +185,7 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * Render the scene using WebGL
    */
   render() {
+    this.#setupCanvas();
     if (!this.#renderer) {
       this.#renderer = new WebGL2DRenderer(this);
     }

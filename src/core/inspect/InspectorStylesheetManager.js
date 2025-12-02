@@ -162,12 +162,6 @@ export class InspectorStylesheetManager {
         white-space: nowrap;
       }
       
-      .sg-tree-type {
-        font-size: 10px;
-        color: #858585;
-        margin-left: 8px;
-      }
-      
       .sg-tree-children {
         margin-left: 20px;
       }

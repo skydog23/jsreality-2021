@@ -32,6 +32,7 @@ import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
 import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
+import { PluginLayoutManager } from './plugin/PluginLayoutManager.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -88,6 +89,9 @@ export class JSRViewer {
   /** @type {HTMLElement|null} */
   #container = null;
 
+  /** @type {PluginLayoutManager|null} */
+  #layoutManager = null;
+
   /** @type {Map<string, Object>} */
   #exporters = new Map();
 
@@ -141,14 +145,15 @@ export class JSRViewer {
 
     // Store container reference
     this.#container = container;
+    this.#layoutManager = new PluginLayoutManager(container);
 
     // Initialize plugin system first (so plugins can hook into other systems)
     this.#eventBus = new EventBus();
-    this.#pluginManager = new PluginManager(this, this.#eventBus);
+    this.#pluginManager = new PluginManager(this, this.#eventBus, this.#layoutManager);
     this.#viewerEventBridge = new ViewerEventBridge(this, this.#eventBus);
 
     // Initialize core systems
-    this.#initializeViewers(container, viewerTypes, viewers, viewerNames);
+    this.#initializeViewers(this.#layoutManager.getViewerHostElement(), viewerTypes, viewers, viewerNames);
     this.#initializeScene(sceneRoot);
     this.#initializeToolSystem(toolSystemConfig);
     this.#initializeContentManager();
@@ -161,7 +166,7 @@ export class JSRViewer {
    * Initialize viewer system.
    * Creates viewers based on viewerTypes array, or uses pre-instantiated viewers.
    * 
-   * @param {HTMLElement} container - Container element
+   * @param {HTMLElement} container - Host element for viewer DOM nodes
    * @param {string[]|null} viewerTypes - Array of viewer type names ('Canvas2D', 'WebGL2D', 'SVG')
    * @param {Viewer[]|null} viewers - Optional array of pre-instantiated viewers
    * @param {string[]|null} viewerNames - Optional viewer names (for pre-instantiated viewers)
@@ -424,6 +429,15 @@ export class JSRViewer {
    */
   getViewer() {
     return this.#viewerSwitch;
+  }
+
+  /**
+   * Expose the layout manager for applications that need direct access
+   * (e.g., legacy code wiring up inspectors before plugins are available).
+   * @returns {PluginLayoutManager|null}
+   */
+  getLayoutManager() {
+    return this.#layoutManager;
   }
 
   /**

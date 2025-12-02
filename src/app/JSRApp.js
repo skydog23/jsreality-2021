@@ -20,7 +20,6 @@ import { AxisState } from '../core/scene/tool/AxisState.js';
 import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
 import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
-import { SplitPane } from './ui/SplitPane.js';
 import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 
@@ -60,14 +59,9 @@ export class JSRApp extends Animated {
   #inspector = null;
 
   /**
-   * @type {SplitPane|null} The split pane instance (private)
+   * @type {HTMLElement|null} Cached inspector container supplied by layout manager
    */
-  #splitPane = null;
-
-  /**
-   * @type {HTMLElement|null} The menubar container element (private)
-   */
-  #menubarContainer = null;
+  #inspectorContainer = null;
 
   /**
    * Create a new JSRApp instance.
@@ -82,7 +76,7 @@ export class JSRApp extends Animated {
       throw new Error('JSRApp requires an HTMLCanvasElement');
     }
 
-    const { viewerTypes = [ViewerTypes.SVG, ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D] } = options;
+    const { viewerTypes =  [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG] } = options;
 
     // Save reference to canvas's parent before we modify the DOM
     const originalParent = canvas.parentElement;
@@ -96,21 +90,9 @@ export class JSRApp extends Animated {
     
     // Replace canvas with container in the DOM
     if (originalParent) {
-      // Configure parent as flex column to stack menubar above viewer
+      // Configure parent as flex column so the layout manager can stack regions
       originalParent.style.display = 'flex';
       originalParent.style.flexDirection = 'column';
-      
-      // Create menubar container - MenubarPlugin will use this
-      const menubarContainer = document.createElement('div');
-      menubarContainer.id = 'jsrapp-menubar-container';
-      menubarContainer.style.width = '100%';
-      menubarContainer.style.height = 'auto';
-      menubarContainer.style.flexShrink = '0';
-      // Insert menubar container BEFORE the canvas (so it's above)
-      originalParent.insertBefore(menubarContainer, canvas);
-      
-      // Store menubar container reference for plugin registration
-      this.#menubarContainer = menubarContainer;
       
       // Replace canvas with viewer container
       originalParent.replaceChild(container, canvas);
@@ -126,7 +108,7 @@ export class JSRApp extends Animated {
     }
 
     // Create JSRViewer with viewerTypes - it will create the viewer instances
-    // Note: We don't pass menubarContainer to JSRViewer - we use MenubarPlugin instead
+    // Note: MenubarPlugin now uses the layout manager to place itself, so no container wiring is needed here.
     this.#jsrViewer = new JSRViewer({
       container: container,
       viewerTypes: viewerTypes
@@ -166,7 +148,7 @@ export class JSRApp extends Animated {
   async #initializePlugins() {
     try {
       // Register MenubarPlugin first (creates the menubar structure)
-      await this.#jsrViewer.registerPlugin(new MenubarPlugin(this.#menubarContainer));
+      await this.#jsrViewer.registerPlugin(new MenubarPlugin());
       
       // Register ExportMenuPlugin (adds export menu items)
       await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
@@ -261,89 +243,44 @@ export class JSRApp extends Animated {
       return this.#inspector; // Already enabled
     }
 
-    const { position = 'right', initialSize = 300 } = options;
+    const { position = 'left', initialSize = 300 } = options;
 
-    // Get viewer container
-    const viewerContainer = this.#jsrViewer.getViewer().getViewingComponent().parentElement;
-    if (!viewerContainer) {
-      throw new Error('Cannot enable inspector: viewer container not found');
+    let inspectorContainer = container;
+    if (!inspectorContainer && this.#inspectorContainer) {
+      inspectorContainer = this.#inspectorContainer;
+      inspectorContainer.innerHTML = '';
     }
 
-    // Determine orientation based on position
-    const orientation = (position === 'left' || position === 'right') ? 'horizontal' : 'vertical';
-
-    // Create inspector container
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'jsrapp-inspector-container';
-      container.style.width = '100%';
-      container.style.height = '100%';
-      container.style.overflow = 'auto';
+    if (!inspectorContainer) {
+      if (position !== 'left') {
+        console.warn(`[JSRApp] enableInspector currently supports 'left' layout only. Requested "${position}" will be treated as 'left'.`);
+      }
+      const layoutManager = this.#jsrViewer.getLayoutManager();
+      if (!layoutManager) {
+        throw new Error('Cannot enable inspector: layout manager is not available');
+      }
+      inspectorContainer = layoutManager.requestRegion('left', {
+        id: 'jsrapp-inspector',
+        initialSize,
+        minSize: 200,
+        fill: true,
+        overflow: 'auto'
+      });
+      inspectorContainer.id = 'jsrapp-inspector-container';
+      this.#inspectorContainer = inspectorContainer;
     }
+
+    inspectorContainer.style.display = 'flex';
+    inspectorContainer.style.flexDirection = 'column';
+    inspectorContainer.style.width = '100%';
+    inspectorContainer.style.height = '100%';
+    inspectorContainer.style.overflow = 'auto';
+    inspectorContainer.style.minHeight = '0';
 
     // Get scene root
     const sceneRoot = this.#jsrViewer.getSceneRoot();
     if (!sceneRoot) {
       throw new Error('Cannot enable inspector: scene root is not available');
-    }
-
-    // Create split pane if container was not provided
-    if (!container.parentElement) {
-      // Create split pane container
-      const splitPaneContainer = document.createElement('div');
-      splitPaneContainer.style.width = '100%';
-      splitPaneContainer.style.height = '100%';
-      splitPaneContainer.style.position = 'relative';
-
-      // Replace viewer container's content with split pane
-      const parent = viewerContainer.parentElement;
-      parent.replaceChild(splitPaneContainer, viewerContainer);
-      splitPaneContainer.appendChild(viewerContainer);
-
-      // Determine which panel is left/top and which is right/bottom
-      let leftPanel, rightPanel;
-      if (position === 'left') {
-        leftPanel = container;
-        rightPanel = viewerContainer;
-      } else if (position === 'right') {
-        leftPanel = viewerContainer;
-        rightPanel = container;
-      } else if (position === 'top') {
-        leftPanel = container;
-        rightPanel = viewerContainer;
-      } else { // bottom
-        leftPanel = viewerContainer;
-        rightPanel = container;
-      }
-
-      // Calculate initial size for left panel
-      // If inspector is on right/bottom, left panel (viewer) should be larger
-      let leftPanelInitialSize;
-      if (position === 'left' || position === 'top') {
-        leftPanelInitialSize = initialSize; // Inspector size
-      } else {
-        // Inspector is on right/bottom, so viewer (left panel) gets remaining space
-        // Use a reasonable calculation based on available space
-        const containerSize = orientation === 'horizontal' 
-          ? (splitPaneContainer.offsetWidth || window.innerWidth)
-          : (splitPaneContainer.offsetHeight || window.innerHeight);
-        leftPanelInitialSize = Math.max(containerSize - initialSize - 4, 200); // 4px for splitter, min 200px
-      }
-
-      // Create split pane
-      this.#splitPane = new SplitPane(splitPaneContainer, {
-        leftPanel: leftPanel,
-        rightPanel: rightPanel,
-        orientation: orientation,
-        initialSize: leftPanelInitialSize,
-        minSize: 100,
-        splitterWidth: 4
-      });
-    } else {
-      // Container was provided, just append it (no split pane)
-      if (!container.parentElement) {
-        viewerContainer.parentElement.appendChild(container);
-      }
     }
 
     // Create inspector with render callback - no global variable needed
@@ -352,7 +289,7 @@ export class JSRApp extends Animated {
       this.#jsrViewer.render();
     };
     
-    this.#inspector = new SceneGraphInspector(container, sceneRoot, {
+    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
       onRender: renderCallback
     });
 

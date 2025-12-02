@@ -213,20 +213,19 @@ export class TreeViewManager {
     icon.className = 'sg-tree-icon';
     icon.textContent = descriptor.icon || this.#getNodeIcon(node, descriptor.type);
     
-    // Label
+    // Label (node name) with tooltip for node type
     const label = document.createElement('span');
     label.className = 'sg-tree-label';
     label.textContent = descriptor.label || node.getName?.() || 'Unnamed';
     
-    // Type
-    const type = document.createElement('span');
-    type.className = 'sg-tree-type';
-    type.textContent = this.#getNodeType(node, descriptor.type);
+    const nodeType = this.#getNodeType(node, descriptor.type);
+    if (nodeType) {
+      label.title = nodeType;
+    }
     
     header.appendChild(expand);
     header.appendChild(icon);
     header.appendChild(label);
-    header.appendChild(type);
     
     // Use addEventListener instead of onclick for better compatibility
     header.style.pointerEvents = 'auto';
@@ -323,15 +322,15 @@ export class TreeViewManager {
     const type = descriptorType || this.#inferTypeFromNode(node);
     if (type?.startsWith('shader.')) return 'Shader';
     switch (type) {
-      case 'component': return 'Component';
-      case 'transform': return 'Transform';
-      case 'appearance': return 'Appearance';
+      case 'component': return node?.constructor?.name || 'SceneGraphComponent';
+      case 'transform': return node?.constructor?.name || 'Transformation';
+      case 'appearance': return node?.constructor?.name || 'Appearance';
       case 'geometry': return node?.constructor?.name || 'Geometry';
-      case 'camera': return 'Camera';
-      case 'tool': return 'Tool';
-      case 'shader': return 'Shader';
+      case 'camera': return node?.constructor?.name || 'Camera';
+      case 'tool': return node?.constructor?.name || 'Tool';
+      case 'shader': return node?.constructor?.name || 'Shader';
       default:
-        return 'Node';
+        return node?.constructor?.name || 'Node';
     }
   }
 
