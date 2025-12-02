@@ -11,10 +11,7 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { JSRViewer } from './JSRViewer.js';
-import { Canvas2DViewer } from '../core/viewers/Canvas2DViewer.js';
-import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
-import { SVGViewer } from '../core/viewers/SVGViewer.js';
+import { JSRViewer, ViewerTypes } from './JSRViewer.js';
 import { Animated } from '../core/anim/core/Animated.js';
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
 import { InputSlot } from '../core/scene/tool/InputSlot.js';
@@ -76,7 +73,7 @@ export class JSRApp extends Animated {
    * Create a new JSRApp instance.
    * @param {HTMLCanvasElement} canvas - The canvas element to render to
    * @param {Object} [options] - Optional configuration
-   * @param {HTMLElement} [options.menubarContainer] - Container element for the menu bar
+   * @param {string[]} [options.viewerTypes] - Array of viewer types to create (default: all three)
    */
   constructor(canvas, options = {}) {
     super(); // Call super constructor first
@@ -85,13 +82,13 @@ export class JSRApp extends Animated {
       throw new Error('JSRApp requires an HTMLCanvasElement');
     }
 
-    let { menubarContainer = null } = options;
+    const { viewerTypes = [ViewerTypes.SVG, ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D] } = options;
 
     // Save reference to canvas's parent before we modify the DOM
     const originalParent = canvas.parentElement;
 
-    // Create a container div for JSRViewer (it needs a container, not a canvas directly)
-    // JSRViewer will append the ViewerSwitch wrapper inside this container
+    // Create a container div for JSRViewer
+    // JSRViewer will create the viewer DOM elements and ViewerSwitch wrapper
     const container = document.createElement('div');
     container.style.width = '100%';
     container.style.height = '100%';
@@ -103,16 +100,14 @@ export class JSRApp extends Animated {
       originalParent.style.display = 'flex';
       originalParent.style.flexDirection = 'column';
       
-      // Create menubar container if not provided
-      if (!menubarContainer) {
-        menubarContainer = document.createElement('div');
-        menubarContainer.id = 'jsrapp-menubar-container';
-        menubarContainer.style.width = '100%';
-        menubarContainer.style.height = 'auto';
-        menubarContainer.style.flexShrink = '0';
-        // Insert menubar container BEFORE the canvas (so it's above)
-        originalParent.insertBefore(menubarContainer, canvas);
-      }
+      // Create menubar container - MenubarPlugin will use this
+      const menubarContainer = document.createElement('div');
+      menubarContainer.id = 'jsrapp-menubar-container';
+      menubarContainer.style.width = '100%';
+      menubarContainer.style.height = 'auto';
+      menubarContainer.style.flexShrink = '0';
+      // Insert menubar container BEFORE the canvas (so it's above)
+      originalParent.insertBefore(menubarContainer, canvas);
       
       // Store menubar container reference for plugin registration
       this.#menubarContainer = menubarContainer;
@@ -124,47 +119,17 @@ export class JSRApp extends Animated {
       container.style.flex = '1';
       container.style.minHeight = '0';
       
-      // Now append canvas to the container so it's available for Canvas2DViewer
-      container.appendChild(canvas);
+      // Remove the original canvas - JSRViewer will create its own DOM elements
+      // (The canvas was just used to find the parent element)
     } else {
-      // No parent - just append canvas to container
-      container.appendChild(canvas);
+      throw new Error('JSRApp requires the canvas to have a parent element');
     }
 
-    // Create all three viewers with separate DOM elements
-    // 1. Canvas2DViewer - use the provided canvas
-    const canvasViewer = new Canvas2DViewer(canvas);
-    
-    // 2. WebGL2DViewer - create a new canvas
-    const webglCanvas = document.createElement('canvas');
-    webglCanvas.style.width = '100%';
-    webglCanvas.style.height = '100%';
-    container.appendChild(webglCanvas);
-    const webglViewer = new WebGL2DViewer(webglCanvas);
-    
-    // 3. SVGViewer - create a container div
-    const svgContainer = document.createElement('div');
-    svgContainer.style.width = '100%';
-    svgContainer.style.height = '100%';
-    svgContainer.style.position = 'absolute';
-    svgContainer.style.top = '0';
-    svgContainer.style.left = '0';
-    container.appendChild(svgContainer);
-    const svgViewer = new SVGViewer(svgContainer);
-    
-    // TODO: WebGL2DViewer has a minor initialization issue - on first selection,
-    // it renders at 2x size due to pixel ratio being applied before canvas has
-    // computed dimensions. Switching away and back fixes it (ResizeObserver fires).
-    // This is a minor cosmetic issue that can be addressed later.
-    
-    // Pass the container to JSRViewer, along with all three viewers
-    // JSRViewer will append the ViewerSwitch wrapper to the container
-    // ViewerSwitch will handle showing/hiding the appropriate viewer
+    // Create JSRViewer with viewerTypes - it will create the viewer instances
     // Note: We don't pass menubarContainer to JSRViewer - we use MenubarPlugin instead
     this.#jsrViewer = new JSRViewer({
-      container: container,  // Pass container div
-      viewers: [svgViewer, canvasViewer, webglViewer ],
-      viewerNames: ['SVG', 'Canvas2D', 'WebGL2D']
+      container: container,
+      viewerTypes: viewerTypes
     });
 
     // Get content from subclass and set it

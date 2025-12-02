@@ -37,6 +37,9 @@ export class MenubarPlugin extends JSRPlugin {
   /** @type {Function|null} */
   #unsubscribePluginInstalled = null;
 
+  /** @type {Function|null} */
+  #unsubscribeViewerChanged = null;
+
   /**
    * Create a new MenubarPlugin.
    * 
@@ -107,6 +110,13 @@ export class MenubarPlugin extends JSRPlugin {
       this.#addPluginMenuItems(data.plugin);
     });
 
+    // Listen for viewer changes to update radio button selection
+    this.#unsubscribeViewerChanged = this.on('viewer:changed', (data) => {
+      if (this.#menubar) {
+        this.#menubar.updateRadioSelection('Viewer', 'viewer-select', data.newIndex);
+      }
+    });
+
     logger.info('Menubar created and menu aggregation enabled');
   }
 
@@ -118,6 +128,10 @@ export class MenubarPlugin extends JSRPlugin {
     if (this.#unsubscribePluginInstalled) {
       this.#unsubscribePluginInstalled();
       this.#unsubscribePluginInstalled = null;
+    }
+    if (this.#unsubscribeViewerChanged) {
+      this.#unsubscribeViewerChanged();
+      this.#unsubscribeViewerChanged = null;
     }
 
     // Remove container if we created it
