@@ -17,11 +17,11 @@ import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
 import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
-import { VectorWidget } from './widgets/index.js';
-import { WidgetFactory } from './WidgetFactory.js';
 import { formatValue } from './PropertyFormatters.js';
 import { ShaderTreeNode } from './TreeViewManager.js';
 import { ShaderPropertyManager } from './ShaderPropertyManager.js';
+import { DescriptorRenderer } from './descriptors/DescriptorRenderer.js';
+import { DescriptorType } from './descriptors/DescriptorTypes.js';
 
 /**
  * Manages the property panel for the SceneGraphInspector
@@ -32,11 +32,6 @@ export class PropertyPanelManager {
    * @type {HTMLElement}
    */
   #propertyPanel;
-  
-  /**
-   * @type {WidgetFactory}
-   */
-  #widgetFactory;
   
   /**
    * @type {ShaderPropertyManager}
@@ -54,18 +49,22 @@ export class PropertyPanelManager {
   #onRefreshPropertyPanel;
   
   /**
+   * @type {DescriptorRenderer}
+   */
+  #descriptorRenderer;
+  
+  /**
    * @param {HTMLElement} propertyPanel - The property panel DOM element
-   * @param {WidgetFactory} widgetFactory - Widget factory instance
    * @param {ShaderPropertyManager} shaderPropertyManager - Shader property manager instance
    * @param {Function} onPropertyChange - Callback when a property changes
    * @param {Function} onRefreshPropertyPanel - Callback to refresh property panel
    */
-  constructor(propertyPanel, widgetFactory, shaderPropertyManager, onPropertyChange, onRefreshPropertyPanel) {
+  constructor(propertyPanel, shaderPropertyManager, onPropertyChange, onRefreshPropertyPanel) {
     this.#propertyPanel = propertyPanel;
-    this.#widgetFactory = widgetFactory;
     this.#shaderPropertyManager = shaderPropertyManager;
     this.#onPropertyChange = onPropertyChange;
     this.#onRefreshPropertyPanel = onRefreshPropertyPanel;
+    this.#descriptorRenderer = new DescriptorRenderer(propertyPanel);
   }
   
   /**
@@ -73,344 +72,285 @@ export class PropertyPanelManager {
    * @param {*} node - The selected node
    */
   updatePropertyPanel(node) {
-    this.#propertyPanel.innerHTML = '';
-    
     if (!node) {
-      this.#propertyPanel.innerHTML = '<div class="sg-no-selection">Select a node to view properties</div>';
+      this.#renderDescriptorGroups([
+        {
+          id: 'no-selection',
+          title: 'Properties',
+          items: [
+            {
+              id: 'message',
+              type: DescriptorType.LABEL,
+              label: 'Info',
+              getValue: () => 'Select a node to view properties'
+            }
+          ]
+        }
+      ]);
       return;
     }
     
     // Component-specific properties
     if (node instanceof SceneGraphComponent) {
-      this.#addComponentProperties(node);
+      this.#renderDescriptorGroups(this.#buildComponentDescriptors(node));
     } else if (node instanceof Transformation) {
-      this.#addTransformationProperties(node);
+      this.#renderDescriptorGroups(this.#buildTransformationDescriptors(node));
     } else if (node instanceof Appearance) {
-      this.#addAppearanceProperties(node);
+      this.#renderDescriptorGroups(this.#buildAppearanceDescriptors());
     } else if (node instanceof Geometry) {
-      this.#addGeometryProperties(node);
+      this.#renderDescriptorGroups(this.#buildGeometryDescriptors(node));
     } else if (node instanceof Camera) {
-      this.#addCameraProperties(node);
+      this.#renderDescriptorGroups(this.#buildCameraDescriptors(node));
     } else if (node instanceof ShaderTreeNode) {
+      this.#descriptorRenderer.render([]);
       this.#shaderPropertyManager.addShaderProperties(node, this.#propertyPanel);
     }
   }
   
-  /**
-   * Add a property group to the panel
-   * @param {string} title - Group title
-   * @param {Array<{label: string, value: *, editable: boolean, onChange?: Function}>} properties - Properties
-   * @private
-   */
-  #addPropertyGroup(title, properties) {
-    const group = document.createElement('div');
-    group.className = 'sg-prop-group';
-    
-    const titleEl = document.createElement('div');
-    titleEl.className = 'sg-prop-group-title';
-    titleEl.textContent = title;
-    group.appendChild(titleEl);
-    
-    for (const prop of properties) {
-      const row = document.createElement('div');
-      row.className = 'sg-prop-row';
-      
-      const label = document.createElement('div');
-      label.className = 'sg-prop-label';
-      label.textContent = prop.label;
-      
-      const value = document.createElement('div');
-      value.className = 'sg-prop-value';
-      
-      if (typeof prop.value === 'boolean') {
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = prop.value;
-        checkbox.disabled = !prop.editable;
-        if (prop.onChange) {
-          checkbox.onchange = () => prop.onChange(checkbox.checked);
-        }
-        value.appendChild(checkbox);
-      } else if (prop.value instanceof HTMLElement) {
-        value.appendChild(prop.value);
-      } else {
-        value.textContent = String(prop.value);
+  #renderDescriptorGroups(groups) {
+    this.#descriptorRenderer.render(groups);
+  }
+  
+  #buildComponentDescriptors(component) {
+    return [
+      {
+        id: 'component',
+        title: 'Component',
+        items: [
+          {
+            id: 'visible',
+            type: DescriptorType.TOGGLE,
+            label: 'Visible',
+            getValue: () => component.isVisible(),
+            setValue: (val) => {
+              component.setVisible(Boolean(val));
+              this.#onPropertyChange();
+              this.#onRefreshPropertyPanel(component);
+            }
+          },
+          {
+            id: 'pickable',
+            type: DescriptorType.TOGGLE,
+            label: 'Pickable',
+            getValue: () => component.isPickable(),
+            setValue: (val) => {
+              component.setPickable(Boolean(val));
+              this.#onPropertyChange();
+              this.#onRefreshPropertyPanel(component);
+            }
+          },
+          {
+            id: 'children',
+            type: DescriptorType.LABEL,
+            label: 'Children',
+            getValue: () => component.getChildComponentCount().toString()
+          }
+        ]
       }
-      
-      row.appendChild(label);
-      row.appendChild(value);
-      group.appendChild(row);
-    }
-    
-    this.#propertyPanel.appendChild(group);
+    ];
   }
   
-  /**
-   * Add component-specific properties
-   * @param {SceneGraphComponent} component - The component
-   * @private
-   */
-  #addComponentProperties(component) {
-    this.#addPropertyGroup('Component', [
-      { 
-        label: 'Visible', 
-        value: component.isVisible(), 
-        editable: true,
-        onChange: (val) => {
-          component.setVisible(val);
-          this.#onPropertyChange();
-          this.#onRefreshPropertyPanel(component);
-        }
-      },
-      { 
-        label: 'Pickable', 
-        value: component.isPickable(), 
-        editable: true,
-        onChange: (val) => {
-          component.setPickable(val);
-          this.#onPropertyChange();
-          this.#onRefreshPropertyPanel(component);
-        }
-      },
-      { label: 'Children', value: component.getChildComponentCount(), editable: false }
-    ]);
-  }
-  
-  /**
-   * Add transformation-specific properties
-   * @param {Transformation} transform - The transformation
-   * @private
-   */
-  #addTransformationProperties(transform) {
-    const matrix = transform.getMatrix();
-    
-    // Use FactoredMatrix to decompose the transformation
-    const fm = new FactoredMatrix(Pn.EUCLIDEAN, matrix);
-    
-    // Get decomposed values
-    const translation = fm.getTranslation(); // [x, y, z, 1]
-    const stretch = fm.getStretch();         // [sx, sy, sz, 1]
-    const angle = fm.getRotationAngle();     // radians
-    const axis = fm.getRotationAxis();       // [x, y, z]
-    
-    // Helper to update the transformation
+  #buildTransformationDescriptors(transform) {
+    const fm = new FactoredMatrix(Pn.EUCLIDEAN, transform.getMatrix());
     const updateTransform = () => {
-      const newMatrix = fm.getArray();
-      transform.setMatrix(newMatrix);
+      transform.setMatrix(fm.getArray());
       this.#onPropertyChange();
       this.#onRefreshPropertyPanel(transform);
     };
     
-    // Position (Translation) - VectorWidget (direct append, no wrapper)
-    const positionWidget = new VectorWidget(
-      [translation[0], translation[1], translation[2]],
-      ['X', 'Y', 'Z'],
-      (newVector) => {
-        fm.setTranslation(newVector[0], newVector[1], newVector[2]);
-        updateTransform();
+    const translationDescriptor = {
+      id: 'translation',
+      type: DescriptorType.VECTOR,
+      label: 'Position',
+      getValue: () => {
+        const t = fm.getTranslation();
+        return [t[0], t[1], t[2]];
       },
-      'Position'
-    );
-    this.#propertyPanel.appendChild(positionWidget.getElement());
-    
-    // Rotation - Combined Angle + Axis in single border
-    const angleDegrees = angle * 180 / Math.PI;
-    const rotationContainer = document.createElement('div');
-    rotationContainer.className = 'sg-rotation-container';
-    rotationContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 6px 8px;
-      background: #2a2a2a;
-      border: 1px solid #555;
-      border-radius: 4px;
-      margin-top: 8px;
-    `;
-    
-    // Rotation label
-    const rotationLabel = document.createElement('div');
-    rotationLabel.style.cssText = `
-      color: #4ec9b0;
-      font-size: 11px;
-      font-weight: 600;
-    `;
-    rotationLabel.textContent = 'Rotation:';
-    rotationContainer.appendChild(rotationLabel);
-    
-    // Angle row
-    const angleRow = document.createElement('div');
-    angleRow.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    `;
-    const angleLabel = document.createElement('span');
-    angleLabel.style.cssText = `
-      color: #9cdcfe;
-      font-size: 11px;
-      font-weight: 600;
-    `;
-    angleLabel.textContent = 'Angle (°):';
-    const angleInput = this.#widgetFactory.createNumberInput(angleDegrees, (val) => {
-      const angleRad = val * Math.PI / 180;
-      const currentAxis = fm.getRotationAxis();
-      fm.setRotation(angleRad, currentAxis);
-      updateTransform();
-    });
-    angleRow.appendChild(angleLabel);
-    angleRow.appendChild(angleInput);
-    rotationContainer.appendChild(angleRow);
-    
-    // Axis VectorWidget (without group label since it's in the container)
-    const rotationAxisWidget = new VectorWidget(
-      [axis[0], axis[1], axis[2]],
-      ['X', 'Y', 'Z'],
-      (newAxis) => {
-        const currentAngle = fm.getRotationAngle();
-        fm.setRotation(currentAngle, newAxis);
+      setValue: (vector) => {
+        const [x = 0, y = 0, z = 0] = vector || [];
+        fm.setTranslation(x, y, z);
         updateTransform();
-      },
-      'Axis'
-    );
-    rotationContainer.appendChild(rotationAxisWidget.getElement());
-    this.#propertyPanel.appendChild(rotationContainer);
+      }
+    };
     
-    // Scale (Stretch) - VectorWidget (direct append, no wrapper)
-    const scaleWidget = new VectorWidget(
-      [stretch[0], stretch[1], stretch[2]],
-      ['X', 'Y', 'Z'],
-      (newScale) => {
-        fm.setStretchComponents(newScale[0], newScale[1], newScale[2]);
+    const rotationAngleDescriptor = {
+      id: 'rotation-angle',
+      type: DescriptorType.FLOAT,
+      label: 'Rotation Angle (°)',
+      min: -360,
+      max: 360,
+      step: 1,
+      getValue: () => (fm.getRotationAngle() * 180) / Math.PI,
+      setValue: (degrees) => {
+        const radians = Number(degrees) * Math.PI / 180;
+        const axis = fm.getRotationAxis();
+        fm.setRotation(radians, axis);
         updateTransform();
+      }
+    };
+    
+    const rotationAxisDescriptor = {
+      id: 'rotation-axis',
+      type: DescriptorType.VECTOR,
+      label: 'Rotation Axis',
+      getValue: () => {
+        const axis = fm.getRotationAxis();
+        return [axis[0], axis[1], axis[2]];
       },
-      'Scale'
-    );
-    scaleWidget.getElement().style.marginTop = '8px';
-    this.#propertyPanel.appendChild(scaleWidget.getElement());
+      setValue: (axis) => {
+        const [x = 0, y = 0, z = 1] = axis || [];
+        const angle = fm.getRotationAngle();
+        fm.setRotation(angle, [x, y, z]);
+        updateTransform();
+      }
+    };
     
-    // Raw matrix (collapsible, for reference)
-    const matrixToggle = document.createElement('div');
-    matrixToggle.className = 'sg-matrix-toggle';
-    matrixToggle.textContent = '▸ Show Raw Matrix';
-    matrixToggle.style.cursor = 'pointer';
-    matrixToggle.style.color = '#9cdcfe';
-    matrixToggle.style.marginBottom = '8px';
-    matrixToggle.style.userSelect = 'none';
+    const scaleDescriptor = {
+      id: 'scale',
+      type: DescriptorType.VECTOR,
+      label: 'Scale',
+      getValue: () => {
+        const s = fm.getStretch();
+        return [s[0], s[1], s[2]];
+      },
+      setValue: (scale) => {
+        const [sx = 1, sy = 1, sz = 1] = scale || [];
+        fm.setStretchComponents(sx, sy, sz);
+        updateTransform();
+      }
+    };
     
-    const matrixContainer = document.createElement('div');
-    matrixContainer.style.display = 'none';
-    
-    const grid = document.createElement('div');
-    grid.className = 'sg-matrix-grid';
-    for (let i = 0; i < 16; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'sg-matrix-cell';
-      cell.textContent = matrix[i].toFixed(3);
-      grid.appendChild(cell);
-    }
-    matrixContainer.appendChild(grid);
-    
-    matrixToggle.addEventListener('click', () => {
-      const isHidden = matrixContainer.style.display === 'none';
-      matrixContainer.style.display = isHidden ? 'block' : 'none';
-      matrixToggle.textContent = isHidden ? '▾ Hide Raw Matrix' : '▸ Show Raw Matrix';
-    });
-    
-    const matrixSection = document.createElement('div');
-    matrixSection.appendChild(matrixToggle);
-    matrixSection.appendChild(matrixContainer);
-    
-    this.#addPropertyGroup('Matrix', [
-      { label: '', value: matrixSection, editable: false }
-    ]);
+    return [
+      {
+        id: 'transform-position',
+        title: 'Position',
+        items: [translationDescriptor]
+      },
+      {
+        id: 'transform-rotation',
+        title: 'Rotation',
+        items: [rotationAngleDescriptor, rotationAxisDescriptor]
+      },
+      {
+        id: 'transform-scale',
+        title: 'Scale',
+        items: [scaleDescriptor]
+      }
+    ];
   }
   
-  /**
-   * Add appearance-specific properties
-   * @param {Appearance} appearance - The appearance
-   * @private
-   */
-  #addAppearanceProperties(appearance) {
-    // NOTE: Appearance properties are NOT displayed in the property panel.
-    // The appearance is represented through the shader hierarchy in the tree view:
-    // - GeometryShader (with Point/Line/Polygon sub-shaders)
-    // - RenderingHintsShader
-    // - RootAppearance shader (if applicable)
-    // 
-    // Users should select the specific shader nodes in the tree to view/edit properties.
-    // This design ensures that the EffectiveAppearance hierarchy is the canonical
-    // representation of appearance state, rather than showing raw attribute keys.
-    
-    const message = document.createElement('div');
-    message.className = 'sg-info-message';
-    message.style.padding = '16px';
-    message.style.color = '#858585';
-    message.style.fontStyle = 'italic';
-    message.textContent = 'Select a shader node in the tree to view and edit appearance properties.';
-    this.#propertyPanel.appendChild(message);
+  #buildAppearanceDescriptors() {
+    return [
+      {
+        id: 'appearance-info',
+        title: 'Appearance',
+        items: [
+          {
+            id: 'appearance-message',
+            type: DescriptorType.LABEL,
+            label: 'Info',
+            getValue: () => 'Select a shader node in the tree to view and edit appearance properties.'
+          }
+        ]
+      }
+    ];
   }
   
-  /**
-   * Add geometry-specific properties
-   * @param {Geometry} geometry - The geometry
-   * @private
-   */
-  #addGeometryProperties(geometry) {
-    const properties = [];
-    
-    // Check geometry type and show appropriate counts
+  #buildGeometryDescriptors(geometry) {
     const geometryType = geometry.constructor.name;
+    const primaryItems = [];
     
-    // All geometry types have points/vertices
     if (typeof geometry.getNumPoints === 'function') {
-      properties.push({ label: 'Vertex Count', value: geometry.getNumPoints(), editable: false });
-    }
-    
-    // IndexedLineSet and IndexedFaceSet have edges
-    if (geometryType === 'IndexedLineSet' || geometryType === 'IndexedFaceSet') {
-      if (typeof geometry.getNumEdges === 'function') {
-        properties.push({ label: 'Edge Count', value: geometry.getNumEdges(), editable: false });
-      }
-    }
-    
-    // Only IndexedFaceSet has faces
-    if (geometryType === 'IndexedFaceSet') {
-      if (typeof geometry.getNumFaces === 'function') {
-        properties.push({ label: 'Face Count', value: geometry.getNumFaces(), editable: false });
-      }
-    }
-    
-    this.#addPropertyGroup('Geometry', properties);
-    
-    // Geometry attributes
-    const geomAttrs = geometry.getGeometryAttributes();
-    const attrProps = [];
-    for (const [key, value] of geomAttrs) {
-      attrProps.push({
-        label: key,
-        value: formatValue(value),
-        editable: false
+      primaryItems.push({
+        id: 'vertex-count',
+        type: DescriptorType.LABEL,
+        label: 'Vertex Count',
+        getValue: () => geometry.getNumPoints().toString()
       });
     }
     
-    if (attrProps.length > 0) {
-      this.#addPropertyGroup('Geometry Attributes', attrProps);
+    if (geometryType === 'IndexedLineSet' || geometryType === 'IndexedFaceSet') {
+      if (typeof geometry.getNumEdges === 'function') {
+        primaryItems.push({
+          id: 'edge-count',
+          type: DescriptorType.LABEL,
+          label: 'Edge Count',
+          getValue: () => geometry.getNumEdges().toString()
+        });
+      }
     }
+    
+    if (geometryType === 'IndexedFaceSet') {
+      if (typeof geometry.getNumFaces === 'function') {
+        primaryItems.push({
+          id: 'face-count',
+          type: DescriptorType.LABEL,
+          label: 'Face Count',
+          getValue: () => geometry.getNumFaces().toString()
+        });
+      }
+    }
+    
+    const groups = [
+      {
+        id: 'geometry-primary',
+        title: 'Geometry',
+        items: primaryItems
+      }
+    ];
+    
+    const attrItems = [];
+    for (const [key, value] of geometry.getGeometryAttributes()) {
+      attrItems.push({
+        id: `attr-${key}`,
+        type: DescriptorType.LABEL,
+        label: key,
+        getValue: () => formatValue(value)
+      });
+    }
+    if (attrItems.length > 0) {
+      groups.push({
+        id: 'geometry-attributes',
+        title: 'Geometry Attributes',
+        items: attrItems
+      });
+    }
+    return groups;
   }
   
-  /**
-   * Add camera-specific properties
-   * @param {Camera} camera - The camera
-   * @private
-   */
-  #addCameraProperties(camera) {
-    this.#addPropertyGroup('Camera', [
-      { label: 'Perspective', value: camera.isPerspective(), editable: false },
-      { label: 'Field of View', value: camera.getFieldOfView()?.toFixed(2) || 'N/A', editable: false },
-      { label: 'Near', value: camera.getNear()?.toFixed(3) || 'N/A', editable: false },
-      { label: 'Far', value: camera.getFar()?.toFixed(3) || 'N/A', editable: false }
-    ]);
+  #buildCameraDescriptors(camera) {
+    return [
+      {
+        id: 'camera',
+        title: 'Camera',
+        items: [
+          {
+            id: 'perspective',
+            type: DescriptorType.LABEL,
+            label: 'Perspective',
+            getValue: () => (camera.isPerspective() ? 'Yes' : 'No')
+          },
+          {
+            id: 'fov',
+            type: DescriptorType.LABEL,
+            label: 'Field of View',
+            getValue: () => (camera.getFieldOfView()?.toFixed(2) ?? 'N/A')
+          },
+          {
+            id: 'near',
+            type: DescriptorType.LABEL,
+            label: 'Near',
+            getValue: () => (camera.getNear()?.toFixed(3) ?? 'N/A')
+          },
+          {
+            id: 'far',
+            type: DescriptorType.LABEL,
+            label: 'Far',
+            getValue: () => (camera.getFar()?.toFixed(3) ?? 'N/A')
+          }
+        ]
+      }
+    ];
   }
 }
 

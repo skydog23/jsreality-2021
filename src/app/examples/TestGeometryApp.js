@@ -43,7 +43,7 @@ export class TestGeometryApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.04);
 
    
-    const mat = MatrixBuilder.euclidean().scale(.5,.5,1).getArray();
+    const mat = MatrixBuilder.euclidean().rotateZ(Math.PI/4).scale(.5,.5,1).getArray();
     worldSGC.setTransformation(new Transformation(mat));
   
     createTestGeometryFactories(worldSGC);

@@ -119,7 +119,6 @@ export class SceneGraphInspector {
     
     this.#propertyPanelManager = new PropertyPanelManager(
       propertyPanel,
-      this.#widgetFactory,
       this.#shaderPropertyManager,
       onPropertyChange,
       onRefreshPropertyPanel

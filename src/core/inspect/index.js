@@ -16,4 +16,11 @@ export { RenderStatisticsPanel } from './RenderStatisticsPanel.js';
 export { InspectorStylesheetManager } from './InspectorStylesheetManager.js';
 export { InspectorHost } from './InspectorHost.js';
 export { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
+export { DescriptorRenderer } from './descriptors/DescriptorRenderer.js';
+export { WidgetCatalog } from './descriptors/WidgetCatalog.js';
+export {
+  DescriptorType,
+  normalizeDescriptor,
+  normalizeGroup
+} from './descriptors/DescriptorTypes.js';
 
