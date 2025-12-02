@@ -13,4 +13,7 @@
 export { SceneGraphInspector } from './SceneGraphInspector.js';
 export { TabbedInspector } from './TabbedInspector.js';
 export { RenderStatisticsPanel } from './RenderStatisticsPanel.js';
+export { InspectorStylesheetManager } from './InspectorStylesheetManager.js';
+export { InspectorHost } from './InspectorHost.js';
+export { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
 

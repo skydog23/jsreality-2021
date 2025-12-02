@@ -35,12 +35,12 @@ export class TestGeometryApp extends JSRApp {
   
     const ap = worldSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
-    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 0));
-    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.01);
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.BLUE);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.02);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 1, 0));
+    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(255, 165, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.04);
 
    
     const mat = MatrixBuilder.euclidean().scale(.5,.5,1).getArray();

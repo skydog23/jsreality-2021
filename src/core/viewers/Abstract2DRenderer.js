@@ -218,6 +218,27 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     return vertex;    // by default, return the vertex as is
   }
 
+  /**
+   * Extract the 2D affine portion of a 4x4 row-major matrix.
+   * Returns [a, b, c, d, e, f] suitable for Canvas/SVG matrix APIs.
+   * @protected
+   * @param {number[]} matrix - 4x4 transformation matrix (row-major)
+   * @returns {number[]} [a, b, c, d, e, f]
+   */
+  _extractAffine2D(matrix) {
+    if (!matrix || matrix.length < 16) {
+      throw new Error('_extractAffine2D requires a 4x4 matrix');
+    }
+    return [
+      matrix[0], // a: x-scale
+      matrix[4], // b: y-skew
+      matrix[1], // c: x-skew
+      matrix[5], // d: y-scale
+      matrix[3], // e: x-translate
+      matrix[7]  // f: y-translate
+    ];
+  }
+
   // ============================================================================
   // PROTECTED GETTERS - Access to internal state
   // ============================================================================

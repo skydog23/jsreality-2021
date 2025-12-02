@@ -10,7 +10,7 @@
  */
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
-import { SceneGraphInspector } from '../../core/inspect/SceneGraphInspector.js';
+import { InspectorHost } from '../../core/inspect/InspectorHost.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
 const logger = getLogger('SceneGraphInspectorPlugin');
@@ -25,8 +25,8 @@ const logger = getLogger('SceneGraphInspectorPlugin');
  * 4. Adds menu items for inspector controls
  */
 export class SceneGraphInspectorPlugin extends JSRPlugin {
-  /** @type {SceneGraphInspector|null} */
-  #inspector = null;
+  /** @type {InspectorHost|null} */
+  #host = null;
 
   /** @type {HTMLElement} */
   #container;
@@ -78,25 +78,28 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
     // Create inspector with render callback that uses the plugin context
     // This is the key integration point - the inspector calls context.render()
     // which goes through JSRViewer -> ViewerSwitch -> current viewer
-    this.#inspector = new SceneGraphInspector(this.#container, sceneRoot, {
-      onRender: () => {
+    this.#host = new InspectorHost({
+      container: this.#container,
+      root: sceneRoot,
+      renderCallback: () => {
         logger.fine('Inspector triggered render via plugin context');
         context.render();
       }
     });
+    const inspector = this.#host.mount();
 
     // Listen for scene changes to refresh inspector
     this.#unsubscribeSceneChanged = this.on('scene:changed', (data) => {
       logger.fine('Scene changed, refreshing inspector');
       const newRoot = context.getSceneRoot();
-      if (newRoot !== this.#inspector.getRoot()) {
-        this.#inspector.setRoot(newRoot);
+      if (this.#host) {
+        this.#host.setRoot(newRoot);
       }
-      this.#inspector.refresh();
+      this.refresh();
     });
 
     // Initial refresh
-    this.#inspector.refresh();
+    inspector?.refresh();
 
     logger.info('SceneGraphInspector created and integrated with viewer');
   }
@@ -113,12 +116,12 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
     }
 
     // Clean up inspector
-    if (this.#inspector) {
-      // Clear the container
-      if (this.#container) {
-        this.#container.innerHTML = '';
-      }
-      this.#inspector = null;
+    if (this.#host) {
+      this.#host.dispose();
+      this.#host = null;
+    }
+    if (this.#container) {
+      this.#container.innerHTML = '';
     }
 
     await super.uninstall();
@@ -164,8 +167,8 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
    * Refresh the inspector display.
    */
   refresh() {
-    if (this.#inspector) {
-      this.#inspector.refresh();
+    if (this.#host?.getInspector()) {
+      this.#host.getInspector().refresh();
     }
   }
 
@@ -176,7 +179,7 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
    * @returns {SceneGraphInspector|null}
    */
   getInspector() {
-    return this.#inspector;
+    return this.#host ? this.#host.getInspector() : null;
   }
 
   /**
@@ -185,9 +188,9 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
    * @param {import('../../core/scene/SceneGraphComponent.js').SceneGraphComponent} root
    */
   setRoot(root) {
-    if (this.#inspector) {
-      this.#inspector.setRoot(root);
-      this.#inspector.refresh();
+    if (this.#host) {
+      this.#host.setRoot(root);
+      this.refresh();
     }
   }
 }

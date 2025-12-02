@@ -162,6 +162,14 @@ export class ViewerSwitch extends Viewer {
     this.#wrapperElement.style.height = '100%';
     this.#wrapperElement.style.position = 'relative';
 
+    // Detach any viewer components that might already be mounted elsewhere
+    // (e.g., when callers pre-create viewers and insert their DOM nodes).
+    // Leaving those nodes in place would create duplicate canvases/SVGs that
+    // stack vertically and cause the scrolling artifacts we observed.
+    for (const viewer of this.#viewers) {
+      this.#detachComponent(viewer);
+    }
+
     // Set initial viewer
     this.#currentViewer = this.#viewers[0];
     this.#registerComponent(this.#currentViewer);
@@ -229,8 +237,8 @@ export class ViewerSwitch extends Viewer {
     }
 
     const component = viewer.getViewingComponent();
-    if (!(component instanceof HTMLElement)) {
-      logger.warn(`Viewer ${viewer.constructor.name} has viewing component but it's not an HTMLElement`);
+    if (!(component instanceof Element)) {
+      logger.warn(`Viewer ${viewer.constructor.name} has viewing component but it's not an Element`);
       return;
     }
 
@@ -283,6 +291,31 @@ export class ViewerSwitch extends Viewer {
   }
 
   /**
+   * Detach a viewer's component from its current parent (if any) so that
+   * ViewerSwitch has sole ownership of the DOM node.
+   * @param {Viewer} viewer
+   * @private
+   */
+  #detachComponent(viewer) {
+    if (!viewer || typeof viewer.hasViewingComponent !== 'function') {
+      return;
+    }
+    if (!viewer.hasViewingComponent()) {
+      return;
+    }
+
+    const component = viewer.getViewingComponent();
+    if (!(component instanceof Element)) {
+      return;
+    }
+
+    const parent = component.parentElement;
+    if (parent && parent !== this.#wrapperElement) {
+      parent.removeChild(component);
+    }
+  }
+
+  /**
    * Unregister a viewer's component.
    * @param {Viewer} viewer - The viewer whose component to unregister
    * @private
@@ -293,7 +326,7 @@ export class ViewerSwitch extends Viewer {
     }
 
     const component = viewer.getViewingComponent();
-    if (!(component instanceof HTMLElement)) {
+    if (!(component instanceof Element)) {
       return;
     }
 

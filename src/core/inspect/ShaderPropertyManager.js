@@ -18,6 +18,7 @@ import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { ShaderTreeNode } from './TreeViewManager.js';
 import { WidgetFactory } from './WidgetFactory.js';
 import { formatAttributeName } from './PropertyFormatters.js';
+import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 
 /**
  * Manages shader-specific property handling for the SceneGraphInspector
@@ -132,58 +133,27 @@ export class ShaderPropertyManager {
       return cachedNodes;
     }
     
-    // Organize attributes by shader namespace
-    const pointAttrs = new Map();
-    const lineAttrs = new Map();
-    const polygonAttrs = new Map();
-    const geometryAttrs = new Map();
-    const renderingHintsAttrs = new Map();
-    const rootAppearanceAttrs = new Map();
-    
-    const pointPrefix = CommonAttributes.POINT_SHADER + '.';
-    const linePrefix = CommonAttributes.LINE_SHADER + '.';
-    const polygonPrefix = CommonAttributes.POLYGON_SHADER + '.';
-    
-    // List of rendering hints attribute names (from DefaultRenderingHintsShader.ATTRIBUTES)
-    const renderingHintsAttributeNames = new Set(DefaultRenderingHintsShader.ATTRIBUTES);
-    
-    // List of root appearance attribute names (from DefaultRootAppearance.ATTRIBUTES)
-    // Only used when isRootAppearance is true
-    const rootAppearanceAttributeNames = isRootAppearance 
-      ? new Set(DefaultRootAppearance.ATTRIBUTES)
-      : new Set();
-    
-    for (const [key, value] of allAttributes) {
-      if (key.startsWith(pointPrefix)) {
-        const shortKey = key.substring(pointPrefix.length);
-        pointAttrs.set(shortKey, value);
-      } else if (key.startsWith(linePrefix)) {
-        const shortKey = key.substring(linePrefix.length);
-        lineAttrs.set(shortKey, value);
-      } else if (key.startsWith(polygonPrefix)) {
-        const shortKey = key.substring(polygonPrefix.length);
-        polygonAttrs.set(shortKey, value);
-      } else if (isRootAppearance && rootAppearanceAttributeNames.has(key)) {
-        // Root appearance attributes (no prefix, only for root Appearance)
-        rootAppearanceAttrs.set(key, value);
-      } else if (renderingHintsAttributeNames.has(key)) {
-        // Rendering hints attributes (no prefix)
-        renderingHintsAttrs.set(key, value);
-      } else {
-        // Geometry-level attributes (like vertexDraw, edgeDraw, faceDraw, polygonShader)
-        // Skip the polygonShader name itself - it's not a geometry attribute to display
-        if (key !== base && key !== base + 'name' && key !== ShaderUtility.nameSpace(base, 'name')) {
-          geometryAttrs.set(key, value);
-        }
-      }
-    }
-    
-    // Create simple shader data objects (not actual shader instances)
-    const pointShaderData = Object.fromEntries(pointAttrs);
-    const lineShaderData = Object.fromEntries(lineAttrs);
-    const polygonShaderData = Object.fromEntries(polygonAttrs);
-    const geometryShaderData = Object.fromEntries(geometryAttrs);
-    const renderingHintsShaderData = Object.fromEntries(renderingHintsAttrs);
+    const effective = EffectiveAppearance.create().createChild(appearance);
+    const geometryShaderData = effective.resolveShaderAttributes(
+      DefaultGeometryShader,
+      '',
+      DefaultGeometryShader.getAllDefaults?.() || {}
+    );
+    const pointShaderData = effective.resolveShaderAttributes(
+      DefaultPointShader,
+      CommonAttributes.POINT_SHADER,
+      DefaultPointShader.getAllDefaults?.() || {}
+    );
+    const lineShaderData = effective.resolveShaderAttributes(
+      DefaultLineShader,
+      CommonAttributes.LINE_SHADER,
+      DefaultLineShader.getAllDefaults?.() || {}
+    );
+    const renderingHintsShaderData = effective.resolveShaderAttributes(
+      DefaultRenderingHintsShader,
+      '',
+      DefaultRenderingHintsShader.getAllDefaults?.() || {}
+    );
     
     // Create new geometry shader node
     const geomNode = new ShaderTreeNode(
@@ -248,7 +218,11 @@ export class ShaderPropertyManager {
     const polygonNode = new ShaderTreeNode(
       displayName,
       'polygon',
-      polygonShaderData,
+      effective.resolveShaderAttributes(
+        polygonSchema,
+        CommonAttributes.POLYGON_SHADER,
+        polygonSchema.getAllDefaults?.() || {}
+      ),
       polygonSchema,
       appearance,
       CommonAttributes.POLYGON_SHADER
@@ -273,11 +247,14 @@ export class ShaderPropertyManager {
     
     // If this is the root Appearance, also add RootAppearance shader node
     if (isRootAppearance) {
-      const rootAppearanceShaderData = Object.fromEntries(rootAppearanceAttrs);
       const rootAppearanceNode = new ShaderTreeNode(
         'Root Appearance',
         'rootAppearance',
-        rootAppearanceShaderData,
+        effective.resolveShaderAttributes(
+          DefaultRootAppearance,
+          '',
+          DefaultRootAppearance.getAllDefaults?.() || {}
+        ),
         DefaultRootAppearance,
         appearance,
         '' // No prefix for root appearance attributes

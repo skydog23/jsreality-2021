@@ -518,29 +518,7 @@ class SVGRenderer extends Abstract2DRenderer {
    * @param {number[]} matrix - 4x4 transformation matrix (incremental)
    */
   _applyTransform(matrix) {
-    // Use the incremental transformation (not accumulated)
-    // SVG groups nest, so transforms compose automatically through the DOM hierarchy
-    // 
-    // Convert to SVG transform format (2D affine)
-    // Extract the 2D affine part from the 4x4 matrix (row-major layout)
-    // 
-    // 4x4 matrix in row-major:
-    // [  0   1   2   3  ]  <- Row 0: [m00 m01 m02 tx]
-    // [  4   5   6   7  ]  <- Row 1: [m10 m11 m12 ty]
-    // [  8   9  10  11 ]  <- Row 2: [m20 m21 m22 tz]
-    // [ 12  13  14  15 ]  <- Row 3: [  0   0   0  1]
-    //
-    // SVG matrix(a b c d e f) represents:
-    // [a c e]  [x]     [a c e]
-    // [b d f]  [y]  =  [b d f]
-    // [0 0 1]  [1]     [0 0 1]
-    const a = matrix[0];  // X scale
-    const b = matrix[4];  // Y skew
-    const c = matrix[1];  // X skew
-    const d = matrix[5];  // Y scale
-    const e = matrix[3];  // X translation
-    const f = matrix[7];  // Y translation
-    
+    const [a, b, c, d, e, f] = this._extractAffine2D(matrix);
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
     const transformStr = `matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(4)} ${f.toFixed(4)})`;
     currentGroup.setAttribute('transform', transformStr);
