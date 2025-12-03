@@ -27,6 +27,7 @@ export class TestToolApp extends JSRApp {
     
     getContent() {
         const world = SceneGraphUtility.createFullSceneGraphComponent("world");
+        world.setGeometry(Primitives.regularPolygon(13, .5));
         const tool = new TestTool();
         tool.setName("testTool");
         world.addTool(tool);
@@ -64,10 +65,10 @@ export class TestToolApp extends JSRApp {
     display() { 
         super.display();
          
-        const ap = this._viewer.getSceneRoot().getAppearance();
+        const ap = this.getViewer().getSceneRoot().getAppearance();
         ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200,150,100));
      
-        this._viewer.render();
+        this.getViewer().render();
     }
 
     setValueAtTime(t) {

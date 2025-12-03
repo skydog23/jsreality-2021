@@ -59,10 +59,10 @@ export class TestGeometryApp extends JSRApp {
   display() {
     super.display();
     this.enableInspector();
-    const ap = this._viewer.getSceneRoot().getAppearance();
+    const ap = this.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
 
-    this._viewer.render();
+    this.getViewer().render();
   }
 
   setValueAtTime(t) {

@@ -12,17 +12,13 @@
  */
 
 import { JSRViewer, ViewerTypes } from './JSRViewer.js';
-import { Animated } from '../core/anim/core/Animated.js';
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
-import { InputSlot } from '../core/scene/tool/InputSlot.js';
-import { ToolEvent } from '../core/scene/tool/ToolEvent.js';
-import { AxisState } from '../core/scene/tool/AxisState.js';
 import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
 import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
-
+import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -36,19 +32,13 @@ import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
  * 
  * @abstract
  */
-export class JSRApp extends Animated {
+export class JSRApp extends JSRPlugin {
   /**
    * @type {JSRViewer} The JSRViewer instance (private)
    */
   #jsrViewer;
 
-  /**
-   * @type {Viewer} The viewer instance (protected - accessible to subclasses)
-   * This is the current viewer from ViewerSwitch for backward compatibility.
-   */
-  _viewer;
-
-  /**
+   /**
    * @type {ToolSystem|null} The tool system instance (protected)
    */
   _toolSystem = null;
@@ -65,53 +55,27 @@ export class JSRApp extends Animated {
 
   /**
    * Create a new JSRApp instance.
-   * @param {HTMLCanvasElement} canvas - The canvas element to render to
-   * @param {Object} [options] - Optional configuration
+   * @param {Object} [options] - Configuration options
+   * @param {HTMLElement} options.container - DOM element that will host the viewer layout
    * @param {string[]} [options.viewerTypes] - Array of viewer types to create (default: all three)
    */
-  constructor(canvas, options = {}) {
+  constructor(options = {}) {
     super(); // Call super constructor first
     
-    if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
-      throw new Error('JSRApp requires an HTMLCanvasElement');
-    }
+    const {
+      container,
+      viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG]
+    } = options;
 
-    const { viewerTypes =  [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG] } = options;
-
-    // Save reference to canvas's parent before we modify the DOM
-    const originalParent = canvas.parentElement;
-
-    // Create a container div for JSRViewer
-    // JSRViewer will create the viewer DOM elements and ViewerSwitch wrapper
-    const container = document.createElement('div');
-    container.style.width = '100%';
-    container.style.height = '100%';
-    container.style.position = 'relative';
-    
-    // Replace canvas with container in the DOM
-    if (originalParent) {
-      // Configure parent as flex column so the layout manager can stack regions
-      originalParent.style.display = 'flex';
-      originalParent.style.flexDirection = 'column';
-      
-      // Replace canvas with viewer container
-      originalParent.replaceChild(container, canvas);
-      
-      // Make viewer container fill remaining space
-      container.style.flex = '1';
-      container.style.minHeight = '0';
-      
-      // Remove the original canvas - JSRViewer will create its own DOM elements
-      // (The canvas was just used to find the parent element)
-    } else {
-      throw new Error('JSRApp requires the canvas to have a parent element');
+    if (!container || !(container instanceof HTMLElement)) {
+      throw new Error('JSRApp requires a container HTMLElement (options.container)');
     }
 
     // Create JSRViewer with viewerTypes - it will create the viewer instances
     // Note: MenubarPlugin now uses the layout manager to place itself, so no container wiring is needed here.
     this.#jsrViewer = new JSRViewer({
-      container: container,
-      viewerTypes: viewerTypes
+      container,
+      viewerTypes
     });
 
     // Get content from subclass and set it
@@ -121,21 +85,7 @@ export class JSRApp extends Animated {
     }
     this.#jsrViewer.setContent(content);
 
-    // Set up protected accessors for backward compatibility
-    this._viewer = this.#jsrViewer.getViewer().getCurrentViewer();
-    this._toolSystem = this.#jsrViewer.getToolSystem();
-
-    // Re-discover scene tools after content is set
-    // This ensures tools added in getContent() are discovered and registered
-    // Use rediscoverSceneTools() instead of initializeSceneTools() to avoid
-    // restarting the event queue which was already started during JSRViewer initialization
-    if (this._toolSystem) {
-      this._toolSystem.rediscoverSceneTools();
-    }
-
-    // Set up system time updates (unique to JSRApp for animation support)
-    this._setupSystemTimeUpdates();
-
+    
     // Register plugins asynchronously
     // We use an IIFE to handle async plugin registration
     this.#initializePlugins();
@@ -145,53 +95,29 @@ export class JSRApp extends Animated {
    * Initialize plugins asynchronously.
    * @private
    */
-  async #initializePlugins() {
-    try {
-      // Register MenubarPlugin first (creates the menubar structure)
-      await this.#jsrViewer.registerPlugin(new MenubarPlugin());
-      
-      // Register ExportMenuPlugin (adds export menu items)
-      await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
-    } catch (error) {
-      console.error('Failed to initialize plugins:', error);
-    }
-  }
-
-  /**
-   * Set up periodic system time updates.
-   * System time events trigger implicit device updates (camera transformations).
-   * This is unique to JSRApp and provides animation support.
-   * @private
-   */
-  _setupSystemTimeUpdates() {
-    const updateSystemTime = () => {
-      if (this._toolSystem) {
-        const now = Date.now();
-        // Process system time event - this will trigger implicit device updates
-        // and update camera transformations
-        const event = new ToolEvent(this, now, InputSlot.SYSTEM_TIME, AxisState.ORIGIN);
-        this._toolSystem.processToolEvent(event);
+  #initializePlugins() {
+    // Defer plugin registration to next microtask so JSRViewer constructor completes
+    Promise.resolve().then(async () => {
+      try {
+        await this.#jsrViewer.registerPlugin(new MenubarPlugin());
+        await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
+      } catch (error) {
+        console.error('Failed to initialize plugins:', error);
       }
-      requestAnimationFrame(updateSystemTime);
-    };
-    requestAnimationFrame(updateSystemTime);
+    });
   }
 
-  /**
-   * Get the viewer instance.
-   * Returns the current viewer from ViewerSwitch for backward compatibility.
-   * @returns {Viewer} The viewer
-   */
-  getViewer() {
-    return this._viewer;
-  }
-
+ 
   /**
    * Get the JSRViewer instance.
    * @returns {JSRViewer} The JSRViewer instance
    */
   getJSRViewer() {
     return this.#jsrViewer;
+  }
+
+  getViewer() {
+    return this.#jsrViewer.getViewer();
   }
 
   /**
@@ -351,7 +277,6 @@ export class JSRApp extends Animated {
       this.#jsrViewer.dispose();
       this.#jsrViewer = null;
     }
-    this._viewer = null;
     this._toolSystem = null;
   }
 }

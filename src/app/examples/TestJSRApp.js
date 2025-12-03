@@ -23,11 +23,11 @@ import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
  * @abstract
  */
 export class TestJSRApp extends JSRApp {
+  #sphereLevel = 3;
 
   getContent() {
     const world = SceneGraphUtility.createFullSceneGraphComponent("world");
-    const ifs = SphereUtility.tessellatedIcosahedronSphere(3)
-    world.setGeometry(SphereUtility.tessellatedIcosahedronSphere(3));
+    const ifs = SphereUtility.tessellatedIcosahedronSphere(this.#sphereLevel)
     const n = ifs.getNumFaces();
     // generate a random color for each face
     const colors = new Array(n).map(() => new Color(255*Math.random(), 255*Math.random(), 255*Math.random()));
@@ -58,7 +58,7 @@ export class TestJSRApp extends JSRApp {
   display() {
     super.display();
     
-    this._viewer.render();
+    this.getViewer().render();
   }
 
   setValueAtTime(t) {

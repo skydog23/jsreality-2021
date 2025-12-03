@@ -20,6 +20,9 @@ import { Camera } from '../core/scene/Camera.js';
 import { Transformation } from '../core/scene/Transformation.js';
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
 import { ToolSystemConfiguration } from '../core/scene/tool/ToolSystemConfiguration.js';
+import { ToolEvent } from '../core/scene/tool/ToolEvent.js';
+import { InputSlot } from '../core/scene/tool/InputSlot.js';
+import { AxisState } from '../core/scene/tool/AxisState.js';
 import { SceneGraphUtility } from '../core/util/SceneGraphUtility.js';
 import { Appearance } from '../core/scene/Appearance.js';
 import { Color } from '../core/util/Color.js';
@@ -118,6 +121,9 @@ export class JSRViewer {
 
   /** @type {string} */
   #preferencePrefix = 'jsreality.viewer.';
+
+  /** @type {number|null} */
+  #systemTimeFrameId = null;
 
   /**
    * Create a new JSRViewer instance.
@@ -376,7 +382,37 @@ export class JSRViewer {
     // Initialize scene tools
     this.#toolSystem.initializeSceneTools();
 
+    this.#startSystemTimeUpdates();
+
     logger.info('Tool system initialized');
+  }
+
+  #startSystemTimeUpdates() {
+    if (this.#systemTimeFrameId !== null || typeof window === 'undefined') {
+      return;
+    }
+    const tick = () => {
+      if (!this.#toolSystem) {
+        this.#systemTimeFrameId = null;
+        return;
+      }
+      const now = Date.now();
+      const event = new ToolEvent(this, now, InputSlot.SYSTEM_TIME, AxisState.ORIGIN);
+      try {
+        this.#toolSystem.processToolEvent(event);
+      } catch (error) {
+        logger.warn('System time tool event failed:', error);
+      }
+      this.#systemTimeFrameId = window.requestAnimationFrame(tick);
+    };
+    this.#systemTimeFrameId = window.requestAnimationFrame(tick);
+  }
+
+  #stopSystemTimeUpdates() {
+    if (this.#systemTimeFrameId !== null && typeof window !== 'undefined') {
+      cancelAnimationFrame(this.#systemTimeFrameId);
+      this.#systemTimeFrameId = null;
+    }
   }
 
   /**
@@ -989,6 +1025,8 @@ export class JSRViewer {
    */
   dispose() {
     logger.info('Disposing JSRViewer');
+
+    this.#stopSystemTimeUpdates();
 
     // Uninstall all plugins first
     if (this.#pluginManager) {

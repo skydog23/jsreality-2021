@@ -103,9 +103,8 @@ export class ColorPickerWidget {
     
     // Create alpha button and collapsible slider if needed
     if (this.#hasAlpha) {
-      const { button, slider } = this.#createAlphaControl();
-      container.appendChild(button);
-      container.appendChild(slider);
+      const alphaControl = this.#createAlphaControl();
+      container.appendChild(alphaControl);
     }
     
     return container;
@@ -143,64 +142,93 @@ export class ColorPickerWidget {
    * @private
    */
   #createAlphaControl() {
-    // Button that shows the slider on hover
+    const control = document.createElement('div');
+    control.className = 'sg-alpha-control';
+    
+    // Button that reveals the slider on hover
     const button = document.createElement('button');
     button.className = 'sg-alpha-button';
     button.textContent = 'α';
     button.type = 'button';
+    control.appendChild(button);
     
-    // Tooltip-style slider popup
+    // Slider popup (shown on hover via CSS)
     const sliderContainer = document.createElement('div');
     sliderContainer.className = 'sg-alpha-slider-popup';
     
-    // Slider
     const slider = document.createElement('input');
     slider.type = 'range';
     slider.min = '0';
     slider.className = 'sg-alpha-slider';
     
-    // Value display
-    const valueDisplay = document.createElement('span');
-    valueDisplay.className = 'sg-alpha-value';
-    
-    // Configure based on format
     if (this.#isColorObject) {
       slider.max = '255';
       slider.step = '1';
       slider.value = this.#currentValue.a;
-      valueDisplay.textContent = this.#currentValue.a;
     } else if (this.#isNormalized) {
       slider.max = '100';
       slider.step = '1';
       const alpha = this.#currentValue[3];
       slider.value = Math.round(alpha * 100);
-      valueDisplay.textContent = alpha.toFixed(2);
     } else {
       slider.max = '255';
       slider.step = '1';
       slider.value = Math.round(this.#currentValue[3]);
-      valueDisplay.textContent = Math.round(this.#currentValue[3]);
     }
     
-    // Handle slider input (for live preview)
-    slider.addEventListener('input', () => {
-      if (this.#isNormalized) {
-        const alpha = parseInt(slider.value, 10) / 100;
-        valueDisplay.textContent = alpha.toFixed(2);
-      } else {
-        valueDisplay.textContent = slider.value;
-      }
-    });
-    
-    // Handle slider change (commit the change)
-    slider.addEventListener('change', () => {
+    let activePointerId = null;
+    const handleChange = () => {
       this.#handleAlphaChange(slider.value);
+    };
+
+    const activate = () => {
+      control.classList.add('sg-alpha-active');
+      console.debug('[ColorPickerWidget] alpha slider active');
+    };
+    const deactivate = (reason = 'unknown') => {
+      control.classList.remove('sg-alpha-active');
+      console.debug('[ColorPickerWidget] alpha slider inactive:', reason);
+    };
+
+    slider.addEventListener('pointerdown', (event) => {
+      slider.focus();
+      activePointerId = event.pointerId;
+      try {
+        if (slider.hasPointerCapture(activePointerId)) {
+          slider.releasePointerCapture(activePointerId);
+        }
+        slider.setPointerCapture(activePointerId);
+      } catch (err) {
+        console.debug('[ColorPickerWidget] pointer capture error:', err);
+      }
+      activate();
+      event.stopPropagation();
     });
-    
+
+    const releasePointer = (reason) => {
+      if (activePointerId !== null) {
+        try {
+          if (slider.hasPointerCapture(activePointerId)) {
+            slider.releasePointerCapture(activePointerId);
+          }
+        } catch (err) {
+          console.debug('[ColorPickerWidget] release pointer error:', err);
+        }
+        activePointerId = null;
+      }
+      deactivate(reason);
+    };
+
+    slider.addEventListener('pointerup', () => releasePointer('pointerup'));
+    slider.addEventListener('pointercancel', () => releasePointer('pointercancel'));
+
+    slider.addEventListener('input', handleChange);
+    slider.addEventListener('change', handleChange);
+
     sliderContainer.appendChild(slider);
-    sliderContainer.appendChild(valueDisplay);
+    control.appendChild(sliderContainer);
     
-    return { button, slider: sliderContainer };
+    return control;
   }
 
   /**

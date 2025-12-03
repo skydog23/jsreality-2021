@@ -47,8 +47,8 @@
         .viewer-container {
             flex: 1;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
+            justify-content: stretch;
             background: #252526;
             padding: var(--canvas-padding);
             overflow: hidden;
@@ -56,13 +56,10 @@
             position: relative;
         }
 
-        #viewer-canvas {
-            border: 2px solid #3e3e3e;
-            border-radius: 4px;
-            background: white;
-            width: calc(100% - calc(var(--canvas-padding) * 2));
-            height: calc(100% - calc(var(--canvas-padding) * 2));
-            display: block;
+        .viewer-container > * {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
         }
 
         .info {
@@ -80,9 +77,7 @@
         <p>Demonstrates JSRApp with configurable subclass</p>
     </div>
 
-    <div class="viewer-container" id="viewer-container">
-        <canvas id="viewer-canvas"></canvas>
-    </div>
+    <div class="viewer-container" id="viewer-container"></div>
 
     <div class="info" id="info">
         Initializing...
@@ -93,19 +88,14 @@
         // CONFIGURATION: Change these values to use a different JSRApp subclass
         // ============================================================================
         const APP_CONFIG = {
-            modulePath: '../src/app/examples/TestGeometryApp.js',
-            className: 'TestGeometryApp'
+            modulePath: '../src/app/examples/TestToolApp.js',
+            className: 'TestToolApp'
         }
         // ============================================================================
 
-        // Get canvas element
-        const canvas = document.getElementById('viewer-canvas');
+        // Get container element (JSRApp/JSRViewer manage their own canvases)
         const container = document.getElementById('viewer-container');
         const info = document.getElementById('info');
-
-        // Canvas sizing is handled by CSS and Canvas2DViewer's ResizeObserver
-        // Ensure canvas has proper initial CSS dimensions before creating viewer
-        // The viewer's ResizeObserver will handle resize automatically
 
         try {
             info.textContent = `Loading ${APP_CONFIG.className}...`;
@@ -121,19 +111,9 @@
             
             info.textContent = `Creating ${APP_CONFIG.className} instance...`;
             
-            // Ensure canvas has dimensions before creating viewer
-            // Canvas2DViewer reads clientWidth/clientHeight from CSS
-            if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-                // Fallback: set initial size if CSS didn't apply
-                const containerRect = container.getBoundingClientRect();
-                const size = Math.min(containerRect.width - 40, containerRect.height - 40, 800);
-                canvas.style.width = size + 'px';
-                canvas.style.height = size + 'px';
-            }
-            
             // Create app instance using the dynamically loaded class
-            // Canvas2DViewer will handle sizing via ResizeObserver
-            const app = new AppClass(canvas);
+            // Layout manager + viewers will fill the container automatically
+            const app = new AppClass({ container });
             
             info.textContent = `${APP_CONFIG.className} created. Calling display()...`;
             
@@ -148,7 +128,8 @@
             console.log('Viewer:', app.getViewer());
             console.log('Tool System:', app.getToolSystem());
             console.log('Scene Root:', app.getViewer().getSceneRoot());
-            console.log('Canvas size:', canvas.clientWidth, 'x', canvas.clientHeight);
+            const bounds = container.getBoundingClientRect();
+            console.log('Viewer container size:', bounds.width, 'x', bounds.height);
             
         } catch (error) {
             console.error(`Error creating ${APP_CONFIG.className}:`, error);
