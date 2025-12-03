@@ -34,8 +34,19 @@ export class TestTool extends AbstractTool {
   constructor() {
     super(); // No activation slots = always active
     this.setDescription('Test tool that prints mouse coordinates');
-    this.addCurrentSlot(InputSlot.LEFT_BUTTON, 'Left mouse button');
+    // this.addCurrentSlot(InputSlot.LEFT_BUTTON, 'Left mouse button');
+    this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
   }
+
+  /**
+   * Called when the tool is activated (not used for always-active tools).
+   * @param {ToolContext} tc - The tool context
+   */
+  activate(tc) {
+    // Add POINTER_TRANSFORMATION as a current slot to receive mouse position updates
+    //this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
+    logger.fine(Category.IO, 'activate() called: ${this.getName()}');
+   }
 
    /**
    * Called when the tool performs (always active, so called on every mouse move).
@@ -59,16 +70,6 @@ export class TestTool extends AbstractTool {
       logger.finer(Category.IO, 'POINTER_TRANSFORMATION matrix is null');
     }
   }
-
-  /**
-   * Called when the tool is activated (not used for always-active tools).
-   * @param {ToolContext} tc - The tool context
-   */
-  activate(tc) {
-     // Add POINTER_TRANSFORMATION as a current slot to receive mouse position updates
-     this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
-     logger.fine(Category.IO, 'activate() called: ${this.getName()}');
-    }
 
   /**
    * Called when the tool is deactivated (not used for always-active tools).

@@ -19,6 +19,7 @@ import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
 import { ShrinkPanelAggregator } from './plugins/ShrinkPanelAggregator.js';
+import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
@@ -44,6 +45,10 @@ export class JSRApp extends JSRPlugin {
    * @type {ToolSystem|null} The tool system instance (protected)
    */
   _toolSystem = null;
+
+  getShowPanels() {
+    return [true, true, false, false];
+  }
 
   /**
    * Create a new JSRApp instance.
@@ -154,7 +159,9 @@ export class JSRApp extends JSRPlugin {
 
     // Enable panel slots (left for inspector, right for shrink panels)
     // Similar to JRViewer.setShowPanelSlots(true, false, false, false)
-    this.#jsrViewer.setShowPanelSlots(true, true, false, false);
+    console.log(this.getShowPanels());
+    
+    this.#jsrViewer.setShowPanelSlots(this.getShowPanels());
 
     // Get content from subclass and set it
     // Now safe to call getContent() because install() runs after constructor completes
@@ -233,6 +240,7 @@ export class JSRApp extends JSRPlugin {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
+        await this.#jsrViewer.registerPlugin(new PanelShowMenuPlugin());
         // SceneGraphInspectorPlugin and ShrinkPanelAggregator are already registered in constructor
       } catch (error) {
         console.error('Failed to initialize plugins:', error);

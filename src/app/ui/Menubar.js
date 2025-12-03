@@ -98,9 +98,9 @@ export class Menubar {
    * @param {string} item.label - Item label
    * @param {Function} [item.action] - Action callback
    * @param {Object[]} [item.submenu] - Submenu items
-   * @param {string} [item.type] - Item type ('radio' for radio buttons)
+   * @param {string} [item.type] - Item type ('radio' for radio buttons, 'checkbox' for checkboxes)
    * @param {string} [item.radioGroup] - Radio button group name (for type='radio')
-   * @param {boolean} [item.checked] - Initial checked state (for type='radio')
+   * @param {boolean} [item.checked] - Initial checked state (for type='radio' or type='checkbox')
    * @param {number} [priority=50] - Priority (lower = earlier)
    */
   addMenuItem(menuName, item, priority = 50) {
@@ -259,6 +259,50 @@ export class Menubar {
         
         // Check this radio
         radio.checked = true;
+        
+        // Close dropdown
+        this.#closeAllDropdowns();
+        
+        // Execute action
+        if (item.action) {
+          try {
+            item.action();
+          } catch (error) {
+            logger.severe(`Error executing menu action for "${item.label}": ${error.message}`);
+          }
+        }
+      });
+    } else if (item.type === 'checkbox') {
+      // Handle checkbox items
+      const checkboxContainer = document.createElement('label');
+      checkboxContainer.style.display = 'flex';
+      checkboxContainer.style.alignItems = 'center';
+      checkboxContainer.style.width = '100%';
+      checkboxContainer.style.cursor = 'pointer';
+      checkboxContainer.style.margin = '0';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = item.checked || false;
+      checkbox.style.marginRight = '8px';
+      checkbox.style.cursor = 'pointer';
+      
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      
+      checkboxContainer.appendChild(checkbox);
+      checkboxContainer.appendChild(label);
+      itemElement.appendChild(checkboxContainer);
+      
+      // Store checkbox input for later access
+      itemElement._checkboxInput = checkbox;
+      
+      // Click handler
+      itemElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // Toggle checkbox
+        checkbox.checked = !checkbox.checked;
         
         // Close dropdown
         this.#closeAllDropdowns();

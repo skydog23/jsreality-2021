@@ -270,4 +270,43 @@ export class PluginLayoutManager {
     }
     return this.#rightPanelWrapper;
   }
+
+  /**
+   * Set visibility of panel slots.
+   * 
+   * @param {Object} visibility - Visibility settings
+   * @param {boolean} [visibility.left] - Show left panel
+   * @param {boolean} [visibility.right] - Show right panel
+   * @param {boolean} [visibility.top] - Show top panel
+   */
+  setPanelVisibility(visibility) {
+    if (this.#leftPanelWrapper !== null && visibility.left !== undefined) {
+      this.#leftPanelWrapper.style.display = visibility.left ? 'flex' : 'none';
+    }
+    if (this.#rightPanelWrapper !== null && visibility.right !== undefined) {
+      this.#rightPanelWrapper.style.display = visibility.right ? 'flex' : 'none';
+    }
+    if (this.#topRegion !== null && visibility.top !== undefined) {
+      // Never hide the top region if it contains content (like menubar)
+      // This prevents accidentally hiding the menubar which would make it impossible to restore
+      const hasContent = this.#topRegion.children.length > 0;
+      if (visibility.top === false && hasContent) {
+        // Top region has content, don't hide it - just skip this update
+        // Ensure it stays visible
+        if (this.#topRegion.style.display === 'none') {
+          this.#topRegion.style.display = 'flex';
+        }
+      } else {
+        this.#topRegion.style.display = visibility.top ? 'flex' : 'none';
+      }
+    }
+    
+    // Always ensure top region is visible if it has content, regardless of visibility settings
+    // This is a safety check to prevent the menubar from disappearing
+    if (this.#topRegion !== null && this.#topRegion.children.length > 0) {
+      if (this.#topRegion.style.display === 'none') {
+        this.#topRegion.style.display = 'flex';
+      }
+    }
+  }
 }
