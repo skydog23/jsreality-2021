@@ -36,6 +36,7 @@ import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
 import { PluginLayoutManager } from './plugin/PluginLayoutManager.js';
+import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -100,6 +101,12 @@ export class JSRViewer {
 
   /** @type {Map<string, Object>} */
   #sidePanels = new Map();
+
+  /** @type {SceneGraphInspector|null} */
+  #inspector = null;
+
+  /** @type {HTMLElement|null} */
+  #inspectorContainer = null;
 
   // Plugin system
   /** @type {EventBus|null} */
@@ -474,6 +481,87 @@ export class JSRViewer {
    */
   getLayoutManager() {
     return this.#layoutManager;
+  }
+
+  /**
+   * Enable the scene graph inspector within the viewer layout.
+   * @param {HTMLElement|null} container - Optional container to host the inspector.
+   * @param {Object} [options]
+   * @param {string} [options.position='left'] - Desired position (currently only 'left' supported).
+   * @param {number} [options.initialSize=300] - Initial size in pixels for the inspector panel.
+   * @returns {SceneGraphInspector} The inspector instance.
+   */
+  enableInspector(container = null, options = {}) {
+    if (this.#inspector) {
+      return this.#inspector;
+    }
+
+    const { position = 'left', initialSize = 300 } = options;
+    let inspectorContainer = container || this.#inspectorContainer;
+
+    if (inspectorContainer) {
+      inspectorContainer.innerHTML = '';
+    }
+
+    if (!inspectorContainer) {
+      if (position !== 'left') {
+        console.warn(
+          `[JSRViewer] enableInspector currently supports 'left' layout only. Requested "${position}" will be treated as 'left'.`
+        );
+      }
+      if (!this.#layoutManager) {
+        throw new Error('Cannot enable inspector: layout manager is not available');
+      }
+      inspectorContainer = this.#layoutManager.requestRegion('left', {
+        id: 'jsr-viewer-inspector',
+        initialSize,
+        minSize: 200,
+        fill: true,
+        overflow: 'auto'
+      });
+      inspectorContainer.id = 'jsr-viewer-inspector-container';
+    }
+
+    this.#inspectorContainer = inspectorContainer;
+
+    inspectorContainer.style.display = 'flex';
+    inspectorContainer.style.flexDirection = 'column';
+    inspectorContainer.style.width = '100%';
+    inspectorContainer.style.height = '100%';
+    inspectorContainer.style.overflow = 'auto';
+    inspectorContainer.style.minHeight = '0';
+
+    const sceneRoot = this.getSceneRoot();
+    if (!sceneRoot) {
+      throw new Error('Cannot enable inspector: scene root is not available');
+    }
+
+    const renderCallback = () => {
+      this.render();
+    };
+
+    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
+      onRender: renderCallback
+    });
+
+    this.#inspector.refresh();
+    return this.#inspector;
+  }
+
+  /**
+   * Get the active SceneGraphInspector instance.
+   * @returns {SceneGraphInspector|null}
+   */
+  getInspector() {
+    return this.#inspector;
+  }
+
+  /**
+   * Get the DOM container hosting the inspector.
+   * @returns {HTMLElement|null}
+   */
+  getInspectorContainer() {
+    return this.#inspectorContainer;
   }
 
   /**
@@ -1027,6 +1115,9 @@ export class JSRViewer {
     logger.info('Disposing JSRViewer');
 
     this.#stopSystemTimeUpdates();
+
+    this.#inspector = null;
+    this.#inspectorContainer = null;
 
     // Uninstall all plugins first
     if (this.#pluginManager) {

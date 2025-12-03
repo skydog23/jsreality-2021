@@ -15,9 +15,9 @@ import { JSRViewer, ViewerTypes } from './JSRViewer.js';
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
 import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
-import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
+import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -42,16 +42,6 @@ export class JSRApp extends JSRPlugin {
    * @type {ToolSystem|null} The tool system instance (protected)
    */
   _toolSystem = null;
-
-  /**
-   * @type {SceneGraphInspector|null} The scene graph inspector instance (private)
-   */
-  #inspector = null;
-
-  /**
-   * @type {HTMLElement|null} Cached inspector container supplied by layout manager
-   */
-  #inspectorContainer = null;
 
   /**
    * Create a new JSRApp instance.
@@ -101,6 +91,7 @@ export class JSRApp extends JSRPlugin {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
+        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin());
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
@@ -144,85 +135,12 @@ export class JSRApp extends JSRPlugin {
   display() {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
-    this.enableInspector();
+    this.#jsrViewer.enableInspector();
   
     this.#jsrViewer.getViewer().render();
     // Refresh inspector if enabled
-    if (this.#inspector) {
-      this.#inspector.refresh();
-    }
-  }
-
-  /**
-   * Enable the scene graph inspector.
-   * Creates a SceneGraphInspector instance and sets it up to refresh on renders.
-   * Creates a split pane to allow resizing between viewer and inspector.
-   * @param {HTMLElement} [container] - Optional container element for the inspector.
-   *                                    If not provided, a split pane will be created.
-   * @param {Object} [options] - Inspector options
-   * @param {string} [options.position='right'] - Position of inspector ('left' | 'right' | 'top' | 'bottom')
-   * @param {number} [options.initialSize=300] - Initial size of inspector panel in pixels
-   * @returns {SceneGraphInspector} The inspector instance
-   */
-  enableInspector(container = null, options = {}) {
-    if (this.#inspector) {
-      return this.#inspector; // Already enabled
-    }
-
-    const { position = 'left', initialSize = 300 } = options;
-
-    let inspectorContainer = container;
-    if (!inspectorContainer && this.#inspectorContainer) {
-      inspectorContainer = this.#inspectorContainer;
-      inspectorContainer.innerHTML = '';
-    }
-
-    if (!inspectorContainer) {
-      if (position !== 'left') {
-        console.warn(`[JSRApp] enableInspector currently supports 'left' layout only. Requested "${position}" will be treated as 'left'.`);
-      }
-      const layoutManager = this.#jsrViewer.getLayoutManager();
-      if (!layoutManager) {
-        throw new Error('Cannot enable inspector: layout manager is not available');
-      }
-      inspectorContainer = layoutManager.requestRegion('left', {
-        id: 'jsrapp-inspector',
-        initialSize,
-        minSize: 200,
-        fill: true,
-        overflow: 'auto'
-      });
-      inspectorContainer.id = 'jsrapp-inspector-container';
-      this.#inspectorContainer = inspectorContainer;
-    }
-
-    inspectorContainer.style.display = 'flex';
-    inspectorContainer.style.flexDirection = 'column';
-    inspectorContainer.style.width = '100%';
-    inspectorContainer.style.height = '100%';
-    inspectorContainer.style.overflow = 'auto';
-    inspectorContainer.style.minHeight = '0';
-
-    // Get scene root
-    const sceneRoot = this.#jsrViewer.getSceneRoot();
-    if (!sceneRoot) {
-      throw new Error('Cannot enable inspector: scene root is not available');
-    }
-
-    // Create inspector with render callback - no global variable needed
-    // The inspector will call this callback when properties change
-    const renderCallback = () => {
-      this.#jsrViewer.render();
-    };
-    
-    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
-      onRender: renderCallback
-    });
-
-    // Initial refresh
-    this.#inspector.refresh();
-
-    return this.#inspector;
+    const inspector = this.#jsrViewer.getInspector();
+    inspector?.refresh();
   }
 
   /**
@@ -230,7 +148,7 @@ export class JSRApp extends JSRPlugin {
    * @returns {SceneGraphInspector|null} The inspector instance, or null if not enabled
    */
   getInspector() {
-    return this.#inspector;
+    return this.#jsrViewer.getInspector();
   }
 
   /**
@@ -269,10 +187,6 @@ export class JSRApp extends JSRPlugin {
    * Dispose of resources.
    */
   dispose() {
-    if (this.#inspector) {
-      // Inspector doesn't have a dispose method, but we can clear the reference
-      this.#inspector = null;
-    }
     if (this.#jsrViewer) {
       this.#jsrViewer.dispose();
       this.#jsrViewer = null;
