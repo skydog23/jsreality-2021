@@ -198,6 +198,35 @@ export class PluginController {
   }
 
   /**
+   * Request a right side panel slot.
+   * 
+   * @param {PanelSlotConfig} [config={}] - Panel configuration
+   * @returns {HTMLElement} The panel container element
+   */
+  requestRightPanel(config = {}) {
+    const slotId = config.id || 'default';
+    const cacheKey = `right:${slotId}`;
+    
+    if (this.#panelSlots.has(cacheKey)) {
+      return this.#panelSlots.get(cacheKey);
+    }
+
+    const slot = this.#layoutManager.requestRegion('right', {
+      id: slotId,
+      initialSize: config.initialSize ?? 300,
+      minSize: config.minSize ?? 180,
+      fill: config.fill ?? true,
+      overflow: config.overflow ?? 'auto'
+    });
+
+    this.#panelSlots.set(cacheKey, slot);
+    this.#panelVisibility.right = true;
+
+    logger.fine(`Right panel slot created: ${slotId}`);
+    return slot;
+  }
+
+  /**
    * Configure visibility of panel slots (similar to JRViewer.setShowPanelSlots).
    * Note: Currently only left and top are implemented.
    * 

@@ -18,7 +18,8 @@ import { Color } from '../core/util/Color.js';
 import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
-import { PluginInspectorPanelPlugin } from './plugins/PluginInspectorPanelPlugin.js';
+import { ShrinkPanelAggregator } from './plugins/ShrinkPanelAggregator.js';
+import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -54,10 +55,10 @@ export class JSRApp extends JSRPlugin {
    * @param {'left'|'right'} [options.inspector.panelSide='left'] - Which side to place the scene graph inspector panel
    * @param {number} [options.inspector.initialSize=300] - Initial scene graph inspector panel size in pixels
    * @param {number} [options.inspector.minSize=200] - Minimum scene graph inspector panel size in pixels
-   * @param {Object} [options.pluginInspector] - Plugin/app inspector panel configuration
-   * @param {'left'|'right'} [options.pluginInspector.panelSide='right'] - Which side to place the plugin inspector panel
-   * @param {number} [options.pluginInspector.initialSize=300] - Initial plugin inspector panel size in pixels
-   * @param {number} [options.pluginInspector.minSize=200] - Minimum plugin inspector panel size in pixels
+   * @param {Object} [options.shrinkPanel] - Shrink panel aggregator configuration
+   * @param {'left'|'right'} [options.shrinkPanel.panelSide='right'] - Which side to place the shrink panel
+   * @param {number} [options.shrinkPanel.initialSize=300] - Initial shrink panel size in pixels
+   * @param {number} [options.shrinkPanel.minSize=200] - Minimum shrink panel size in pixels
    */
   constructor(options = {}) {
     super(); // Call super constructor first
@@ -66,7 +67,7 @@ export class JSRApp extends JSRPlugin {
       container,
       viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG],
       inspector = {},
-      pluginInspector = {}
+      shrinkPanel = {}
     } = options;
 
     if (!container || !(container instanceof HTMLElement)) {
@@ -77,7 +78,7 @@ export class JSRApp extends JSRPlugin {
     this.#container = container;
     this.#viewerTypes = viewerTypes;
     this.#inspectorConfig = inspector;
-    this.#pluginInspectorConfig = pluginInspector;
+    this.#shrinkPanelConfig = shrinkPanel;
     
     // Create JSRViewer immediately (JSRApp owns it)
     // But defer getContent() call to install() method
@@ -86,13 +87,16 @@ export class JSRApp extends JSRPlugin {
       viewerTypes
     });
     
-    // Register ourselves as a plugin with the viewer we just created
-    // This will call install() asynchronously, where getContent() will be called
+    // Register aggregator first, then ourselves
+    // This ensures aggregator is available when JSRApp.install() runs
     Promise.resolve().then(async () => {
       try {
+        // Register aggregator first
+        await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
+        // Then register ourselves (so we can use aggregator in install())
         await this.#jsrViewer.registerPlugin(this);
       } catch (error) {
-        console.error('Failed to register JSRApp as plugin:', error);
+        console.error('Failed to register plugins:', error);
       }
     });
   }
@@ -107,7 +111,7 @@ export class JSRApp extends JSRPlugin {
   #inspectorConfig = {};
 
   /** @type {Object} */
-  #pluginInspectorConfig = {};
+  #shrinkPanelConfig = {};
 
   /**
    * Plugin metadata.
@@ -153,12 +157,78 @@ export class JSRApp extends JSRPlugin {
     }
     this.#jsrViewer.setContent(content);
 
+    // Register inspector panel with aggregator (like Assignment.java pattern)
+    this.#registerInspectorPanel(context);
+
     // Register other plugins asynchronously
     this.#initializePlugins();
   }
 
   /**
-   * Initialize other plugins (menubar, export menu, inspectors).
+   * Register this app's inspector panel with the ShrinkPanelAggregator.
+   * Similar to Assignment.java's install() method where it adds inspector to shrinkPanel.
+   * 
+   * @param {import('./plugin/PluginContext.js').PluginContext} context
+   * @private
+   */
+  #registerInspectorPanel(context) {
+    // Check if we have inspector descriptors
+    if (typeof this.getInspectorDescriptors !== 'function') {
+      return; // No inspector to register
+    }
+
+    const descriptors = this.getInspectorDescriptors();
+    if (!descriptors || !Array.isArray(descriptors) || descriptors.length === 0) {
+      return; // No descriptors to show
+    }
+
+    // Get the aggregator plugin
+    const aggregator = context.getPlugin('shrink-panel-aggregator');
+    if (!aggregator || typeof aggregator.registerInspectorPanel !== 'function') {
+      // Aggregator not yet registered - this shouldn't happen since we register it first
+      // But handle it gracefully by waiting for it
+      const unsubscribe = context.on('plugin:installed', (data) => {
+        if (data.plugin && data.plugin.getInfo && data.plugin.getInfo().id === 'shrink-panel-aggregator') {
+          this.#registerInspectorPanel(context);
+          unsubscribe();
+        }
+      });
+      return;
+    }
+
+    // Create inspector panel using utility method
+    // Use the subclass name as the panel title
+    const pluginInfo = this.getInfo();
+    const title = this.constructor.name;
+    
+    // Set up render callback for property changes
+    const onPropertyChange = () => {
+      if (context.getController) {
+        const controller = context.getController();
+        if (controller) {
+          controller.render();
+        }
+      }
+    };
+
+    const panel = DescriptorUtility.createDefaultInspectorPanel(
+      pluginInfo.id,
+      title,
+      descriptors,
+      {
+        icon: '⚙️',
+        collapsed: false,
+        onPropertyChange: onPropertyChange
+      }
+    );
+
+    // Register with aggregator
+    aggregator.registerInspectorPanel(pluginInfo.id, panel);
+  }
+
+  /**
+   * Initialize other plugins (menubar, export menu, scene graph inspector).
+   * Note: ShrinkPanelAggregator is registered in constructor before JSRApp.
    * @private
    */
   #initializePlugins() {
@@ -167,9 +237,7 @@ export class JSRApp extends JSRPlugin {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
         await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
-        await this.#jsrViewer.registerPlugin(new PluginInspectorPanelPlugin(this.#pluginInspectorConfig));
-        // Note: JSRApp itself is registered by the caller, not here
-        // PluginInspectorPanelPlugin will discover JSRApp when it installs
+        // ShrinkPanelAggregator is already registered in constructor
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
@@ -180,6 +248,10 @@ export class JSRApp extends JSRPlugin {
 /**
  * Get inspector descriptors for application parameters.
  * Subclasses can override this to expose editable parameters.
+ * 
+ * The panel title is automatically set to the subclass name, and the panel id
+ * is automatically generated from the plugin info. Subclasses only need to
+ * return the array of descriptor groups.
  * 
  * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').DescriptorGroup>}
  */
