@@ -48,13 +48,18 @@ export class JSRApp extends JSRPlugin {
    * @param {Object} [options] - Configuration options
    * @param {HTMLElement} options.container - DOM element that will host the viewer layout
    * @param {string[]} [options.viewerTypes] - Array of viewer types to create (default: all three)
+   * @param {Object} [options.inspector] - Inspector plugin configuration
+   * @param {'left'|'right'} [options.inspector.panelSide='left'] - Which side to place the inspector panel
+   * @param {number} [options.inspector.initialSize=300] - Initial inspector panel size in pixels
+   * @param {number} [options.inspector.minSize=200] - Minimum inspector panel size in pixels
    */
   constructor(options = {}) {
     super(); // Call super constructor first
     
     const {
       container,
-      viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG]
+      viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG],
+      inspector = {}
     } = options;
 
     if (!container || !(container instanceof HTMLElement)) {
@@ -75,11 +80,16 @@ export class JSRApp extends JSRPlugin {
     }
     this.#jsrViewer.setContent(content);
 
+    // Store inspector config for plugin initialization
+    this.#inspectorConfig = inspector;
     
     // Register plugins asynchronously
     // We use an IIFE to handle async plugin registration
     this.#initializePlugins();
   }
+
+  /** @type {Object} */
+  #inspectorConfig = {};
 
   /**
    * Initialize plugins asynchronously.
@@ -91,7 +101,7 @@ export class JSRApp extends JSRPlugin {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
-        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin());
+        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
@@ -135,12 +145,18 @@ export class JSRApp extends JSRPlugin {
   display() {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
-    this.#jsrViewer.enableInspector();
+    
+    // Note: Inspector is now handled by SceneGraphInspectorPlugin, so we don't
+    // call enableInspector() here. The plugin will create it during installation.
+    // If display() is called before the plugin installs, we'll refresh it after render.
   
     this.#jsrViewer.getViewer().render();
-    // Refresh inspector if enabled
+    
+    // Refresh inspector if it exists (plugin may have created it)
     const inspector = this.#jsrViewer.getInspector();
-    inspector?.refresh();
+    if (inspector) {
+      inspector.refresh();
+    }
   }
 
   /**

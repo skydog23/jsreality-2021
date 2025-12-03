@@ -36,6 +36,7 @@ import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
 import { PluginLayoutManager } from './plugin/PluginLayoutManager.js';
+import { PluginController } from './plugin/PluginController.js';
 import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
@@ -118,6 +119,9 @@ export class JSRViewer {
   /** @type {ViewerEventBridge|null} */
   #viewerEventBridge = null;
 
+  /** @type {PluginController|null} */
+  #controller = null;
+
   // Event system (deprecated - use #eventBus instead)
   /** @type {Map<string, Function[]>} */
   #eventListeners = new Map();
@@ -164,6 +168,14 @@ export class JSRViewer {
     this.#eventBus = new EventBus();
     this.#pluginManager = new PluginManager(this, this.#eventBus, this.#layoutManager);
     this.#viewerEventBridge = new ViewerEventBridge(this, this.#eventBus);
+    
+    // Create the PluginController facade (mirrors JRViewer's Controller)
+    this.#controller = new PluginController(
+      this,
+      this.#pluginManager,
+      this.#layoutManager,
+      this.#eventBus
+    );
 
     // Initialize core systems
     this.#initializeViewers(this.#layoutManager.getViewerHostElement(), viewerTypes, viewers, viewerNames);
@@ -1160,6 +1172,71 @@ export class JSRViewer {
     this.#sidePanels.clear();
 
     logger.info('JSRViewer disposed');
+  }
+
+  // ========================================================================
+  // PUBLIC API: Controller (JRViewer-style facade)
+  // ========================================================================
+
+  /**
+   * Get the PluginController instance.
+   * This is the main interface for plugins to interact with the viewer,
+   * similar to JRViewer's Controller.
+   * 
+   * @returns {PluginController}
+   */
+  getController() {
+    return this.#controller;
+  }
+
+  // ========================================================================
+  // PUBLIC API: Panel Slot Management (JRViewer-style)
+  // ========================================================================
+
+  /**
+   * Configure visibility of panel slots.
+   * Similar to JRViewer.setShowPanelSlots(left, right, top, bottom).
+   * 
+   * @param {boolean} left - Show left panel slot
+   * @param {boolean} [right=false] - Show right panel slot (future)
+   * @param {boolean} [top=false] - Show top panel slot
+   * @param {boolean} [bottom=false] - Show bottom panel slot (future)
+   */
+  setShowPanelSlots(left, right = false, top = false, bottom = false) {
+    this.#controller.setShowPanelSlots({ left, right, top, bottom });
+  }
+
+  /**
+   * Request a left side panel.
+   * Convenience wrapper around PluginController.requestLeftPanel.
+   * 
+   * @param {Object} [config] - Panel configuration
+   * @returns {HTMLElement} The panel container element
+   */
+  requestLeftPanel(config = {}) {
+    return this.#controller.requestLeftPanel(config);
+  }
+
+  /**
+   * Request a top panel (e.g., for toolbars, menubars).
+   * Convenience wrapper around PluginController.requestTopPanel.
+   * 
+   * @param {Object} [config] - Panel configuration
+   * @returns {HTMLElement} The panel container element
+   */
+  requestTopPanel(config = {}) {
+    return this.#controller.requestTopPanel(config);
+  }
+
+  /**
+   * Request a right side panel.
+   * Convenience wrapper around PluginController.requestRightPanel.
+   * 
+   * @param {Object} [config] - Panel configuration
+   * @returns {HTMLElement} The panel container element
+   */
+  requestRightPanel(config = {}) {
+    return this.#controller.requestRightPanel(config);
   }
 
   // ========================================================================

@@ -13,6 +13,9 @@
 /**
  * Context provided to plugins during installation.
  * Provides access to viewer services and other plugins.
+ * 
+ * Note: For full Controller-style access (JRViewer pattern), plugins
+ * can call getController() to get the PluginController facade.
  */
 export class PluginContext {
   /** @type {import('../JSRViewer.js').JSRViewer} */
@@ -40,6 +43,16 @@ export class PluginContext {
     this.#plugins = plugins;
     this.#eventBus = eventBus;
     this.#layoutManager = layoutManager;
+  }
+
+  /**
+   * Get the PluginController facade (JRViewer-style Controller).
+   * This provides a cleaner, higher-level API for plugins.
+   * 
+   * @returns {import('./PluginController.js').PluginController}
+   */
+  getController() {
+    return this.#viewer.getController();
   }
 
   /**

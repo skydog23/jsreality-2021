@@ -33,6 +33,9 @@ export class PluginLayoutManager {
   /** @type {HTMLElement|null} */
   #leftPanelWrapper = null;
 
+  /** @type {HTMLElement|null} */
+  #rightPanelWrapper = null;
+
   /** @type {SplitPane|null} */
   #splitPane = null;
 
@@ -60,7 +63,7 @@ export class PluginLayoutManager {
 
   /**
    * Request a layout region for a plugin or system component.
-   * Currently supported regions: 'top', 'left'.
+   * Currently supported regions: 'top', 'left', 'right'.
    *
    * @param {string} regionName
    * @param {Object} [options]
@@ -84,6 +87,9 @@ export class PluginLayoutManager {
         break;
       case 'left':
         slot = this.#createLeftSlot(options);
+        break;
+      case 'right':
+        slot = this.#createRightSlot(options);
         break;
       default:
         throw new Error(`Unknown plugin layout region: ${regionName}`);
@@ -190,6 +196,25 @@ export class PluginLayoutManager {
   }
 
   /**
+   * Creates/returns a right side slot, activating the SplitPane when needed.
+   * @private
+   */
+  #createRightSlot(options) {
+    const rightPanel = this.#ensureRightPanel(options);
+    const slot = document.createElement('div');
+    slot.className = 'jsr-layout-right-slot';
+    slot.style.width = '100%';
+    slot.style.flex = options.fill === false ? '0 0 auto' : '1 1 auto';
+    slot.style.minHeight = options.fill === false ? 'auto' : '0';
+    slot.style.display = 'flex';
+    slot.style.flexDirection = 'column';
+    slot.style.overflow = options.overflow || 'auto';
+    slot.style.boxSizing = 'border-box';
+    rightPanel.appendChild(slot);
+    return slot;
+  }
+
+  /**
    * Makes the top region visible the first time something requests it.
    * @private
    */
@@ -221,6 +246,27 @@ export class PluginLayoutManager {
   }
 
   /**
+   * Ensure the right panel infrastructure exists and is wired to the SplitPane.
+   * @private
+   */
+  #ensureRightPanel(options = {}) {
+    if (!this.#rightPanelWrapper) {
+      this.#rightPanelWrapper = document.createElement('div');
+      this.#rightPanelWrapper.className = 'jsr-layout-right-panel';
+      this.#rightPanelWrapper.style.display = 'flex';
+      this.#rightPanelWrapper.style.flexDirection = 'column';
+      this.#rightPanelWrapper.style.width = '100%';
+      this.#rightPanelWrapper.style.height = '100%';
+      this.#rightPanelWrapper.style.minHeight = '0';
+      this.#rightPanelWrapper.style.background = '#1e1e1e';
+      this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
+    }
+
+    this.#activateRightSplitPane(options);
+    return this.#rightPanelWrapper;
+  }
+
+  /**
    * Instantiate the SplitPane (viewer + left panel) if it hasn't been created yet.
    * @private
    */
@@ -249,6 +295,59 @@ export class PluginLayoutManager {
       minSize,
       splitterWidth: 4
     });
+  }
+
+  /**
+   * Instantiate the SplitPane (viewer + right panel) if it hasn't been created yet.
+   * For right panels, viewer goes on the left, panel on the right.
+   * @private
+   */
+  #activateRightSplitPane(options = {}) {
+    if (this.#splitPane) {
+      // If a left panel split pane already exists, we'd need nested split panes
+      // For now, just update the existing split pane to use right panel instead
+      // This means left and right panels can't coexist yet
+      if (typeof options.initialSize === 'number') {
+        // Recreate the split pane with viewer on left, right panel on right
+        this.#splitPane = null;
+      } else {
+        return;
+      }
+    }
+
+    const rightPanelSize = typeof options.initialSize === 'number' ? options.initialSize : 320;
+    const minSize = typeof options.minSize === 'number' ? options.minSize : 180;
+
+    // Clear existing children before SplitPane re-inserts them
+    if (this.#viewerHost.parentElement === this.#splitContainer) {
+      this.#splitContainer.removeChild(this.#viewerHost);
+    }
+    this.#splitContainer.innerHTML = '';
+
+    // For right panel: viewer on left, right panel on right
+    // SplitPane sizes the left panel, so we calculate: leftSize = containerWidth - rightPanelSize
+    // But we don't know container width yet, so we'll use a reasonable default and adjust after
+    const containerWidth = this.#splitContainer.offsetWidth || 1200;
+    const leftPanelSize = Math.max(minSize, containerWidth - rightPanelSize - 4); // 4 = splitter width
+
+    this.#splitPane = new SplitPane(this.#splitContainer, {
+      leftPanel: this.#viewerHost,
+      rightPanel: this.#rightPanelWrapper,
+      orientation: 'horizontal',
+      initialSize: leftPanelSize, // Left panel (viewer) gets this size, right panel gets the rest
+      minSize,
+      splitterWidth: 4
+    });
+
+    // After creation, adjust to ensure right panel has the desired size
+    // We'll set the left panel size to (container - desired right size)
+    setTimeout(() => {
+      if (this.#splitPane && this.#splitContainer.offsetWidth > 0) {
+        const currentContainerWidth = this.#splitContainer.offsetWidth;
+        const desiredLeftSize = Math.max(minSize, currentContainerWidth - rightPanelSize - 4);
+        this.#splitPane.setLeftPanelSize(desiredLeftSize);
+      }
+    }, 0);
   }
 }
 

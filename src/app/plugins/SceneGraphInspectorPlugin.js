@@ -10,6 +10,7 @@
  */
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
+import { SceneGraphInspector } from '../../core/inspect/SceneGraphInspector.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
 const logger = getLogger('SceneGraphInspectorPlugin');
@@ -29,6 +30,30 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
 
   /** @type {Function|null} */
   #unsubscribeSceneChanged = null;
+
+  /** @type {'left'|'right'} */
+  #panelSide;
+
+  /** @type {number} */
+  #initialSize;
+
+  /** @type {number} */
+  #minSize;
+
+  /**
+   * Create a new SceneGraphInspectorPlugin.
+   * 
+   * @param {Object} [options] - Plugin options
+   * @param {'left'|'right'} [options.panelSide='left'] - Which side to place the inspector panel
+   * @param {number} [options.initialSize=300] - Initial panel size in pixels
+   * @param {number} [options.minSize=200] - Minimum panel size in pixels
+   */
+  constructor(options = {}) {
+    super();
+    this.#panelSide = options.panelSide || 'left';
+    this.#initialSize = options.initialSize ?? 300;
+    this.#minSize = options.minSize ?? 200;
+  }
 
   /**
    * Get plugin metadata.
@@ -55,24 +80,87 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
   async install(viewer, context) {
     await super.install(viewer, context);
 
-    this.#inspector = viewer.enableInspector();
+    logger.info('SceneGraphInspectorPlugin installing...');
+    
+    // Get the controller for cleaner API access
+    const controller = context.getController();
+    if (!controller) {
+      logger.severe('Controller not available in context!');
+      throw new Error('PluginController not available');
+    }
 
+    // Request a panel for the inspector using the controller API
+    // Use the configured side (left or right)
+    const inspectorContainer = this.#panelSide === 'right'
+      ? controller.requestRightPanel({
+          id: 'scene-graph-inspector',
+          initialSize: this.#initialSize,
+          minSize: this.#minSize,
+          fill: true,
+          overflow: 'auto'
+        })
+      : controller.requestLeftPanel({
+          id: 'scene-graph-inspector',
+          initialSize: this.#initialSize,
+          minSize: this.#minSize,
+          fill: true,
+          overflow: 'auto'
+        });
+
+    if (!inspectorContainer) {
+      logger.severe('Failed to get inspector container!');
+      throw new Error('Failed to create inspector container');
+    }
+
+    logger.info(`Inspector container obtained: ${inspectorContainer ? 'yes' : 'no'}`);
+
+    // Get scene root
+    const sceneRoot = controller.getSceneRoot();
+    if (!sceneRoot) {
+      logger.severe('Scene root not available!');
+      throw new Error('Scene root not available');
+    }
+
+    logger.info(`Scene root obtained: ${sceneRoot ? 'yes' : 'no'}`);
+
+    // Create the inspector
+    const renderCallback = () => {
+      controller.render();
+    };
+
+    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
+      onRender: renderCallback
+    });
+
+    if (!this.#inspector) {
+      logger.severe('Failed to create SceneGraphInspector instance!');
+      throw new Error('Failed to create SceneGraphInspector');
+    }
+
+    logger.info('SceneGraphInspector instance created');
+
+    // Set up refresh handler
     const refreshInspector = () => {
-      const newRoot = context.getSceneRoot();
+      const newRoot = controller.getSceneRoot();
       if (this.#inspector && newRoot) {
+        logger.fine(`Refreshing inspector with root: ${newRoot}`);
         this.#inspector.setRoot(newRoot);
         this.#inspector.refresh();
+      } else {
+        logger.warn(`Cannot refresh inspector: inspector=${!!this.#inspector}, root=${!!newRoot}`);
       }
     };
 
-    this.#unsubscribeSceneChanged = this.on('scene:changed', () => {
+    // Subscribe to scene changes
+    this.#unsubscribeSceneChanged = controller.on('scene:changed', () => {
       logger.fine('Scene changed, refreshing inspector');
       refreshInspector();
     });
 
+    // Initial refresh
     refreshInspector();
 
-    logger.info('SceneGraphInspector enabled via viewer');
+    logger.info('SceneGraphInspectorPlugin installed successfully');
   }
 
   /**
