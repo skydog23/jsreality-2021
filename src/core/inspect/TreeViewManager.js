@@ -141,17 +141,29 @@ export class TreeViewManager {
   
   /**
    * Rebuild the entire tree view
-   * @param {SceneGraphComponent} root - The root component
+   * @param {SceneGraphComponent|import('./SceneGraphTreeModel.js').InspectorTreeNode} root - The root component or a pre-built tree node
    */
   rebuildTree(root) {
     if (!this.#treeView) {
       console.error('TreeViewManager: #treeView is null! Cannot rebuild tree.');
       return;
     }
-    this.#root = root;
-    this.#treeModel = new SceneGraphTreeModel(this.#createShaderTreeNodes, root);
     this.#treeView.innerHTML = '';
     this.#nodeElements.clear();
+    
+    // Check if root is already an InspectorTreeNode (composite tree)
+    if (root && root.data !== undefined && root.children !== undefined) {
+      // It's a pre-built tree node
+      this.#root = root.data;
+      if (root) {
+        this.#buildTreeNode(root, this.#treeView);
+      }
+      return;
+    }
+    
+    // Otherwise, treat it as a SceneGraphComponent and build model
+    this.#root = root;
+    this.#treeModel = new SceneGraphTreeModel(this.#createShaderTreeNodes, root);
     if (!root) {
       console.warn('TreeViewManager: No root set, cannot build tree');
       return;

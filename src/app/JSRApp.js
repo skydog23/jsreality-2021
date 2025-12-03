@@ -18,6 +18,7 @@ import { Color } from '../core/util/Color.js';
 import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
+import { PluginInspectorPanelPlugin } from './plugins/PluginInspectorPanelPlugin.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
@@ -45,13 +46,18 @@ export class JSRApp extends JSRPlugin {
 
   /**
    * Create a new JSRApp instance.
+   * Constructor only stores options - actual initialization happens in install().
    * @param {Object} [options] - Configuration options
    * @param {HTMLElement} options.container - DOM element that will host the viewer layout
    * @param {string[]} [options.viewerTypes] - Array of viewer types to create (default: all three)
-   * @param {Object} [options.inspector] - Inspector plugin configuration
-   * @param {'left'|'right'} [options.inspector.panelSide='left'] - Which side to place the inspector panel
-   * @param {number} [options.inspector.initialSize=300] - Initial inspector panel size in pixels
-   * @param {number} [options.inspector.minSize=200] - Minimum inspector panel size in pixels
+   * @param {Object} [options.inspector] - Scene graph inspector plugin configuration
+   * @param {'left'|'right'} [options.inspector.panelSide='left'] - Which side to place the scene graph inspector panel
+   * @param {number} [options.inspector.initialSize=300] - Initial scene graph inspector panel size in pixels
+   * @param {number} [options.inspector.minSize=200] - Minimum scene graph inspector panel size in pixels
+   * @param {Object} [options.pluginInspector] - Plugin/app inspector panel configuration
+   * @param {'left'|'right'} [options.pluginInspector.panelSide='right'] - Which side to place the plugin inspector panel
+   * @param {number} [options.pluginInspector.initialSize=300] - Initial plugin inspector panel size in pixels
+   * @param {number} [options.pluginInspector.minSize=200] - Minimum plugin inspector panel size in pixels
    */
   constructor(options = {}) {
     super(); // Call super constructor first
@@ -59,56 +65,135 @@ export class JSRApp extends JSRPlugin {
     const {
       container,
       viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG],
-      inspector = {}
+      inspector = {},
+      pluginInspector = {}
     } = options;
 
     if (!container || !(container instanceof HTMLElement)) {
       throw new Error('JSRApp requires a container HTMLElement (options.container)');
     }
 
-    // Create JSRViewer with viewerTypes - it will create the viewer instances
-    // Note: MenubarPlugin now uses the layout manager to place itself, so no container wiring is needed here.
+    // Store options for use in install()
+    this.#container = container;
+    this.#viewerTypes = viewerTypes;
+    this.#inspectorConfig = inspector;
+    this.#pluginInspectorConfig = pluginInspector;
+    
+    // Create JSRViewer immediately (JSRApp owns it)
+    // But defer getContent() call to install() method
     this.#jsrViewer = new JSRViewer({
       container,
       viewerTypes
     });
+    
+    // Register ourselves as a plugin with the viewer we just created
+    // This will call install() asynchronously, where getContent() will be called
+    Promise.resolve().then(async () => {
+      try {
+        await this.#jsrViewer.registerPlugin(this);
+      } catch (error) {
+        console.error('Failed to register JSRApp as plugin:', error);
+      }
+    });
+  }
+
+  /** @type {HTMLElement} */
+  #container;
+
+  /** @type {string[]} */
+  #viewerTypes;
+
+  /** @type {Object} */
+  #inspectorConfig = {};
+
+  /** @type {Object} */
+  #pluginInspectorConfig = {};
+
+  /**
+   * Plugin metadata.
+   */
+  getInfo() {
+    return {
+      id: 'jsrapp',
+      name: this.constructor.name,
+      vendor: 'jsReality',
+      version: '1.0.0',
+      description: 'Application instance',
+      dependencies: []
+    };
+  }
+
+  /**
+   * Install the plugin (called when registered with JSRViewer).
+   * This is where the actual initialization happens.
+   * 
+   * Note: JSRApp is special - it creates and owns its own JSRViewer.
+   * When install() is called, the viewer parameter will be the viewer we created.
+   * 
+   * @param {import('./JSRViewer.js').JSRViewer} viewer - The viewer instance (should be our own viewer)
+   * @param {import('./plugin/PluginContext.js').PluginContext} context - Plugin context
+   */
+  async install(viewer, context) {
+    await super.install(viewer, context);
+
+    // Ensure we have a viewer (should be the one we created)
+    if (!this.#jsrViewer) {
+      // Create JSRViewer with stored options
+      this.#jsrViewer = new JSRViewer({
+        container: this.#container,
+        viewerTypes: this.#viewerTypes
+      });
+    }
 
     // Get content from subclass and set it
+    // Now safe to call getContent() because install() runs after constructor completes
     const content = this.getContent();
     if (!content) {
       throw new Error('getContent() must return a SceneGraphComponent');
     }
     this.#jsrViewer.setContent(content);
 
-    // Store inspector config for plugin initialization
-    this.#inspectorConfig = inspector;
-    
-    // Register plugins asynchronously
-    // We use an IIFE to handle async plugin registration
+    // Register other plugins asynchronously
     this.#initializePlugins();
   }
 
-  /** @type {Object} */
-  #inspectorConfig = {};
-
   /**
-   * Initialize plugins asynchronously.
+   * Initialize other plugins (menubar, export menu, inspectors).
    * @private
    */
   #initializePlugins() {
-    // Defer plugin registration to next microtask so JSRViewer constructor completes
     Promise.resolve().then(async () => {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
         await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
+        await this.#jsrViewer.registerPlugin(new PluginInspectorPanelPlugin(this.#pluginInspectorConfig));
+        // Note: JSRApp itself is registered by the caller, not here
+        // PluginInspectorPanelPlugin will discover JSRApp when it installs
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
     });
   }
 
- 
+ // In JSRApp
+/**
+ * Get inspector descriptors for application parameters.
+ * Subclasses can override this to expose editable parameters.
+ * 
+ * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').DescriptorGroup>}
+ */
+getInspectorDescriptors() {
+  return [
+    {
+      id: 'app-params',
+      title: 'Application Parameters',
+      items: [
+        // Subclasses add their parameters here
+      ]
+    }
+  ];
+}
   /**
    * Get the JSRViewer instance.
    * @returns {JSRViewer} The JSRViewer instance

@@ -90,6 +90,15 @@ export class PropertyPanelManager {
       return;
     }
     
+    // Check for objects with getInspectorDescriptors() method (e.g., JSRApp instances)
+    if (typeof node.getInspectorDescriptors === 'function') {
+      const descriptors = node.getInspectorDescriptors();
+      if (descriptors && Array.isArray(descriptors)) {
+        this.#renderDescriptorGroups(descriptors);
+        return;
+      }
+    }
+    
     // Component-specific properties
     if (node instanceof SceneGraphComponent) {
       this.#renderDescriptorGroups(this.#buildComponentDescriptors(node));

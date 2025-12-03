@@ -17,6 +17,8 @@ import { TreeViewManager, ShaderTreeNode } from './TreeViewManager.js';
 import { PropertyPanelManager } from './PropertyPanelManager.js';
 import { ShaderPropertyManager } from './ShaderPropertyManager.js';
 import { WidgetFactory } from './WidgetFactory.js';
+import { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
+import { CompositeTreeModel } from './CompositeTreeModel.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
 /**
@@ -77,6 +79,21 @@ export class SceneGraphInspector {
    * @type {Function|null} Callback to trigger render when properties change
    */
   #renderCallback = null;
+
+  /**
+   * @type {SceneGraphTreeModel}
+   */
+  #sceneTreeModel;
+
+  /**
+   * @type {CompositeTreeModel}
+   */
+  #compositeTreeModel;
+
+  /**
+   * @type {Array}
+   */
+  #apps = [];
 
   /**
    * Create a new SceneGraphInspector
@@ -145,6 +162,10 @@ export class SceneGraphInspector {
       onNodeToggleExpand,
       createShaderTreeNodes
     );
+    
+    // Create scene graph tree model
+    this.#sceneTreeModel = new SceneGraphTreeModel(createShaderTreeNodes, root);
+    this.#compositeTreeModel = new CompositeTreeModel(this.#sceneTreeModel, []);
     
     if (root) {
       this.setRoot(root);
