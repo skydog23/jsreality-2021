@@ -79,12 +79,15 @@ export class DescriptorRenderer {
     const group = normalizeGroup(groupDef);
     const section = document.createElement('div');
     section.className = 'sg-prop-group';
-    section.dataset.groupId = group.id;
+    section.dataset.groupKey = group.key;
 
-    const header = document.createElement('div');
-    header.className = 'sg-prop-group-title';
-    header.textContent = group.title;
-    section.appendChild(header);
+    // Only create header if title is provided
+    if (group.title) {
+      const header = document.createElement('div');
+      header.className = 'sg-prop-group-title';
+      header.textContent = group.title;
+      section.appendChild(header);
+    }
 
     const body = document.createElement('div');
     body.className = 'sg-prop-group-body';

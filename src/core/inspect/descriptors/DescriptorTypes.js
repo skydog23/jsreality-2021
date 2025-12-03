@@ -20,7 +20,7 @@ export const DescriptorType = Object.freeze({
 
 /**
  * @typedef {Object} DescriptorCommon
- * @property {string} id - Stable identifier
+ * @property {string} [key] - Optional stable identifier (auto-generated if missing)
  * @property {string} type - DescriptorType enum value
  * @property {string} [label] - Display label
  * @property {string} [description] - Optional helper text/tooltip
@@ -77,18 +77,23 @@ export const DescriptorType = Object.freeze({
  * @param {InspectorDescriptor} descriptor
  * @returns {InspectorDescriptor}
  */
+// Counter for auto-generating keys
+let keyCounter = 0;
+
 export function normalizeDescriptor(descriptor) {
   if (!descriptor || typeof descriptor !== 'object') {
     throw new Error('normalizeDescriptor requires a descriptor object');
   }
-  if (!descriptor.id) {
-    throw new Error('Inspector descriptor is missing id');
-  }
   if (!descriptor.type) {
-    throw new Error(`Descriptor "${descriptor.id}" is missing type`);
+    throw new Error(`Descriptor is missing type`);
   }
+  
+  // Auto-generate key if missing
+  const key = descriptor.key || `descriptor-${++keyCounter}`;
+  
   const normalized = {
-    label: descriptor.label ?? descriptor.id,
+    key,
+    label: descriptor.label ?? key,
     description: descriptor.description ?? '',
     readonly: Boolean(descriptor.readonly),
     disabled: Boolean(descriptor.disabled),
@@ -104,17 +109,24 @@ export function normalizeDescriptor(descriptor) {
  * @param {DescriptorGroup} group
  * @returns {DescriptorGroup}
  */
+// Counter for auto-generating group keys
+let groupKeyCounter = 0;
+
 export function normalizeGroup(group) {
   if (!group || typeof group !== 'object') {
     throw new Error('normalizeGroup requires a group definition');
   }
   if (!Array.isArray(group.items)) {
-    throw new Error(`Descriptor group "${group.id || 'unknown'}" is missing items array`);
+    throw new Error(`Descriptor group is missing items array`);
   }
   const items = group.items.map((item) => normalizeDescriptor(item));
+  
+  // Auto-generate key if missing
+  const key = group.key || `group-${++groupKeyCounter}`;
+  
   return {
-    id: group.id || `group-${Math.random().toString(36).slice(2)}`,
-    title: group.title || group.id || 'Properties',
+    key,
+    title: group.title !== undefined && group.title !== null ? group.title : key,
     items
   };
 }

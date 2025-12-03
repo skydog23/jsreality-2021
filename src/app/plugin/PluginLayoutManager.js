@@ -3,16 +3,9 @@
  * Creates common regions (top toolbar stack, left side panels, viewer host) so that
  * plugins and applications no longer need to manipulate DOM structure directly.
  *
- * Day-1 goals:
- *   - Provide a stable host element for ViewerSwitch.
- *   - Expose a stacked "top" region for items like the menubar.
- *   - Expose a resizable left side panel for inspectors or similar plugins.
- *
- * Future enhancements (collapsible panels, floating popovers, etc.) can layer on top
- * of this manager without changing the consumer APIs.
+ * Uses simple flexbox layout (no split panes) - panels are positioned with fixed widths.
+ * Similar to jReality's approach.
  */
-
-import { SplitPane } from '../ui/SplitPane.js';
 
 export class PluginLayoutManager {
   /** @type {HTMLElement} */
@@ -25,7 +18,7 @@ export class PluginLayoutManager {
   #mainRegion;
 
   /** @type {HTMLElement} */
-  #splitContainer;
+  #contentContainer; // Horizontal flex container for left panel, viewer, right panel
 
   /** @type {HTMLElement} */
   #viewerHost;
@@ -35,9 +28,6 @@ export class PluginLayoutManager {
 
   /** @type {HTMLElement|null} */
   #rightPanelWrapper = null;
-
-  /** @type {SplitPane|null} */
-  #splitPane = null;
 
   /** @type {Map<string, HTMLElement>} */
   #regionSlots = new Map();
@@ -68,8 +58,8 @@ export class PluginLayoutManager {
    * @param {string} regionName
    * @param {Object} [options]
    * @param {string} [options.id] - Optional stable identifier to reuse a slot.
-   * @param {number} [options.initialSize] - Initial pixel size for resizable regions.
-   * @param {number} [options.minSize] - Minimum pixel size for resizable regions.
+   * @param {number} [options.initialSize] - Initial pixel size for panels (fixed width).
+   * @param {number} [options.minSize] - Minimum pixel size (not used, kept for API compatibility).
    * @param {boolean} [options.fill=true] - Whether the slot should take remaining space.
    * @param {string} [options.overflow='auto'] - Overflow policy inside the slot.
    * @returns {HTMLElement} The DOM node dedicated to the requested region.
@@ -114,6 +104,7 @@ export class PluginLayoutManager {
     this.#container.style.minHeight = '0';
     this.#container.style.minWidth = '0';
 
+    // Top region for menubar, etc.
     this.#topRegion = document.createElement('div');
     this.#topRegion.className = 'jsr-layout-top';
     this.#topRegion.style.display = 'none';
@@ -123,37 +114,41 @@ export class PluginLayoutManager {
     this.#topRegion.style.background = '#252526';
     this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
 
+    // Main region (vertical flex)
     this.#mainRegion = document.createElement('div');
     this.#mainRegion.className = 'jsr-layout-main';
     this.#mainRegion.style.flex = '1 1 auto';
     this.#mainRegion.style.minHeight = '0';
     this.#mainRegion.style.display = 'flex';
-    this.#mainRegion.style.flexDirection = 'column';
+    this.#mainRegion.style.flexDirection = 'row'; // Horizontal: left panel | viewer | right panel
     this.#mainRegion.style.position = 'relative';
 
-    this.#splitContainer = document.createElement('div');
-    this.#splitContainer.className = 'jsr-layout-main-content';
-    this.#splitContainer.style.flex = '1 1 auto';
-    this.#splitContainer.style.display = 'flex';
-    this.#splitContainer.style.flexDirection = 'column';
-    this.#splitContainer.style.minHeight = '0';
-    this.#splitContainer.style.width = '100%';
-    this.#splitContainer.style.height = '100%';
+    // Content container: horizontal flex for left panel, viewer, right panel
+    this.#contentContainer = document.createElement('div');
+    this.#contentContainer.className = 'jsr-layout-content';
+    this.#contentContainer.style.display = 'flex';
+    this.#contentContainer.style.flexDirection = 'row';
+    this.#contentContainer.style.flex = '1 1 auto';
+    this.#contentContainer.style.minHeight = '0';
+    this.#contentContainer.style.minWidth = '0';
+    this.#contentContainer.style.width = '100%';
+    this.#contentContainer.style.height = '100%';
 
+    // Viewer host (takes remaining space)
     this.#viewerHost = document.createElement('div');
     this.#viewerHost.className = 'jsr-layout-viewer-host';
     this.#viewerHost.style.flex = '1 1 auto';
-    this.#viewerHost.style.width = '100%';
+    this.#viewerHost.style.width = '0'; // Flexbox needs this to shrink properly
     this.#viewerHost.style.height = '100%';
     this.#viewerHost.style.position = 'relative';
     this.#viewerHost.style.minHeight = '0';
     this.#viewerHost.style.minWidth = '0';
 
-    this.#splitContainer.appendChild(this.#viewerHost);
+    this.#contentContainer.appendChild(this.#viewerHost);
 
     this.#container.appendChild(this.#topRegion);
     this.#container.appendChild(this.#mainRegion);
-    this.#mainRegion.appendChild(this.#splitContainer);
+    this.#mainRegion.appendChild(this.#contentContainer);
   }
 
   /**
@@ -177,7 +172,7 @@ export class PluginLayoutManager {
   }
 
   /**
-   * Creates/returns a left side slot, activating the SplitPane when needed.
+   * Creates/returns a left side slot.
    * @private
    */
   #createLeftSlot(options) {
@@ -196,7 +191,7 @@ export class PluginLayoutManager {
   }
 
   /**
-   * Creates/returns a right side slot, activating the SplitPane when needed.
+   * Creates/returns a right side slot.
    * @private
    */
   #createRightSlot(options) {
@@ -225,129 +220,54 @@ export class PluginLayoutManager {
   }
 
   /**
-   * Ensure the left panel infrastructure exists and is wired to the SplitPane.
+   * Ensure the left panel infrastructure exists.
    * @private
    */
   #ensureLeftPanel(options = {}) {
     if (!this.#leftPanelWrapper) {
+      const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
+      
       this.#leftPanelWrapper = document.createElement('div');
       this.#leftPanelWrapper.className = 'jsr-layout-left-panel';
       this.#leftPanelWrapper.style.display = 'flex';
       this.#leftPanelWrapper.style.flexDirection = 'column';
-      this.#leftPanelWrapper.style.width = '100%';
+      this.#leftPanelWrapper.style.width = `${initialSize}px`;
+      this.#leftPanelWrapper.style.flexShrink = '0'; // Fixed width
       this.#leftPanelWrapper.style.height = '100%';
       this.#leftPanelWrapper.style.minHeight = '0';
       this.#leftPanelWrapper.style.background = '#1e1e1e';
       this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
-    }
+      this.#leftPanelWrapper.style.overflow = 'hidden';
 
-    this.#activateSplitPane(options);
+      // Insert before viewer host
+      this.#contentContainer.insertBefore(this.#leftPanelWrapper, this.#viewerHost);
+    }
     return this.#leftPanelWrapper;
   }
 
   /**
-   * Ensure the right panel infrastructure exists and is wired to the SplitPane.
+   * Ensure the right panel infrastructure exists.
    * @private
    */
   #ensureRightPanel(options = {}) {
     if (!this.#rightPanelWrapper) {
+      const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
+      
       this.#rightPanelWrapper = document.createElement('div');
       this.#rightPanelWrapper.className = 'jsr-layout-right-panel';
       this.#rightPanelWrapper.style.display = 'flex';
       this.#rightPanelWrapper.style.flexDirection = 'column';
-      this.#rightPanelWrapper.style.width = '100%';
+      this.#rightPanelWrapper.style.width = `${initialSize}px`;
+      this.#rightPanelWrapper.style.flexShrink = '0'; // Fixed width
       this.#rightPanelWrapper.style.height = '100%';
       this.#rightPanelWrapper.style.minHeight = '0';
       this.#rightPanelWrapper.style.background = '#1e1e1e';
       this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
-    }
+      this.#rightPanelWrapper.style.overflow = 'hidden';
 
-    this.#activateRightSplitPane(options);
+      // Append after viewer host
+      this.#contentContainer.appendChild(this.#rightPanelWrapper);
+    }
     return this.#rightPanelWrapper;
   }
-
-  /**
-   * Instantiate the SplitPane (viewer + left panel) if it hasn't been created yet.
-   * @private
-   */
-  #activateSplitPane(options = {}) {
-    if (this.#splitPane) {
-      if (typeof options.initialSize === 'number') {
-        this.#splitPane.setLeftPanelSize(options.initialSize);
-      }
-      return;
-    }
-
-    const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 320;
-    const minSize = typeof options.minSize === 'number' ? options.minSize : 180;
-
-    // Clear existing children (viewer host) before SplitPane re-inserts them.
-    if (this.#viewerHost.parentElement === this.#splitContainer) {
-      this.#splitContainer.removeChild(this.#viewerHost);
-    }
-    this.#splitContainer.innerHTML = '';
-
-    this.#splitPane = new SplitPane(this.#splitContainer, {
-      leftPanel: this.#leftPanelWrapper,
-      rightPanel: this.#viewerHost,
-      orientation: 'horizontal',
-      initialSize,
-      minSize,
-      splitterWidth: 4
-    });
-  }
-
-  /**
-   * Instantiate the SplitPane (viewer + right panel) if it hasn't been created yet.
-   * For right panels, viewer goes on the left, panel on the right.
-   * @private
-   */
-  #activateRightSplitPane(options = {}) {
-    if (this.#splitPane) {
-      // If a left panel split pane already exists, we'd need nested split panes
-      // For now, just update the existing split pane to use right panel instead
-      // This means left and right panels can't coexist yet
-      if (typeof options.initialSize === 'number') {
-        // Recreate the split pane with viewer on left, right panel on right
-        this.#splitPane = null;
-      } else {
-        return;
-      }
-    }
-
-    const rightPanelSize = typeof options.initialSize === 'number' ? options.initialSize : 320;
-    const minSize = typeof options.minSize === 'number' ? options.minSize : 180;
-
-    // Clear existing children before SplitPane re-inserts them
-    if (this.#viewerHost.parentElement === this.#splitContainer) {
-      this.#splitContainer.removeChild(this.#viewerHost);
-    }
-    this.#splitContainer.innerHTML = '';
-
-    // For right panel: viewer on left, right panel on right
-    // SplitPane sizes the left panel, so we calculate: leftSize = containerWidth - rightPanelSize
-    // But we don't know container width yet, so we'll use a reasonable default and adjust after
-    const containerWidth = this.#splitContainer.offsetWidth || 1200;
-    const leftPanelSize = Math.max(minSize, containerWidth - rightPanelSize - 4); // 4 = splitter width
-
-    this.#splitPane = new SplitPane(this.#splitContainer, {
-      leftPanel: this.#viewerHost,
-      rightPanel: this.#rightPanelWrapper,
-      orientation: 'horizontal',
-      initialSize: leftPanelSize, // Left panel (viewer) gets this size, right panel gets the rest
-      minSize,
-      splitterWidth: 4
-    });
-
-    // After creation, adjust to ensure right panel has the desired size
-    // We'll set the left panel size to (container - desired right size)
-    setTimeout(() => {
-      if (this.#splitPane && this.#splitContainer.offsetWidth > 0) {
-        const currentContainerWidth = this.#splitContainer.offsetWidth;
-        const desiredLeftSize = Math.max(minSize, currentContainerWidth - rightPanelSize - 4);
-        this.#splitPane.setLeftPanelSize(desiredLeftSize);
-      }
-    }, 0);
-  }
 }
-

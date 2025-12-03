@@ -26,14 +26,14 @@ import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.j
 export class TestJSRApp extends JSRApp {
   _sphereLevel = 3;
   _scale = 0.5;
+  _world = SceneGraphUtility.createFullSceneGraphComponent("world");
 
   getContent() {
-    const world = SceneGraphUtility.createFullSceneGraphComponent("world");
-    const ifs = this.createSphere(this._sphereLevel);
-    world.setGeometry(ifs);
+     const ifs = this.createSphere(this._sphereLevel);
+    this._world.setGeometry(ifs);
   
 
-    const ap = world.getAppearance();
+    const ap = this._world.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,128,255));
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
@@ -42,57 +42,44 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
 
-    return world;
+    return this._world;
   }
 
   
   getInspectorDescriptors() {
     return [
       {
-        id: 'app-params',
-        title: 'Animation Parameters',
-        items: [
-          {
-            id: 'sphere-level',
-            type: DescriptorType.INT,
-            label: 'Sphere Level',
-            getValue: () => this._sphereLevel,
-            setValue: (val) => {
-              this._sphereLevel = val;
-              this.onParameterChanged('sphere-level');
-            },
-            min: 0,
-            max: 8,
-            step: 1
-          },
-          {
-            id: 'scale',
-            type: DescriptorType.FLOAT,
-            label: 'Scale',
-            getValue: () => this._scale,
-            setValue: (val) => {
-              this._scale = val;
-              this.onParameterChanged('scale');
-            },
-            min: 0.1,
-            max: 2.0,
-            step: 0.1
-          }
-        ]
+        key: 'sphere-level',
+        type: DescriptorType.INT,
+        label: 'Sphere Level',
+        getValue: () => this._sphereLevel,
+        setValue: (val) => {
+          this._sphereLevel = val;
+          this.updateSphere();
+        },
+        min: 0,
+        max: 8,
+        step: 1
+      },
+      {
+        key: 'scale',
+        type: DescriptorType.FLOAT,
+        label: 'Scale',
+        getValue: () => this._scale,
+        setValue: (val) => {
+          this._scale = val;
+          console.log('scale', val);
+        },
+        min: 0.1,
+        max: 2.0,
+        step: 0.1
       }
     ];
   }
   
-  onParameterChanged(paramId) {
-    // Update scene based on parameter change
-    if (paramId === 'sphere-level') {
-      const world = this.getViewer().getSceneRoot();
-      if (world) {
-        const ifs = this.createSphere(this._sphereLevel);
-        world.setGeometry(ifs);
-      }
-    }
-    this.getViewer().render();
+  updateSphere() {
+    const ifs = this.createSphere(this._sphereLevel);
+    this._world.setGeometry(ifs);
   }
 
   createSphere(level) {
