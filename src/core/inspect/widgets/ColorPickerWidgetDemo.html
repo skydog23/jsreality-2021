@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ColorPickerWidget Demo</title>
+    <link
+      rel="stylesheet"
+      href="../../../../css/retrievedCSSStyles.css"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
+          sans-serif;
+        background: #1e1e1e;
+        color: #f0f0f0;
+        display: flex;
+        min-height: 100vh;
+      }
+
+      main {
+        width: 100%;
+        max-width: 720px;
+        margin: auto;
+        padding: 32px;
+        background: #252526;
+        border: 1px solid #333;
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      }
+
+      h1 {
+        margin-top: 0;
+        font-weight: 500;
+      }
+
+      p {
+        color: #cccccc;
+      }
+
+      #widget-host {
+        margin-top: 24px;
+      }
+
+      #value-preview {
+        margin-top: 24px;
+        background: #1b1b1b;
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 16px;
+        font-family: 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        color: #9cdcfe;
+      }
+
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ColorPickerWidget Demo</h1>
+      <p>
+        This standalone page instantiates the inspector's
+        <code>ColorPickerWidget</code> using the full legacy inspector stylesheet
+        stored in <code>css/retrievedCSSStyles.css</code>. Adjust the RGB swatch or hover the
+        α button to tweak transparency and watch the value update below.
+      </p>
+      <div id="widget-host"></div>
+      <pre id="value-preview"></pre>
+    </main>
+
+    <script type="module">
+      import { ColorPickerWidget } from './ColorPickerWidget.js';
+      import { Color } from '../../util/Color.js';
+
+      const host = document.getElementById('widget-host');
+      const preview = document.getElementById('value-preview');
+
+      const initialColor = new Color(120, 180, 255, 200);
+
+      const formatValue = (value) => {
+        if (value instanceof Color) {
+          return JSON.stringify(
+            { r: value.r, g: value.g, b: value.b, a: value.a },
+            null,
+            2
+          );
+        }
+        return JSON.stringify(value, null, 2);
+      };
+
+      const widget = new ColorPickerWidget(initialColor, (value) => {
+        preview.textContent = formatValue(value);
+      });
+
+      host.appendChild(widget.getElement());
+      preview.textContent = formatValue(initialColor);
+    </script>
+  </body>
+</html>
+

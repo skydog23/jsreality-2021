@@ -1,3 +1,8 @@
+const LEGACY_INSPECTOR_CSS_URL = new URL(
+  '../../../css/retrievedCSSStyles.css',
+  import.meta.url
+);
+
 /**
  * Manages shared stylesheet injection for inspector-related UI.
  * Ensures the CSS is only inserted once and removed when no longer needed.
@@ -10,6 +15,12 @@ export class InspectorStylesheetManager {
 
   /** @type {number} */
   #refCount = 0;
+
+  /** @type {string|null} */
+  #legacyStyles = null;
+
+  /** @type {Promise<string>|null} */
+  #legacyStylesPromise = null;
 
   static getInstance() {
     if (!InspectorStylesheetManager.#instance) {
@@ -38,9 +49,21 @@ export class InspectorStylesheetManager {
     }
     const style = document.createElement('style');
     style.id = 'sg-inspector-styles';
-    style.textContent = this.#getStyles();
+    style.textContent = this.#getBaseStyles();
     document.head.appendChild(style);
     this.#styleElement = style;
+
+    this.#loadLegacyStyles()
+      .then((cssText) => {
+        if (!cssText || !this.#styleElement) return;
+        this.#styleElement.textContent += `\n${cssText}`;
+      })
+      .catch((error) => {
+        console.warn(
+          'InspectorStylesheetManager: failed to load legacy inspector CSS',
+          error
+        );
+      });
   }
 
   #removeStyles() {
@@ -50,7 +73,47 @@ export class InspectorStylesheetManager {
     this.#styleElement = null;
   }
 
-  #getStyles() {
+  async #loadLegacyStyles() {
+    if (this.#legacyStyles) {
+      return this.#legacyStyles;
+    }
+    if (this.#legacyStylesPromise) {
+      return this.#legacyStylesPromise;
+    }
+    if (typeof fetch === 'undefined') {
+      console.warn(
+        'InspectorStylesheetManager: fetch is unavailable; legacy inspector CSS not loaded.'
+      );
+      this.#legacyStyles = '';
+      return this.#legacyStyles;
+    }
+
+    this.#legacyStylesPromise = fetch(LEGACY_INSPECTOR_CSS_URL)
+      .then((resp) => {
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        return resp.text();
+      })
+      .then((text) => {
+        this.#legacyStyles = text;
+        this.#legacyStylesPromise = null;
+        return text;
+      })
+      .catch((err) => {
+        console.warn(
+          'InspectorStylesheetManager: unable to fetch legacy inspector CSS',
+          err
+        );
+        this.#legacyStylesPromise = null;
+        this.#legacyStyles = '';
+        return '';
+      });
+
+    return this.#legacyStylesPromise;
+  }
+
+  #getBaseStyles() {
     return `
       .sg-inspector {
         display: flex;

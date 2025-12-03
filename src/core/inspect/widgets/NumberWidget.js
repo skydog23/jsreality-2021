@@ -96,7 +96,7 @@ export class NumberWidget {
         background: #3c3c3c;
         border: 1px solid #555;
         border-radius: 2px;
-        color: #ce9178;
+        color:rgb(63, 187, 232);
         font-size: 10px;
         font-family: 'Monaco', 'Courier New', monospace;
         text-align: right;
@@ -193,7 +193,8 @@ export class NumberWidget {
    */
   #handleChange() {
     const inputValue = this.#input.value.trim();
-    const newValue = parseFloat(inputValue);
+    const normalizedValue = inputValue.replace(',', '.');
+    const newValue = parseFloat(normalizedValue);
 
     if (!isNaN(newValue)) {
       this.#currentValue = newValue;

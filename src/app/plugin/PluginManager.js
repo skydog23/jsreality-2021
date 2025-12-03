@@ -30,15 +30,20 @@ export class PluginManager {
   /** @type {Set<Function>} */
   #unsubscribeFunctions = new Set();
 
+  /** @type {import('./PluginLayoutManager.js').PluginLayoutManager|null} */
+  #layoutManager = null;
+
   /**
    * Create a new plugin manager.
    * 
    * @param {import('../JSRViewer.js').JSRViewer} viewer - The viewer instance
    * @param {import('./EventBus.js').EventBus} eventBus - The event bus instance
+   * @param {import('./PluginLayoutManager.js').PluginLayoutManager|null} [layoutManager=null] - Layout manager
    */
-  constructor(viewer, eventBus) {
+  constructor(viewer, eventBus, layoutManager = null) {
     this.#viewer = viewer;
     this.#eventBus = eventBus;
+    this.#layoutManager = layoutManager;
   }
 
   /**
@@ -72,7 +77,12 @@ export class PluginManager {
     }
 
     // Create context
-    const context = new PluginContext(this.#viewer, this.#plugins, this.#eventBus);
+    const context = new PluginContext(
+      this.#viewer,
+      this.#plugins,
+      this.#eventBus,
+      this.#layoutManager
+    );
 
     try {
       // Install plugin

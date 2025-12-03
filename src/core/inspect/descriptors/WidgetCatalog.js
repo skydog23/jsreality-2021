@@ -73,7 +73,8 @@ function numericInputFactory(inputType, overrides = {}) {
   return (descriptor) => {
     const wrapper = createRow(descriptor);
     const input = document.createElement('input');
-    input.type = inputType;
+    input.type = 'text';
+    input.inputMode = 'decimal';
     input.className = 'inspector-input inspector-input--number';
     const fractionDigits = overrides.fractionDigits ?? 4;
     input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
@@ -86,7 +87,14 @@ function numericInputFactory(inputType, overrides = {}) {
     }
     input.addEventListener('change', () => {
       if (!descriptor.setValue) return;
-      const rawValue = inputType === 'number' ? Number(input.value) : input.value;
+      const normalized = normalizeDecimalString(input.value);
+      const rawValue = descriptor.type === DescriptorType.INT
+        ? parseInt(normalized, 10)
+        : parseFloat(normalized);
+      if (Number.isNaN(rawValue)) {
+        input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
+        return;
+      }
       descriptor.setValue(rawValue);
       input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
     });
@@ -202,7 +210,8 @@ function vectorFactory(descriptor) {
   container.style.alignItems = 'center';
   const inputs = initialValues.map((val, index) => {
     const input = document.createElement('input');
-    input.type = 'number';
+    input.type = 'text';
+    input.inputMode = 'decimal';
     input.value = formatNumber(val);
     input.style.width = '4rem';
     input.className = 'sg-number-widget-input';
@@ -210,7 +219,13 @@ function vectorFactory(descriptor) {
     input.addEventListener('change', () => {
       if (!descriptor.setValue) return;
       const next = getVector();
-      next[index] = Number(input.value);
+      const normalized = normalizeDecimalString(input.value);
+      const parsed = parseFloat(normalized);
+      if (Number.isNaN(parsed)) {
+        input.value = formatNumber(next[index]);
+        return;
+      }
+      next[index] = parsed;
       descriptor.setValue(next);
       updateInputs(inputs, getVector());
     });
@@ -247,5 +262,12 @@ function formatNumber(value, fractionDigits = 4) {
     return '0';
   }
   return num.toFixed(fractionDigits);
+}
+
+function normalizeDecimalString(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).replace(/,/g, '.');
 }
 
