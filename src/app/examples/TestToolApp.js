@@ -30,18 +30,18 @@ export class TestToolApp extends JSRApp {
         super(options);
         // Enable detailed logging for tool system debugging
         // This will help debug why TestTool's perform() method isn't being called
-        setModuleLevel('ToolSystem', Level.FINER);
-        setModuleLevel('SlotManager', Level.FINER);
-        setModuleLevel('DeviceManager', Level.FINE);
-        setModuleLevel('ToolEventQueue', Level.FINE);
-        setModuleLevel('AbstractDeviceMouse', Level.FINER);
-        // TestTool already has FINE level enabled in TestTool.js
+        // setModuleLevel('ToolSystem', Level.FINER);
+        // setModuleLevel('SlotManager', Level.FINER);
+        // setModuleLevel('DeviceManager', Level.FINE);
+        // setModuleLevel('ToolEventQueue', Level.FINE);
+        // setModuleLevel('AbstractDeviceMouse', Level.FINER);
+        // // TestTool already has FINE level enabled in TestTool.js
     }
     
     getShowPanels() {
         return [true, false, false, false];
     } 
-    
+
     getContent() {
         const world = SceneGraphUtility.createFullSceneGraphComponent("world");
         world.setGeometry(Primitives.regularPolygon(13, .5));

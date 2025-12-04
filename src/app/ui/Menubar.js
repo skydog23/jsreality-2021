@@ -273,7 +273,7 @@ export class Menubar {
         }
       });
     } else if (item.type === 'checkbox') {
-      // Handle checkbox items
+      // Handle checkbox items - show checkmark (✓) when checked
       const checkboxContainer = document.createElement('label');
       checkboxContainer.style.display = 'flex';
       checkboxContainer.style.alignItems = 'center';
@@ -281,28 +281,34 @@ export class Menubar {
       checkboxContainer.style.cursor = 'pointer';
       checkboxContainer.style.margin = '0';
       
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = item.checked || false;
-      checkbox.style.marginRight = '8px';
-      checkbox.style.cursor = 'pointer';
+      // Checkmark indicator (always present, shown/hidden based on checked state)
+      const checkmark = document.createElement('span');
+      checkmark.textContent = '✓';
+      checkmark.style.marginRight = '8px';
+      checkmark.style.width = '16px';
+      checkmark.style.textAlign = 'center';
+      checkmark.style.color = '#cccccc';
+      checkmark.style.fontSize = '14px';
+      checkmark.style.display = (item.checked || false) ? 'inline-block' : 'none';
       
       const label = document.createElement('span');
       label.textContent = item.label;
       
-      checkboxContainer.appendChild(checkbox);
+      checkboxContainer.appendChild(checkmark);
       checkboxContainer.appendChild(label);
       itemElement.appendChild(checkboxContainer);
       
-      // Store checkbox input for later access
-      itemElement._checkboxInput = checkbox;
+      // Store checkmark element for later access
+      itemElement._checkmark = checkmark;
+      itemElement._checked = item.checked || false;
       
       // Click handler
       itemElement.addEventListener('click', (e) => {
         e.stopPropagation();
         
-        // Toggle checkbox
-        checkbox.checked = !checkbox.checked;
+        // Toggle checked state
+        itemElement._checked = !itemElement._checked;
+        checkmark.style.display = itemElement._checked ? 'inline-block' : 'none';
         
         // Close dropdown
         this.#closeAllDropdowns();
@@ -401,6 +407,15 @@ export class Menubar {
         dropdown.appendChild(element);
       });
     }
+  }
+
+  /**
+   * Get menu items for a specific menu.
+   * @param {string} menuName - Name of the menu
+   * @returns {Array<{item: Object, priority: number, element: HTMLElement}>|null}
+   */
+  getMenuItems(menuName) {
+    return this.#items.get(menuName) || null;
   }
 
   /**

@@ -307,6 +307,6 @@ export class PluginLayoutManager {
       if (this.#topRegion.style.display === 'none') {
         this.#topRegion.style.display = 'flex';
       }
-    }
   }
+}
 }

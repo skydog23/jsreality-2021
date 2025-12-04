@@ -21,6 +21,9 @@ export class PanelShowMenuPlugin extends JSRPlugin {
   /** @type {import('../plugin/PluginController.js').PluginController|null} */
   #controller = null;
 
+  /** @type {import('../plugin/PluginContext.js').PluginContext|null} */
+  #context = null;
+
   /**
    * Get plugin metadata.
    * @returns {import('../plugin/JSRPlugin.js').PluginInfo}
@@ -45,6 +48,7 @@ export class PanelShowMenuPlugin extends JSRPlugin {
   async install(viewer, context) {
     await super.install(viewer, context);
     
+    this.#context = context;
     this.#controller = context.getController();
     if (!this.#controller) {
       logger.warn('PluginController not available, panel menu items will not be added');
@@ -86,7 +90,7 @@ export class PanelShowMenuPlugin extends JSRPlugin {
     if (hasLeft) {
       menuItems.push({
         menu: 'View',
-        label: 'Show Left Panel',
+        label: 'Left Panel',
         type: 'checkbox',
         checked: panelSlots.left ?? false,
         action: () => this.#togglePanel('left'),
@@ -98,7 +102,7 @@ export class PanelShowMenuPlugin extends JSRPlugin {
     if (hasRight) {
       menuItems.push({
         menu: 'View',
-        label: 'Show Right Panel',
+        label: 'Right Panel',
         type: 'checkbox',
         checked: panelSlots.right ?? false,
         action: () => this.#togglePanel('right'),
@@ -113,7 +117,7 @@ export class PanelShowMenuPlugin extends JSRPlugin {
     if (hasBottom) {
       menuItems.push({
         menu: 'View',
-        label: 'Show Bottom Panel',
+        label: 'Bottom Panel',
         type: 'checkbox',
         checked: panelSlots.bottom ?? false,
         action: () => this.#togglePanel('bottom'),
@@ -150,7 +154,39 @@ export class PanelShowMenuPlugin extends JSRPlugin {
     };
     
     this.#controller.setShowPanelSlots(newVisibility);
+    
+    // Update checkmark in menu to reflect new state
+    this.#updateMenuCheckmark(position, newVisibility[position]);
+    
     logger.info(`Toggled ${position} panel visibility to ${newVisibility[position]}`);
+  }
+
+  /**
+   * Update the checkmark state in the menu for a specific panel.
+   * @param {string} position - Panel position
+   * @param {boolean} visible - Whether panel is visible
+   * @private
+   */
+  #updateMenuCheckmark(position, visible) {
+    if (!this.#context) return;
+    
+    const menubarPlugin = this.#context.getMenubarPlugin();
+    if (!menubarPlugin || !menubarPlugin.getMenubar) return;
+    
+    const menubar = menubarPlugin.getMenubar();
+    if (!menubar || !menubar.getMenuItems) return;
+    
+    // Find the menu item for this panel and update its checkmark
+    const menuItems = menubar.getMenuItems('View');
+    if (!menuItems) return;
+    
+    const panelLabel = `${position.charAt(0).toUpperCase() + position.slice(1)} Panel`;
+    menuItems.forEach(({ element, item }) => {
+      if (item.label === panelLabel && element._checkmark !== undefined) {
+        element._checked = visible;
+        element._checkmark.style.display = visible ? 'inline-block' : 'none';
+      }
+    });
   }
 }
 
