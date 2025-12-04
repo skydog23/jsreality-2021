@@ -17,34 +17,39 @@ import { DescriptorRenderer } from './DescriptorRenderer.js';
  */
 export class DescriptorUtility {
   /**
-   * Create a default inspector panel from descriptor groups.
+   * Create a default inspector panel from a flat array of descriptors.
    * 
    * This creates a collapsible panel with the specified title and renders
-   * the provided descriptor groups inside it. The panel can be registered
-   * with ShrinkPanelAggregator or used standalone.
+   * the provided descriptors inside it. The descriptors are automatically
+   * wrapped in a single group. The panel can be registered with
+   * ShrinkPanelAggregator or used standalone.
    * 
-   * @param {string} id - Unique identifier for the panel
    * @param {string} title - Panel title
-   * @param {Array<import('./DescriptorTypes.js').DescriptorGroup>} items - Array of descriptor groups to render
+   * @param {Array<import('./DescriptorTypes.js').InspectorDescriptor>} descriptors - Flat array of descriptors to render
    * @param {Object} [options] - Configuration options
+   * @param {string} [options.id] - Optional unique identifier for the panel (auto-generated if missing)
    * @param {string} [options.icon] - Optional icon/emoji for the title bar
    * @param {boolean} [options.collapsed=false] - Initial collapsed state
-   * @param {Function} [options.onPropertyChange] - Callback when a property value changes (for render triggers)
+   * @param {Function} [options.onPropertyChange] - Optional callback when a property value changes.
+   *   If provided, this callback will be called after each descriptor's `setValue` method completes.
+   *   Use this to trigger a render or perform other side effects. If omitted, descriptors handle
+   *   their own side effects (e.g., calling render() directly in their setValue methods).
    * @returns {HTMLElement} The collapsible panel element
    */
-  static createDefaultInspectorPanel(id, title, items, options = {}) {
+  static createDefaultInspectorPanel(title, descriptors, options = {}) {
     const {
+      id = null,
       icon = '⚙️',
       collapsed = false,
       onPropertyChange = null
     } = options;
 
-    if (!id || !title) {
-      throw new Error('DescriptorUtility.createDefaultInspectorPanel requires id and title');
+    if (!title) {
+      throw new Error('DescriptorUtility.createDefaultInspectorPanel requires title');
     }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new Error('DescriptorUtility.createDefaultInspectorPanel requires non-empty items array');
+    if (!descriptors || !Array.isArray(descriptors) || descriptors.length === 0) {
+      throw new Error('DescriptorUtility.createDefaultInspectorPanel requires non-empty descriptors array');
     }
 
     // Create collapsible panel
@@ -60,30 +65,33 @@ export class DescriptorUtility {
     content.style.display = 'flex';
     content.style.flexDirection = 'column';
 
+    // Wrap descriptors with property change callback if provided
+    const wrappedDescriptors = onPropertyChange
+      ? descriptors.map(item => {
+          const originalSetValue = item.setValue;
+          if (originalSetValue) {
+            return {
+              ...item,
+              setValue: (value) => {
+                originalSetValue(value);
+                onPropertyChange();
+              }
+            };
+          }
+          return item;
+        })
+      : descriptors;
+
+    // Wrap descriptors in a single group (no title needed - panel already has title)
+    const group = {
+      key: id,
+      title: '', // Empty title - panel title is sufficient
+      items: wrappedDescriptors
+    };
+
     // Render descriptors
     const descriptorRenderer = new DescriptorRenderer(content);
-
-    // Wrap descriptors with property change callback if provided
-    const wrappedItems = onPropertyChange
-      ? items.map(group => ({
-          ...group,
-          items: group.items.map(item => {
-            const originalSetValue = item.setValue;
-            if (originalSetValue) {
-              return {
-                ...item,
-                setValue: (value) => {
-                  originalSetValue(value);
-                  onPropertyChange();
-                }
-              };
-            }
-            return item;
-          })
-        }))
-      : items;
-
-    descriptorRenderer.render(wrappedItems);
+    descriptorRenderer.render([group]);
     panel.setContent(content);
 
     return panel;

@@ -244,7 +244,7 @@ function createRow(descriptor) {
   }
   const label = document.createElement('label');
   label.className = 'sg-prop-label';
-  label.textContent = descriptor.label || descriptor.id;
+  label.textContent = descriptor.label || descriptor.key;
   if (descriptor.description) {
     label.title = descriptor.description;
   }

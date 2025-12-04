@@ -98,9 +98,9 @@ export class Menubar {
    * @param {string} item.label - Item label
    * @param {Function} [item.action] - Action callback
    * @param {Object[]} [item.submenu] - Submenu items
-   * @param {string} [item.type] - Item type ('radio' for radio buttons)
+   * @param {string} [item.type] - Item type ('radio' for radio buttons, 'checkbox' for checkboxes)
    * @param {string} [item.radioGroup] - Radio button group name (for type='radio')
-   * @param {boolean} [item.checked] - Initial checked state (for type='radio')
+   * @param {boolean} [item.checked] - Initial checked state (for type='radio' or type='checkbox')
    * @param {number} [priority=50] - Priority (lower = earlier)
    */
   addMenuItem(menuName, item, priority = 50) {
@@ -272,6 +272,56 @@ export class Menubar {
           }
         }
       });
+    } else if (item.type === 'checkbox') {
+      // Handle checkbox items - show checkmark (✓) when checked
+      const checkboxContainer = document.createElement('label');
+      checkboxContainer.style.display = 'flex';
+      checkboxContainer.style.alignItems = 'center';
+      checkboxContainer.style.width = '100%';
+      checkboxContainer.style.cursor = 'pointer';
+      checkboxContainer.style.margin = '0';
+      
+      // Checkmark indicator (always present, shown/hidden based on checked state)
+      const checkmark = document.createElement('span');
+      checkmark.textContent = '✓';
+      checkmark.style.marginRight = '8px';
+      checkmark.style.width = '16px';
+      checkmark.style.textAlign = 'center';
+      checkmark.style.color = '#cccccc';
+      checkmark.style.fontSize = '14px';
+      checkmark.style.display = (item.checked || false) ? 'inline-block' : 'none';
+      
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      
+      checkboxContainer.appendChild(checkmark);
+      checkboxContainer.appendChild(label);
+      itemElement.appendChild(checkboxContainer);
+      
+      // Store checkmark element for later access
+      itemElement._checkmark = checkmark;
+      itemElement._checked = item.checked || false;
+      
+      // Click handler
+      itemElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // Toggle checked state
+        itemElement._checked = !itemElement._checked;
+        checkmark.style.display = itemElement._checked ? 'inline-block' : 'none';
+        
+        // Close dropdown
+        this.#closeAllDropdowns();
+        
+        // Execute action
+        if (item.action) {
+          try {
+            item.action();
+          } catch (error) {
+            logger.severe(`Error executing menu action for "${item.label}": ${error.message}`);
+          }
+        }
+      });
     } else {
       // Regular menu item (non-radio)
       itemElement.textContent = item.label;
@@ -357,6 +407,15 @@ export class Menubar {
         dropdown.appendChild(element);
       });
     }
+  }
+
+  /**
+   * Get menu items for a specific menu.
+   * @param {string} menuName - Name of the menu
+   * @returns {Array<{item: Object, priority: number, element: HTMLElement}>|null}
+   */
+  getMenuItems(menuName) {
+    return this.#items.get(menuName) || null;
   }
 
   /**

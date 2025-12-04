@@ -19,6 +19,7 @@ import { MenubarPlugin } from './plugins/MenubarPlugin.js';
 import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
 import { ShrinkPanelAggregator } from './plugins/ShrinkPanelAggregator.js';
+import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
@@ -44,6 +45,10 @@ export class JSRApp extends JSRPlugin {
    * @type {ToolSystem|null} The tool system instance (protected)
    */
   _toolSystem = null;
+
+  getShowPanels() {
+    return [true, true, false, false];
+  }
 
   /**
    * Create a new JSRApp instance.
@@ -87,11 +92,14 @@ export class JSRApp extends JSRPlugin {
       viewerTypes
     });
     
-    // Register aggregator first, then ourselves
-    // This ensures aggregator is available when JSRApp.install() runs
+    // Register plugins in order: SceneGraphInspectorPlugin first (needs left panel),
+    // then ShrinkPanelAggregator (needs right panel), then ourselves
+    // This ensures panel slots are created in the right order
     Promise.resolve().then(async () => {
       try {
-        // Register aggregator first
+        // Register SceneGraphInspectorPlugin first so left panel split pane is created
+        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
+        // Register aggregator second (right panel)
         await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
         // Then register ourselves (so we can use aggregator in install())
         await this.#jsrViewer.registerPlugin(this);
@@ -149,6 +157,12 @@ export class JSRApp extends JSRPlugin {
       });
     }
 
+    // Enable panel slots (left for inspector, right for shrink panels)
+    // Similar to JRViewer.setShowPanelSlots(true, false, false, false)
+    console.log(this.getShowPanels());
+    
+    this.#jsrViewer.setShowPanelSlots(this.getShowPanels());
+
     // Get content from subclass and set it
     // Now safe to call getContent() because install() runs after constructor completes
     const content = this.getContent();
@@ -200,25 +214,15 @@ export class JSRApp extends JSRPlugin {
     // Use the subclass name as the panel title
     const pluginInfo = this.getInfo();
     const title = this.constructor.name;
-    
-    // Set up render callback for property changes
-    const onPropertyChange = () => {
-      if (context.getController) {
-        const controller = context.getController();
-        if (controller) {
-          controller.render();
-        }
-      }
-    };
 
     const panel = DescriptorUtility.createDefaultInspectorPanel(
-      pluginInfo.id,
       title,
       descriptors,
       {
+        id: pluginInfo.id,
         icon: '⚙️',
         collapsed: false,
-        onPropertyChange: onPropertyChange
+        onPropertyChange: () => this.getViewer().render()
       }
     );
 
@@ -236,8 +240,8 @@ export class JSRApp extends JSRPlugin {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
         await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
-        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
-        // ShrinkPanelAggregator is already registered in constructor
+        await this.#jsrViewer.registerPlugin(new PanelShowMenuPlugin());
+        // SceneGraphInspectorPlugin and ShrinkPanelAggregator are already registered in constructor
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
@@ -249,21 +253,21 @@ export class JSRApp extends JSRPlugin {
  * Get inspector descriptors for application parameters.
  * Subclasses can override this to expose editable parameters.
  * 
- * The panel title is automatically set to the subclass name, and the panel id
- * is automatically generated from the plugin info. Subclasses only need to
- * return the array of descriptor groups.
+ * The panel title is automatically set to the subclass name. Subclasses should
+ * return a flat array of descriptors (no grouping required).
  * 
- * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').DescriptorGroup>}
+ * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').InspectorDescriptor>}
  */
 getInspectorDescriptors() {
   return [
-    {
-      id: 'app-params',
-      title: 'Application Parameters',
-      items: [
-        // Subclasses add their parameters here
-      ]
-    }
+    // Subclasses add their parameter descriptors here
+    // Example:
+    // {
+    //   type: DescriptorType.INT,
+    //   label: 'My Parameter',
+    //   getValue: () => this._value,
+    //   setValue: (val) => { this._value = val; }
+    // }
   ];
 }
   /**

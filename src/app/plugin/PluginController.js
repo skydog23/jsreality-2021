@@ -228,17 +228,30 @@ export class PluginController {
 
   /**
    * Configure visibility of panel slots (similar to JRViewer.setShowPanelSlots).
-   * Note: Currently only left and top are implemented.
    * 
    * @param {PanelSlotsVisibility} visibility - Visibility settings
    */
   setShowPanelSlots(visibility) {
-    // Store the requested visibility
-    Object.assign(this.#panelVisibility, visibility);
+    // Store the requested visibility, but only update explicitly provided values
+    // This prevents accidentally hiding panels (like top/menubar) that weren't meant to be changed
+    if (visibility.left !== undefined) {
+      this.#panelVisibility.left = visibility.left;
+    }
+    if (visibility.right !== undefined) {
+      this.#panelVisibility.right = visibility.right;
+    }
+    if (visibility.top !== undefined) {
+      this.#panelVisibility.top = visibility.top;
+    }
+    if (visibility.bottom !== undefined) {
+      this.#panelVisibility.bottom = visibility.bottom;
+    }
     
-    // Note: Actually hiding/showing panels would require additional
-    // PluginLayoutManager support. For now we just track the intent.
-    logger.fine(`Panel visibility updated: ${JSON.stringify(this.#panelVisibility)}`);
+    // Actually hide/show panels via PluginLayoutManager
+    // Only pass the explicitly provided values, not the entire visibility object
+    this.#layoutManager.setPanelVisibility(visibility);
+    
+    logger.fine(`Panel visibility updated: ${JSON.stringify(visibility)}`);
   }
 
   /**
@@ -258,6 +271,25 @@ export class PluginController {
    */
   isPanelVisible(position) {
     return this.#panelVisibility[position] ?? false;
+  }
+
+  /**
+   * Check if a panel slot exists (has been requested).
+   * 
+   * @param {string} position - Panel position ('left', 'right', 'top', 'bottom')
+   * @returns {boolean}
+   */
+  hasPanel(position) {
+    // Check if panel has been requested by checking if it's in the panel slots map
+    // or if visibility has been explicitly set
+    const prefix = `${position}:`;
+    for (const key of this.#panelSlots.keys()) {
+      if (key.startsWith(prefix)) {
+        return true;
+      }
+    }
+    // Also check if visibility has been set (panels set visibility when created)
+    return this.#panelVisibility[position] !== undefined;
   }
 
   // ========================================================================
