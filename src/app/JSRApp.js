@@ -20,6 +20,7 @@ import { ExportMenuPlugin } from './plugins/ExportMenuPlugin.js';
 import { SceneGraphInspectorPlugin } from './plugins/SceneGraphInspectorPlugin.js';
 import { ShrinkPanelAggregator } from './plugins/ShrinkPanelAggregator.js';
 import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
+import { AppMenuPlugin } from './plugins/AppMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
@@ -247,9 +248,10 @@ export class JSRApp extends JSRPlugin {
     Promise.resolve().then(async () => {
       try {
         await this.#jsrViewer.registerPlugin(new MenubarPlugin());
-        await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
         await this.#jsrViewer.registerPlugin(new PanelShowMenuPlugin());
-        // SceneGraphInspectorPlugin and ShrinkPanelAggregator are already registered in constructor
+       await this.#jsrViewer.registerPlugin(new AppMenuPlugin());
+        await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
+         // SceneGraphInspectorPlugin and ShrinkPanelAggregator are already registered in constructor
       } catch (error) {
         console.error('Failed to initialize plugins:', error);
       }
