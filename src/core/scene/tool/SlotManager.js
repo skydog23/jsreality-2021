@@ -268,6 +268,14 @@ export class SlotManager {
   updateMaps(activeTools, activatedTools, deactivatedTools) {
     // Handle newly activated tools
     for (const tool of activatedTools) {
+      for (const tool of activatedTools) {
+        logger.finer(
+          Category.SCENE,
+          `updateMaps(activated): tool=${tool.getName()}, currentSlots=` +
+            tool.getCurrentSlots().map(s => s.getName()).join(', ')
+        );
+        // existing code …
+      }
       // Update slot2active
       for (const slot of tool.getCurrentSlots()) {
         for (const resolvedSlot of this.resolveSlot(slot)) {

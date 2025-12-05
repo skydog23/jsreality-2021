@@ -16,6 +16,8 @@ import { Matrix } from './Matrix.js';
 import * as Pn from './Pn.js';
 import * as P3 from './P3.js';
 import * as Rn from './Rn.js';
+import { Transformation } from '../scene/Transformation.js';
+import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
 
 /** @typedef {number[]} Matrix4 */
 
@@ -419,12 +421,26 @@ export class MatrixBuilder {
   assignTo(array) {
     this.#matrix.assignTo(array);
   }
-
-  /**
+ /**
    * Assign to Matrix
    * @param {Matrix} m 
    */
-  assignToMatrix(m) {
+ assignToMatrix(m) {
     this.#matrix.assignToMatrix(m);
   }
+/**
+ * Assign to Transformation
+ * @param {Transformation} transformation 
+ */
+  assignToTransformation(transformation) {
+    this.#matrix.assignToTransformation(transformation);
+  }
+  /**
+   * Assign to SceneGraphComponent
+   * @param {SceneGraphComponent} sgc 
+   */
+  assignToSGC(sgc) {
+    this.#matrix.assignToSGC(sgc);
+  }
+ 
 }

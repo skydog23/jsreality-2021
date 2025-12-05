@@ -14,6 +14,8 @@
 // @ts-check
 
 import * as Rn from './Rn.js';
+import { Transformation } from '../scene/Transformation.js';
+import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
 
 /** @typedef {number[]} Matrix4 */
 
@@ -120,6 +122,7 @@ export class Matrix {
     return res;
   }
 
+
   /**
    * Instance methods
    */
@@ -168,6 +171,24 @@ export class Matrix {
     m.assignFrom(this.#matrix);
   }
 
+  /**
+   * Copy this matrix to a Transformation
+   * @param {Transformation} transformation 
+   */
+  assignToTransformation(transformation) {
+    transformation.setMatrix(this.#matrix);
+  }
+  
+  /**
+   * Copy this matrix to a SceneGraphComponent
+   * @param {SceneGraphComponent} sgc 
+   */
+  assignToSGC(sgc) {
+    if (!sgc.getTransformation()) {
+      sgc.setTransformation(new Transformation());
+    }
+    this.assignToTransformation(sgc.getTransformation());
+  }
   /**
    * Set to identity matrix
    */

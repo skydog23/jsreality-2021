@@ -561,9 +561,11 @@ export class ToolSystem extends ToolEventReceiver {
     // Get tools from this component
     const tools = component.getTools();
     for (const tool of tools) {
-      const toolPath = path.pushNew(component);
-      this.#logger.finer(Category.SCENE, `Discovering tool ${tool.constructor.name} at path: ${toolPath.toString()}`);
-      this.addTool(tool, toolPath);
+      // At this point, path already ends at the current component, so we should
+      // NOT push the component again. Using path directly matches the Java
+      // ToolSystem behaviour and avoids duplicated nodes (e.g. "world : world").
+      this.#logger.finer(Category.SCENE, `Discovering tool ${tool.constructor.name} at path: ${path.toString()}`);
+      this.addTool(tool, path);
     }
     
     // Recursively process child components
@@ -684,9 +686,10 @@ export class ToolSystem extends ToolEventReceiver {
     const paths = this.#findAllPathsToComponent(root, component, new SceneGraphPath());
     
     for (const path of paths) {
-      const toolPath = path.pushNew(component);
-      this.#logger.finer(Category.SCENE, `Auto-registering tool ${tool.constructor.name} at path: ${toolPath.toString()}`);
-      this.addTool(tool, toolPath);
+      // Each returned path already ends at the target component, so we use it
+      // directly instead of pushing the component again.
+      this.#logger.finer(Category.SCENE, `Auto-registering tool ${tool.constructor.name} at path: ${path.toString()}`);
+      this.addTool(tool, path);
     }
   }
 
@@ -704,8 +707,8 @@ export class ToolSystem extends ToolEventReceiver {
     const paths = this.#findAllPathsToComponent(root, component, new SceneGraphPath());
     
     for (const path of paths) {
-      const toolPath = path.pushNew(component);
-      this.removeTool(tool, toolPath);
+      // Use the existing path ending at component
+      this.removeTool(tool, path);
     }
   }
 
@@ -829,20 +832,45 @@ export class ToolSystem extends ToolEventReceiver {
       const axis = this.#deviceManager.getAxisState(slot);
       let noTrigger = true;
 
-      if (axis !== null && axis.isPressed()) {
+        if (axis !== null && axis.isPressed()) {
         // Possible activation
         const candidatesForPick = new Set(this.#slotManager.getToolsActivatedBySlot(slot));
+        this.#logger.finer(
+          Category.SCENE,
+          `[ToolSystem] Activation candidates for slot ${slot.getName()}: ${
+            Array.from(candidatesForPick).map(t => `${t.constructor.name}(${t.getName()})`).join(', ') || '<none>'
+          }`
+        ); 
         const candidates = new Set();
 
         if (candidatesForPick.size > 0) {
           // Need pick path
           if (pickPath === null) {
             pickPath = this.#calculatePickPath();
+              // Log the calculated pick path for debugging
+              try {
+                const pathDesc = pickPath && typeof pickPath.toString === 'function'
+                  ? pickPath.toString()
+                  : String(pickPath);
+                this.#logger.finer(
+                  Category.SCENE,
+                  `[ToolSystem] Calculated pick path for activation: ${pathDesc}`
+                );
+              } catch (e) {
+                this.#logger.finer(
+                  Category.SCENE,
+                  `[ToolSystem] Calculated pick path (toString() failed): ${pickPath ? '[object]' : 'null'}`
+                );
+              }
           }
           let level = pickPath.getLength();
           do {
             const selection = this.#toolManager.selectToolsForPath(pickPath, level--, candidatesForPick);
-            if (selection.length === 0) continue;
+            this.#logger.finer(
+              Category.SCENE,
+              `[ToolSystem] selectToolsForPath at level ${level + 1}, pickPath=${pickPath}: ` +
+              `selection=[${selection.map(t => `${t.constructor.name}(${t.getName()})`).join(', ') || '<none>'}]`
+            ); if (selection.length === 0) continue;
             for (const tool of selection) {
               this.#registerActivePathForTool(pickPath, tool);
             }
@@ -850,7 +878,12 @@ export class ToolSystem extends ToolEventReceiver {
               candidates.add(tool);
             }
             this.#activateToolSet(candidates);
+            this.#logger.finer(
+              Category.SCENE,
+              `[ToolSystem] activatedTools now: ${Array.from(activatedTools).map(t => t.getName()).join(', ')}`
+            );
           } while (candidates.size === 0 && level > 0);
+          
           for (const tool of candidates) {
             activatedTools.add(tool);
           }
@@ -874,7 +907,7 @@ export class ToolSystem extends ToolEventReceiver {
         if (slot === InputSlot.POINTER_TRANSFORMATION) {
           this.#logger.finer(Category.IO, `[ToolSystem] noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
           if (active.size === 0) {
-            this.#logger.warn(Category.IO, '[ToolSystem] No active tools found for POINTER_TRANSFORMATION!');
+            // this.#logger.warn(Category.IO, '[ToolSystem] No active tools found for POINTER_TRANSFORMATION!');
           } else {
             const toolNames = Array.from(active).map(t => `${t.constructor.name}(${t.getName()})`);
             this.#logger.finer(Category.IO, `[ToolSystem] Active tools: ${toolNames.join(', ')}`);
@@ -931,24 +964,24 @@ export class ToolSystem extends ToolEventReceiver {
     // Calculate pick ray
     const to = [-this.#pointerTrafo[2], -this.#pointerTrafo[6], -this.#pointerTrafo[10], -this.#pointerTrafo[14]];
     const from = [this.#pointerTrafo[3], this.#pointerTrafo[7], this.#pointerTrafo[11], this.#pointerTrafo[15]];
-
+    this.#logger.fine(Category.SCENE, `#performPick: from: ${from} to: ${to}`);
     try {
       // Compute pick
       this.#pickResults = this.#pickSystem.computePick(from, to);
       
-      // Filter picks
-      if (this.#hitFilter === null) {
-        this.#hitFilter = new PosWHitFilter(this.#viewer);
-      }
-      this.#hitFilter.update();
-      // Filter list - remove picks with negative W coordinate in NDC
-      const filtered = [];
-      for (const pick of this.#pickResults) {
-        if (this.#hitFilter.accept(from, to, pick)) {
-          filtered.push(pick);
-        }
-      }
-      this.#pickResults = filtered;
+    //   // Filter picks
+    //   if (this.#hitFilter === null) {
+    //     this.#hitFilter = new PosWHitFilter(this.#viewer);
+    //   }
+    //   this.#hitFilter.update();
+    //   // Filter list - remove picks with negative W coordinate in NDC
+    //   const filtered = [];
+    //   for (const pick of this.#pickResults) {
+    //     if (this.#hitFilter.accept(from, to, pick)) {
+    //       filtered.push(pick);
+    //     }
+    //   }
+    //   this.#pickResults = filtered;
     } catch (error) {
       this.#logger.severe(Category.SCENE, 'Error performing pick:', error);
       this.#pickResults = [];
@@ -964,6 +997,7 @@ export class ToolSystem extends ToolEventReceiver {
    */
   #calculatePickPath() {
     this.performPick();
+    this.#logger.fine(Category.SCENE, `#calculatePickPath: pickResults: ${this.#pickResults.length}`);
     if (this.#pickResults === null || this.#pickResults.length === 0) {
       return this.#emptyPickPath;
     }

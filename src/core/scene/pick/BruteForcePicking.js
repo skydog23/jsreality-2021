@@ -29,11 +29,11 @@ import { GeometryAttribute } from '../GeometryAttribute.js';
 import { fromDataList } from '../data/DataUtility.js';
 import { Hit } from './Hit.js';
 import { PickResult } from './PickResult.js';
-
+import { getLogger, Category } from '../../util/LoggingSystem.js';
 // Thread-local static variables → module-level variables (not thread-safe, but JS is single-threaded)
 const SPHERE_HIT_LIST = [];
 const CYLINDER_HIT_LIST = [];
-
+const logger = getLogger('AABBPickSystem');
 /**
  * Intersect ray with polygons (faces) of an IndexedFaceSet
  * @param {IndexedFaceSet} ifs - Face set to intersect
@@ -46,7 +46,9 @@ const CYLINDER_HIT_LIST = [];
  * @param {Hit[]} hits - Array to append hits to
  */
 export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
-  const fromLocal = mInv.multiplyVector(from);
+  logger.fine(Category.SCENE, `intersectPolygons: ${from} ${to}`);
+  logger.fine(Category.SCENE, `intersectPolygons: ${m.toString()}`);
+ const fromLocal = mInv.multiplyVector(from);
   const toLocal = mInv.multiplyVector(to);
   const bary = new Array(3);
   const p1 = [0, 0, 0, 1];
@@ -76,12 +78,14 @@ export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
       if (p1.length < 4) p1[3] = 1;
       if (p2.length < 4) p2[3] = 1;
       if (p3.length < 4) p3[3] = 1;
+      logger.fine(Category.SCENE, `j ${j} intersectPolygons: p1: ${p1} p2: ${p2} p3: ${p3}`);
       
       if (intersects(pobj, fromLocal, toLocal, p1, p2, p3, bary)) {
         const pw = m.multiplyVector(pobj);
         const d = Pn.distanceBetween(from, pw, metric);
         const affCoord = P3.affineCoordinate(from, to, pw);
         hits.push(new Hit(path.pushNew(ifs), pw, d, affCoord, bary, PickResult.PICK_TYPE_FACE, i, j));
+        logger.fine(Category.SCENE, `new hit: ${hits[hits.length - 1]?.toString()}`);
       }
     }
   }
@@ -101,7 +105,7 @@ export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
 export function intersects(pobj, fromLocal, toLocal, p1, p2, p3, bary) {
   const plane = P3.planeFromPoints(null, p1, p2, p3);
   const intersection = P3.lineIntersectPlane(pobj, fromLocal, toLocal, plane);
-  
+  logger.fine(Category.SCENE, `intersects: intersection: ${intersection}`);
   // Dehomogenize triangle vertices
   const p1_3d = Pn.dehomogenize(null, p1);
   const p2_3d = Pn.dehomogenize(null, p2);
@@ -214,7 +218,7 @@ export function intersectEdges(ils, metric, path, m, mInv, from, to, tubeRadius,
         Pn.dehomogenize(vertex2, vecRaw2);
       }
       
-      intersectCylinder(MY_HITS, m, fromOb3, dirOb3, vertex1, vertex2, realRad);
+      intersectCylinderPrimitive(MY_HITS, m, fromOb3, dirOb3, vertex1, vertex2, realRad);
       
       for (let k = 0; k < MY_HITS.length; k++) {
         const hitPoint = MY_HITS[k];

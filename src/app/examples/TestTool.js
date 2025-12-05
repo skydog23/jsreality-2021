@@ -32,10 +32,9 @@ export class TestTool extends AbstractTool {
    * Create a new TestTool.
    */
   constructor() {
-    super(); // No activation slots = always active
+    super(InputSlot.LEFT_BUTTON); 
     this.setDescription('Test tool that prints mouse coordinates');
-    this.addCurrentSlot(InputSlot.LEFT_BUTTON, 'Left mouse button');
-    // this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
+    //  this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
   }
 
   /**
@@ -45,7 +44,7 @@ export class TestTool extends AbstractTool {
   activate(tc) {
     // Add POINTER_TRANSFORMATION as a current slot to receive mouse position updates
     this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
-    logger.fine(Category.IO, 'activate() called: ${this.getName()}');
+    logger.fine(Category.IO, `activate() called: ${this.getName()}`);
    }
 
    /**

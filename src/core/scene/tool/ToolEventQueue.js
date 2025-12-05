@@ -127,10 +127,8 @@ export class ToolEventQueue {
    * @private
    */
   #placeEvent(event) {
-    if (!this.#running) {
-      return false;
-    }
-
+    
+  this.#logger.finer(Category.IO, 'placeEvent() called, event:', event);
     // Check if we can replace the last possible event
     for (let i = this.#queue.length - 1; i >= 0; i--) {
       const e = this.#queue[i];

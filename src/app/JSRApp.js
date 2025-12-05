@@ -171,6 +171,14 @@ export class JSRApp extends JSRPlugin {
     }
     this.#jsrViewer.setContent(content);
 
+    // Ensure the tool system discovers tools in the newly set content.
+    // Content (and its tools) may be created after the ToolSystem was initialized,
+    // so we trigger a rediscovery pass here.
+    const toolSystem = this.#jsrViewer.getToolSystem();
+    if (toolSystem && typeof toolSystem.rediscoverSceneTools === 'function') {
+      toolSystem.rediscoverSceneTools();
+    }
+
     // Register inspector panel with aggregator (like Assignment.java pattern)
     this.#registerInspectorPanel(context);
 

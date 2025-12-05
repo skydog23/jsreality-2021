@@ -11,22 +11,22 @@
 // JavaScript port of jReality's Primitives class (from Primitives.java)
 // Large utility class - translating core methods first
 
-import { IndexedFaceSet } from '../scene/IndexedFaceSet.js';
-import { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
-import { IndexedFaceSetUtility } from './IndexedFaceSetUtility.js';
-import { PointSet } from '../scene/PointSet.js';
-import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
-import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
-import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
-import { Sphere } from '../scene/Sphere.js';
-import { Appearance } from '../scene/Appearance.js';
-import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import * as CommonAttributes from '../shader/CommonAttributes.js';
-import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
+import { PointSetFactory } from '../geometry/PointSetFactory.js';
 import { MatrixBuilder } from '../math/MatrixBuilder.js';
-import { toDataList } from '../scene/data/DataUtility.js';
 import * as P3 from '../math/P3.js';
 import { EUCLIDEAN } from '../math/Pn.js';
+import { Appearance } from '../scene/Appearance.js';
+import { toDataList } from '../scene/data/DataUtility.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { IndexedFaceSet } from '../scene/IndexedFaceSet.js';
+import { PointSet } from '../scene/PointSet.js';
+import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
+import { Sphere } from '../scene/Sphere.js';
+import * as CommonAttributes from '../shader/CommonAttributes.js';
+import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
+import { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
+import { IndexedFaceSetUtility } from './IndexedFaceSetUtility.js';
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 
 /**
  * Static methods for generating a variety of geometric primitives.
@@ -472,24 +472,20 @@ export class Primitives {
     const pts = [[...center]];
     const texc = [[0, 0]];
     
-    const coordsDataList = toDataList(pts);
-    const vertexAttrs = new Map();
-    vertexAttrs.set(GeometryAttribute.COORDINATES, coordsDataList);
-    ps.setVertexCountAndAttributes(vertexAttrs);
+    const psf = new PointSetFactory();
+    psf.setVertexCount(1);
+    psf.setVertexCoordinates(pts);
+    psf.update();
+    return psf.getPointSet();
+      
+    // if (label != null) {
+    //   const labelsDataList = toDataList([label], null, 'string');
+    //   const labelAttrs = new Map();
+    //   labelAttrs.set(GeometryAttribute.LABELS, labelsDataList);
+    //   ps.setVertexAttributes(labelAttrs);
+    // }
     
-    const texCoordsDataList = toDataList(texc, 2);
-    const texAttrs = new Map();
-    texAttrs.set(GeometryAttribute.TEXTURE_COORDINATES, texCoordsDataList);
-    ps.setVertexAttributes(texAttrs);
-    
-    if (label != null) {
-      const labelsDataList = toDataList([label], null, 'string');
-      const labelAttrs = new Map();
-      labelAttrs.set(GeometryAttribute.LABELS, labelsDataList);
-      ps.setVertexAttributes(labelAttrs);
-    }
-    
-    return ps;
+    // return ps;
   }
   
   /**

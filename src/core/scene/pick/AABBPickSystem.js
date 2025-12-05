@@ -40,6 +40,7 @@ import { Hit } from './Hit.js';
 import { PickResult } from './PickResult.js';
 import { HitFilter } from './HitFilter.js';
 import * as BruteForcePicking from './BruteForcePicking.js';
+import { getLogger, Category } from '../../util/LoggingSystem.js';
 
 /**
  * Simple scaling factor calculation for world coordinates.
@@ -252,6 +253,7 @@ class PickInfo {
  * @implements {PickSystem}
  */
 export class AABBPickSystem {
+  #logger = getLogger('AABBPickSystem');
   /**
    * @type {Impl|null}
    */
@@ -306,7 +308,6 @@ export class AABBPickSystem {
    * @type {number}
    */
   #metric = Pn.EUCLIDEAN;
-  
   /**
    * Set the scene root
    * @param {SceneGraphComponent} root - Scene root
@@ -337,8 +338,13 @@ export class AABBPickSystem {
       this.#metric = Pn.EUCLIDEAN;
     }
     
-    this.#impl.visit();
+    // Start traversal of the scene graph. We deliberately avoid overriding
+    // SceneGraphVisitor.visit() to prevent infinite recursion via
+    // Transformation.accept -> visitor.visitTransformation -> visitor.visit().
+    this.#impl.startTraversal();
     
+    this.#logger.fine(Category.SCENE, `computePick: hits: ${this.#hits.length}`);
+
     if (this.#hits.length === 0) {
       return [];
     }
@@ -442,6 +448,10 @@ export class AABBPickSystem {
  * @private
  */
 class Impl extends SceneGraphVisitor {
+  // Use a stable module name so LoggingSystem.setModuleLevel('AABBPickSystem', …)
+  // in TestToolApp actually affects this logger. Using the class reference (Impl)
+  // would resolve to the generic module name "Function" instead.
+  #logger = getLogger('AABBPickSystem');
   /**
    * @type {AABBPickSystem}
    */
@@ -505,31 +515,33 @@ class Impl extends SceneGraphVisitor {
     if (!c.isVisible() || !c.isPickable()) {
       return;
     }
-    
+    // Log under the SCENE category (Category.PICKING does not exist in LoggingSystem,
+    // which would otherwise cause all such messages to be filtered out).
+    this.#logger.fine(Category.SCENE, `visitComponent: ${c.getName()} this.#stackCounter: ${this.#stackCounter}`);
     let pickInfo = null;
     this.#path.push(c);
     
     if (c.getTransformation() !== null) {
-      if (this.#matrixStack[this.#stackCounter + 1] === null) {
+      // Ensure the next matrix on the stack is allocated. The array is initially
+      // filled with undefined entries, so we must treat both null and undefined
+      // as "not initialized" here.
+      if (!this.#matrixStack[this.#stackCounter + 1]) {
         this.#matrixStack[this.#stackCounter + 1] = new Matrix();
       }
+      const nextMatrix = this.#matrixStack[this.#stackCounter + 1].getArray();
       const currentMatrix = this.#matrixStack[this.#stackCounter].getArray();
       const transformMatrix = c.getTransformation().getMatrix();
-      Rn.timesMatrix(this.#matrixStack[this.#stackCounter + 1].getArray(), currentMatrix, transformMatrix);
+      Rn.timesMatrix(nextMatrix, currentMatrix, transformMatrix);
       this.#stackCounter++;
       this.#m = this.#matrixStack[this.#stackCounter];
       this.#mInv = this.#m.getInverse();
     }
     
     if (c.getAppearance() !== null) {
-      // Deprecated: check for PICKABLE attribute
-      const foo = c.getAppearance().getAttribute(CommonAttributes.PICKABLE);
-      if (foo instanceof Boolean && foo === false) {
-        this.#path.pop();
-        return;
-      }
+  
       
       pickInfo = new PickInfo(this.#currentPI, c.getAppearance(), this.#pickSystem.getMetric());
+      this.#logger.fine(Category.SCENE, `pickInfo: ${pickInfo.toString()}`);
       if (pickInfo.hasNewPickInfo) {
         this.#appStack.push(this.#currentPI = pickInfo);
       }
@@ -596,9 +608,11 @@ class Impl extends SceneGraphVisitor {
   }
   
   /**
-   * Start visiting
+   * Start visiting the scene graph from the pick system's root.
+   * We use a dedicated entrypoint instead of overriding SceneGraphVisitor.visit()
+   * to avoid recursive calls from Transformation.accept/visitTransformation.
    */
-  visit() {
+  startTraversal() {
     this.#stackCounter = 0;
     this.#matrixStack[0] = new Matrix();
     this.#pickSystem.getAABBTreeCache().clear();
@@ -656,7 +670,7 @@ class Impl extends SceneGraphVisitor {
     if (!this.#isPickable(ifs)) {
       return;
     }
-    
+    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: ${ifs.getName()}`);
     // Visit as line set (for edges)
     this.visitIndexedLineSet(ifs);
     
@@ -675,7 +689,7 @@ class Impl extends SceneGraphVisitor {
     }
     
     this.#localHits = [];
-    
+    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: tree: ${tree}`);
     if (tree === AABBTree.nullTree) {
       BruteForcePicking.intersectPolygons(ifs, this.#pickSystem.getMetric(), this.#path, this.#m, this.#mInv,
         this.#pickSystem.getFrom(), this.#pickSystem.getTo(), this.#localHits);
@@ -683,6 +697,7 @@ class Impl extends SceneGraphVisitor {
       tree.intersect(ifs, this.#pickSystem.getMetric(), this.#path, this.#m, this.#mInv,
         this.#pickSystem.getFrom(), this.#pickSystem.getTo(), this.#localHits);
     }
+    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: localHits: ${this.#localHits.length}`);
     this.#extractHits(this.#localHits);
   }
   

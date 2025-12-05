@@ -87,7 +87,7 @@ export function angleBetween(u, v, metric) {
 export function dehomogenize(dst, src)	{
     // assert dim checks
     const sl = src.length;
-    if (!dst) dst = new double[src.length];
+    if (!dst) dst = new Array(src.length);
     const dl = dst.length;
     // allow dst array same length or one shorter than source
     if (! (dl == sl || dl +1 == sl))	{
