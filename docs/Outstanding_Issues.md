@@ -6,3 +6,4 @@
    - *Next Steps*: Revisit hover/popup interaction. Consider keeping the slider visible while pointer capture is active, or move the slider into a persistent inline layout.
 
 
+
