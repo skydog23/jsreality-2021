@@ -325,7 +325,7 @@ export class JSRViewer {
       const camera = new Camera();
       camera.setName('camera');
       camera.setFieldOfView(60);
-      camera.setNear(-1);
+      camera.setNear(-5);
       camera.setFar(10);
       camera.setPerspective(false);
       this.#cameraComponent.setCamera(camera);
