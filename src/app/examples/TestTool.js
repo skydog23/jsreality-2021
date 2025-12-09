@@ -21,13 +21,14 @@ const logger = getLogger('TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('TestTool', Level.FINE);
+setModuleLevel('TestTool', Level.FINER);
 
 /**
  * Test tool that prints mouse coordinates.
  * Always active (no activation slots required).
  */
 export class TestTool extends AbstractTool {
+  _mousePosition = [0, 0,0,1];
   /**
    * Create a new TestTool.
    */
@@ -45,14 +46,16 @@ export class TestTool extends AbstractTool {
     // Add POINTER_TRANSFORMATION as a current slot to receive mouse position updates
     this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
     logger.fine(Category.IO, `activate() called: ${this.getName()}`);
-   }
+    logger.finer(Category.IO, `tool context: ${tc.toString()}`);
+    logger.finer(Category.IO, `pick result: ${tc.getCurrentPick()}`);
+  }
 
    /**
    * Called when the tool performs (always active, so called on every mouse move).
    * @param {ToolContext} tc - The tool context
    */
   perform(tc) {
-    logger.finer(Category.IO, 'perform() called, tc:', this.getName(), tc);
+    logger.finer(Category.IO, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
     // Get mouse position from POINTER_TRANSFORMATION slot
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     
@@ -62,7 +65,8 @@ export class TestTool extends AbstractTool {
       // Position is in entries (0,3) = index 3 and (1,3) = index 7
       const xndc = pointerTrafo[3];  // Entry (0,3) - X coordinate in NDC space [-1, 1]
       const yndc = pointerTrafo[7];  // Entry (1,3) - Y coordinate in NDC space [-1, 1]
-      
+      this._mousePosition[0] = xndc;
+      this._mousePosition[1] = yndc;
       // logger.finest(Category.IO, `Mouse coordinates (NDC): x=${xndc.toFixed(3)}, y=${yndc.toFixed(3)}`);
       logger.fine(Category.IO, `x y: ${xndc.toFixed(3)}, ${yndc.toFixed(3)}`);
     } else {
@@ -77,6 +81,7 @@ export class TestTool extends AbstractTool {
   deactivate(tc) {
     // Remove POINTER_TRANSFORMATION from current slots
     this.removeCurrentSlot(InputSlot.POINTER_TRANSFORMATION);
+    logger.fine(Category.IO, `deactivate() called: ${this.getName()}, tc: ${tc.toString()}`);
   }
 
   /**

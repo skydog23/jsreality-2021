@@ -92,16 +92,14 @@ export class AbstractTool extends Tool {
   /**
    * Add a current slot to this tool
    * @param {InputSlot} slot - The slot to add
-   * @param {string|null} [description] - Optional description for the slot
    */
-  addCurrentSlot(slot, description = null) {
+  addCurrentSlot(slot) {
     if (this.#currentSlots.length === 0) {
       this.#currentSlots = [];
     }
     if (!this.#currentSlots.includes(slot)) {
       this.#currentSlots.push(slot);
     }
-    this.setSlotDescription(slot, description);
   }
   
   /**

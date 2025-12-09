@@ -14,7 +14,9 @@ import { Viewer } from '../Viewer.js';
 import * as CameraUtility from '../../util/CameraUtility.js';
 import { HitFilter } from './HitFilter.js';
 import { PickResult } from './PickResult.js';
-
+import { getLogger, setModuleLevel, Level, Category } from '../../util/LoggingSystem.js';
+const logger = getLogger('PosWHitFilter');
+setModuleLevel('PosWHitFilter', Level.FINE);
 /**
  * Hit filter that accepts only hits with positive W coordinate in NDC space.
  * 
@@ -63,7 +65,12 @@ export class PosWHitFilter extends HitFilter {
       return;
     }
     const world2cam = this.#camPath.getInverseMatrix();
-    this.#world2ndc = Rn.times(null, CameraUtility.getCameraToNDC(this.#viewer), world2cam);
+    logger.fine(Category.SCENE, `#update: cam path: ${this.#camPath.toString()}`);
+    logger.fine(Category.SCENE, `#update: world2cam: ${world2cam.toString()}`);
+    const camToNDC = CameraUtility.getCameraToNDC(this.#viewer);
+    logger.fine(Category.SCENE, `#update: cam to ndc: ${camToNDC.toString()}`);
+    this.#world2ndc = Rn.timesMatrix(null, camToNDC, world2cam);
+    logger.fine(Category.SCENE, `#update: world2ndc: ${this.#world2ndc.toString()}`);
   }
   
   /**
@@ -77,7 +84,9 @@ export class PosWHitFilter extends HitFilter {
     if (this.#world2ndc === null) {
       return false;
     }
+    logger.fine(Category.SCENE, `#accept: h world cords: ${h.getWorldCoordinates().toString()}`);
     const ndcCoords = Rn.matrixTimesVector(null, this.#world2ndc, h.getWorldCoordinates());
+    logger.fine(Category.SCENE, `#accept: ndc coords: ${ndcCoords.toString()}`);
     const posW = ndcCoords[3] >= 0;
     return posW;
   }

@@ -220,7 +220,7 @@ export class Abstract2DViewer extends Viewer {
       P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
     } else {
       // Orthographic projection
-      const size = 5;
+      const size = 3;
       const left = -size * aspect;
       const right = size * aspect;
       const bottom = -size;

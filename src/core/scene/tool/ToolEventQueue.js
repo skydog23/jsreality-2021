@@ -11,6 +11,8 @@
 import { ToolEvent } from './ToolEvent.js';
 import { getLogger, Category } from '../../util/LoggingSystem.js';
 
+const logger = getLogger('ToolEventQueue');
+
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
  */
@@ -34,8 +36,6 @@ export class ToolEventReceiver {
  * In JavaScript, this uses requestAnimationFrame instead of a separate thread.
  */
 export class ToolEventQueue {
-  #logger = getLogger('ToolEventQueue');
-
   /** @type {ToolEventReceiver} Receiver for processed events */
   #receiver;
 
@@ -96,7 +96,7 @@ export class ToolEventQueue {
           this.#receiver.processToolEvent(event);
         } catch (error) {
           const slotName = event.getInputSlot()?.getName() || 'unknown';
-          this.#logger.severe(Category.SCENE, `Error processing tool event (${slotName}):`, error);
+          logger.severe(Category.SCENE, `Error processing tool event (${slotName}):`, error);
         }
       }
     }
@@ -114,7 +114,7 @@ export class ToolEventQueue {
    */
   addEvent(event) {
     if (!this.#started) {
-      this.#logger.warn(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
+      logger.warn(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
       return false;
     }
     return this.#placeEvent(event);
@@ -127,8 +127,7 @@ export class ToolEventQueue {
    * @private
    */
   #placeEvent(event) {
-    
-  this.#logger.finer(Category.IO, 'placeEvent() called, event:', event);
+    logger.finer(Category.IO, 'placeEvent() called, event:', event);
     // Check if we can replace the last possible event
     for (let i = this.#queue.length - 1; i >= 0; i--) {
       const e = this.#queue[i];

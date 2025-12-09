@@ -135,6 +135,57 @@ export class JSRApp extends JSRPlugin {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Documentation / gallery hooks (inspired by Assignment.java)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Human-readable title for this application.
+   * Subclasses can override to provide a nicer title for UIs and galleries.
+   *
+   * @returns {string}
+   */
+  getHelpTitle() {
+    return this.constructor.name;
+  }
+
+  /**
+   * Short description of what this application demonstrates.
+   * Subclasses can override; default is an empty string.
+   *
+   * @returns {string}
+   */
+  getHelpSummary() {
+    return '';
+  }
+
+  /**
+   * Link to documentation for this application.
+   * May be:
+   * - a full URL (e.g. "https://example.com/foo.html"), or
+   * - a relative path that the hosting environment knows how to serve, or
+   * - null/empty if no documentation is available.
+   *
+   * This is the JSRApp analogue of Assignment.getDocumentationFile().
+   *
+   * @returns {string|null}
+   */
+  getDocumentationLink() {
+    return null;
+  }
+
+  /**
+   * Optional thumbnail image path for use in galleries.
+   * May be:
+   * - a relative path from the HTML page (e.g. "resources/gallery/MyApp.png"), or
+   * - null/empty if no thumbnail is defined.
+   *
+   * @returns {string|null}
+   */
+  getThumbnailPath() {
+    return null;
+  }
+
   /**
    * Install the plugin (called when registered with JSRViewer).
    * This is where the actual initialization happens.

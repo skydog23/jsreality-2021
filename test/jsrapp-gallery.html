@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSRApp Gallery</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: #1e1e1e;
+      color: #ddd;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 16px 24px;
+      background: #252526;
+      border-bottom: 1px solid #3e3e3e;
+    }
+    header h1 {
+      margin: 0 0 4px 0;
+      font-size: 22px;
+      color: #fff;
+    }
+    header p {
+      margin: 0;
+      font-size: 13px;
+      color: #aaa;
+    }
+    main {
+      flex: 1;
+      padding: 16px 24px 32px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: #252526;
+      border-radius: 6px;
+      border: 1px solid #373737;
+      padding: 14px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      margin: 0;
+    }
+    .card-subtitle {
+      font-size: 13px;
+      color: #aaa;
+      margin: 0;
+    }
+    .card-meta {
+      font-size: 11px;
+      color: #777;
+    }
+    .card-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+    }
+    .card-actions a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid #3e3e3e;
+      background: #2d2d30;
+      color: #e0e0e0;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .card-actions a.primary {
+      border-color: #0e639c;
+      background: #007acc;
+      color: #fff;
+    }
+    .card-actions a:hover {
+      filter: brightness(1.08);
+    }
+    footer {
+      padding: 8px 24px 16px;
+      font-size: 11px;
+      color: #777;
+      border-top: 1px solid #3e3e3e;
+      background: #1e1e1e;
+    }
+    code {
+      font-size: 11px;
+      background: #1b1b1b;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>JSRApp Gallery</h1>
+    <p>Select an example to open it in the generic JSRApp runner.</p>
+  </header>
+
+  <main>
+    <section class="grid">
+      <!-- TestGeometryApp -->
+      <article class="card">
+        <h2 class="card-title">TestGeometryApp</h2>
+        <p class="card-subtitle">Demonstrates assorted geometry factories and appearances.</p>
+        <div class="card-meta">
+          Module: <code>src/app/examples/TestGeometryApp.js</code>
+        </div>
+        <div class="card-actions">
+          <a
+            class="primary"
+            href="./test-jsrapp-example.html?module=../src/app/examples/TestGeometryApp.js&class=TestGeometryApp&title=TestGeometryApp&subtitle=Geometry+factory+demo"
+            target="_blank"
+          >
+            Open example
+          </a>
+        </div>
+      </article>
+
+      <!-- TestJSRApp -->
+      <article class="card">
+        <h2 class="card-title">TestJSRApp</h2>
+        <p class="card-subtitle">Basic JSRApp example with a tessellated sphere and inspector controls.</p>
+        <div class="card-meta">
+          Module: <code>src/app/examples/TestJSRApp.js</code>
+        </div>
+        <div class="card-actions">
+          <a
+            class="primary"
+            href="./test-jsrapp-example.html?module=../src/app/examples/TestJSRApp.js&class=TestJSRApp&title=TestJSRApp&subtitle=Sphere+with+parameters"
+            target="_blank"
+          >
+            Open example
+          </a>
+        </div>
+      </article>
+
+      <!-- TestToolApp -->
+      <article class="card">
+        <h2 class="card-title">TestToolApp</h2>
+        <p class="card-subtitle">Tool-system test app using TestTool and pointer input.</p>
+        <div class="card-meta">
+          Module: <code>src/app/examples/TestToolApp.js</code>
+        </div>
+        <div class="card-actions">
+          <a
+            class="primary"
+            href="./test-jsrapp-example.html?module=../src/app/examples/TestToolApp.js&class=TestToolApp&title=TestToolApp&subtitle=Tool+and+pointer+debugging"
+            target="_blank"
+          >
+            Open example
+          </a>
+        </div>
+      </article>
+
+      <!-- AddPointsExample -->
+      <article class="card">
+        <h2 class="card-title">AddPointsExample</h2>
+        <p class="card-subtitle">Port of the jReality AddPointsExample tutorial: add points along the view ray.</p>
+        <div class="card-meta">
+          Module: <code>src/app/examples/AddPointsExample.js</code>
+        </div>
+        <div class="card-actions">
+          <a
+            class="primary"
+            href="./test-jsrapp-example.html?module=../src/app/examples/AddPointsExample.js&class=AddPointsExample&title=AddPointsExample&subtitle=Add+points+with+Shift+and+mouse"
+            target="_blank"
+          >
+            Open example
+          </a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    Served from <code>test/jsrapp-gallery.html</code>. Ensure your dev server serves the repository root at
+    <code>http://localhost:8000/</code>, then open
+    <code>http://localhost:8000/test/jsrapp-gallery.html</code>.
+  </footer>
+</body>
+</html>
+

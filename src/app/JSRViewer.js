@@ -325,14 +325,14 @@ export class JSRViewer {
       const camera = new Camera();
       camera.setName('camera');
       camera.setFieldOfView(60);
-      camera.setNear(-5);
-      camera.setFar(5);
+      camera.setNear(-1);
+      camera.setFar(10);
       camera.setPerspective(false);
       this.#cameraComponent.setCamera(camera);
       
       // Position camera back from origin
       const cameraTransform = new Transformation();
-      const cameraMatrix = MatrixBuilder.euclidean().translate(0, 0, -1).getArray();
+      const cameraMatrix = MatrixBuilder.euclidean().translate(0, 0, -2).getArray();
       cameraTransform.setMatrix(cameraMatrix);
       this.#cameraComponent.setTransformation(cameraTransform);
       
@@ -774,39 +774,7 @@ export class JSRViewer {
   // PUBLIC API: Convenience Methods
   // ========================================================================
 
-  /**
-   * Set the background color.
-   * @param {Color|string|number[]} color - Background color
-   */
-  setBackgroundColor(color) {
-    if (!this.#sceneRoot) {
-      return;
-    }
-
-    let appearance = this.#sceneRoot.getAppearance();
-    if (!appearance) {
-      appearance = new Appearance('rootAppearance');
-      this.#sceneRoot.setAppearance(appearance);
-    }
-
-    let colorObj = color;
-    if (typeof color === 'string') {
-      // Parse CSS color string (simple implementation)
-      const colorMap = {
-        'white': new Color(255, 255, 255),
-        'gray': new Color(225, 225, 225),
-        'black': new Color(0, 0, 0),
-        'transparent': new Color(0, 0, 0, 0)
-      };
-      colorObj = colorMap[color.toLowerCase()] || new Color(225, 225, 225);
-    } else if (Array.isArray(color)) {
-      colorObj = new Color(...color);
-    }
-
-    appearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, colorObj);
-    this.setPreference('backgroundColor', color);
-    this.render();
-  }
+  
 
   /**
    * Render the scene.

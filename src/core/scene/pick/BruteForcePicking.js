@@ -46,18 +46,18 @@ const logger = getLogger('AABBPickSystem');
  * @param {Hit[]} hits - Array to append hits to
  */
 export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
-  logger.fine(Category.SCENE, `intersectPolygons: ${from} ${to}`);
-  logger.fine(Category.SCENE, `intersectPolygons: ${m.toString()}`);
  const fromLocal = mInv.multiplyVector(from);
   const toLocal = mInv.multiplyVector(to);
-  const bary = new Array(3);
-  const p1 = [0, 0, 0, 1];
-  const p2 = [0, 0, 0, 1];
-  const p3 = [0, 0, 0, 1];
+  logger.fine(Category.SCENE, `intersectPolygons: from: ${from}, to: ${to}`);
+  logger.fine(Category.SCENE, `intersectPolygons: ${m.toString()}`);
+   const bary = new Array(3);
   const pobj = [0, 0, 0, 1];
   
   const faces = getFaces(ifs);
   const points = getPoints(ifs);
+  if (points[0].length < 4) {
+    points.map(p => [...p, 1]);
+  }
   
   if (faces === null || points === null || faces.length === 0 || points.length === 0) {
     return;
@@ -67,19 +67,15 @@ export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
     const face = faces[i];
     // Simple triangulation:
     for (let j = 0, dd = face.length - 2; j < dd; j++) {
-      const pt0 = points[face[0]];
-      const pt1 = points[face[1 + j]];
-      const pt2 = points[face[2 + j]];
-      
-      // Copy points to p1, p2, p3 (handle 3D or 4D)
-      for (let k = 0; k < Math.min(pt0.length, 4); k++) p1[k] = pt0[k];
-      for (let k = 0; k < Math.min(pt1.length, 4); k++) p2[k] = pt1[k];
-      for (let k = 0; k < Math.min(pt2.length, 4); k++) p3[k] = pt2[k];
+      const p1 = points[face[0]];
+      const p2 = points[face[1 + j]];
+      const p3 = points[face[2 + j]];
       if (p1.length < 4) p1[3] = 1;
       if (p2.length < 4) p2[3] = 1;
       if (p3.length < 4) p3[3] = 1;
-      logger.fine(Category.SCENE, `j ${j} intersectPolygons: p1: ${p1} p2: ${p2} p3: ${p3}`);
-      
+      // Copy points to p1, p2, p3 (handle 3D or 4D)
+    
+      logger.fine(Category.SCENE, `j ${j} intersectPolygons: p1: ${p1} p2: ${p2} p3: ${p3}`);      
       if (intersects(pobj, fromLocal, toLocal, p1, p2, p3, bary)) {
         const pw = m.multiplyVector(pobj);
         const d = Pn.distanceBetween(from, pw, metric);

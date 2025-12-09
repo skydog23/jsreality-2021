@@ -21,6 +21,8 @@ import { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
 import { CompositeTreeModel } from './CompositeTreeModel.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
+const logger = getLogger('SceneGraphInspector');
+
 /**
  * Interactive inspector for exploring and editing scene graph structures
  */
@@ -73,7 +75,7 @@ export class SceneGraphInspector {
   /**
    * @type {Logger} Logger instance for this inspector
    */
-  #logger = getLogger('SceneGraphInspector');
+  // Using module-level logger declared above
 
   /**
    * @type {Function|null} Callback to trigger render when properties change

@@ -25,3 +25,4 @@ export { VirtualDeviceContext } from './VirtualDeviceContext.js';
 export { MissingSlotException } from './MissingSlotException.js';
 export { RawDevice } from './RawDevice.js';
 export { DeviceMouse, DeviceKeyboard, DeviceSystemTimer, PollingDevice } from './raw/index.js';
+export { ToolUtility } from './ToolUtility.js';

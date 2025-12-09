@@ -73,8 +73,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>JSRApp Example</h1>
-        <p>Demonstrates JSRApp with configurable subclass</p>
+        <h1 id="page-title">JSRApp Example</h1>
+        <p id="page-subtitle">Demonstrates JSRApp with configurable subclass</p>
     </div>
 
     <div class="viewer-container" id="viewer-container"></div>
@@ -85,17 +85,36 @@
 
     <script type="module">
         // ============================================================================
-        // CONFIGURATION: Change these values to use a different JSRApp subclass
+        // CONFIGURATION: can be overridden via URL query parameters
+        // 
+        // Example:
+        //   test-jsrapp-example.html?module=../src/app/examples/TestGeometryApp.js&class=TestGeometryApp
+        //
+        // If no parameters are provided, we fall back to TestToolApp.
         // ============================================================================
+        const params = new URLSearchParams(window.location.search);
         const APP_CONFIG = {
-            modulePath: '../src/app/examples/TestToolApp.js',
-            className: 'TestToolApp'
-        }
-        // ============================================================================
+            modulePath: params.get('module') || '../src/app/examples/TestToolApp.js',
+            className: params.get('class') || 'TestToolApp',
+            title: params.get('title') || null,
+            subtitle: params.get('subtitle') || null,
+        };
 
         // Get container element (JSRApp/JSRViewer manage their own canvases)
         const container = document.getElementById('viewer-container');
         const info = document.getElementById('info');
+        const pageTitle = document.getElementById('page-title');
+        const pageSubtitle = document.getElementById('page-subtitle');
+
+        // Apply optional title/subtitle overrides
+        if (APP_CONFIG.title) {
+            pageTitle.textContent = APP_CONFIG.title;
+        } else {
+            pageTitle.textContent = APP_CONFIG.className;
+        }
+        if (APP_CONFIG.subtitle) {
+            pageSubtitle.textContent = APP_CONFIG.subtitle;
+        }
 
         try {
             info.textContent = `Loading ${APP_CONFIG.className}...`;

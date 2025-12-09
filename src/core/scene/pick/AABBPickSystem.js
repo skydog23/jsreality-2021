@@ -42,6 +42,9 @@ import { HitFilter } from './HitFilter.js';
 import * as BruteForcePicking from './BruteForcePicking.js';
 import { getLogger, Category } from '../../util/LoggingSystem.js';
 
+// Module-level logger shared by AABBPickSystem and Impl
+const logger = getLogger('AABBPickSystem');
+
 /**
  * Simple scaling factor calculation for world coordinates.
  * For now, returns 1.0 (Euclidean metric).
@@ -253,7 +256,6 @@ class PickInfo {
  * @implements {PickSystem}
  */
 export class AABBPickSystem {
-  #logger = getLogger('AABBPickSystem');
   /**
    * @type {Impl|null}
    */
@@ -343,7 +345,7 @@ export class AABBPickSystem {
     // Transformation.accept -> visitor.visitTransformation -> visitor.visit().
     this.#impl.startTraversal();
     
-    this.#logger.fine(Category.SCENE, `computePick: hits: ${this.#hits.length}`);
+    logger.fine(Category.SCENE, `computePick: hits: ${this.#hits.length}`);
 
     if (this.#hits.length === 0) {
       return [];
@@ -448,10 +450,6 @@ export class AABBPickSystem {
  * @private
  */
 class Impl extends SceneGraphVisitor {
-  // Use a stable module name so LoggingSystem.setModuleLevel('AABBPickSystem', …)
-  // in TestToolApp actually affects this logger. Using the class reference (Impl)
-  // would resolve to the generic module name "Function" instead.
-  #logger = getLogger('AABBPickSystem');
   /**
    * @type {AABBPickSystem}
    */
@@ -517,7 +515,7 @@ class Impl extends SceneGraphVisitor {
     }
     // Log under the SCENE category (Category.PICKING does not exist in LoggingSystem,
     // which would otherwise cause all such messages to be filtered out).
-    this.#logger.fine(Category.SCENE, `visitComponent: ${c.getName()} this.#stackCounter: ${this.#stackCounter}`);
+    logger.fine(Category.SCENE, `visitComponent: ${c.getName()} this.#stackCounter: ${this.#stackCounter}`);
     let pickInfo = null;
     this.#path.push(c);
     
@@ -541,7 +539,7 @@ class Impl extends SceneGraphVisitor {
   
       
       pickInfo = new PickInfo(this.#currentPI, c.getAppearance(), this.#pickSystem.getMetric());
-      this.#logger.fine(Category.SCENE, `pickInfo: ${pickInfo.toString()}`);
+      logger.fine(Category.SCENE, `pickInfo: ${pickInfo.toString()}`);
       if (pickInfo.hasNewPickInfo) {
         this.#appStack.push(this.#currentPI = pickInfo);
       }
@@ -670,7 +668,7 @@ class Impl extends SceneGraphVisitor {
     if (!this.#isPickable(ifs)) {
       return;
     }
-    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: ${ifs.getName()}`);
+    logger.fine(Category.SCENE, `visitIndexedFaceSet: ${ifs.getName()}`);
     // Visit as line set (for edges)
     this.visitIndexedLineSet(ifs);
     
@@ -689,7 +687,7 @@ class Impl extends SceneGraphVisitor {
     }
     
     this.#localHits = [];
-    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: tree: ${tree}`);
+    logger.fine(Category.SCENE, `visitIndexedFaceSet: tree: ${tree}`);
     if (tree === AABBTree.nullTree) {
       BruteForcePicking.intersectPolygons(ifs, this.#pickSystem.getMetric(), this.#path, this.#m, this.#mInv,
         this.#pickSystem.getFrom(), this.#pickSystem.getTo(), this.#localHits);
@@ -697,7 +695,7 @@ class Impl extends SceneGraphVisitor {
       tree.intersect(ifs, this.#pickSystem.getMetric(), this.#path, this.#m, this.#mInv,
         this.#pickSystem.getFrom(), this.#pickSystem.getTo(), this.#localHits);
     }
-    this.#logger.fine(Category.SCENE, `visitIndexedFaceSet: localHits: ${this.#localHits.length}`);
+    logger.fine(Category.SCENE, `visitIndexedFaceSet: localHits: ${this.#localHits.length}`);
     this.#extractHits(this.#localHits);
   }
   
