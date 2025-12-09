@@ -9,6 +9,7 @@
 // Core UI plugins
 export { MenubarPlugin } from './MenubarPlugin.js';
 export { ExportMenuPlugin } from './ExportMenuPlugin.js';
+export { AppMenuPlugin } from './AppMenuPlugin.js';
 
 // Feature plugins
 export { BackgroundColorPlugin } from './BackgroundColorPlugin.js';

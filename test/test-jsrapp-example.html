@@ -72,11 +72,6 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1 id="page-title">JSRApp Example</h1>
-        <p id="page-subtitle">Demonstrates JSRApp with configurable subclass</p>
-    </div>
-
     <div class="viewer-container" id="viewer-container"></div>
 
     <div class="info" id="info">
@@ -106,15 +101,6 @@
         const pageTitle = document.getElementById('page-title');
         const pageSubtitle = document.getElementById('page-subtitle');
 
-        // Apply optional title/subtitle overrides
-        if (APP_CONFIG.title) {
-            pageTitle.textContent = APP_CONFIG.title;
-        } else {
-            pageTitle.textContent = APP_CONFIG.className;
-        }
-        if (APP_CONFIG.subtitle) {
-            pageSubtitle.textContent = APP_CONFIG.subtitle;
-        }
 
         try {
             info.textContent = `Loading ${APP_CONFIG.className}...`;

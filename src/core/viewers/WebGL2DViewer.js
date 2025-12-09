@@ -111,10 +111,11 @@ export class WebGL2DViewer extends Abstract2DViewer {
     const ratio = this._pixelRatio;
 
     // Get display size from CSS
-    const displayWidth = canvas.clientWidth;
-    const displayHeight = canvas.clientHeight;
+    let displayWidth = canvas.clientWidth;
+    let displayHeight = canvas.clientHeight;
     
-    // If canvas has no size yet, skip (ResizeObserver will call us again)
+    if (displayWidth === 0)   displayWidth = 800;  // If canvas has no size yet, set a default width (ResizeObserver will call us again)
+    if (displayHeight === 0)  displayHeight = 600;  // If canvas has no size yet, set a default height (ResizeObserver will call us again)
     if (displayWidth === 0 || displayHeight === 0) {
       return;
     }

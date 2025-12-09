@@ -17,13 +17,14 @@ import * as CameraUtility from '../../util/CameraUtility.js';
 import { Camera } from '../Camera.js';
 import { getLogger } from '../../util/LoggingSystem.js';
 import { Level, Category } from '../../util/LoggingSystem.js';
-
-const logger = getLogger('DeviceManager');
 import { DeviceMouse } from './raw/DeviceMouse.js';
 import { DeviceKeyboard } from './raw/DeviceKeyboard.js';
 import { DeviceSystemTimer } from './raw/DeviceSystemTimer.js';
 import { PollingDevice } from './raw/PollingDevice.js';
 import { Poller } from './Poller.js';
+import { VirtualMousePointerTrafo } from './virtual/VirtualMousePointerTrafo.js';
+
+const logger = getLogger('DeviceManager');
 
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
@@ -171,6 +172,9 @@ export class DeviceManager {
   /** @type {InputSlot} Camera to NDC slot */
   #camToNDCSlot = InputSlot.getDevice("CameraToNDC");
 
+  /** @type {InputSlot} NDC to world slot (derived from camera matrices) */
+  #ndcToWorldSlot = InputSlot.getDevice("NDCToWorld");
+
   /** @type {number[]} Avatar transformation matrix */
   #avatarTrafo = Rn.identityMatrix(4);
 
@@ -180,6 +184,9 @@ export class DeviceManager {
   /** @type {number[]} Camera to NDC transformation matrix */
   #camToNDCTrafo = Rn.identityMatrix(4);
 
+  /** @type {number[]} NDC to world transformation matrix */
+  #ndcToWorldTrafo = Rn.identityMatrix(4);
+
   /** @type {SceneGraphPath|null} Avatar path */
   #avatarPath = null;
 
@@ -188,6 +195,9 @@ export class DeviceManager {
 
   /** @type {Map<InputSlot, Set<InputSlot>>} Inverse virtual mappings (target to sources) */
   #virtualMappingsInv = new Map();
+
+  /** @type {VirtualMousePointerTrafo|null} Pointer virtual device */
+  #pointerVirtualDevice = null;
 
   /**
    * Create a new DeviceManager.
@@ -275,6 +285,17 @@ export class DeviceManager {
     this.setTransformationMatrix(this.#avatarSlot, [...this.#avatarTrafo]);
     this.setTransformationMatrix(this.#worldToCamSlot, [...this.#worldToCamTrafo]);
     this.setTransformationMatrix(this.#camToNDCSlot, [...this.#camToNDCTrafo]);
+    // NDCToWorld will be computed in updateImplicitDevices; initialize to identity
+    this.setTransformationMatrix(this.#ndcToWorldSlot, [...this.#ndcToWorldTrafo]);
+
+    // Initialize pointer virtual device: converts (NDCToWorld, PointerNDC) -> POINTER_TRANSFORMATION
+    const pointerNdcSlot = InputSlot.getDevice("PointerNDC");
+    this.#pointerVirtualDevice = new VirtualMousePointerTrafo(
+      this.#ndcToWorldSlot,
+      pointerNdcSlot,
+      InputSlot.POINTER_TRANSFORMATION
+    );
+    this.#getDevicesForSlot(pointerNdcSlot).push(this.#pointerVirtualDevice);
 
     // Initialize virtual devices (stub for now - Phase 2)
     // Virtual devices would be created from VirtualDeviceConfig here
@@ -453,13 +474,15 @@ export class DeviceManager {
 
   /**
    * Update implicit devices (camera transformations).
-   * Computes WorldToCamera, CameraToNDC, and AvatarTransformation from the viewer.
+   * Computes WorldToCamera, CameraToNDC, AvatarTransformation, and NDCToWorld
+   * from the viewer.
    * @returns {ToolEvent[]} List of new events generated
    */
   updateImplicitDevices() {
     let worldToCamChanged = false;
     let camToNDCChanged = false;
     let avatarChanged = false;
+    let ndcToWorldChanged = false;
 
     const cameraPath = this.#viewer.getCameraPath();
     if (cameraPath !== null) {
@@ -506,7 +529,15 @@ export class DeviceManager {
       avatarChanged = true;
     }
 
-    if (!worldToCamChanged && !camToNDCChanged && !avatarChanged) {
+    // Update NDCToWorld whenever the camera transforms change.
+    if (cameraPath !== null && (worldToCamChanged || camToNDCChanged)) {
+      const camToWorld = Rn.inverse(null, this.#worldToCamTrafo);
+      const ndcToCam = Rn.inverse(null, this.#camToNDCTrafo);
+      Rn.timesMatrix(this.#ndcToWorldTrafo, camToWorld, ndcToCam);
+      ndcToWorldChanged = true;
+    }
+
+    if (!worldToCamChanged && !camToNDCChanged && !avatarChanged && !ndcToWorldChanged) {
       return [];
     }
 
@@ -525,6 +556,14 @@ export class DeviceManager {
         this.getSystemTime(),
         this.#camToNDCSlot,
         [...this.#camToNDCTrafo]
+      ));
+    }
+    if (ndcToWorldChanged) {
+      ret.push(ToolEvent.createWithTransformation(
+        this,
+        this.getSystemTime(),
+        this.#ndcToWorldSlot,
+        [...this.#ndcToWorldTrafo]
       ));
     }
     if (avatarChanged) {

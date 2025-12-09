@@ -102,11 +102,13 @@ export class Menubar {
    * @param {string} [item.radioGroup] - Radio button group name (for type='radio')
    * @param {boolean} [item.checked] - Initial checked state (for type='radio' or type='checkbox')
    * @param {number} [priority=50] - Priority (lower = earlier)
+   * @param {boolean} [item.leftmost] - If true, the menu for this item will be placed at the left edge
    */
   addMenuItem(menuName, item, priority = 50) {
     if (!this.#items.has(menuName)) {
       this.#items.set(menuName, []);
-      this.#createMenu(menuName);
+      // If this is the first item for this menu, we can honor a leftmost hint
+      this.#createMenu(menuName, { leftmost: !!item.leftmost });
     }
 
     const items = this.#items.get(menuName);
@@ -130,9 +132,12 @@ export class Menubar {
   /**
    * Create a menu element.
    * @param {string} menuName - Name of the menu
+   * @param {Object} [options]
+   * @param {boolean} [options.leftmost=false] - If true, insert this menu as the leftmost entry
    * @private
    */
-  #createMenu(menuName) {
+  #createMenu(menuName, options = {}) {
+    const { leftmost = false } = options;
     const menuElement = document.createElement('div');
     menuElement.className = 'jsr-menu';
     menuElement.textContent = menuName;
@@ -178,7 +183,12 @@ export class Menubar {
     });
 
     this.#menus.set(menuName, menuElement);
-    this.#container.appendChild(menuElement);
+
+    if (leftmost && this.#container.firstChild) {
+      this.#container.insertBefore(menuElement, this.#container.firstChild);
+    } else {
+      this.#container.appendChild(menuElement);
+    }
   }
 
   /**
