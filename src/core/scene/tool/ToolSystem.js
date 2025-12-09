@@ -436,7 +436,9 @@ export class ToolSystem extends ToolEventReceiver {
         new RawMapping('Mouse', 'left', InputSlot.LEFT_BUTTON),
         new RawMapping('Mouse', 'center', InputSlot.MIDDLE_BUTTON),
         new RawMapping('Mouse', 'right', InputSlot.RIGHT_BUTTON),
-        new RawMapping('Mouse', 'axes', InputSlot.POINTER_TRANSFORMATION),
+      // Raw mouse axes provide pointer position in NDC; mapped to PointerNDC.
+      // A virtual device then converts (NDCToWorld, PointerNDC) -> POINTER_TRANSFORMATION.
+      new RawMapping('Mouse', 'axes', InputSlot.getDevice('PointerNDC')),
         new RawMapping('Mouse', 'axesEvolution', InputSlot.getDevice('PointerEvolution')),
         new RawMapping('Mouse', 'wheel_up', InputSlot.getDevice('WheelUp')),
         new RawMapping('Mouse', 'wheel_down', InputSlot.getDevice('WheelDown')),
