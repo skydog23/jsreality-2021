@@ -11,15 +11,12 @@
 // SVG implementation of the Viewer interface
 // Provides vector rendering using SVG DOM
 
-import { Viewer, Dimension } from '../scene/Viewer.js';
-import { Abstract2DViewer } from './Abstract2DViewer.js';
-import { Abstract2DRenderer } from './Abstract2DRenderer.js';
-import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import { INHERITED } from '../scene/Appearance.js';
+import { Dimension } from '../scene/Viewer.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
-import * as Rn from '../math/Rn.js';
-import * as Pn from '../math/Pn.js';
-import { Color } from '../util/Color.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
+import * as P3 from '../math/P3.js';
+import { Rectangle2D } from '../util/Rectangle2D.js';
 
 /**
  * Global SVG numeric precision (number of decimal places).
