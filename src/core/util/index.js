@@ -18,12 +18,8 @@ export {
   getLogger, 
   setGlobalLevel, 
   setModuleLevel, 
-  setEnabledCategories,
-  enableCategories,
-  disableCategories,
   configureDebugMode,
   reset,
   Level, 
-  Category,
-  DEBUG
+  Category
 } from './LoggingSystem.js';

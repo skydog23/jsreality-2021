@@ -10,8 +10,7 @@
 
 import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { InputSlot } from '../../core/scene/tool/InputSlot.js';
-import { getLogger, setModuleLevel } from '../../core/util/LoggingSystem.js';
-import { Level, Category } from '../../core/util/LoggingSystem.js';
+import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
 
 /**
  * @typedef {import('../../core/scene/tool/ToolContext.js').ToolContext} ToolContext
@@ -21,7 +20,7 @@ const logger = getLogger('TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('TestTool', Level.FINER);
+setModuleLevel('TestTool', Level.INFO);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -45,9 +44,9 @@ export class TestTool extends AbstractTool {
   activate(tc) {
     // Add POINTER_TRANSFORMATION as a current slot to receive mouse position updates
     this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
-    logger.fine(Category.IO, `activate() called: ${this.getName()}`);
-    logger.finer(Category.IO, `tool context: ${tc.toString()}`);
-    logger.finer(Category.IO, `pick result: ${tc.getCurrentPick()}`);
+    logger.fine(Category.ALL, `activate() called: ${this.getName()}`);
+    logger.finer(Category.ALL, `tool context: ${tc.toString()}`);
+    logger.finer(Category.ALL, `pick result: ${tc.getCurrentPick()}`);
   }
 
    /**
@@ -55,7 +54,7 @@ export class TestTool extends AbstractTool {
    * @param {ToolContext} tc - The tool context
    */
   perform(tc) {
-    logger.finer(Category.IO, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
+    logger.finer(Category.ALL, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
     // Get mouse position from POINTER_TRANSFORMATION slot
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     
@@ -67,10 +66,10 @@ export class TestTool extends AbstractTool {
       const yndc = pointerTrafo[7];  // Entry (1,3) - Y coordinate in NDC space [-1, 1]
       this._mousePosition[0] = xndc;
       this._mousePosition[1] = yndc;
-      // logger.finest(Category.IO, `Mouse coordinates (NDC): x=${xndc.toFixed(3)}, y=${yndc.toFixed(3)}`);
-      logger.fine(Category.IO, `x y: ${xndc.toFixed(3)}, ${yndc.toFixed(3)}`);
+      // logger.finest(Category.ALL, `Mouse coordinates (NDC): x=${xndc.toFixed(3)}, y=${yndc.toFixed(3)}`);
+      logger.fine(Category.ALL, `x y: ${xndc.toFixed(3)}, ${yndc.toFixed(3)}`);
     } else {
-      logger.finer(Category.IO, 'POINTER_TRANSFORMATION matrix is null');
+      logger.finer(Category.ALL, 'POINTER_TRANSFORMATION matrix is null');
     }
   }
 
@@ -81,7 +80,7 @@ export class TestTool extends AbstractTool {
   deactivate(tc) {
     // Remove POINTER_TRANSFORMATION from current slots
     this.removeCurrentSlot(InputSlot.POINTER_TRANSFORMATION);
-    logger.fine(Category.IO, `deactivate() called: ${this.getName()}, tc: ${tc.toString()}`);
+    logger.fine(Category.ALL, `deactivate() called: ${this.getName()}, tc: ${tc.toString()}`);
   }
 
   /**
