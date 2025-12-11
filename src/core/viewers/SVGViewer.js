@@ -21,6 +21,16 @@ import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import { Color } from '../util/Color.js';
 
+/**
+ * Global SVG numeric precision (number of decimal places).
+ *
+ * Controls how many decimals are written for coordinates, radii,
+ * stroke widths, etc. The default of 4 keeps files compact while
+ * staying visually precise at normal screen resolutions. For
+ * high‑resolution print/export, this value can be increased.
+ */
+const PREC = 4;
+
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
 /** @typedef {import('../scene/Camera.js').Camera} Camera */
@@ -452,7 +462,7 @@ class SVGRenderer extends Abstract2DRenderer {
     } else if (type === CommonAttributes.LINE) {
       g.setAttribute('stroke', this.#lineColor);
       // TUBE_RADIUS is a radius, but SVG stroke-width expects diameter, so multiply by 2
-      g.setAttribute('stroke-width', (this.#tubeRadius * 2).toFixed(4));
+      g.setAttribute('stroke-width', (this.#tubeRadius * 2).toFixed(PREC));
       g.setAttribute('fill', 'none');
       // Initialize batching for lines to reduce DOM elements
       this.#batchedPathData = [];
@@ -520,7 +530,7 @@ class SVGRenderer extends Abstract2DRenderer {
   _applyTransform(matrix) {
     const [a, b, c, d, e, f] = this._extractAffine2D(matrix);
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];
-    const transformStr = `matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(4)} ${f.toFixed(4)})`;
+    const transformStr = `matrix(${a.toFixed(PREC)} ${b.toFixed(PREC)} ${c.toFixed(PREC)} ${d.toFixed(PREC)} ${e.toFixed(PREC)} ${f.toFixed(PREC)})`;
     currentGroup.setAttribute('transform', transformStr);
     
     // Add comment showing the transform
@@ -603,9 +613,9 @@ class SVGRenderer extends Abstract2DRenderer {
     // Skip formatting text nodes for performance
     
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx',point[0].toFixed(4));
-    circle.setAttribute('cy',point[1].toFixed(4));
-    circle.setAttribute('r', this.#pointRadius.toFixed(4));
+    circle.setAttribute('cx', point[0].toFixed(PREC));
+    circle.setAttribute('cy', point[1].toFixed(PREC));
+    circle.setAttribute('r', this.#pointRadius.toFixed(PREC));
     // Override fill color if vertex color is provided
     if (color) {
       circle.setAttribute('fill', this.toCSSColor(color));
@@ -626,7 +636,7 @@ class SVGRenderer extends Abstract2DRenderer {
     for (const index of indices) {
       const vertex = vertices[index];
       const point = this._extractPoint(vertex);
-      points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
+      points.push(`${point[0].toFixed(PREC)},${point[1].toFixed(PREC)}`);
     }
     
     // Get the color for this edge
@@ -693,7 +703,7 @@ class SVGRenderer extends Abstract2DRenderer {
     for (const index of indices) {
       const vertex = vertices[index];
       const point = this._extractPoint(vertex);
-      points.push(`${point[0].toFixed(4)},${point[1].toFixed(4)}`);
+      points.push(`${point[0].toFixed(PREC)},${point[1].toFixed(PREC)}`);
     }
     
     const currentGroup = this.#groupStack[this.#groupStack.length - 1];

@@ -266,7 +266,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    * @protected
    */
   _beginRender() {
-    this._setupCanvasTransform();
+    this._NDC2ScreenTform();
     this._clearCanvas();
   }
 
@@ -355,7 +355,7 @@ class Canvas2DRenderer extends Abstract2DRenderer {
    * Set up the Canvas 2D context transform to convert from NDC to screen coordinates
    * @private
    */
-  _setupCanvasTransform() {
+  _NDC2ScreenTform() {
     const canvas = this.#canvas;
     const ctx = this.#context;
     const width = canvas.clientWidth;
@@ -415,15 +415,10 @@ class Canvas2DRenderer extends Abstract2DRenderer {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Restore the NDC-to-screen transform
-    this._setupCanvasTransform();
+    this._NDC2ScreenTform();
   }
 
-  // visitComponent(), visitTransformation(), visitAppearance() inherited from Abstract2DRenderer
-  // getAppearanceAttribute(), toCSSColor(), getBooleanAttribute(), getNumericAttribute() inherited from Abstract2DRenderer
-  // visitPointSet(), visitIndexedLineSet(), visitIndexedFaceSet() inherited from Abstract2DRenderer
-  // _renderVerticesAsPoints(), _renderEdgesAsLines(), _renderFacesAsPolygons() inherited from Abstract2DRenderer
-
-  // ============================================================================
+   // ============================================================================
   // DEVICE-SPECIFIC DRAWING PRIMITIVES
   // ============================================================================
 

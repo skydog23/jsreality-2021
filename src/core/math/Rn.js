@@ -13,6 +13,10 @@
 // All functions are static and operate on arrays (vectors/matrices) of numbers.
 // @ts-check
 
+import { getLogger, Category } from '../util/LoggingSystem.js';
+
+const logger = getLogger('Rn');
+
 /** @typedef {number[]} Vec */
 /** @typedef {number[]} Matrix */
 
@@ -627,8 +631,8 @@ export function calculateBounds(bounds, vlist) {
  * @returns {number[]}
  */
 export function convertArray2DToArray1D(target, src) {
-  console.log("convertArray2DToArray1D: src = "+src.length+" "+src[0].length);
-   const slotLength = src[0].length;
+  logger.fine(Category.UTIL, `convertArray2DToArray1D: src = ${src.length} ${src[0].length}`);
+  const slotLength = src[0].length;
   if (!target) target = new Array(src.length * slotLength);
   for (let i = 0; i < src.length; i++) {
     for (let j = 0; j < slotLength; j++) {
@@ -1480,7 +1484,7 @@ export function inverse(minvIn, m) {
     f = t[i * n + i];
     if (f === 0.0) {
       // Singular matrix - return identity
-      console.warn('Divide by zero, returning identity matrix');
+      logger.warn(Category.TRANSFORMATION | Category.ERROR, 'Divide by zero, returning identity matrix');
       setIdentityMatrix(minv);
       return minv;
     }
