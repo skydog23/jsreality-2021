@@ -34,12 +34,12 @@ export class TestToolApp extends JSRApp {
         super(options);
         // Enable detailed logging for tool system debugging
         // This will help debug why TestTool's perform() method isn't being called
-        setModuleLevel('ToolSystem', Level.FINE);
+        // setModuleLevel('ToolSystem', Level.FINE);
         // setModuleLevel('SlotManager', Level.FINER);
         // setModuleLevel('DeviceManager', Level.FINER);
         // setModuleLevel('ToolEventQueue', Level.FINE);
         // setModuleLevel('AbstractDeviceMouse', Level.FINER);
-        setModuleLevel('AABBPickSystem', Level.FINER);
+        // setModuleLevel('AABBPickSystem', Level.FINER);
      }
 
     getShowPanels() {
@@ -70,7 +70,7 @@ export class TestToolApp extends JSRApp {
             perform(tc) {
               super.perform(tc);
               const objMousePosition = ToolUtility.worldToLocal(tc, this._mousePosition);
-              logger.fine(Category.IO, 'objMousePosition:', objMousePosition);
+            logger.fine(Category.ALL, 'objMousePosition:', objMousePosition);
               ptSGC.setGeometry(Primitives.point(objMousePosition));
               tc.getViewer().render();   // <-- use the context’s viewer
             }

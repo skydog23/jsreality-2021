@@ -36,32 +36,16 @@ export const Level = {
   FINEST: 300      // console.log - highly detailed tracing
 };
 
-// Category flags (bitwise) - can be combined with |
+// Category flags (bitwise)
+// 
+// Categories are intended primarily for **per-class debugging**:
+// individual classes/modules can define their own bitfields and pass
+// those values as the `category` argument to logger methods.
+//
+// For users who don't want to deal with categories, `Category.ALL`
+// enables all categories for that logger.
 export const Category = {
-  SCENE: 1,           // Scene graph operations
-  GEOMETRY: 2,        // Geometry processing
-  SHADER: 4,          // Shader and appearance
-  VIEWER: 8,          // Viewer rendering
-  INSPECTOR: 16,      // Inspector UI
-  TRANSFORMATION: 32, // Matrix transformations
-  UTIL: 64,           // Utility functions
-  IO: 128,            // Input/output
-  ERROR: 256,         // Error conditions
-  GENERAL: 512        // General/uncategorized
-};
-
-// Convenient aliases matching DEBUG.* pattern
-export const DEBUG = {
-  SCENE: Category.SCENE,
-  GEOMETRY: Category.GEOMETRY,
-  SHADER: Category.SHADER,
-  VIEWER: Category.VIEWER,
-  INSPECTOR: Category.INSPECTOR,
-  TRANSFORMATION: Category.TRANSFORMATION,
-  UTIL: Category.UTIL,
-  IO: Category.IO,
-  ERROR: Category.ERROR,
-  GENERAL: Category.GENERAL
+  ALL: -1 // All bits set; accepts any category bitmask
 };
 
 /**
@@ -70,10 +54,13 @@ export const DEBUG = {
 class Logger {
   #moduleName;
   #system;
+  #enabledCategories;
 
   constructor(moduleName, system) {
     this.#moduleName = moduleName;
     this.#system = system;
+    // By default, accept all categories for this logger.
+    this.#enabledCategories = Category.ALL;
   }
 
   /**
@@ -86,8 +73,8 @@ class Logger {
                         || this.#system.globalLevel;
     if (level < moduleLevel) return false;
 
-    // Check category flags
-    if ((this.#system.enabledCategories & category) === 0) return false;
+    // Check category flags (per-logger)
+    if ((this.#enabledCategories & category) === 0) return false;
 
     return true;
   }
@@ -113,17 +100,16 @@ class Logger {
   }
 
   /**
-   * Get category name from flag (for display)
+   * Get category name from flag (for display).
+   * 
+   * With the current design, categories are typically local to a class
+   * (e.g., a file-local DEBUG bitfield), so the logging system cannot
+   * reliably map bits back to human-readable names. We therefore omit
+   * category labels from the output and only return an empty string.
    * @private
    */
   #getCategoryName(category) {
-    const names = [];
-    for (const [name, flag] of Object.entries(Category)) {
-      if ((category & flag) !== 0) {
-        names.push(name);
-      }
-    }
-    return names.length > 0 ? names.join('|') : '';
+    return '';
   }
 
   /**
@@ -136,6 +122,16 @@ class Logger {
   log(level, category, message, ...args) {
     if (!this.#shouldLog(level, category)) return;
     this.#output(level, category, message, args);
+  }
+
+  /**
+   * Set which categories are enabled for this logger (bitwise flags).
+   * This replaces any existing category mask.
+   * 
+   * @param {number} flags - Combined category flags
+   */
+  setEnabledCategories(flags) {
+    this.#enabledCategories = flags;
   }
 
   /**
@@ -224,7 +220,7 @@ class LoggingSystem {
   constructor() {
     this.globalLevel = Level.SEVERE;  // Default: only errors
     this.moduleConfig = new Map();    // Per-module level overrides
-    this.enabledCategories = 0xFFFFFFFF; // All categories enabled by default
+    this.loggers = new Map();         // Cached Logger instances per module
   }
 
   /**
@@ -245,30 +241,6 @@ class LoggingSystem {
   }
 
   /**
-   * Set which categories are enabled (bitwise flags)
-   * @param {number} flags - Combined category flags (e.g., Category.SCENE | Category.VIEWER)
-   */
-  setEnabledCategories(flags) {
-    this.enabledCategories = flags;
-  }
-
-  /**
-   * Enable specific categories (adds to existing)
-   * @param {number} flags - Category flags to enable
-   */
-  enableCategories(flags) {
-    this.enabledCategories |= flags;
-  }
-
-  /**
-   * Disable specific categories
-   * @param {number} flags - Category flags to disable
-   */
-  disableCategories(flags) {
-    this.enabledCategories &= ~flags;
-  }
-
-  /**
    * Get a logger for a module or class instance
    * @param {Object|string} moduleOrClass - Module name string or class instance
    * @returns {Logger}
@@ -277,8 +249,14 @@ class LoggingSystem {
     const moduleName = typeof moduleOrClass === 'string'
       ? moduleOrClass
       : moduleOrClass?.constructor?.name || 'jsreality';
-    
-    return new Logger(moduleName, this);
+
+    if (this.loggers.has(moduleName)) {
+      return this.loggers.get(moduleName);
+    }
+
+    const logger = new Logger(moduleName, this);
+    this.loggers.set(moduleName, logger);
+    return logger;
   }
 
   /**
@@ -303,7 +281,7 @@ class LoggingSystem {
   reset() {
     this.globalLevel = Level.SEVERE;
     this.moduleConfig.clear();
-    this.enabledCategories = 0xFFFFFFFF;
+    this.loggers.clear();
   }
 }
 
@@ -349,30 +327,6 @@ export function setGlobalLevel(level) {
  */
 export function setModuleLevel(moduleName, level) {
   loggingSystem.setModuleLevel(moduleName, level);
-}
-
-/**
- * Set which categories are enabled (replaces existing)
- * @param {number} flags - Combined category flags
- */
-export function setEnabledCategories(flags) {
-  loggingSystem.setEnabledCategories(flags);
-}
-
-/**
- * Enable specific categories (adds to existing)
- * @param {number} flags - Category flags to enable
- */
-export function enableCategories(flags) {
-  loggingSystem.enableCategories(flags);
-}
-
-/**
- * Disable specific categories
- * @param {number} flags - Category flags to disable
- */
-export function disableCategories(flags) {
-  loggingSystem.disableCategories(flags);
 }
 
 /**

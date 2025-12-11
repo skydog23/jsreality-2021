@@ -376,7 +376,7 @@ export class ToolSystem extends ToolEventReceiver {
       return ts;
     }
     const logger = getLogger('ToolSystem');
-    logger.warn(Category.SCENE, 'Viewer has no tool system, allocating default');
+    logger.warn(Category.ALL, 'Viewer has no tool system, allocating default');
     ts = new ToolSystem(viewer, null, null);
     ToolSystem.#globalTable.set(viewer, ts);
     return ts;
@@ -566,7 +566,7 @@ export class ToolSystem extends ToolEventReceiver {
         // At this point, path already ends at the current component, so we should
         // NOT push the component again. Using path directly matches the Java
         // ToolSystem behaviour and avoids duplicated nodes (e.g. "world : world").
-        logger.finer(Category.SCENE, `Discovering tool ${tool.constructor.name} at path: ${path.toString()}`);
+        logger.finer(Category.ALL, `Discovering tool ${tool.constructor.name} at path: ${path.toString()}`);
         this.addTool(tool, path);
       }
     
@@ -690,7 +690,7 @@ export class ToolSystem extends ToolEventReceiver {
     for (const path of paths) {
       // Each returned path already ends at the target component, so we use it
       // directly instead of pushing the component again.
-      logger.finer(Category.SCENE, `Auto-registering tool ${tool.constructor.name} at path: ${path.toString()}`);
+      logger.finer(Category.ALL, `Auto-registering tool ${tool.constructor.name} at path: ${path.toString()}`);
       this.addTool(tool, path);
     }
   }
@@ -758,7 +758,7 @@ export class ToolSystem extends ToolEventReceiver {
       if (newEvents.length === 0) break;
       this.#compQueue.push(...newEvents);
       if (iterCnt > 5000) {
-        logger.warn(Category.SCENE, 'ToolSystem may be stuck in endless loop');
+        logger.warn(Category.ALL, 'ToolSystem may be stuck in endless loop');
         iterCnt = 0;
       }
     } while (true);
@@ -838,7 +838,7 @@ export class ToolSystem extends ToolEventReceiver {
         // Possible activation
         const candidatesForPick = new Set(this.#slotManager.getToolsActivatedBySlot(slot));
         logger.finer(
-          Category.SCENE,
+          Category.ALL,
           `[ToolSystem] Activation candidates for slot ${slot.getName()}: ${
             Array.from(candidatesForPick).map(t => `${t.constructor.name}(${t.getName()})`).join(', ') || '<none>'
           }`
@@ -855,12 +855,12 @@ export class ToolSystem extends ToolEventReceiver {
                   ? pickPath.toString()
                   : String(pickPath);
                 logger.finer(
-                  Category.SCENE,
+                  Category.ALL,
                   `[ToolSystem] Calculated pick path for activation: ${pathDesc}`
                 );
               } catch (e) {
                 logger.finer(
-                  Category.SCENE,
+                  Category.ALL,
                   `[ToolSystem] Calculated pick path (toString() failed): ${pickPath ? '[object]' : 'null'}`
                 );
               }
@@ -869,7 +869,7 @@ export class ToolSystem extends ToolEventReceiver {
           do {
             const selection = this.#toolManager.selectToolsForPath(pickPath, level--, candidatesForPick);
             logger.finer(
-              Category.SCENE,
+              Category.ALL,
               `[ToolSystem] selectToolsForPath at level ${level + 1}, pickPath=${pickPath}: ` +
               `selection=[${selection.map(t => `${t.constructor.name}(${t.getName()})`).join(', ') || '<none>'}]`
             ); if (selection.length === 0) continue;
@@ -881,7 +881,7 @@ export class ToolSystem extends ToolEventReceiver {
             }
             this.#activateToolSet(candidates);
             logger.finer(
-              Category.SCENE,
+              Category.ALL,
               `[ToolSystem] activatedTools now: ${Array.from(activatedTools).map(t => t.getName()).join(', ')}`
             );
           } while (candidates.size === 0 && level > 0);
@@ -966,7 +966,7 @@ export class ToolSystem extends ToolEventReceiver {
     // Calculate pick ray
     const to = [-this.#pointerTrafo[2], -this.#pointerTrafo[6], -this.#pointerTrafo[10], -this.#pointerTrafo[14]];
     const from = [this.#pointerTrafo[3], this.#pointerTrafo[7], this.#pointerTrafo[11], this.#pointerTrafo[15]];
-    logger.fine(Category.SCENE, `#performPick: from: ${from} to: ${to}`);
+    logger.fine(Category.ALL, `#performPick: from: ${from} to: ${to}`);
     try {
       // Compute pick
       this.#pickResults = this.#pickSystem.computePick(from, to);
@@ -979,14 +979,14 @@ export class ToolSystem extends ToolEventReceiver {
       // Filter list - remove picks with negative W coordinate in NDC
       const filtered = [];
       for (const pick of this.#pickResults) {
-        logger.fine(Category.SCENE, `#performPick: pick world cords: ${pick.getWorldCoordinates().toString()}`);
+        logger.fine(Category.ALL, `#performPick: pick world cords: ${pick.getWorldCoordinates().toString()}`);
         if (this.#hitFilter.accept(from, to, pick)) {
           filtered.push(pick);
         }
       }
       this.#pickResults = filtered;
     } catch (error) {
-      logger.severe(Category.SCENE, 'Error performing pick:', error);
+      logger.severe(Category.ALL, 'Error performing pick:', error);
       this.#pickResults = [];
     }
 
@@ -1000,7 +1000,7 @@ export class ToolSystem extends ToolEventReceiver {
    */
   #calculatePickPath() {
     this.performPick();
-    logger.fine(Category.SCENE, `#calculatePickPath: pickResults: ${this.#pickResults.length}`);
+    logger.fine(Category.ALL, `#calculatePickPath: pickResults: ${this.#pickResults.length}`);
     if (this.#pickResults === null || this.#pickResults.length === 0) {
       return this.#emptyPickPath;
     }
@@ -1017,7 +1017,7 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setCurrentTool(tool);
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       if (resolvedSlot === null) {
-        logger.warn(Category.SCENE, `activate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
+        logger.warn(Category.ALL, `activate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
         continue;
       }
       
@@ -1046,7 +1046,7 @@ export class ToolSystem extends ToolEventReceiver {
       const paths = this.#getActivePathsForTool(tool);
       
       if (paths.length === 0 && tool.getActivationSlots().length === 0) {
-        logger.warn(Category.SCENE, `Always-active tool ${tool.constructor.name} has no active paths`);
+        logger.warn(Category.ALL, `Always-active tool ${tool.constructor.name} has no active paths`);
       }
       for (const path of paths) {
         this.#toolContext.setRootToLocal(path);
@@ -1065,7 +1065,7 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setCurrentTool(tool);
       const resolvedSlot = this.#slotManager.resolveSlotForTool(tool, this.#toolContext.getSource());
       if (resolvedSlot === null) {
-        logger.warn(Category.SCENE, `deactivate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
+        logger.warn(Category.ALL, `deactivate: resolving ${this.#toolContext.getSource()} failed: ${tool.constructor.name}`);
         continue;
       }
       const paths = this.#getActivePathsForTool(tool);
@@ -1140,7 +1140,7 @@ export class ToolSystem extends ToolEventReceiver {
       } else {
         paths.push(path);
       }
-      logger.finer(Category.SCENE, `Registered always-active tool ${tool.constructor.name} with ${tool.getCurrentSlots().length} current slots`);
+      logger.finer(Category.ALL, `Registered always-active tool ${tool.constructor.name} with ${tool.getCurrentSlots().length} current slots`);
     }
     if (first) {
       this.#slotManager.registerTool(tool);

@@ -7,7 +7,7 @@
  */
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
-import { getLogger, DEBUG } from '../../core/util/LoggingSystem.js';
+import { getLogger, Category } from '../../core/util/LoggingSystem.js';
 
 const logger = getLogger('AppMenuPlugin');
 
@@ -56,21 +56,21 @@ export class AppMenuPlugin extends JSRPlugin {
         const info = typeof appPlugin.getInfo === 'function' ? appPlugin.getInfo() : null;
         this.#appName = (info && info.name) || appPlugin.constructor.name || 'Application';
       } catch (error) {
-        logger.warn(DEBUG.GENERAL, `Failed to read app name from jsrapp: ${error.message}`);
+        logger.warn(Category.ALL, `Failed to read app name from jsrapp: ${error.message}`);
       }
     } else {
-      logger.warn(DEBUG.GENERAL, 'JSRApp plugin (id: jsrapp) not found; using generic application name');
+      logger.warn(Category.ALL, 'JSRApp plugin (id: jsrapp) not found; using generic application name');
     }
 
     // Cache viewer container for positioning the floating panel (fallback to document.body)
     try {
       this.#viewerContainer = viewer.getContainer?.() || null;
     } catch (error) {
-      logger.warn(DEBUG.GENERAL, `Unable to get viewer container: ${error.message}`);
+      logger.warn(Category.ALL, `Unable to get viewer container: ${error.message}`);
       this.#viewerContainer = null;
     }
 
-    logger.info(DEBUG.GENERAL, `AppMenuPlugin installed for app "${this.#appName}"`);
+    logger.info(Category.ALL, `AppMenuPlugin installed for app "${this.#appName}"`);
   }
 
   /**
