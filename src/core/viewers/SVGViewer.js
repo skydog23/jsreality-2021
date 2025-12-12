@@ -287,43 +287,7 @@ export class SVGViewer extends Abstract2DViewer {
     return this.#height;
   }
 
-  /**
-   * Compute projection matrix for the camera
-   * @protected
-   * @param {Camera} camera
-   * @returns {number[]} 4x4 projection matrix
-   */
-  _computeCam2NDCMatrix(camera) {
-    const width = this.#width;
-    const height = this.#height;
-    const aspect = width / height;
-
-    const projMatrix = new Array(16);
-    
-    if (camera.isPerspective()) {
-      // Perspective projection
-      const fov = camera.getFieldOfView() * Math.PI / 180;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      
-      P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
-    } else {
-      // Orthographic projection
-      const size = 5;
-      const left = -size * aspect;
-      const right = size * aspect;
-      const bottom = -size;
-      const top = size;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      const vp = new Rectangle2D(left, bottom, right - left, top - bottom);
-      P3.makeOrthographicProjectionMatrix(projMatrix, vp, near, far);
-    }
-
-    return projMatrix;
-  }
 }
-
 
 /**
  * SVG rendering visitor that traverses the scene graph and renders geometry as SVG

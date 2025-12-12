@@ -136,13 +136,6 @@ export class Canvas2DViewer extends Abstract2DViewer {
   
     // Note: Canvas is now cleared by renderer after appearance setup
 
-    // Setup projection
-    const camera = this._getCamera();
-    if (!camera) {
-      console.warn('No camera found in camera path');
-      return;
-    }
-
     // Create rendering visitor
     const renderer = new Canvas2DRenderer(this);
 
@@ -189,11 +182,6 @@ export class Canvas2DViewer extends Abstract2DViewer {
   }
 
   // Private helper methods
-
-
-
-  // _getCamera() inherited from Abstract2DViewer
-
   /**
    * Get the viewing component (canvas)
    * @protected - Internal method for use by related classes
@@ -202,23 +190,6 @@ export class Canvas2DViewer extends Abstract2DViewer {
   _getViewingComponent() {
     return this.#canvas;
   }
-
-  /**
-   * Compute projection matrix for the camera (Canvas-specific override)
-   * @protected
-   * @param {Camera} camera
-   * @returns {number[]} 4x4 projection matrix
-   */
-_computeCam2NDCMatrix(camera) {
-    const canvas = this.#canvas;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const aspect = width / height;
-
-    // Call base class method with computed aspect ratio
-    return super._computeCam2NDCMatrix(camera, aspect);
-  }
-
   
 
  }

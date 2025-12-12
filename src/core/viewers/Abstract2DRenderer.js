@@ -304,6 +304,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
 
   /**
    * Begin rendering - device-independent setup + world2ndc application
+   * each device has already carried out ndc2screen transformation
    * Computes world2ndc, calls device-specific _beginRender(), then applies world2ndc transform
    */
   beginRender() {
