@@ -90,6 +90,7 @@ export const DefaultLineShader = {
     'lineStipple',
     'lineStipplePattern',
     'lineFactor',
+    'edgeFade',      // Fade percentage for edge smoothing
     'vertexColors',
     'lineLighting'
   ],
@@ -156,6 +157,12 @@ export const DefaultLineShader = {
    * @type {number}
    */
   LINE_FACTOR_DEFAULT: 1,
+
+  /**
+   * Fade percentage for edge smoothing
+   * @type {number}
+   */
+  LINE_EDGE_FADE_DEFAULT: 0.1,
   
   /**
    * Whether to use and interpolate vertex colors from geometry
@@ -214,6 +221,7 @@ export const DefaultLineShader = {
       lineStipple: this.LINE_STIPPLE_DEFAULT,
       lineStipplePattern: this.LINE_STIPPLE_PATTERN_DEFAULT,
       lineFactor: this.LINE_FACTOR_DEFAULT,
+      edgeFade: this.LINE_EDGE_FADE_DEFAULT,
       vertexColors: this.VERTEX_COLORS_DEFAULT,
       lineLighting: this.LIGHTING_ENABLED_DEFAULT
     };

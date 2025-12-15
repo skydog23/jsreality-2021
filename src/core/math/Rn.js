@@ -70,7 +70,7 @@ export function dehomogenize(dst, src) {
 export function setToValue(dst, val) {
   dst.fill(val);
   return dst;
-};
+}
 
 // Helper: set 2-vector
 /**
@@ -85,7 +85,7 @@ export function setToValue2(dst, x, y) {
   if (dst.length !== 2) throw new Error('Incompatible length');
   dst[0] = x; dst[1] = y;
   return dst;
-};
+}
 
 // Helper: set 3-vector
 /**
@@ -101,7 +101,7 @@ export function setToValue3(dst, x, y, z) {
   if (dst.length !== 3) throw new Error('Incompatible length');
   dst[0] = x; dst[1] = y; dst[2] = z;
   return dst;
-};
+}
 
 // Helper: set 4-vector
 /**
@@ -118,7 +118,7 @@ export function setToValue4(dst, x, y, z, w) {
   if (dst.length !== 4) throw new Error('Incompatible length');
   dst[0] = x; dst[1] = y; dst[2] = z; dst[3] = w;
   return dst;
-};
+}
 
 // abs: elementwise absolute value
 /**
@@ -132,7 +132,7 @@ export function abs(dst, src) {
   if (!dst) dst = new Array(n);
   for (let i = 0; i < n; ++i) dst[i] = Math.abs(src[i]);
   return dst;
-};
+}
 
 // add: elementwise addition
 /**
@@ -167,7 +167,7 @@ export function add(dst, src1, src2) {
   }
   
   return dst;
-};
+}
 
 // average: average of a list of vectors
 /**
@@ -183,7 +183,7 @@ export function average(dst, vlist) {
   for (let i = 0; i < vlist.length; ++i) add(tmp, tmp, vlist[i]);
   times(dst, 1.0 / vlist.length, tmp);
   return dst;
-};
+}
 
 // copy: copy src to dst
 /**
@@ -196,7 +196,7 @@ export function copy(dst, src) {
   if (!dst) dst = new Array(src.length);
   for (let i = 0; i < Math.min(dst.length, src.length); ++i) dst[i] = src[i];
   return dst;
-};
+}
 
 // crossProduct: 3D cross product
 /**
@@ -216,7 +216,7 @@ export function crossProduct(dst, u, v) {
   tmp[2] = u[0] * v[1] - u[1] * v[0];
   if (tmp !== dst) for (let i = 0; i < 3; ++i) dst[i] = tmp[i];
   return dst;
-};
+}
 
 // euclideanDistance: sqrt of sum of squares of differences
 /**
@@ -227,7 +227,7 @@ export function crossProduct(dst, u, v) {
  */
 export function euclideanDistance(u, v) {
   return Math.sqrt(euclideanDistanceSquared(u, v));
-};
+}
 
 // euclideanDistanceSquared: sum of squares of differences
 /**
@@ -240,7 +240,7 @@ export function euclideanDistanceSquared(u, v) {
   const tmp = new Array(u.length);
   subtract(tmp, u, v);
   return euclideanNormSquared(tmp);
-};
+}
 
 // euclideanNorm: sqrt of sum of squares
 /**
@@ -250,7 +250,7 @@ export function euclideanDistanceSquared(u, v) {
  */
 export function euclideanNorm(vec) {
   return Math.sqrt(euclideanNormSquared(vec));
-};
+}
 
 // euclideanNormSquared: sum of squares
 /**
@@ -260,7 +260,7 @@ export function euclideanNorm(vec) {
  */
 export function euclideanNormSquared(vec) {
   return innerProduct(vec, vec);
-};
+}
 
 // innerProduct: dot product
 /**
@@ -277,7 +277,7 @@ export function innerProduct(u, v) {
   const n = u.length < v.length ? u.length : v.length;
   for (let i = 0; i < n; ++i) norm += u[i] * v[i];
   return norm;
-};
+}
 
 // innerProduct with n terms
 /**
@@ -293,7 +293,7 @@ export function innerProductN(u, v, n) {
   const m = u.length < n ? u.length : n;
   for (let i = 0; i < m; ++i) norm += u[i] * v[i];
   return norm;
-};
+}
 
 // manhattanNorm: sum of absolute values
 /**
@@ -305,7 +305,7 @@ export function manhattanNorm(vec) {
   let sum = 0;
   for (let i = 0; i < vec.length; ++i) sum += Math.abs(vec[i]);
   return sum;
-};
+}
 
 // manhattanNormDistance: manhattan norm of difference
 /**
@@ -318,7 +318,7 @@ export function manhattanNormDistance(u, v) {
   const tmp = new Array(u.length);
   subtract(tmp, u, v);
   return manhattanNorm(tmp);
-};
+}
 
 // max: elementwise maximum
 /**
@@ -335,7 +335,7 @@ export function max(dst, src1, src2) {
   const lim = Math.min(dst.length, n);
   for (let i = 0; i < lim; ++i) dst[i] = Math.max(src1[i], src2[i]);
   return dst;
-};
+}
 
 // maxNorm: maximum absolute value
 /**
@@ -347,7 +347,7 @@ export function maxNorm(vec) {
   let max = 0;
   for (let i = 0; i < vec.length; ++i) max = Math.max(max, Math.abs(vec[i]));
   return max;
-};
+}
 
 // maxNormDistance: max norm of difference
 /**
@@ -360,7 +360,7 @@ export function maxNormDistance(u, v) {
   const tmp = new Array(u.length);
   subtract(tmp, u, v);
   return maxNorm(tmp);
-};
+}
 
 // min: elementwise minimum
 /**
@@ -376,7 +376,7 @@ export function min(dst, src1, src2) {
   if (dst.length !== n) throw new Error('Invalid target vector length');
   for (let i = 0; i < n; ++i) dst[i] = Math.min(src1[i], src2[i]);
   return dst;
-};
+}
 
 // negate: elementwise negation
 /**
@@ -391,7 +391,7 @@ export function negate(dst, src) {
   const n = Math.min(dst.length, src.length);
   for (let i = 0; i < n; ++i) dst[i] = -src[i];
   return dst;
-};
+}
 
 // normalize: normalize to unit length
 /**
@@ -402,7 +402,7 @@ export function negate(dst, src) {
  */
 export function normalize(dst, src) {
   return setEuclideanNorm(dst, 1.0, src);
-};
+}
 
 // normalize array of vectors
 /**
@@ -417,7 +417,7 @@ export function normalizeArray(dst, src) {
   const n = Math.min(dst.length, src.length);
   for (let i = 0; i < n; ++i) normalize(dst[i], src[i]);
   return dst;
-};
+}
 
 // setEuclideanNorm: scale to given length
 /**
@@ -437,7 +437,7 @@ export function setEuclideanNorm(dst, length, src) {
     return dst;
   }
   return times(dst, length/norm, src);
-};
+}
 
 
 
@@ -474,7 +474,7 @@ export function subtract(dst, src1, src2) {
   }
   
   return dst;
-};
+}
 
 // subtract array of vectors
 /**
@@ -490,7 +490,7 @@ export function subtractArray(dst, src1, src2) {
   const n = src1.length;
   for (let i = 0; i < n; ++i) subtract(dst[i], src1[i], src2[i]);
   return dst;
-};
+}
 
 // times: scalar multiplication
 /**
@@ -506,7 +506,7 @@ export function times(dst, factor, src) {
   const n = dst.length;
   for (let i = 0; i < n; ++i) dst[i] = factor * src[i];
   return dst;
-};
+}
 
 // times: matrix multiplication
 /**
@@ -540,7 +540,7 @@ export function timesMatrix(dst, src1, src2) {
   if (!dst) return out;
   if (rewrite) for (let i = 0; i < dst.length; ++i) dst[i] = out[i];
   return dst;
-};
+}
 
 // times: scalar multiplication for array of vectors
 /**
@@ -556,7 +556,7 @@ export function timesArray(dst, factor, src) {
   const n = src.length;
   for (let i = 0; i < n; ++i) times(dst[i], factor, src[i]);
   return dst;
-};
+}
 
 /**
  * Convert a flat n*n array to a 2D n x n array.
@@ -573,7 +573,7 @@ export function convertFlatArrayTo2DArray(dst, src) {
     }
   }
   return dst;
-};
+}
 // barycentricTriangleInterp: barycentric interpolation
 /**
  * Barycentric interpolation of three corner vectors with weights.
@@ -593,7 +593,7 @@ export function barycentricTriangleInterp(dst, corners, weights) {
     add(ddst, ddst, times(tmp, weights[i], corners[i]));
   }
   return ddst;
-};
+}
 
 // calculateBounds: min/max bounds of vector list
 /**
@@ -621,7 +621,7 @@ export function calculateBounds(bounds, vlist) {
     if (isNaN(bounds[0][0])) throw new Error('calculate bounds: nan');
   }
   return bounds;
-};
+}
 
 // convertArray2DToArray1D: flatten 2D array
 /**
@@ -640,7 +640,7 @@ export function convertArray2DToArray1D(target, src) {
     }
   }
   return target;
-};
+}
 
 // convertArray3DToArray1D: flatten 3D array
 /**
@@ -663,7 +663,7 @@ export function convertArray3DToArray1D(V, usample = 1, vsample = 1) {
     }
   }
   return newV;
-};
+}
 
 // convertArray3DToArray2D: flatten 3D array to 2D
 /**
@@ -684,7 +684,7 @@ export function convertArray3DToArray2D(V) {
     }
   }
   return newV;
-};
+}
 
 // convertDoubleToFloatArray: convert double to float
 /**
@@ -697,7 +697,7 @@ export function convertDoubleToFloatArray(ds) {
   const fs = new Array(n);
   for (let i = 0; i < n; ++i) fs[i] = ds[i];
   return fs;
-};
+}
 
 // euclideanAngle: angle between vectors
 /**
@@ -716,7 +716,7 @@ export function euclideanAngle(u, v) {
   if (f > 1.0) f = 1.0;
   if (f < -1.0) f = -1.0;
   return Math.acos(f);
-};
+}
 
 // equals: check if vectors are equal within tolerance
 /**
@@ -734,7 +734,7 @@ export function equals(u, v, tol = 0) {
     if (d > tol || d < -tol) return false;
   }
   return true;
-};
+}
 
 // identityMatrix: create identity matrix
 /**
@@ -748,7 +748,7 @@ export function identityMatrix(dim) {
     m[k] = 1.0;
   }
   return m;
-};
+}
 
 // isIdentityMatrix: check if matrix is identity
 /**
@@ -764,7 +764,7 @@ export function isIdentityMatrix(mat, tol) {
     if (Math.abs(mat[i] - idd[i]) > tol) return false;
   }
   return true;
-};
+}
 
 // isNan: check if array contains NaN
 /**
@@ -778,7 +778,7 @@ export function isNan(ds) {
     if (isNaN(ds[i])) return true;
   }
   return false;
-};
+}
 
 // isSpecialMatrix: check if determinant is 1
 /**
@@ -790,7 +790,7 @@ export function isNan(ds) {
 export function isSpecialMatrix(mat, tol) {
   const d = determinant(mat);
   return (Math.abs(Math.abs(d) - 1) < tol);
-};
+}
 
 // isZero: check if array is zero
 /**
@@ -804,7 +804,7 @@ export function isZero(iline, tol = TOLERANCE) {
     if (Math.abs(d) > tol) return false;
   }
   return true;
-};
+}
 
 // linearCombination: dst = a*aVec + b*bVec
 /**
@@ -821,7 +821,7 @@ export function linearCombination(dst, a, aVec, b, bVec) {
   if (!dst) dst = new Array(aVec.length);
   const tmp = new Array(dst.length);
   return add(dst, times(tmp, a, aVec), times(dst, b, bVec));
-};
+}
 
 // matrixTimesVector: matrix times vector
 /**
@@ -851,7 +851,7 @@ export function matrixTimesVector(dst, m, src) {
     return target;
   }
   return out;
-};
+}
 
 /**
  * Compute bilinear form v2^T * m * v1.
@@ -862,7 +862,7 @@ export function matrixTimesVector(dst, m, src) {
  */
 export function bilinearForm(m, v1, v2) {
   return innerProduct(matrixTimesVector(null, m, v1), v2);
-};
+}
 
 // matrixTimesVector for array of vectors
 /**
@@ -894,7 +894,7 @@ export function matrixTimesVectorArray(dst, m, src) {
     return target;
   }
   return out;
-};
+}
 
 // matrixToString: convert matrix to string
 /**
@@ -913,7 +913,7 @@ export function matrixToString(m, formatString = '%g') {
     }
   }
   return sb.join('');
-};
+}
 
 // setIdentityMatrix: set matrix to identity
 /**
@@ -928,7 +928,7 @@ export function setIdentityMatrix(mat) {
     mat[k] = 1.0;
   }
   return mat;
-};
+}
 
 // swap: swap contents of two vectors
 /**
@@ -945,7 +945,7 @@ export function swap(u, v) {
     u[i] = v[i];
     v[i] = tmp;
   }
-};
+}
 
 // toString: convert vector to string
 /**
@@ -962,7 +962,7 @@ export function toString(v, formatString = '%g') {
     strb.push('\t');
   }
   return strb.join('');
-};
+}
 
 // toString for array of vectors
 /**
@@ -979,7 +979,7 @@ export function toStringArray(v, n = -1) {
     strb.push('\n');
   }
   return strb.join('');
-};
+}
 
 // toString for 3D array
 /**
@@ -998,7 +998,7 @@ export function toString3D(v) {
     strb.push('\n');
   }
   return strb.join('');
-};
+}
 
 // transpose: transpose matrix
 /**
@@ -1028,7 +1028,7 @@ export function transpose(dst, src) {
     for (let i = 0; i < dst.length; ++i) dst[i] = out[i];
   }
   return dst;
-};
+}
 
 // transposeD2F: transpose double to float
 /**
@@ -1045,7 +1045,7 @@ export function transposeD2F(dst, src) {
     }
   }
   return dst;
-};
+}
 
 // transposeF2D: transpose float to double
 /**
@@ -1062,7 +1062,7 @@ export function transposeF2D(dst, src) {
     }
   }
   return dst;
-};
+}
 
 // _matrixTimesVectorSafe: internal matrix-vector multiplication
 function _matrixTimesVectorSafe(dst, m, src) {
@@ -1115,7 +1115,7 @@ export function bilinearInterpolation(ds, u, v, vb, vt, cb, ct) {
   const cc = linearCombination(null, 1 - u, cb, u, ct);
   linearCombination(ds, 1 - v, vv, v, cc);
   return ds;
-};
+}
 
 // bezierCombination: Bezier curve combination
 /**
@@ -1139,7 +1139,7 @@ export function bezierCombination(dst, t, v0, t0, t1, v1) {
     add(null, times(null, c0, v0), times(null, c1, t0)),
     add(null, times(null, c2, t1), times(null, c3, v1)));
   return dst;
-};
+}
 
 // completeBasis: complete orthogonal basis
 /**
@@ -1172,7 +1172,7 @@ export function completeBasis(dst, partial) {
     for (let j = 0; j < dim; ++j) dst[i][j] = inline[i * dim + j];
   }
   return dst;
-};
+}
 
 // determinant: matrix determinant
 /**
@@ -1193,7 +1193,7 @@ export function determinant(m) {
     return determinantOld(m);
   }
   return det;
-};
+}
 
 // determinantOld: optimized for low dimensions
 function determinantOld(m) {
@@ -1240,7 +1240,7 @@ export function diagonalMatrix(dst, entries) {
   if (!dst) dst = identityMatrix(n);
   for (let i = 0; i < n; ++i) dst[n * i + i] = entries[i];
   return dst;
-};
+}
 
 // extractSubmatrix: extract rectangular submatrix
 /**
@@ -1265,7 +1265,7 @@ export function extractSubmatrix(subm, src, l, r, t, b) {
     }
   }
   return subm;
-};
+}
 
 // planeParallelToPassingThrough: create plane
 /**
@@ -1280,7 +1280,7 @@ export function planeParallelToPassingThrough(plane, ds, ds2) {
   for (let i = 0; i < 3; ++i) plane[i] = ds[i];
   plane[3] = -innerProductN(plane, ds2, 3);
   return plane;
-};
+}
 
 // projectOnto: orthogonal projection
 /**
@@ -1296,7 +1296,7 @@ export function projectOnto(dst, src, fixed) {
   const f = innerProduct(fixed, src);
   times(dst, f / d, fixed);
   return dst;
-};
+}
 
 // projectOntoComplement: projection onto orthogonal complement
 /**
@@ -1308,7 +1308,7 @@ export function projectOnto(dst, src, fixed) {
  */
 export function projectOntoComplement(dst, src, fixed) {
   return subtract(dst, src, projectOnto(null, src, fixed));
-};
+}
 
 // setDiagonalMatrix: set diagonal matrix
 /**
@@ -1326,7 +1326,7 @@ export function setDiagonalMatrix(dst, diag) {
   const n = Math.min(n1, n2);
   for (let i = 0; i < n; ++i) dst[n1 * i + i] = diag[i];
   return dst;
-};
+}
 
 // setToLength: scale to given length
 /**
@@ -1338,7 +1338,7 @@ export function setDiagonalMatrix(dst, diag) {
  */
 export function setToLength(p1, p12, rad) {
   return times(p1, rad / euclideanNorm(p12), p12);
-};
+}
 
 // submatrix: extract submatrix by deleting row and column
 /**
@@ -1360,7 +1360,7 @@ export function submatrix(subm, m, row, column) {
     }
   }
   return subm;
-};
+}
 
 // trace: matrix trace
 /**
@@ -1373,7 +1373,7 @@ export function trace(m) {
   let t = 0;
   for (let i = 0; i < n; ++i) t += m[i * n + i];
   return t;
-};
+}
 
 // cofactor: calculate the (i,j)th cofactor of a matrix
 /**
@@ -1386,7 +1386,7 @@ export function trace(m) {
 export function cofactor(m, row, column) {
   const n = mysqrt(m.length);
   return determinant(submatrix(null, m, row, column));
-};
+}
 
 // adjugate: calculate the adjugate (classical adjugate) of a matrix
 /**
@@ -1415,7 +1415,7 @@ export function adjugate(dst, src) {
     for (let i = 0; i < dst.length; ++i) dst[i] = out[i];
   }
   return dst;
-};
+}
 
 // inverse: matrix inverse using Gaussian pivoting
 /**
@@ -1507,7 +1507,7 @@ export function inverse(minvIn, m) {
     }
   }
   return minv;
-};
+}
 
 // conjugateByMatrix: form the conjugate of matrix m by matrix c: dst = c * m * Inverse(c)
 /**
@@ -1521,7 +1521,7 @@ export function conjugateByMatrix(dst, m, c) {
    if (!dst) dst = new Array(c.length);
   timesMatrix(dst, c, timesMatrix(null, m, inverse(null, c)));
   return dst;
-};
+}
 
 // permutationMatrix: create permutation matrix from permutation array
 /**
@@ -1539,7 +1539,7 @@ export function permutationMatrix(dst, perm) {
   }
   transpose(dst, dst);
   return dst;
-};
+}
 
 // polarDecompose: polar decomposition of a matrix
 /**
@@ -1574,7 +1574,7 @@ export function polarDecompose(q, s, m) {
   transpose(qit, qq[nw]);
   timesMatrix(s, qit, m);
   return m;
-};
+}
 
 
 

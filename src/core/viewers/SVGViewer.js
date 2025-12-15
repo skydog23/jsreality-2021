@@ -11,15 +11,12 @@
 // SVG implementation of the Viewer interface
 // Provides vector rendering using SVG DOM
 
-import { Viewer, Dimension } from '../scene/Viewer.js';
-import { Abstract2DViewer } from './Abstract2DViewer.js';
-import { Abstract2DRenderer } from './Abstract2DRenderer.js';
-import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import { INHERITED } from '../scene/Appearance.js';
+import { Dimension } from '../scene/Viewer.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
-import * as Rn from '../math/Rn.js';
-import * as Pn from '../math/Pn.js';
-import { Color } from '../util/Color.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
+import * as P3 from '../math/P3.js';
+import { Rectangle2D } from '../util/Rectangle2D.js';
 
 /**
  * Global SVG numeric precision (number of decimal places).
@@ -290,43 +287,7 @@ export class SVGViewer extends Abstract2DViewer {
     return this.#height;
   }
 
-  /**
-   * Compute projection matrix for the camera
-   * @protected
-   * @param {Camera} camera
-   * @returns {number[]} 4x4 projection matrix
-   */
-  _computeCam2NDCMatrix(camera) {
-    const width = this.#width;
-    const height = this.#height;
-    const aspect = width / height;
-
-    const projMatrix = new Array(16);
-    
-    if (camera.isPerspective()) {
-      // Perspective projection
-      const fov = camera.getFieldOfView() * Math.PI / 180;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      
-      P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
-    } else {
-      // Orthographic projection
-      const size = 5;
-      const left = -size * aspect;
-      const right = size * aspect;
-      const bottom = -size;
-      const top = size;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      const vp = new Rectangle2D(left, bottom, right - left, top - bottom);
-      P3.makeOrthographicProjectionMatrix(projMatrix, vp, near, far);
-    }
-
-    return projMatrix;
-  }
 }
-
 
 /**
  * SVG rendering visitor that traverses the scene graph and renders geometry as SVG

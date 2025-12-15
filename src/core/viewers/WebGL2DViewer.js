@@ -116,9 +116,10 @@ export class WebGL2DViewer extends Abstract2DViewer {
     
     if (displayWidth === 0)   displayWidth = 800;  // If canvas has no size yet, set a default width (ResizeObserver will call us again)
     if (displayHeight === 0)  displayHeight = 600;  // If canvas has no size yet, set a default height (ResizeObserver will call us again)
-    if (displayWidth === 0 || displayHeight === 0) {
-      return;
-    }
+   
+    // if (displayWidth === 0 || displayHeight === 0) {
+    //   return;
+    // }
 
     // Set actual canvas buffer size (scaled up for retina)
     canvas.width = displayWidth * ratio;
@@ -193,18 +194,6 @@ export class WebGL2DViewer extends Abstract2DViewer {
     this.#renderer.render();
   }
 
-  /**
-   * Override camera-to-NDC matrix computation for 2D
-   * @protected
-   * @param {Camera} camera - The camera
-   * @returns {number[]} 4x4 camera-to-NDC transformation matrix
-   */
-  _computeCam2NDCMatrix(camera) {
-    const size = this.getViewingComponentSize();
-    const aspect = size.width / size.height;
-
-    return super._computeCam2NDCMatrix(camera, aspect);
-  }
 
   /**
    * Export canvas as image
@@ -270,6 +259,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /** @type {number} Current batched half width for lines */
   #currentBatchedHalfWidth = 0;
+
+  /** @type {number[]} Batched distances from centerline for edge smoothing */
+  #batchedDistances = [];
 
   /**
    * Create a new WebGL2D renderer
@@ -383,15 +375,15 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const vertexShaderSource = `
       attribute vec4 a_position;
       attribute vec4 a_color;
-      // NOTE: Edge smoothing disabled - see fragment shader for re-enabling instructions
-      // attribute float a_distance; // Distance from centerline (for line edge smoothing)
+      // Distance from centerline (for line edge smoothing)
+      attribute float a_distance;
       
       uniform mat4 u_transform;
       uniform float u_pointSize;
       
       varying vec4 v_color;
-      // NOTE: Edge smoothing disabled - see fragment shader for re-enabling instructions
-      // varying float v_distance; // Pass distance to fragment shader
+      // Pass distance to fragment shader
+      varying float v_distance;
       
       void main() {
         // a_position is vec4, can be 2D, 3D, or 4D depending on gl.vertexAttribPointer size
@@ -409,8 +401,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         gl_Position = position;
         gl_PointSize = u_pointSize;
         v_color = a_color;
-        // NOTE: Edge smoothing disabled - uncomment to re-enable
-        // v_distance = a_distance;
+        // Pass through distance for edge smoothing
+        v_distance = a_distance;
       }
     `;
     
@@ -420,10 +412,10 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       varying vec4 v_color;
       // NOTE: Edge smoothing disabled - uncomment to re-enable
-      // varying float v_distance;
+      varying float v_distance;
       
       // NOTE: Edge smoothing disabled - uncomment to re-enable
-      // uniform float u_lineHalfWidth; // Half width of the line (for edge smoothing)
+      uniform float u_lineHalfWidth; // Half width of the line (for edge smoothing)
       
       void main() {
         // ========================================================================
@@ -439,18 +431,18 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         // 7. Update #updateUniforms to set u_lineHalfWidth uniform
         //
         // Edge smoothing code (uncomment to enable):
-        // float dist = abs(v_distance);
-        // float alpha = 1.0;
-        // if (u_lineHalfWidth > 0.0) {
-        //   float edgeFade = 0.1; // Fade over 10% of line width
-        //   float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
-        //   alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
-        // }
-        // gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
-        //
+        float dist = abs(v_distance);
+        float alpha = 1.0;
+        if (u_lineHalfWidth > 0.0) {
+          float edgeFade = 0.1; // Fade over 10% of line width
+          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
+          alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
+        }
+        gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
+        
         // Current code (edge smoothing disabled):
         // For point rendering, gl_PointCoord is available but we use solid color for now
-        gl_FragColor = v_color;
+        // gl_FragColor = v_color;
       }
     `;
     
@@ -648,14 +640,24 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       gl.uniform1f(pointSizeLoc, pointSize);
     }
     
-    // NOTE: Edge smoothing disabled - uniform not set
-    // To re-enable: uncomment this block and update shaders (see fragment shader comments)
+    // Set edge fade uniform
+    const edgeFade = this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER,
+      CommonAttributes.LINE_EDGE_FADE,
+      CommonAttributes.LINE_EDGE_FADE_DEFAULT
+    );
+     const edgeFadeLoc = gl.getUniformLocation(program, 'u_edgeFade');
+     if (edgeFadeLoc !== null) {
+       gl.uniform1f(edgeFadeLoc, edgeFade);
+     }
+  
     // Set line half width for edge smoothing (0 disables smoothing for non-lines)
-    // Note: Both distance attribute and halfWidth are in world space, so they match correctly
-    // const lineHalfWidthLoc = gl.getUniformLocation(program, 'u_lineHalfWidth');
-    // if (lineHalfWidthLoc !== null) {
-    //   gl.uniform1f(lineHalfWidthLoc, lineHalfWidth);
-    // }
+    // Note: Both distance attribute and halfWidth are intended to be in the same
+    // coordinate space (world space in the current implementation).
+    const lineHalfWidthLoc = gl.getUniformLocation(program, 'u_lineHalfWidth');
+    if (lineHalfWidthLoc !== null) {
+      gl.uniform1f(lineHalfWidthLoc, lineHalfWidth);
+    }
   }
 
   /**
@@ -815,32 +817,14 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     );
     
     if (tubeDraw) {
-      // Draw as quads using TUBE_RADIUS (batch same-color edges)
+      // Draw as quads using TUBE_RADIUS and enable edge smoothing
       const tubeRadius = this.getAppearanceAttribute(
         CommonAttributes.LINE_SHADER,
         CommonAttributes.TUBE_RADIUS,
         CommonAttributes.TUBE_RADIUS_DEFAULT
       );
       const halfWidth = tubeRadius;
-      const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
-      
-      // Check if we can batch this edge with the current batch
-      const canBatch = this.#currentBatchedLineColor !== null &&
-                       this.#arraysEqual(edgeColor, this.#currentBatchedLineColor) &&
-                       Math.abs(halfWidth - this.#currentBatchedHalfWidth) < 1e-6;
-      
-      if (canBatch) {
-        // Add to current batch
-        this.#addPolylineToBatch(vertices, indices, edgeColor, halfWidth);
-      } else {
-        // Flush current batch and start new one
-        if (this.#batchedVertices.length > 0) {
-          this.#flushBatchedLines();
-        }
-        this.#currentBatchedLineColor = edgeColor;
-        this.#currentBatchedHalfWidth = halfWidth;
-        this.#addPolylineToBatch(vertices, indices, edgeColor, halfWidth);
-      }
+      this.#drawPolylineAsQuads(vertices, colors, indices, halfWidth);
     } else {
       // Draw as simple LINE_STRIP using LINE_WIDTH (no batching for now)
       const lineWidth = this.getAppearanceAttribute(
@@ -908,6 +892,15 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       // Add colors (same color for all 4 vertices of the quad)
       this.#batchedColors.push(...edgeColor, ...edgeColor, ...edgeColor, ...edgeColor);
+
+      // Distance from centerline: -halfWidth for left side, +halfWidth for right side
+      const quadDistances = [
+        -halfWidth,  // 0: left of p0
+        halfWidth,   // 1: right of p0
+        -halfWidth,  // 2: left of p1
+        halfWidth    // 3: right of p1
+      ];
+      this.#batchedDistances.push(...quadDistances);
       
       // Add indices for 2 triangles forming the quad
       this.#batchedIndices.push(
@@ -934,14 +927,25 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const vertexArray = new Float32Array(this.#batchedVertices);
     const colorArray = new Float32Array(this.#batchedColors);
     const indexArray = new Uint16Array(this.#batchedIndices);
+    const distanceArray = new Float32Array(this.#batchedDistances);
     
     // Single draw call for all batched edges
-    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0);
+    // Batched quads are generated in 2D (x,y) so positionSize is 2
+    this.#drawGeometry(
+      vertexArray,
+      colorArray,
+      indexArray,
+      this.#capabilities.TRIANGLES,
+      distanceArray,
+      this.#currentBatchedHalfWidth,
+      2
+    );
     
     // Reset batching arrays and vertex offset
     this.#batchedVertices = [];
     this.#batchedColors = [];
     this.#batchedIndices = [];
+    this.#batchedDistances = [];
     this.#batchedVertexOffset = 0;
     
     // Only reset color/width if we're not preserving for continued batching
@@ -981,8 +985,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       return; // Need at least 2 points for a line
     }
     
-    // Convert vertices to Float32Array
-    const vertexArray = this.#verticesToFloat32Array(vertices, indices);
+    // Convert vertices to Float32Array (preserve dimension for GPU)
+    const { array: vertexArray, size: positionSize } = this.#verticesToFloat32Array(vertices, indices);
     const colorArray = this.#colorsToFloat32Array(colors, indices, this.#currentColor);
     
     // Set line width using cached capabilities
@@ -997,7 +1001,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       sequentialIndices[i] = i;
     }
     
-    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP);
+    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
   }
   
   /**
@@ -1017,8 +1021,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     const allQuadVertices = [];
     const allQuadColors = [];
-    // NOTE: Edge smoothing disabled - distance array not generated
-    // const allQuadDistances = []; // Distance from centerline for edge smoothing
+    const allQuadDistances = []; // Distance from centerline for edge smoothing
     const allQuadIndices = [];
     let vertexOffset = 0;
     
@@ -1054,15 +1057,13 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         p1[0] - nx * halfWidth, p1[1] - ny * halfWidth   // 3: right of p1
       ];
       
-      // NOTE: Edge smoothing disabled - distance calculation commented out
-      // To re-enable: uncomment this block and update shaders (see fragment shader comments)
       // Distance from centerline: -halfWidth for left side, +halfWidth for right side
-      // const quadDistances = [
-      //   -halfWidth,  // 0: left of p0
-      //   halfWidth,   // 1: right of p0
-      //   -halfWidth,  // 2: left of p1
-      //   halfWidth    // 3: right of p1
-      // ];
+      const quadDistances = [
+        -halfWidth,  // 0: left of p0
+        halfWidth,   // 1: right of p0
+        -halfWidth,  // 2: left of p1
+        halfWidth    // 3: right of p1
+      ];
       
       // Add vertices
       allQuadVertices.push(...quadVertices);
@@ -1070,8 +1071,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Add colors (same color for all 4 vertices of the quad)
       allQuadColors.push(...edgeColor, ...edgeColor, ...edgeColor, ...edgeColor);
       
-      // NOTE: Edge smoothing disabled - distance not added
-      // allQuadDistances.push(...quadDistances);
+      // Add distances
+      allQuadDistances.push(...quadDistances);
       
       // Add indices for 2 triangles forming the quad
       allQuadIndices.push(
@@ -1086,12 +1087,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     if (allQuadVertices.length > 0) {
       const vertexArray = new Float32Array(allQuadVertices);
       const colorArray = new Float32Array(allQuadColors);
-      // NOTE: Edge smoothing disabled - distance array not passed
-      // const distanceArray = new Float32Array(allQuadDistances);
+      const distanceArray = new Float32Array(allQuadDistances);
       const indexArray = new Uint16Array(allQuadIndices);
       // Use cached TRIANGLES constant
-      // NOTE: Edge smoothing disabled - pass null for distances and 0 for lineHalfWidth
-      this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0);
+      // Quads are generated in 2D (x,y) so positionSize is 2
+      this.#drawGeometry(
+        vertexArray,
+        colorArray,
+        indexArray,
+        this.#capabilities.TRIANGLES,
+        distanceArray,
+        halfWidth,
+        2
+      );
     }
   }
 
@@ -1107,8 +1115,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const gl = this.#gl;
     // console.error('🔵 WebGL2DRenderer._drawPolygon CALLED - color:', color);
     if (color != null) color = color.map(c => c/255);
-    // Convert vertices to Float32Array (creates compacted array)
-    const vertexArray = this.#verticesToFloat32Array(vertices, indices);
+    // Convert vertices to Float32Array (creates compacted array, preserve dimension)
+    const { array: vertexArray, size: positionSize } = this.#verticesToFloat32Array(vertices, indices);
     // colors is a single color per face (or null) - replicate it for all vertices
     const colorArray =  (color != null) ? this.#colorsToFloat32Array(color, indices, this.#currentColor) : this.#colorsToFloat32Array(this.#currentColor, indices, this.#currentColor);
   
@@ -1120,7 +1128,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const indexArray = this.#triangulatePolygonSequential(numVertices);
     
     // Use cached TRIANGLES constant
-    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES);
+    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
   }
 
   /**
@@ -1132,8 +1140,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number} mode - WebGL drawing mode (TRIANGLES, LINE_STRIP, etc.)
    * @param {Float32Array|null} [distances=null] - Distance from centerline for edge smoothing (null for non-lines)
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing (0 for non-lines)
+   * @param {number} [positionSize=2] - Number of components per vertex position (2, 3, or 4)
    */
-  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0) {
+  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
     const gl = this.#gl;
     const program = this.#program;
     
@@ -1142,9 +1151,13 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       console.warn('WebGL2DRenderer: No vertices to draw');
       return;
     }
-    
-    if (vertices.length % 2 !== 0) {
-      console.warn('WebGL2DRenderer: Invalid vertex array length (must be multiple of 2)');
+
+    // Validate that the vertex array length is compatible with the component count
+    if (positionSize <= 0 || positionSize > 4 || vertices.length % positionSize !== 0) {
+      console.warn('WebGL2DRenderer: Invalid vertex array length or positionSize', {
+        length: vertices.length,
+        positionSize
+      });
       return;
     }
     
@@ -1164,7 +1177,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       return;
     }
     gl.enableVertexAttribArray(positionLoc);
-    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+    // Use the provided component count so 3D/4D vertices reach the shader intact
+    gl.vertexAttribPointer(positionLoc, positionSize, gl.FLOAT, false, 0, 0);
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
@@ -1177,21 +1191,20 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     gl.enableVertexAttribArray(colorLoc);
     gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
     
-    // NOTE: Edge smoothing disabled - distance buffer handling commented out
-    // To re-enable: uncomment this block and update shaders (see fragment shader comments)
-    // const distanceLoc = gl.getAttribLocation(program, 'a_distance');
-    // if (distanceLoc !== -1) {
-    //   if (distances && distances.length > 0) {
-    //     gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
-    //     gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
-    //     gl.enableVertexAttribArray(distanceLoc);
-    //     gl.vertexAttribPointer(distanceLoc, 1, gl.FLOAT, false, 0, 0);
-    //   } else {
-    //     // Disable distance attribute if not provided (for non-line primitives)
-    //     gl.disableVertexAttribArray(distanceLoc);
-    //     gl.vertexAttrib1f(distanceLoc, 0.0);
-    //   }
-    // }
+    // Handle distance attribute for edge smoothing (optional)
+    const distanceLoc = gl.getAttribLocation(program, 'a_distance');
+    if (distanceLoc !== -1) {
+      if (distances && distances.length > 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(distanceLoc);
+        gl.vertexAttribPointer(distanceLoc, 1, gl.FLOAT, false, 0, 0);
+      } else {
+        // Disable distance attribute if not provided (for non-line primitives)
+        gl.disableVertexAttribArray(distanceLoc);
+        gl.vertexAttrib1f(distanceLoc, 0.0);
+      }
+    }
     
     // Draw
     // Note: We don't validate mode here because gl.POINTS, gl.LINE_STRIP, etc. should always be valid
@@ -1209,7 +1222,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       gl.drawElements(mode, indices.length, indexType, 0);
     } else {
-      const vertexCount = vertices.length / 2;
+      const vertexCount = vertices.length / positionSize;
       // Ensure mode is a number (not undefined), default to cached LINE_STRIP
       const drawMode = (typeof mode === 'number' && !isNaN(mode)) ? mode : this.#capabilities.LINE_STRIP;
       
@@ -1244,8 +1257,10 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   /**
    * Extract point from vertex data (overrides abstract method)
    * Pass-through implementation: returns the vertex unchanged.
-   * The dimension is detected in _drawPoint and used to set the appropriate
-   * gl.vertexAttribPointer size (2, 3, or 4 components).
+   *
+   * NOTE: For WebGL we want access to the full 3D/4D coordinate so it can be
+   * passed through to the GPU. Call sites that perform 2D-only math simply
+   * use point[0] and point[1], ignoring any additional components.
    * 
    * @protected
    * @param {number[]} vertex - Vertex coordinates [x, y] or [x, y, z] or [x, y, z, w]
@@ -1253,24 +1268,38 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   _extractPoint(vertex) {
     // Pass-through: return vertex as-is
-    return [vertex[0], vertex[1]];
+    return vertex;
   }
 
   /**
-   * Convert vertices to Float32Array
+   * Convert vertices to Float32Array, preserving their full dimension.
    * @private
    * @param {*} vertices - Vertex data
    * @param {number[]} indices - Vertex indices
-   * @returns {Float32Array}
+   * @returns {{ array: Float32Array, size: number }} vertices array and component count per vertex
    */
   #verticesToFloat32Array(vertices, indices) {
     const result = [];
+
+    if (!indices || indices.length === 0) {
+      return { array: new Float32Array(0), size: 2 };
+    }
+
+    // Determine component count from first vertex (clamped to [2, 4])
+    const firstVertex = this._extractPoint(vertices[indices[0]]);
+    const size = Math.min(Math.max(firstVertex.length || 2, 2), 4);
+
     for (const index of indices) {
       const vertex = vertices[index];
       const point = this._extractPoint(vertex);
-      result.push(point[0], point[1]);
+      for (let i = 0; i < size; i++) {
+        // If the vertex has fewer components than size, pad with sensible defaults
+        const value = (point && i < point.length) ? point[i] : (i === 3 ? 1.0 : 0.0);
+        result.push(value);
+      }
     }
-    return new Float32Array(result);
+
+    return { array: new Float32Array(result), size };
   }
 
   /**
