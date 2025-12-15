@@ -20,9 +20,9 @@
  * Usage:
  *   import { getLogger, Category } from './util/LoggingSystem.js';
  *   
- *   const logger = getLogger(this); // or getLogger('ModuleName')
- *   logger.fine(Category.VIEWER, 'Starting render');
- *   logger.severe(Category.ERROR, 'Failed:', error);
+ *   const logger = getLogger('jsreality.core.math.Rn');
+ *   logger.fine(Category.ALL, 'Starting render');
+ *   logger.severe(Category.ALL, 'Failed:', error);
  */
 
 // Log levels (matching Java's java.util.logging levels)
@@ -135,6 +135,14 @@ class Logger {
   }
 
   /**
+   * Get the currently enabled categories bitmask for this logger.
+   * @returns {number}
+   */
+  getEnabledCategories() {
+    return this.#enabledCategories;
+  }
+
+  /**
    * Log a severe error message
    * @param {number} category - Category flags
    * @param {string} message - Log message
@@ -221,6 +229,13 @@ class LoggingSystem {
     this.globalLevel = Level.SEVERE;  // Default: only errors
     this.moduleConfig = new Map();    // Per-module level overrides
     this.loggers = new Map();         // Cached Logger instances per module
+    // Convenience: allow setting levels by leaf name (e.g. "Rn") in addition to
+    // fully-qualified module names (e.g. "jsreality.core.math.Rn").
+    // If a leaf name is set before the logger is created, the override is stored
+    // here and applied when a unique matching logger appears.
+    this.pendingLeafLevels = new Map(); // leaf -> level
+    // Track created loggers by leaf name so we can resolve leaf overrides.
+    this.leafToNames = new Map(); // leaf -> Set<fullName>
   }
 
   /**
@@ -237,6 +252,27 @@ class LoggingSystem {
    * @param {number} level - Log level
    */
   setModuleLevel(moduleName, level) {
+    // If the caller passes a leaf-only name, try to resolve it.
+    if (typeof moduleName === 'string' && !moduleName.includes('.')) {
+      const leaf = moduleName;
+      const candidates = this.leafToNames.get(leaf);
+      if (candidates && candidates.size === 1) {
+        const [fullName] = candidates.values();
+        this.moduleConfig.set(fullName, level);
+        return;
+      }
+      if (candidates && candidates.size > 1) {
+        console.warn(
+          `[LoggingSystem] Ambiguous leaf logger name "${leaf}". ` +
+          `Use a fully-qualified name. Candidates: ${Array.from(candidates).join(', ')}`
+        );
+        return;
+      }
+      // No candidates yet: remember until the logger is created.
+      this.pendingLeafLevels.set(leaf, level);
+      return;
+    }
+
     this.moduleConfig.set(moduleName, level);
   }
 
@@ -256,7 +292,82 @@ class LoggingSystem {
 
     const logger = new Logger(moduleName, this);
     this.loggers.set(moduleName, logger);
+
+    // Update leaf index for leaf-name overrides.
+    const leaf = typeof moduleName === 'string' ? moduleName.split('.').pop() : null;
+    if (leaf) {
+      let set = this.leafToNames.get(leaf);
+      if (!set) {
+        set = new Set();
+        this.leafToNames.set(leaf, set);
+      }
+      set.add(moduleName);
+
+      // If a leaf level override was set before the logger existed, apply it now
+      // as long as it resolves uniquely.
+      if (this.pendingLeafLevels.has(leaf)) {
+        const candidates = this.leafToNames.get(leaf);
+        if (candidates && candidates.size === 1) {
+          const level = this.pendingLeafLevels.get(leaf);
+          this.moduleConfig.set(moduleName, level);
+          this.pendingLeafLevels.delete(leaf);
+        } else if (candidates && candidates.size > 1) {
+          console.warn(
+            `[LoggingSystem] Pending leaf logger level "${leaf}" became ambiguous. ` +
+            `Use a fully-qualified name. Candidates: ${Array.from(candidates).join(', ')}`
+          );
+          this.pendingLeafLevels.delete(leaf);
+        }
+      }
+    }
     return logger;
+  }
+
+  /**
+   * Clear any explicit log level override for a module, falling back to the global level.
+   * @param {string} moduleName - Module name
+   */
+  clearModuleLevel(moduleName) {
+    if (typeof moduleName === 'string' && !moduleName.includes('.')) {
+      const leaf = moduleName;
+      const candidates = this.leafToNames.get(leaf);
+      if (candidates && candidates.size === 1) {
+        const [fullName] = candidates.values();
+        this.moduleConfig.delete(fullName);
+      } else if (candidates && candidates.size > 1) {
+        console.warn(
+          `[LoggingSystem] Ambiguous leaf logger name "${leaf}". ` +
+          `Use a fully-qualified name. Candidates: ${Array.from(candidates).join(', ')}`
+        );
+      }
+      // Also clear any pending override.
+      this.pendingLeafLevels.delete(leaf);
+      return;
+    }
+    this.moduleConfig.delete(moduleName);
+  }
+
+  /**
+   * Get configuration for all known loggers.
+   * Returns lightweight data suitable for UIs (e.g., logging control panels).
+   * @returns {Array<{name: string, effectiveLevel: number, overrideLevel: (number|null), usesGlobalLevel: boolean, enabledCategories: number}>}
+   */
+  getLoggerConfigs() {
+    const configs = [];
+    for (const [name, logger] of this.loggers.entries()) {
+      const overrideLevel = this.moduleConfig.has(name)
+        ? this.moduleConfig.get(name)
+        : null;
+      const effectiveLevel = overrideLevel ?? this.globalLevel;
+      configs.push({
+        name,
+        effectiveLevel,
+        overrideLevel,
+        usesGlobalLevel: overrideLevel === null,
+        enabledCategories: logger.getEnabledCategories()
+      });
+    }
+    return configs;
   }
 
   /**
@@ -282,6 +393,8 @@ class LoggingSystem {
     this.globalLevel = Level.SEVERE;
     this.moduleConfig.clear();
     this.loggers.clear();
+    this.pendingLeafLevels.clear();
+    this.leafToNames.clear();
   }
 }
 
@@ -294,19 +407,17 @@ const loggingSystem = new LoggingSystem();
  * @returns {Logger}
  * 
  * @example
- * // In a class
- * class MyClass {
- *   #logger = getLogger(this);
- *   
- *   myMethod() {
- *     this.#logger.fine(Category.GENERAL, 'Method called');
- *   }
+ * // In a module / class file
+ * const logger = getLogger('jsreality.core.inspect.SceneGraphInspector');
+ * 
+ * function myMethod() {
+ *   logger.fine(Category.ALL, 'Method called');
  * }
  * 
  * @example
  * // In a module
- * const logger = getLogger('MyModule');
- * logger.info(Category.SCENE, 'Processing scene graph');
+ * const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
+ * logger.info(Category.ALL, 'Processing scene graph');
  */
 export function getLogger(moduleOrClass) {
   return loggingSystem.getLogger(moduleOrClass);
@@ -327,6 +438,22 @@ export function setGlobalLevel(level) {
  */
 export function setModuleLevel(moduleName, level) {
   loggingSystem.setModuleLevel(moduleName, level);
+}
+
+/**
+ * Clear the module-specific log level so it falls back to the global level.
+ * @param {string} moduleName - Module name
+ */
+export function clearModuleLevel(moduleName) {
+  loggingSystem.clearModuleLevel(moduleName);
+}
+
+/**
+ * Get configuration for all known loggers.
+ * @returns {Array<{name: string, effectiveLevel: number, overrideLevel: (number|null), usesGlobalLevel: boolean, enabledCategories: number}>}
+ */
+export function getLoggerConfigs() {
+  return loggingSystem.getLoggerConfigs();
 }
 
 /**

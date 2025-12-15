@@ -12,7 +12,7 @@
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('PanelShowMenuPlugin');
+const logger = getLogger('jsreality.app.plugins.PanelShowMenuPlugin');
 
 /**
  * Plugin that adds panel visibility checkboxes to the View menu.

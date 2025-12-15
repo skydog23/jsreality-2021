@@ -12,7 +12,7 @@
 
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('PluginController');
+const logger = getLogger('jsreality.app.plugin.PluginController');
 
 /**
  * @typedef {Object} PanelSlotConfig

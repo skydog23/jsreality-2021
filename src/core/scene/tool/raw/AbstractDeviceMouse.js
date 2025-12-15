@@ -18,7 +18,7 @@ import { Level, Category } from '../../../util/LoggingSystem.js';
  * @typedef {import('../ToolEventQueue.js').ToolEventQueue} ToolEventQueue
  */
 
-const logger = getLogger('AbstractDeviceMouse');
+const logger = getLogger('jsreality.core.scene.tool.raw.AbstractDeviceMouse');
 
 /**
  * Abstract base class for mouse devices.
@@ -128,7 +128,7 @@ export class AbstractDeviceMouse {
           slot,
           matrix
         );
-        logger.finest(Category.IO, `Adding POINTER_TRANSFORMATION event: xndc=${xndc.toFixed(3)}, yndc=${yndc.toFixed(3)}`);
+        logger.finest(Category.ALL, `Adding POINTER_TRANSFORMATION event: xndc=${xndc.toFixed(3)}, yndc=${yndc.toFixed(3)}`);
         this.#queue.addEvent(event);
       } else if (!this.#sentCenter) {
         const matrix = Rn.identityMatrix(4);

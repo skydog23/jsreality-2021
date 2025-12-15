@@ -20,9 +20,6 @@ import { Camera } from '../core/scene/Camera.js';
 import { Transformation } from '../core/scene/Transformation.js';
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
 import { ToolSystemConfiguration } from '../core/scene/tool/ToolSystemConfiguration.js';
-import { ToolEvent } from '../core/scene/tool/ToolEvent.js';
-import { InputSlot } from '../core/scene/tool/InputSlot.js';
-import { AxisState } from '../core/scene/tool/AxisState.js';
 import { SceneGraphUtility } from '../core/util/SceneGraphUtility.js';
 import { Appearance } from '../core/scene/Appearance.js';
 import { Color } from '../core/util/Color.js';
@@ -37,7 +34,6 @@ import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
 import { PluginLayoutManager } from './plugin/PluginLayoutManager.js';
 import { PluginController } from './plugin/PluginController.js';
-import { SceneGraphInspector } from '../core/inspect/SceneGraphInspector.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -103,12 +99,6 @@ export class JSRViewer {
   /** @type {Map<string, Object>} */
   #sidePanels = new Map();
 
-  /** @type {SceneGraphInspector|null} */
-  #inspector = null;
-
-  /** @type {HTMLElement|null} */
-  #inspectorContainer = null;
-
   // Plugin system
   /** @type {EventBus|null} */
   #eventBus = null;
@@ -132,9 +122,6 @@ export class JSRViewer {
 
   /** @type {string} */
   #preferencePrefix = 'jsreality.viewer.';
-
-  /** @type {number|null} */
-  #systemTimeFrameId = null;
 
   /**
    * Create a new JSRViewer instance.
@@ -168,8 +155,8 @@ export class JSRViewer {
     this.#eventBus = new EventBus();
     this.#pluginManager = new PluginManager(this, this.#eventBus, this.#layoutManager);
     this.#viewerEventBridge = new ViewerEventBridge(this, this.#eventBus);
-    
-    // Create the PluginController facade (mirrors JRViewer's Controller)
+
+    // Create the PluginController facade (JRViewer-style Controller)
     this.#controller = new PluginController(
       this,
       this.#pluginManager,
@@ -326,13 +313,13 @@ export class JSRViewer {
       camera.setName('camera');
       camera.setFieldOfView(60);
       camera.setNear(-5);
-      camera.setFar(10);
+      camera.setFar(5);
       camera.setPerspective(false);
       this.#cameraComponent.setCamera(camera);
       
       // Position camera back from origin
       const cameraTransform = new Transformation();
-      const cameraMatrix = MatrixBuilder.euclidean().translate(0, 0, -2).getArray();
+      const cameraMatrix = MatrixBuilder.euclidean().translate(0, 0, -1).getArray();
       cameraTransform.setMatrix(cameraMatrix);
       this.#cameraComponent.setTransformation(cameraTransform);
       
@@ -401,37 +388,7 @@ export class JSRViewer {
     // Initialize scene tools
     this.#toolSystem.initializeSceneTools();
 
-    this.#startSystemTimeUpdates();
-
     logger.info('Tool system initialized');
-  }
-
-  #startSystemTimeUpdates() {
-    if (this.#systemTimeFrameId !== null || typeof window === 'undefined') {
-      return;
-    }
-    const tick = () => {
-      if (!this.#toolSystem) {
-        this.#systemTimeFrameId = null;
-        return;
-      }
-      const now = Date.now();
-      const event = new ToolEvent(this, now, InputSlot.SYSTEM_TIME, AxisState.ORIGIN);
-      try {
-        this.#toolSystem.processToolEvent(event);
-      } catch (error) {
-        logger.warn('System time tool event failed:', error);
-      }
-      this.#systemTimeFrameId = window.requestAnimationFrame(tick);
-    };
-    this.#systemTimeFrameId = window.requestAnimationFrame(tick);
-  }
-
-  #stopSystemTimeUpdates() {
-    if (this.#systemTimeFrameId !== null && typeof window !== 'undefined') {
-      cancelAnimationFrame(this.#systemTimeFrameId);
-      this.#systemTimeFrameId = null;
-    }
   }
 
   /**
@@ -493,87 +450,6 @@ export class JSRViewer {
    */
   getLayoutManager() {
     return this.#layoutManager;
-  }
-
-  /**
-   * Enable the scene graph inspector within the viewer layout.
-   * @param {HTMLElement|null} container - Optional container to host the inspector.
-   * @param {Object} [options]
-   * @param {string} [options.position='left'] - Desired position (currently only 'left' supported).
-   * @param {number} [options.initialSize=300] - Initial size in pixels for the inspector panel.
-   * @returns {SceneGraphInspector} The inspector instance.
-   */
-  enableInspector(container = null, options = {}) {
-    if (this.#inspector) {
-      return this.#inspector;
-    }
-
-    const { position = 'left', initialSize = 300 } = options;
-    let inspectorContainer = container || this.#inspectorContainer;
-
-    if (inspectorContainer) {
-      inspectorContainer.innerHTML = '';
-    }
-
-    if (!inspectorContainer) {
-      if (position !== 'left') {
-        console.warn(
-          `[JSRViewer] enableInspector currently supports 'left' layout only. Requested "${position}" will be treated as 'left'.`
-        );
-      }
-      if (!this.#layoutManager) {
-        throw new Error('Cannot enable inspector: layout manager is not available');
-      }
-      inspectorContainer = this.#layoutManager.requestRegion('left', {
-        id: 'jsr-viewer-inspector',
-        initialSize,
-        minSize: 200,
-        fill: true,
-        overflow: 'auto'
-      });
-      inspectorContainer.id = 'jsr-viewer-inspector-container';
-    }
-
-    this.#inspectorContainer = inspectorContainer;
-
-    inspectorContainer.style.display = 'flex';
-    inspectorContainer.style.flexDirection = 'column';
-    inspectorContainer.style.width = '100%';
-    inspectorContainer.style.height = '100%';
-    inspectorContainer.style.overflow = 'auto';
-    inspectorContainer.style.minHeight = '0';
-
-    const sceneRoot = this.getSceneRoot();
-    if (!sceneRoot) {
-      throw new Error('Cannot enable inspector: scene root is not available');
-    }
-
-    const renderCallback = () => {
-      this.render();
-    };
-
-    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
-      onRender: renderCallback
-    });
-
-    this.#inspector.refresh();
-    return this.#inspector;
-  }
-
-  /**
-   * Get the active SceneGraphInspector instance.
-   * @returns {SceneGraphInspector|null}
-   */
-  getInspector() {
-    return this.#inspector;
-  }
-
-  /**
-   * Get the DOM container hosting the inspector.
-   * @returns {HTMLElement|null}
-   */
-  getInspectorContainer() {
-    return this.#inspectorContainer;
   }
 
   /**
@@ -774,7 +650,39 @@ export class JSRViewer {
   // PUBLIC API: Convenience Methods
   // ========================================================================
 
-  
+  /**
+   * Set the background color.
+   * @param {Color|string|number[]} color - Background color
+   */
+  setBackgroundColor(color) {
+    if (!this.#sceneRoot) {
+      return;
+    }
+
+    let appearance = this.#sceneRoot.getAppearance();
+    if (!appearance) {
+      appearance = new Appearance('rootAppearance');
+      this.#sceneRoot.setAppearance(appearance);
+    }
+
+    let colorObj = color;
+    if (typeof color === 'string') {
+      // Parse CSS color string (simple implementation)
+      const colorMap = {
+        'white': new Color(255, 255, 255),
+        'gray': new Color(225, 225, 225),
+        'black': new Color(0, 0, 0),
+        'transparent': new Color(0, 0, 0, 0)
+      };
+      colorObj = colorMap[color.toLowerCase()] || new Color(225, 225, 225);
+    } else if (Array.isArray(color)) {
+      colorObj = new Color(...color);
+    }
+
+    appearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, colorObj);
+    this.setPreference('backgroundColor', color);
+    this.render();
+  }
 
   /**
    * Render the scene.
@@ -1094,11 +1002,6 @@ export class JSRViewer {
   dispose() {
     logger.info('Disposing JSRViewer');
 
-    this.#stopSystemTimeUpdates();
-
-    this.#inspector = null;
-    this.#inspectorContainer = null;
-
     // Uninstall all plugins first
     if (this.#pluginManager) {
       this.#pluginManager.uninstallAll().catch(error => {
@@ -1140,71 +1043,6 @@ export class JSRViewer {
     this.#sidePanels.clear();
 
     logger.info('JSRViewer disposed');
-  }
-
-  // ========================================================================
-  // PUBLIC API: Controller (JRViewer-style facade)
-  // ========================================================================
-
-  /**
-   * Get the PluginController instance.
-   * This is the main interface for plugins to interact with the viewer,
-   * similar to JRViewer's Controller.
-   * 
-   * @returns {PluginController}
-   */
-  getController() {
-    return this.#controller;
-  }
-
-  // ========================================================================
-  // PUBLIC API: Panel Slot Management (JRViewer-style)
-  // ========================================================================
-
-  /**
-   * Configure visibility of panel slots.
-   * Similar to JRViewer.setShowPanelSlots(left, right, top, bottom).
-   * 
-   * @param {boolean} left - Show left panel slot
-   * @param {boolean} [right=false] - Show right panel slot (future)
-   * @param {boolean} [top=false] - Show top panel slot
-   * @param {boolean} [bottom=false] - Show bottom panel slot (future)
-   */
-  setShowPanelSlots(left, right = false, top = false, bottom = false) {
-    this.#controller.setShowPanelSlots({ left, right, top, bottom });
-  }
-
-  /**
-   * Request a left side panel.
-   * Convenience wrapper around PluginController.requestLeftPanel.
-   * 
-   * @param {Object} [config] - Panel configuration
-   * @returns {HTMLElement} The panel container element
-   */
-  requestLeftPanel(config = {}) {
-    return this.#controller.requestLeftPanel(config);
-  }
-
-  /**
-   * Request a top panel (e.g., for toolbars, menubars).
-   * Convenience wrapper around PluginController.requestTopPanel.
-   * 
-   * @param {Object} [config] - Panel configuration
-   * @returns {HTMLElement} The panel container element
-   */
-  requestTopPanel(config = {}) {
-    return this.#controller.requestTopPanel(config);
-  }
-
-  /**
-   * Request a right side panel.
-   * Convenience wrapper around PluginController.requestRightPanel.
-   * 
-   * @param {Object} [config] - Panel configuration
-   * @returns {HTMLElement} The panel container element
-   */
-  requestRightPanel(config = {}) {
-    return this.#controller.requestRightPanel(config);
   }
 
   // ========================================================================
@@ -1291,6 +1129,86 @@ export class JSRViewer {
    */
   onPluginEvent(eventType, callback) {
     return this.#eventBus.on(eventType, callback);
+  }
+
+  // ========================================================================
+  // PUBLIC API: Controller (JRViewer-style facade)
+  // ========================================================================
+
+  /**
+   * Get the PluginController instance.
+   * This is the main interface for plugins to interact with the viewer,
+   * similar to JRViewer's Controller.
+   * 
+   * @returns {PluginController}
+   */
+  getController() {
+    if (!this.#controller) {
+      throw new Error('PluginController is not initialized');
+    }
+    return this.#controller;
+  }
+
+  // ========================================================================
+  // PUBLIC API: Panel Slot Management (JRViewer-style convenience)
+  // ========================================================================
+
+  /**
+   * Configure visibility of panel slots.
+   * Similar to JRViewer.setShowPanelSlots(left, right, top, bottom).
+   *
+   * This method is tolerant of being passed an array of booleans
+   * (e.g. [left, right, top, bottom]) for convenience.
+   *
+   * @param {boolean|boolean[]} left - Show left panel slot (or tuple of booleans)
+   * @param {boolean} [right=false] - Show right panel slot
+   * @param {boolean} [top=false] - Show top panel slot
+   * @param {boolean} [bottom=false] - Show bottom panel slot
+   */
+  setShowPanelSlots(left, right = false, top = false, bottom = false) {
+    if (Array.isArray(left)) {
+      const tuple = left;
+      [left, right, top, bottom] = [
+        Boolean(tuple[0]),
+        Boolean(tuple[1]),
+        Boolean(tuple[2]),
+        Boolean(tuple[3])
+      ];
+    }
+    this.getController().setShowPanelSlots({ left, right, top, bottom });
+  }
+
+  /**
+   * Request a left side panel.
+   * Convenience wrapper around PluginController.requestLeftPanel.
+   * 
+   * @param {Object} [config]
+   * @returns {HTMLElement}
+   */
+  requestLeftPanel(config = {}) {
+    return this.getController().requestLeftPanel(config);
+  }
+
+  /**
+   * Request a top panel.
+   * Convenience wrapper around PluginController.requestTopPanel.
+   * 
+   * @param {Object} [config]
+   * @returns {HTMLElement}
+   */
+  requestTopPanel(config = {}) {
+    return this.getController().requestTopPanel(config);
+  }
+
+  /**
+   * Request a right side panel.
+   * Convenience wrapper around PluginController.requestRightPanel.
+   * 
+   * @param {Object} [config]
+   * @returns {HTMLElement}
+   */
+  requestRightPanel(config = {}) {
+    return this.getController().requestRightPanel(config);
   }
 }
 

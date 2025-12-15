@@ -12,7 +12,7 @@
 import { getLogger } from '../../core/util/LoggingSystem.js';
 import { PluginContext } from './PluginContext.js';
 
-const logger = getLogger('PluginManager');
+const logger = getLogger('jsreality.app.plugin.PluginManager');
 
 /**
  * Manages plugin lifecycle and dependencies.

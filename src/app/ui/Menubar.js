@@ -8,7 +8,7 @@
 
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('Menubar');
+const logger = getLogger('jsreality.app.ui.Menubar');
 
 /**
  * Menubar manages a menu bar with multiple menus and menu items.

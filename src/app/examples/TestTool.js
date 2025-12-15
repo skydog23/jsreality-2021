@@ -16,11 +16,11 @@ import { getLogger, setModuleLevel, Level, Category } from '../../core/util/Logg
  * @typedef {import('../../core/scene/tool/ToolContext.js').ToolContext} ToolContext
  */
 
-const logger = getLogger('TestTool');
+const logger = getLogger('jsreality.app.examples.TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('TestTool', Level.INFO);
+setModuleLevel('jsreality.app.examples.TestTool', Level.INFO);
 
 /**
  * Test tool that prints mouse coordinates.

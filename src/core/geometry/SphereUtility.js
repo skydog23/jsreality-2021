@@ -23,8 +23,9 @@ import { ColorGradient } from '../util/ColorGradient.js';
 import { Color } from '../util/Color.js';
 import { fromDataList, toDataList } from '../scene/data/DataUtility.js';
 import * as Rn from '../math/Rn.js';
-import { getLogger } from '../util/LoggingSystem.js';
-import { Category } from '../util/LoggingSystem.js';
+import { getLogger, Category } from '../util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.core.geometry.SphereUtility');
 
 // Note: Primitives.icosahedron() will be available after translating Primitives (#25)
 // Note: QuadMeshFactory methods (sphericalPatch, oneHalfSphere) are skipped until QuadMeshFactory (#26) is translated
@@ -101,7 +102,7 @@ export class SphereUtility {
    */
   static tessellatedIcosahedronSphere(i, sharedInstance) {
     if (i < 0 || i >= SphereUtility.#numberOfTessellatedIcosahedra) {
-      getLogger(SphereUtility).warn(Category.GEOMETRY, 'Invalid index');
+      logger.warn(Category.ALL, 'Invalid index');
       if (i < 0) i = 0;
       else i = SphereUtility.#numberOfTessellatedIcosahedra - 1;
     }
@@ -280,7 +281,7 @@ export class SphereUtility {
   static tessellatedCubeSphere(i, sharedInstance) {
     if (sharedInstance) {
       if (i < 0 || i >= SphereUtility.#numberOfTessellatedCubes) {
-        getLogger(SphereUtility).warn(Category.GEOMETRY, 'Invalid index');
+        logger.warn(Category.ALL, 'Invalid index');
         if (i < 0) i = 0;
         else i = SphereUtility.#numberOfTessellatedCubes - 1;
       }

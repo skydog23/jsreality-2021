@@ -9,7 +9,7 @@
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger, Category } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('AppMenuPlugin');
+const logger = getLogger('jsreality.app.plugins.AppMenuPlugin');
 
 export class AppMenuPlugin extends JSRPlugin {
   /** @type {string} */

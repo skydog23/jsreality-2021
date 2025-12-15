@@ -18,7 +18,7 @@ import { Level, Category } from '../../util/LoggingSystem.js';
  * @typedef {import('./ToolSystemConfiguration.js').VirtualMapping} VirtualMapping
  */
 
-const logger = getLogger('SlotManager');
+const logger = getLogger('jsreality.core.scene.tool.SlotManager');
 
 /**
  * SlotManager maps input slots to tools and handles virtual device mappings.
@@ -234,7 +234,7 @@ export class SlotManager {
   #findTriggerSlots(result, slot) {
     const sources = this.#getMappingsTargetToSources(slot);
     if (slot.getName() === 'PointerTransformation') {
-      logger.finest(Category.SCENE, `#findTriggerSlots(PointerTransformation): sources.size=${sources.size}`);
+      logger.finest(Category.ALL, `#findTriggerSlots(PointerTransformation): sources.size=${sources.size}`);
     }
     if (sources.size === 0) {
       result.add(slot);
@@ -270,7 +270,7 @@ export class SlotManager {
     for (const tool of activatedTools) {
       for (const tool of activatedTools) {
         logger.finer(
-          Category.SCENE,
+          Category.ALL,
           `updateMaps(activated): tool=${tool.getName()}, currentSlots=` +
             tool.getCurrentSlots().map(s => s.getName()).join(', ')
         );
@@ -406,17 +406,17 @@ export class SlotManager {
   registerTool(tool) {
     if (tool.getActivationSlots().length === 0) {
       // Permanently active tool
-      logger.finer(Category.SCENE, `Registering always-active tool ${tool.constructor.name} with ${tool.getCurrentSlots().length} current slots`);
+      logger.finer(Category.ALL, `Registering always-active tool ${tool.constructor.name} with ${tool.getCurrentSlots().length} current slots`);
       for (const slot of tool.getCurrentSlots()) {
-        logger.finest(Category.SCENE, `Processing current slot: ${slot.getName()}`);
+        logger.finest(Category.ALL, `Processing current slot: ${slot.getName()}`);
         this.#getVirtualSlotsForTool(tool).add(slot);
         const resolvedSlots = this.resolveSlot(slot);
-        logger.finest(Category.SCENE, `Resolved ${slot.getName()} to ${resolvedSlots.size} slots:`, Array.from(resolvedSlots).map(s => s.getName()));
+        logger.finest(Category.ALL, `Resolved ${slot.getName()} to ${resolvedSlots.size} slots:`, Array.from(resolvedSlots).map(s => s.getName()));
         for (const resolvedSlot of resolvedSlots) {
           this.#getTool2currentSlots(tool).add(resolvedSlot);
           this.#getMappingsForTool(tool).set(resolvedSlot, slot);
           this.#getSlot2active(resolvedSlot).add(tool);
-          logger.finest(Category.SCENE, `Added tool to active slot: ${resolvedSlot.getName()}`);
+          logger.finest(Category.ALL, `Added tool to active slot: ${resolvedSlot.getName()}`);
         }
       }
     } else {

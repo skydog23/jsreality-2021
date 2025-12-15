@@ -21,7 +21,7 @@ import { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
 import { CompositeTreeModel } from './CompositeTreeModel.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
-const logger = getLogger('SceneGraphInspector');
+const logger = getLogger('jsreality.core.inspect.SceneGraphInspector');
 
 /**
  * Interactive inspector for exploring and editing scene graph structures
@@ -110,7 +110,7 @@ export class SceneGraphInspector {
     
     // Initialize managers
     this.#uiManager = new UIManager(container);
-    const { treeView, propertyPanel } = this.#uiManager.initializeUI();
+    const { treeView, propertyPanel } = this.#uiManager.initializeUI('Scene Graph');
     
     this.#widgetFactory = new WidgetFactory();
     

@@ -12,7 +12,7 @@ import { PollingDevice } from './raw/PollingDevice.js';
 import { getLogger } from '../../util/LoggingSystem.js';
 import { Level, Category } from '../../util/LoggingSystem.js';
 
-const logger = getLogger('Poller');
+const logger = getLogger('jsreality.core.scene.tool.Poller');
 
 /**
  * Singleton poller for polling devices.
@@ -98,7 +98,7 @@ export class Poller {
       try {
         device.poll(now);
       } catch (e) {
-        logger.severe(Category.IO, 'Error polling device:', e);
+        logger.severe(Category.ALL, 'Error polling device:', e);
       }
     }
     

@@ -24,7 +24,7 @@ import { PollingDevice } from './raw/PollingDevice.js';
 import { Poller } from './Poller.js';
 import { VirtualMousePointerTrafo } from './virtual/VirtualMousePointerTrafo.js';
 
-const logger = getLogger('DeviceManager');
+const logger = getLogger('jsreality.core.scene.tool.DeviceManager');
 
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
@@ -151,7 +151,7 @@ export class DeviceManager {
       return new DeviceSystemTimer();
     }
     
-    logger.warn(Category.IO, `Unknown raw device class: ${className}`);
+    logger.warn(Category.ALL, `Unknown raw device class: ${className}`);
     return null;
   }
 
@@ -229,7 +229,7 @@ export class DeviceManager {
           }
         }
       } catch (e) {
-        logger.warn(Category.IO, `Couldn't create RawDevice ${rdc.getRawDevice()}:`, e);
+        logger.warn(Category.ALL, `Couldn't create RawDevice ${rdc.getRawDevice()}:`, e);
       }
     }
 
@@ -238,7 +238,7 @@ export class DeviceManager {
     for (const rm of rawMappings) {
       const rd = this.#rawDevices.get(rm.getDeviceID());
       if (rd === null || rd === undefined) {
-        logger.warn(Category.IO, `Ignoring mapping ${rm.toString()}: device not found`);
+        logger.warn(Category.ALL, `Ignoring mapping ${rm.toString()}: device not found`);
         continue;
       }
       try {
@@ -253,7 +253,7 @@ export class DeviceManager {
           this.setAxisState(initialValue.getInputSlot(), initialValue.getAxisState());
         }
       } catch (e) {
-        logger.warn(Category.IO, `Cannot map slot ${rm.toString()}:`, e);
+        logger.warn(Category.ALL, `Cannot map slot ${rm.toString()}:`, e);
       }
     }
 
@@ -464,7 +464,7 @@ export class DeviceManager {
       } catch (mse) {
         if (mse instanceof MissingSlotException) {
           // Log warning but continue
-          logger.warn(Category.SCENE, `Slot for virtual device missing: ${mse.getSlot().getName()}`);
+          logger.warn(Category.ALL, `Slot for virtual device missing: ${mse.getSlot().getName()}`);
         } else {
           throw mse;
         }

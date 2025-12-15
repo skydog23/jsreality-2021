@@ -23,7 +23,7 @@ import * as BruteForcePicking from './BruteForcePicking.js';
 import { getLogger, Category } from '../../util/LoggingSystem.js';
 
 // Module-level logger shared by AABBTree instances
-const logger = getLogger('AABBPickSystem');
+const logger = getLogger('jsreality.core.scene.pick.AABBTree');
 /**
  * An AABB tree for IndexedFaceSets.
  * 
@@ -223,8 +223,8 @@ export class AABBTree {
    * @param {Hit[]} hits - Array to append hits to
    */
   intersect(ifs, metric, path, m, mInv, from, to, hits) {
-    logger.fine(Category.SCENE, `AABBTree.intersect: ${from} ${to}`);
-    logger.fine(Category.SCENE, `AABBTree.intersect: ${m.toString()}`);
+    logger.fine(Category.ALL, `AABBTree.intersect: ${from} ${to}`);
+    logger.fine(Category.ALL, `AABBTree.intersect: ${m.toString()}`);
     const fromLocal = mInv.multiplyVector(from);
     const toLocal = mInv.multiplyVector(to);
     const dir = (toLocal.length === 3 || toLocal[3] === 0) ? toLocal : Rn.subtract(null, toLocal, fromLocal);

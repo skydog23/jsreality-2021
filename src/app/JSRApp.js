@@ -23,6 +23,7 @@ import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
 import { AppMenuPlugin } from './plugins/AppMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
+import { LoggingInspectorPlugin } from './plugins/LoggingInspectorPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -102,6 +103,7 @@ export class JSRApp extends JSRPlugin {
         await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
         // Register aggregator second (right panel)
         await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
+        await this.#jsrViewer.registerPlugin(new LoggingInspectorPlugin());
         // Then register ourselves (so we can use aggregator in install())
         await this.#jsrViewer.registerPlugin(this);
       } catch (error) {
@@ -375,10 +377,10 @@ getInspectorDescriptors() {
     this.#jsrViewer.getViewer().render();
     
     // Refresh inspector if it exists (plugin may have created it)
-    const inspector = this.#jsrViewer.getInspector();
-    if (inspector) {
-      inspector.refresh();
-    }
+    const controller = this.#jsrViewer.getController?.();
+    const inspectorPlugin = controller?.getPlugin?.('scene-graph-inspector') || null;
+    const inspector = inspectorPlugin?.getInspector?.() || null;
+    inspector?.refresh?.();
   }
 
   /**
@@ -386,7 +388,9 @@ getInspectorDescriptors() {
    * @returns {SceneGraphInspector|null} The inspector instance, or null if not enabled
    */
   getInspector() {
-    return this.#jsrViewer.getInspector();
+    const controller = this.#jsrViewer.getController?.();
+    const inspectorPlugin = controller?.getPlugin?.('scene-graph-inspector') || null;
+    return inspectorPlugin?.getInspector?.() || null;
   }
 
   /**

@@ -27,6 +27,8 @@ import * as P3 from '../math/P3.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
+const logger = getLogger('jsreality.core.geometry.IndexedFaceSetUtility');
+
 /**
  * Static methods for editing and processing instances of {@link IndexedFaceSet}.
  */
@@ -244,7 +246,7 @@ export class IndexedFaceSetUtility {
     let sig = EUCLIDEAN;
     if (sigO != null && typeof sigO === 'number') {
       sig = sigO;
-      getLogger(GeometryUtility).finer(Category.GEOMETRY, 'Calculating normals with metric ' + sig);
+      logger.finer(Category.ALL, 'Calculating normals with metric ' + sig);
     }
     IndexedFaceSetUtility.calculateAndSetFaceNormalsWithMetric(ifs, sig);
   }
@@ -292,7 +294,7 @@ export class IndexedFaceSetUtility {
     let sig = EUCLIDEAN;
     if (sigO != null && typeof sigO === 'number') {
       sig = sigO;
-      getLogger(GeometryUtility).finer(Category.GEOMETRY, 'Calculating normals with metric ' + sig);
+      logger.finer(Category.ALL, 'Calculating normals with metric ' + sig);
     }
     return IndexedFaceSetUtility.calculateFaceNormalsWithMetric(ifs, sig);
   }

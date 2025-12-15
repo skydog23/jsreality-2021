@@ -33,7 +33,7 @@ import { getLogger, Category } from '../../util/LoggingSystem.js';
 // Thread-local static variables → module-level variables (not thread-safe, but JS is single-threaded)
 const SPHERE_HIT_LIST = [];
 const CYLINDER_HIT_LIST = [];
-const logger = getLogger('AABBPickSystem');
+const logger = getLogger('jsreality.core.scene.pick.BruteForcePicking');
 /**
  * Intersect ray with polygons (faces) of an IndexedFaceSet
  * @param {IndexedFaceSet} ifs - Face set to intersect
@@ -48,8 +48,8 @@ const logger = getLogger('AABBPickSystem');
 export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
  const fromLocal = mInv.multiplyVector(from);
   const toLocal = mInv.multiplyVector(to);
-  logger.fine(Category.SCENE, `intersectPolygons: from: ${from}, to: ${to}`);
-  logger.fine(Category.SCENE, `intersectPolygons: ${m.toString()}`);
+  logger.fine(Category.ALL, `intersectPolygons: from: ${from}, to: ${to}`);
+  logger.fine(Category.ALL, `intersectPolygons: ${m.toString()}`);
    const bary = new Array(3);
   const pobj = [0, 0, 0, 1];
   
@@ -75,13 +75,13 @@ export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
       if (p3.length < 4) p3[3] = 1;
       // Copy points to p1, p2, p3 (handle 3D or 4D)
     
-      logger.fine(Category.SCENE, `j ${j} intersectPolygons: p1: ${p1} p2: ${p2} p3: ${p3}`);      
+      logger.fine(Category.ALL, `j ${j} intersectPolygons: p1: ${p1} p2: ${p2} p3: ${p3}`);      
       if (intersects(pobj, fromLocal, toLocal, p1, p2, p3, bary)) {
         const pw = m.multiplyVector(pobj);
         const d = Pn.distanceBetween(from, pw, metric);
         const affCoord = P3.affineCoordinate(from, to, pw);
         hits.push(new Hit(path.pushNew(ifs), pw, d, affCoord, bary, PickResult.PICK_TYPE_FACE, i, j));
-        logger.fine(Category.SCENE, `new hit: ${hits[hits.length - 1]?.toString()}`);
+        logger.fine(Category.ALL, `new hit: ${hits[hits.length - 1]?.toString()}`);
       }
     }
   }
@@ -101,7 +101,7 @@ export function intersectPolygons(ifs, metric, path, m, mInv, from, to, hits) {
 export function intersects(pobj, fromLocal, toLocal, p1, p2, p3, bary) {
   const plane = P3.planeFromPoints(null, p1, p2, p3);
   const intersection = P3.lineIntersectPlane(pobj, fromLocal, toLocal, plane);
-  logger.fine(Category.SCENE, `intersects: intersection: ${intersection}`);
+  logger.fine(Category.ALL, `intersects: intersection: ${intersection}`);
   // Dehomogenize triangle vertices
   const p1_3d = Pn.dehomogenize(null, p1);
   const p2_3d = Pn.dehomogenize(null, p2);

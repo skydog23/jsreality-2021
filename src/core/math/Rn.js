@@ -15,7 +15,7 @@
 
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
-const logger = getLogger('Rn');
+const logger = getLogger('jsreality.core.math.Rn');
 
 /** @typedef {number[]} Vec */
 /** @typedef {number[]} Matrix */

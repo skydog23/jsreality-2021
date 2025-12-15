@@ -15,7 +15,7 @@ import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { Menubar } from '../ui/Menubar.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('MenubarPlugin');
+const logger = getLogger('jsreality.app.plugins.MenubarPlugin');
 
 /**
  * Plugin that creates and manages the application menubar.

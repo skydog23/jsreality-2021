@@ -14,7 +14,7 @@ import { SVGViewer } from '../../core/viewers/SVGViewer.js';
 import { WebGL2DViewer } from '../../core/viewers/WebGL2DViewer.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('ExportMenuPlugin');
+const logger = getLogger('jsreality.app.plugins.ExportMenuPlugin');
 
 /**
  * Plugin that adds export menu items to the File menu.

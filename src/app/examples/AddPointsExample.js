@@ -27,7 +27,7 @@ import { getLogger, Category } from '../../core/util/LoggingSystem.js';
  * @typedef {import('../../core/scene/tool/ToolContext.js').ToolContext} ToolContext
  */
 
-const logger = getLogger('AddPointsExample');
+const logger = getLogger('jsreality.app.examples.AddPointsExample');
 
 /**
  * Tool that adds points along the mouse ray when SHIFT_LEFT_BUTTON is pressed,
@@ -66,7 +66,7 @@ class AddPointsTool extends AbstractTool {
 
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     if (!pointerTrafo) {
-      logger.finer(Category.IO, '[AddPointsTool] POINTER_TRANSFORMATION is null');
+      logger.finer(Category.ALL, '[AddPointsTool] POINTER_TRANSFORMATION is null');
       return;
     }
 

@@ -11,7 +11,7 @@
 import { ToolEvent } from './ToolEvent.js';
 import { getLogger, Category } from '../../util/LoggingSystem.js';
 
-const logger = getLogger('ToolEventQueue');
+const logger = getLogger('jsreality.core.scene.tool.ToolEventQueue');
 
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
@@ -96,7 +96,7 @@ export class ToolEventQueue {
           this.#receiver.processToolEvent(event);
         } catch (error) {
           const slotName = event.getInputSlot()?.getName() || 'unknown';
-          logger.severe(Category.SCENE, `Error processing tool event (${slotName}):`, error);
+          logger.severe(Category.ALL, `Error processing tool event (${slotName}):`, error);
         }
       }
     }
@@ -114,7 +114,7 @@ export class ToolEventQueue {
    */
   addEvent(event) {
     if (!this.#started) {
-      logger.warn(Category.IO, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
+      logger.warn(Category.ALL, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
       return false;
     }
     return this.#placeEvent(event);
@@ -127,7 +127,7 @@ export class ToolEventQueue {
    * @private
    */
   #placeEvent(event) {
-    logger.finer(Category.IO, 'placeEvent() called, event:', event);
+    logger.finer(Category.ALL, 'placeEvent() called, event:', event);
     // Check if we can replace the last possible event
     for (let i = this.#queue.length - 1; i >= 0; i--) {
       const e = this.#queue[i];

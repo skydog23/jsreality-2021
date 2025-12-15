@@ -13,7 +13,7 @@
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('ShrinkPanelAggregator');
+const logger = getLogger('jsreality.app.plugins.ShrinkPanelAggregator');
 
 /**
  * Aggregates inspector panels from multiple plugins.
@@ -38,6 +38,9 @@ export class ShrinkPanelAggregator extends JSRPlugin {
   /** @type {number} */
   #minSize;
 
+  /** @type {boolean} */
+  #fill;
+
   /**
    * Create a new ShrinkPanelAggregator.
    * 
@@ -45,12 +48,15 @@ export class ShrinkPanelAggregator extends JSRPlugin {
    * @param {'left'|'right'} [options.panelSide='right'] - Which side to place the panel
    * @param {number} [options.initialSize=300] - Initial panel size in pixels
    * @param {number} [options.minSize=200] - Minimum panel size in pixels
+   * @param {boolean} [options.fill=false] - Whether the panel should fill available height
    */
   constructor(options = {}) {
     super();
     this.#panelSide = options.panelSide || 'right';
     this.#initialSize = options.initialSize ?? 300;
     this.#minSize = options.minSize ?? 200;
+    // Default to not filling so an empty aggregator doesn't steal space.
+    this.#fill = options.fill ?? false;
   }
 
   /**
@@ -93,14 +99,14 @@ export class ShrinkPanelAggregator extends JSRPlugin {
           id: 'shrink-panel-aggregator',
           initialSize: this.#initialSize,
           minSize: this.#minSize,
-          fill: true,
+          fill: this.#fill,
           overflow: 'hidden' // We'll handle scrolling in individual panels
         })
       : controller.requestLeftPanel({
           id: 'shrink-panel-aggregator',
           initialSize: this.#initialSize,
           minSize: this.#minSize,
-          fill: true,
+          fill: this.#fill,
           overflow: 'hidden'
         });
 
@@ -113,16 +119,19 @@ export class ShrinkPanelAggregator extends JSRPlugin {
     this.#container.style.display = 'flex';
     this.#container.style.flexDirection = 'column';
     this.#container.style.width = '100%';
-    this.#container.style.height = '100%';
+    // Only force full height when configured to fill.
+    this.#container.style.height = this.#fill ? '100%' : 'auto';
+    this.#container.style.flex = this.#fill ? '1 1 auto' : '0 0 auto';
+    this.#container.style.minHeight = '0';
 
     // Create panel container for stacking collapsible panels
     this.#panelContainer = document.createElement('div');
     this.#panelContainer.className = 'jsr-shrink-panel-container';
     this.#panelContainer.style.display = 'flex';
     this.#panelContainer.style.flexDirection = 'column';
-    this.#panelContainer.style.flex = '1 1 auto';
-    this.#panelContainer.style.minHeight = '0';
-    this.#panelContainer.style.overflowY = 'auto';
+    this.#panelContainer.style.flex = this.#fill ? '1 1 auto' : '0 0 auto';
+    this.#panelContainer.style.minHeight = this.#fill ? '0' : 'auto';
+    this.#panelContainer.style.overflowY = this.#fill ? 'auto' : 'visible';
     this.#panelContainer.style.width = '100%';
 
     this.#container.appendChild(this.#panelContainer);

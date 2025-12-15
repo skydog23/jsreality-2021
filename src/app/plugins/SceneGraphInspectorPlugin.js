@@ -13,7 +13,7 @@ import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { SceneGraphInspector } from '../../core/inspect/SceneGraphInspector.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('SceneGraphInspectorPlugin');
+const logger = getLogger('jsreality.app.plugins.SceneGraphInspectorPlugin');
 
 /**
  * Plugin that integrates SceneGraphInspector with JSRViewer.

@@ -26,7 +26,7 @@ import { getLogger } from '../../util/LoggingSystem.js';
 import { Level, Category } from '../../util/LoggingSystem.js';
 
 // Module-level logger shared by ToolSystem and helpers in this file
-const logger = getLogger('ToolSystem');
+const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
 
 /**
  * @typedef {import('./Tool.js').Tool} Tool
@@ -375,7 +375,7 @@ export class ToolSystem extends ToolEventReceiver {
     if (ts !== undefined) {
       return ts;
     }
-    const logger = getLogger('ToolSystem');
+    const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
     logger.warn(Category.ALL, 'Viewer has no tool system, allocating default');
     ts = new ToolSystem(viewer, null, null);
     ToolSystem.#globalTable.set(viewer, ts);
@@ -907,12 +907,12 @@ export class ToolSystem extends ToolEventReceiver {
       if (noTrigger) {
         const active = this.#slotManager.getActiveToolsForSlot(slot);
         if (slot === InputSlot.POINTER_TRANSFORMATION) {
-          logger.finer(Category.IO, `[ToolSystem] noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
+          logger.finer(Category.ALL, `[ToolSystem] noTrigger=true, active tools for POINTER_TRANSFORMATION: ${active.size}`);
           if (active.size === 0) {
-            // logger.warn(Category.IO, '[ToolSystem] No active tools found for POINTER_TRANSFORMATION!');
+            // logger.warn(Category.ALL, '[ToolSystem] No active tools found for POINTER_TRANSFORMATION!');
           } else {
             const toolNames = Array.from(active).map(t => `${t.constructor.name}(${t.getName()})`);
-            logger.finer(Category.IO, `[ToolSystem] Active tools: ${toolNames.join(', ')}`);
+            logger.finer(Category.ALL, `[ToolSystem] Active tools: ${toolNames.join(', ')}`);
           }
         }
         for (const tool of active) {
@@ -920,7 +920,7 @@ export class ToolSystem extends ToolEventReceiver {
         }
         this.#processToolSet(active);
       } else if (slot === InputSlot.POINTER_TRANSFORMATION) {
-        logger.finer(Category.IO, 'noTrigger=false for POINTER_TRANSFORMATION (tool was activated/deactivated)');
+        logger.finer(Category.ALL, 'noTrigger=false for POINTER_TRANSFORMATION (tool was activated/deactivated)');
       }
     }
 

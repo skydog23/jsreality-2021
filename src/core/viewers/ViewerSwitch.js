@@ -19,7 +19,7 @@ import { getLogger } from '../util/LoggingSystem.js';
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
 
-const logger = getLogger('ViewerSwitch');
+const logger = getLogger('jsreality.core.viewers.ViewerSwitch');
 
 /**
  * Creates default viewer names from viewer array.

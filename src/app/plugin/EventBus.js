@@ -11,7 +11,7 @@
 
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('EventBus');
+const logger = getLogger('jsreality.app.plugin.EventBus');
 
 /**
  * Simple event bus for plugin communication.

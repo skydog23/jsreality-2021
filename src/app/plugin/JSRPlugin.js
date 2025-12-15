@@ -11,7 +11,7 @@
 
 import { getLogger } from '../../core/util/LoggingSystem.js';
 
-const logger = getLogger('JSRPlugin');
+const logger = getLogger('jsreality.app.plugin.JSRPlugin');
 
 /**
  * Base class for all JSRViewer plugins.

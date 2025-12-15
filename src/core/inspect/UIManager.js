@@ -51,10 +51,11 @@ export class UIManager {
   }
   
   /**
-   * Initialize the inspector UI
+   * Initialize the inspector UI.
+   * @param {string} [title='Scene Graph'] - Title for the tree view header
    * @returns {{treeView: HTMLElement, propertyPanel: HTMLElement}}
    */
-  initializeUI() {
+  initializeUI(title = 'Scene Graph') {
     // Clear container
     this.#container.innerHTML = '';
     
@@ -68,7 +69,7 @@ export class UIManager {
     
     const treeHeader = document.createElement('div');
     treeHeader.className = 'sg-panel-header';
-    treeHeader.textContent = 'Scene Graph';
+    treeHeader.textContent = title;
     
     this.#treeView = document.createElement('div');
     this.#treeView.className = 'sg-tree-view';

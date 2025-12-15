@@ -15,7 +15,7 @@ import { MatrixBuilder } from '../core/math/MatrixBuilder.js';
 import { SceneGraphUtility } from '../core/util/SceneGraphUtility.js';
 import { getLogger } from '../core/util/LoggingSystem.js';
 
-const logger = getLogger('ContentManager');
+const logger = getLogger('jsreality.app.ContentManager');
 
 /**
  * ContentManager manages the content node in the scene graph with different strategies:
