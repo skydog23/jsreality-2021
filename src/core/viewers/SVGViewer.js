@@ -182,7 +182,7 @@ export class SVGViewer extends Abstract2DViewer {
       }
 
       // Get camera
-      const camera = this._getCamera();
+      const camera = CameraUtility.getCamera(this);
       if (!camera) {
         return;
       }
@@ -243,31 +243,6 @@ export class SVGViewer extends Abstract2DViewer {
     return this.#svgElement;
   }
 
-  /**
-   * Get camera from camera path
-   * @protected
-   * @returns {Camera|null}
-   */
-  _getCamera() {
-    if (!this.#cameraPath || this.#cameraPath.getLength() === 0) {
-      return null;
-    }
-    
-    const lastElement = this.#cameraPath.getLastElement();
-    
-    // The last element is typically a SceneGraphComponent that contains the camera
-    if (lastElement && lastElement.getCamera) {
-      const camera = lastElement.getCamera();
-      return camera;
-    }
-    
-    // Fallback: check if the element itself is a Camera
-    if (lastElement && lastElement.constructor.name === 'Camera') {
-      return lastElement;
-    }
-    
-    return null;
-  }
 
   /**
    * Get width

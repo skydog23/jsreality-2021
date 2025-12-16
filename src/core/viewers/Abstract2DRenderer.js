@@ -76,7 +76,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   constructor(viewer) {
     super();
     this.#viewer = viewer;
-    this.#camera = viewer._getCamera();
+    this.#camera = CameraUtility.getCamera(viewer);
     this.#world2ndc = new Array(16);
     // Initialize with an empty root EffectiveAppearance
     this.#effectiveAppearance = EffectiveAppearance.create();
@@ -252,14 +252,6 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     return this.#viewer;
   }
 
-  /**
-   * Get the camera
-   * @protected
-   * @returns {Camera}
-   */
-  _getCamera() {
-    return this.#camera;
-  }
 
   /**
    * Get the world-to-NDC transformation matrix

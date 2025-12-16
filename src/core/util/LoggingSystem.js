@@ -55,12 +55,14 @@ class Logger {
   #moduleName;
   #system;
   #enabledCategories;
+  #leafName;
 
   constructor(moduleName, system) {
     this.#moduleName = moduleName;
     this.#system = system;
     // By default, accept all categories for this logger.
     this.#enabledCategories = Category.ALL;
+    this.#leafName = typeof moduleName === 'string' ? (moduleName.split('.').pop() || moduleName) : String(moduleName);
   }
 
   /**
@@ -84,7 +86,7 @@ class Logger {
    * @private
    */
   #output(level, category, message, args) {
-    const prefix = `[${this.#moduleName}]`;
+    const prefix = `[${this.#getDisplayName()}]`;
     const categoryName = this.#getCategoryName(category);
     const fullMessage = categoryName ? `${categoryName}: ${message}` : message;
     
@@ -97,6 +99,21 @@ class Logger {
     } else {
       console.log(prefix, fullMessage, ...args);
     }
+  }
+
+  /**
+   * Choose a user-friendly name for console output.
+   * Prefer the leaf name, but fall back to full module name if ambiguous.
+   * @returns {string}
+   * @private
+   */
+  #getDisplayName() {
+    const leaf = this.#leafName;
+    const candidates = this.#system?.leafToNames?.get?.(leaf);
+    if (candidates && candidates.size > 1) {
+      return this.#moduleName;
+    }
+    return leaf;
   }
 
   /**
