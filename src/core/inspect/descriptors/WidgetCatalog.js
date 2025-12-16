@@ -10,6 +10,7 @@ import { DescriptorType, normalizeDescriptor } from './DescriptorTypes.js';
  *
  * @typedef {Object} WidgetContext
  * @property {(callback: Function) => void} registerCleanup
+ * @property {WidgetCatalog} [widgetCatalog] - Optional reference to the catalog, for nested layouts
  */
 
 export class WidgetCatalog {
@@ -65,8 +66,51 @@ export class WidgetCatalog {
     catalog.register(DescriptorType.LABEL, labelFactory);
     catalog.register(DescriptorType.ENUM, enumFactory);
     catalog.register(DescriptorType.VECTOR, vectorFactory);
+    catalog.register(DescriptorType.CONTAINER, containerFactory);
     return catalog;
   }
+}
+
+/**
+ * Layout container factory - arranges child descriptors in a row or column.
+ * Containers do not introduce new DOM structure outside the standard
+ * label/value row; instead, they render a flex container in the value cell
+ * and delegate rendering of children back to the WidgetCatalog.
+ *
+ * The container's label is optional: if the descriptor's label is the same
+ * as its auto-generated key, it is treated as "no label" and the left label
+ * cell is left blank.
+ */
+function containerFactory(descriptor, context) {
+  // Use an empty label when it was not explicitly provided
+  const effectiveLabel =
+    descriptor.label && descriptor.label !== descriptor.key ? descriptor.label : '';
+
+  const wrapper = createRow({
+    ...descriptor,
+    label: effectiveLabel
+  });
+
+  const container = document.createElement('div');
+  container.className = 'inspector-container';
+  container.style.display = 'flex';
+  const direction = descriptor.direction === 'row' ? 'row' : 'column';
+  container.style.flexDirection = direction;
+  container.style.gap = '6px';
+  container.style.alignItems = 'center';
+  if (direction === 'row') {
+    container.style.flexWrap = 'wrap';
+  }
+
+  const widgetCatalog = context.widgetCatalog || WidgetCatalog.createDefault();
+  const items = Array.isArray(descriptor.items) ? descriptor.items : [];
+  for (const child of items) {
+    const childElement = widgetCatalog.create(child, context);
+    container.appendChild(childElement);
+  }
+
+  wrapper.value.appendChild(container);
+  return wrapper.root;
 }
 
 function numericInputFactory(inputType, overrides = {}) {

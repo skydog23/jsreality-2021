@@ -95,7 +95,8 @@ export class DescriptorRenderer {
 
     for (const descriptor of group.items) {
       const element = this.#widgetCatalog.create(descriptor, {
-        registerCleanup: (callback) => this.registerCleanup(callback)
+        registerCleanup: (callback) => this.registerCleanup(callback),
+        widgetCatalog: this.#widgetCatalog
       });
       body.appendChild(element);
     }

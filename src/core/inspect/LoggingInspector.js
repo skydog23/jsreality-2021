@@ -17,6 +17,8 @@
 import { UIManager } from './UIManager.js';
 import { TreeViewManager } from './TreeViewManager.js';
 import { InspectorTreeNode } from './SceneGraphTreeModel.js';
+import { DescriptorRenderer } from './descriptors/DescriptorRenderer.js';
+import { DescriptorType } from './descriptors/DescriptorTypes.js';
 import {
   getLogger,
   getLoggerConfigs,
@@ -55,6 +57,9 @@ export class LoggingInspector {
   /** @type {HTMLElement} */
   #propertyPanel;
 
+  /** @type {DescriptorRenderer} */
+  #descriptorRenderer;
+
   /** @type {Map<string, LoggerConfig>} */
   #configs = new Map();
 
@@ -75,6 +80,7 @@ export class LoggingInspector {
     this.#uiManager = new UIManager(container);
     const { treeView, propertyPanel } = this.#uiManager.initializeUI('Loggers');
     this.#propertyPanel = propertyPanel;
+    this.#descriptorRenderer = new DescriptorRenderer(propertyPanel);
 
     this.#levelEntries = this.#buildLevelEntries();
 
@@ -239,120 +245,118 @@ export class LoggingInspector {
    * @private
    */
   #renderProperties(node) {
-    const panel = this.#propertyPanel;
-    panel.innerHTML = '';
+    // Use DescriptorRenderer to ensure consistent look-and-feel with other inspectors.
+    // We build descriptor groups and delegate DOM creation to the shared renderer.
 
     if (!node) {
-      const empty = document.createElement('div');
-      empty.className = 'sg-no-selection';
-      empty.textContent = 'Select a logger to view properties';
-      panel.appendChild(empty);
+      this.#descriptorRenderer.render([
+        {
+          id: 'logging-no-selection',
+          title: 'Loggers',
+          items: [
+            {
+              id: 'logging-no-selection-message',
+              type: DescriptorType.LABEL,
+              label: 'Info',
+              getValue: () => 'Select a logger to view properties'
+            }
+          ]
+        }
+      ]);
       return;
     }
 
     if (typeof node === 'string' && node.startsWith(GROUP_PREFIX)) {
       const groupPath = node.slice(GROUP_PREFIX.length);
-      const title = document.createElement('div');
-      title.className = 'sg-section-title';
-      title.textContent = `Group: ${groupPath || 'Loggers'}`;
-      panel.appendChild(title);
-
-      const hint = document.createElement('div');
-      hint.className = 'sg-hint';
-      hint.textContent = 'Select a leaf logger node to edit its log level.';
-      panel.appendChild(hint);
+      this.#descriptorRenderer.render([
+        {
+          id: `logging-group-${groupPath || 'root'}`,
+          title: `Group: ${groupPath || 'Loggers'}`,
+          items: [
+            {
+              id: 'logging-group-hint',
+              type: DescriptorType.LABEL,
+              label: 'Info',
+              getValue: () => 'Select a leaf logger node to edit its log level.'
+            }
+          ]
+        }
+      ]);
       return;
     }
 
     if (typeof node === 'string') {
       const cfg = this.#configs.get(node);
 
-      const title = document.createElement('div');
-      title.className = 'sg-section-title';
-      title.textContent = `Logger: ${node}`;
-      panel.appendChild(title);
-
       if (!cfg) {
-        const missing = document.createElement('div');
-        missing.className = 'sg-hint';
-        missing.textContent = 'No configuration found for this logger.';
-        panel.appendChild(missing);
+        this.#descriptorRenderer.render([
+          {
+            id: `logging-missing-${node}`,
+            title: `Logger: ${node}`,
+            items: [
+              {
+                id: 'logging-missing-hint',
+                type: DescriptorType.LABEL,
+                label: 'Info',
+                getValue: () => 'No configuration found for this logger.'
+              }
+            ]
+          }
+        ]);
         return;
       }
 
-      // Effective level display
-      const effectiveRow = document.createElement('div');
-      effectiveRow.className = 'sg-property-row';
-      const effectiveLabel = document.createElement('div');
-      effectiveLabel.className = 'sg-property-label';
-      effectiveLabel.textContent = 'Effective level';
-      const effectiveValue = document.createElement('div');
-      effectiveValue.className = 'sg-property-value';
-      effectiveValue.textContent = this.#levelNameForValue(cfg.effectiveLevel) || `${cfg.effectiveLevel}`;
-      effectiveRow.appendChild(effectiveLabel);
-      effectiveRow.appendChild(effectiveValue);
-      panel.appendChild(effectiveRow);
-
-      // Override level dropdown
-      const overrideRow = document.createElement('div');
-      overrideRow.className = 'sg-property-row';
-      const overrideLabel = document.createElement('label');
-      overrideLabel.className = 'sg-property-label';
-      overrideLabel.textContent = 'Override level';
-
-      const select = document.createElement('select');
-      select.className = 'sg-property-input';
-
-      const globalOption = document.createElement('option');
-      globalOption.value = '';
-      globalOption.textContent = 'Use global';
-      select.appendChild(globalOption);
-
-      for (const entry of this.#levelEntries) {
-        const option = document.createElement('option');
-        option.value = entry.name;
-        option.textContent = entry.name;
-        select.appendChild(option);
-      }
-
-      if (cfg.overrideLevel === null) {
-        select.value = '';
-      } else {
-        const name = this.#levelNameForValue(cfg.overrideLevel);
-        if (name) {
-          select.value = name;
+      const groups = [
+        {
+          id: `logging-logger-${node}`,
+          title: `Logger: ${node}`,
+          items: [
+            {
+              id: 'logging-effective-level',
+              type: DescriptorType.LABEL,
+              label: 'Effective level',
+              getValue: () =>
+                this.#levelNameForValue(cfg.effectiveLevel) || `${cfg.effectiveLevel}`
+            },
+            {
+              id: 'logging-override-level',
+              type: DescriptorType.ENUM,
+              label: 'Override level',
+              options: [
+                { value: '', label: 'Use global' },
+                ...this.#levelEntries.map(entry => ({
+                  value: entry.name,
+                  label: entry.name
+                }))
+              ],
+              getValue: () => {
+                if (cfg.overrideLevel === null) return '';
+                const name = this.#levelNameForValue(cfg.overrideLevel);
+                return name || '';
+              },
+              setValue: (selected) => {
+                if (!selected) {
+                  clearModuleLevel(cfg.name);
+                } else {
+                  const entry = this.#levelEntries.find(e => e.name === selected);
+                  if (entry) {
+                    setModuleLevel(cfg.name, entry.value);
+                  }
+                }
+                this.refresh();
+              }
+            },
+            {
+              id: 'logging-enabled-categories',
+              type: DescriptorType.LABEL,
+              label: 'Enabled categories',
+              getValue: () => `${cfg.enabledCategories}`
+            }
+          ]
         }
-      }
+      ];
 
-      select.addEventListener('change', () => {
-        const selected = select.value;
-        if (!selected) {
-          clearModuleLevel(cfg.name);
-        } else {
-          const entry = this.#levelEntries.find(e => e.name === selected);
-          if (entry) {
-            setModuleLevel(cfg.name, entry.value);
-          }
-        }
-        this.refresh();
-      });
-
-      overrideRow.appendChild(overrideLabel);
-      overrideRow.appendChild(select);
-      panel.appendChild(overrideRow);
-
-      // Categories (read-only for now)
-      const catRow = document.createElement('div');
-      catRow.className = 'sg-property-row';
-      const catLabel = document.createElement('div');
-      catLabel.className = 'sg-property-label';
-      catLabel.textContent = 'Enabled categories';
-      const catValue = document.createElement('div');
-      catValue.className = 'sg-property-value';
-      catValue.textContent = `${cfg.enabledCategories}`;
-      catRow.appendChild(catLabel);
-      catRow.appendChild(catValue);
-      panel.appendChild(catRow);
+      this.#descriptorRenderer.render(groups);
     }
   }
 

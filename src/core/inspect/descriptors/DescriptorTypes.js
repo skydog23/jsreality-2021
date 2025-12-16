@@ -15,7 +15,12 @@ export const DescriptorType = Object.freeze({
   ENUM: 'enum',
   TEXT: 'text',
   BUTTON: 'button',
-  LABEL: 'label'
+  LABEL: 'label',
+  /**
+   * Layout-only container for nested descriptors.
+   * Renderers can use this to arrange child descriptors in rows/columns.
+   */
+  CONTAINER: 'container'
 });
 
 /**
@@ -67,7 +72,19 @@ export const DescriptorType = Object.freeze({
  */
 
 /**
- * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | ButtonDescriptor | DescriptorCommon} InspectorDescriptor
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.CONTAINER,
+ *   // Layout direction for child descriptors. 'column' stacks children
+ *   // vertically, 'row' arranges them horizontally. Defaults to 'column'
+ *   // when not specified.
+ *   direction?: 'row' | 'column',
+ *   // Child descriptors contained within this layout node.
+ *   items: InspectorDescriptor[]
+ * }} ContainerDescriptor
+ */
+
+/**
+ * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | ButtonDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
  */
 
 /**
