@@ -17,6 +17,7 @@ import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { Abstract2DViewer } from './Abstract2DViewer.js';
 import * as P3 from '../math/P3.js';
 import { Rectangle2D } from '../util/Rectangle2D.js';
+import * as CameraUtility from '../util/CameraUtility.js';
 
 /**
  * Global SVG numeric precision (number of decimal places).
@@ -232,6 +233,114 @@ export class SVGViewer extends Abstract2DViewer {
   exportSVG() {
     const serializer = new XMLSerializer();
     return serializer.serializeToString(this.#svgElement);
+  }
+
+  /**
+   * Render the current SVG view into a raster canvas at the given size.
+   * Useful for debugging parity with Canvas/WebGL exports.
+   *
+   * @param {number} width
+   * @param {number} height
+   * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  async renderOffscreen(width, height, options = {}) {
+    const { antialias = 1, includeAlpha = true } = options;
+
+    const exportWidth = Math.max(1, Math.floor(width));
+    const exportHeight = Math.max(1, Math.floor(height));
+    const aa = antialias > 0 ? antialias : 1;
+
+    // Create a temporary off-screen container and viewer so that the SVG
+    // is laid out and rendered using the requested export aspect ratio.
+    const tempContainer = document.createElement('div');
+    tempContainer.style.width = `${exportWidth}px`;
+    tempContainer.style.height = `${exportHeight}px`;
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '-9999px';
+    document.body.appendChild(tempContainer);
+
+    let url = null;
+    const renderWidth = Math.max(1, Math.floor(exportWidth * aa));
+    const renderHeight = Math.max(1, Math.floor(exportHeight * aa));
+
+    try {
+      const tempViewer = new SVGViewer(tempContainer, {
+        autoResize: false
+      });
+      tempViewer.setSceneRoot(this.getSceneRoot());
+      tempViewer.setCameraPath(this.getCameraPath());
+      tempViewer.render();
+
+      const svgString = tempViewer.exportSVG();
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      url = URL.createObjectURL(blob);
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = renderWidth;
+      offscreen.height = renderHeight;
+
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          const ctx = offscreen.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, renderWidth, renderHeight);
+          if (url) {
+            URL.revokeObjectURL(url);
+            url = null;
+          }
+          resolve();
+        };
+        img.onerror = () => {
+          if (url) {
+            URL.revokeObjectURL(url);
+            url = null;
+          }
+          reject(new Error('Failed to rasterize SVG for offscreen rendering'));
+        };
+        img.src = url;
+      });
+
+      let working = offscreen;
+
+      if (!includeAlpha) {
+        const opaque = document.createElement('canvas');
+        opaque.width = exportWidth;
+        opaque.height = exportHeight;
+        const octx = opaque.getContext('2d');
+        octx.fillStyle = '#ffffff';
+        octx.fillRect(0, 0, exportWidth, exportHeight);
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = 'high';
+        octx.drawImage(offscreen, 0, 0, renderWidth, renderHeight, 0, 0, exportWidth, exportHeight);
+        working = opaque;
+      }
+
+      if (aa !== 1 || renderWidth !== exportWidth || renderHeight !== exportHeight) {
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = exportWidth;
+        finalCanvas.height = exportHeight;
+        const fctx = finalCanvas.getContext('2d');
+        fctx.imageSmoothingEnabled = true;
+        fctx.imageSmoothingQuality = 'high';
+        fctx.drawImage(working, 0, 0, renderWidth, renderHeight, 0, 0, exportWidth, exportHeight);
+        return finalCanvas;
+      }
+
+      return working;
+    } finally {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+      if (tempContainer.parentNode) {
+        tempContainer.parentNode.removeChild(tempContainer);
+      }
+    }
   }
 
   /**

@@ -184,6 +184,22 @@ export class Abstract2DViewer extends Viewer {
     requestAnimationFrame(() => this.render());
   }
 
+  /**
+   * Render the current scene into an offscreen buffer.
+   *
+   * Default implementation throws; concrete 2D viewers (Canvas, WebGL, SVG)
+   * should override this. This method MUST NOT resize or otherwise disturb
+   * the visible viewer; callers are responsible for any file export.
+   *
+   * @param {number} width  - target width in pixels
+   * @param {number} height - target height in pixels
+   * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
+   * @returns {Promise<HTMLCanvasElement>} A canvas containing the rendered image
+   */
+  async renderOffscreen(width, height, options = {}) {
+    throw new Error(`${this.constructor.name}.renderOffscreen() not implemented`);
+  }
+
   // Protected helper methods for subclasses
 
   /**
@@ -201,37 +217,6 @@ export class Abstract2DViewer extends Viewer {
     }
   }
 
-  /**
-   * Compute projection matrix for the camera
-   * @protected
-   * @param {Camera} camera
-   * @param {number} aspect - Aspect ratio (width/height)
-   * @returns {number[]} 4x4 projection matrix
-   */
-  _computeCam2NDCMatrix(camera, aspect) {
-    const projMatrix = new Array(16);
-    
-    if (camera.isPerspective()) {
-      // Perspective projection
-      const fov = camera.getFieldOfView() * Math.PI / 180; // Convert to radians
-      const near = camera.getNear();
-      const far = camera.getFar();
-      
-      P3.makePerspectiveProjectionMatrix(projMatrix, fov, aspect, near, far);
-    } else {
-      // Orthographic projection
-      const size = 3;
-      const left = -size * aspect;
-      const right = size * aspect;
-      const bottom = -size;
-      const top = size;
-      const near = camera.getNear();
-      const far = camera.getFar();
-      const vp = new Rectangle2D(left, bottom, right - left, top - bottom);
-      P3.makeOrthographicProjectionMatrix(projMatrix, vp, near, far);
-    }
 
-    return projMatrix;
-  }
 }
 

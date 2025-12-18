@@ -20,6 +20,9 @@ const logger = getLogger('jsreality.app.plugins.ExportMenuPlugin');
  * Plugin that adds export menu items to the File menu.
  */
 export class ExportMenuPlugin extends JSRPlugin {
+  // Remember last used dimensions for advanced image export
+  #lastExportWidth = null;
+  #lastExportHeight = null;
   /**
    * Get plugin metadata.
    * @returns {import('../plugin/JSRPlugin.js').PluginInfo}
@@ -52,6 +55,12 @@ export class ExportMenuPlugin extends JSRPlugin {
    */
   getMenuItems() {
     return [
+      {
+        menu: 'File',
+        label: 'Export Image…',
+        action: () => this.#exportImageAdvanced(),
+        priority: 9
+      },
       {
         menu: 'File',
         label: 'Export PNG',
@@ -97,6 +106,110 @@ export class ExportMenuPlugin extends JSRPlugin {
       logger.info(`Exported image as ${format.toUpperCase()}`);
     } else {
       logger.warn('Current viewer does not support image export');
+    }
+  }
+
+  /**
+   * Open a simple advanced export dialog for choosing size/format and
+   * export the current view using renderOffscreen().
+   *
+   * This is intentionally implemented with browser prompts to keep the
+   * initial integration small; it can be replaced by a descriptor-based
+   * panel for a richer UI later.
+   *
+   * @private
+   */
+  async #exportImageAdvanced() {
+    const viewer = this.context.getViewer();
+    const currentViewer = viewer.getViewer().getCurrentViewer();
+    if (!currentViewer) {
+      logger.warn('No current viewer for Export Image…');
+      return;
+    }
+
+    // Determine default dimensions from current viewing component or last export
+    const size = currentViewer.getViewingComponentSize
+      ? currentViewer.getViewingComponentSize()
+      : { width: currentViewer.getViewingComponent()?.clientWidth || 800,
+          height: currentViewer.getViewingComponent()?.clientHeight || 600 };
+
+    const defaultWidth = this.#lastExportWidth ?? size.width ?? 800;
+    const defaultHeight = this.#lastExportHeight ?? size.height ?? 600;
+
+    const widthStr = window.prompt('Export width (pixels):', String(defaultWidth));
+    if (widthStr === null) return;
+    const heightStr = window.prompt('Export height (pixels):', String(defaultHeight));
+    if (heightStr === null) return;
+
+    const width = parseInt(widthStr, 10);
+    const height = parseInt(heightStr, 10);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      logger.warn('Invalid export dimensions');
+      return;
+    }
+
+    let format = (window.prompt('Image format (png or jpeg):', 'png') || 'png').toLowerCase();
+    if (format !== 'png' && format !== 'jpeg' && format !== 'jpg') {
+      logger.warn(`Unsupported format "${format}", defaulting to png`);
+      format = 'png';
+    }
+    if (format === 'jpg') {
+      format = 'jpeg';
+    }
+
+    const includeAlpha = window.confirm('Include alpha channel? (OK = yes, Cancel = no)');
+    const remember = window.confirm('Remember these dimensions for next export?');
+    if (remember) {
+      this.#lastExportWidth = width;
+      this.#lastExportHeight = height;
+    }
+
+    await this.#exportViaRenderOffscreen(width, height, {
+      format,
+      antialias: 1,
+      includeAlpha,
+      quality: 0.95
+    });
+  }
+
+  /**
+   * Helper to perform export using the viewer's renderOffscreen() API.
+   *
+   * @param {number} width
+   * @param {number} height
+   * @param {{ format: 'png'|'jpeg', antialias?: number, includeAlpha?: boolean, quality?: number }} options
+   * @private
+   */
+  async #exportViaRenderOffscreen(width, height, options) {
+    const { format = 'png', antialias = 1, includeAlpha = true, quality = 0.95 } = options;
+    const viewer = this.context.getViewer();
+    const currentViewer = viewer.getViewer().getCurrentViewer();
+
+    if (!currentViewer || typeof currentViewer.renderOffscreen !== 'function') {
+      logger.warn('Current viewer does not support renderOffscreen, falling back to simple export');
+      this.#exportImage(format === 'jpg' ? 'jpeg' : format, format === 'jpeg' ? quality : undefined);
+      return;
+    }
+
+    try {
+      const canvas = await currentViewer.renderOffscreen(width, height, {
+        antialias,
+        includeAlpha
+      });
+
+      const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          logger.warn('Failed to create image blob for export');
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        this.#downloadURL(url, `scene-export.${format === 'jpeg' ? 'jpg' : 'png'}`);
+        URL.revokeObjectURL(url);
+        logger.info(`Exported image (${format.toUpperCase()}) via renderOffscreen`);
+      }, mime, format === 'jpeg' ? quality : undefined);
+    } catch (error) {
+      logger.severe(`Error during renderOffscreen export: ${error.message}`);
     }
   }
 

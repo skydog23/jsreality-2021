@@ -84,6 +84,18 @@ export const DescriptorType = Object.freeze({
  */
 
 /**
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.CONTAINER,
+ *   // Layout direction for child descriptors. 'column' stacks children
+   * // vertically, 'row' arranges them horizontally. Defaults to 'column'
+   * // when not specified.
+   * @property {'row' | 'column'} [direction]
+   * // Child descriptors contained within this layout node.
+   * @property {InspectorDescriptor[]} items
+ * }} ContainerDescriptor
+ */
+
+/**
  * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | ButtonDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
  */
 
