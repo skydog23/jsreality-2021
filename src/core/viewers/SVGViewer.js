@@ -238,6 +238,7 @@ export class SVGViewer extends Abstract2DViewer {
   /**
    * Render the current SVG view into a raster canvas at the given size.
    * Useful for debugging parity with Canvas/WebGL exports.
+   * This method can be removed after the debugging process is complete.
    *
    * @param {number} width
    * @param {number} height

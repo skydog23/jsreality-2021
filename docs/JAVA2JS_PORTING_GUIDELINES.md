@@ -31,3 +31,4 @@ The following directives govern how Java source is translated to JavaScript. **T
 9. **I/O, serialization hooks, and no-op infrastructure**  
    Java methods whose primary role is integration infrastructure (e.g. `startReader/finishWriter`, serialization hooks) and that have no direct runtime equivalent in the JS environment should **initially be translated as documented no-op stubs** unless a higher-priority rule, or explicit user instruction, calls for a more complete replacement.
 
+

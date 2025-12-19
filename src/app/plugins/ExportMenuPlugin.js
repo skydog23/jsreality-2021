@@ -13,6 +13,9 @@ import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { SVGViewer } from '../../core/viewers/SVGViewer.js';
 import { WebGL2DViewer } from '../../core/viewers/WebGL2DViewer.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { DescriptorUtility } from '../../core/inspect/descriptors/DescriptorUtility.js';
+import { ModalOverlay } from '../ui/ModalOverlay.js';
 
 const logger = getLogger('jsreality.app.plugins.ExportMenuPlugin');
 
@@ -110,12 +113,11 @@ export class ExportMenuPlugin extends JSRPlugin {
   }
 
   /**
-   * Open a simple advanced export dialog for choosing size/format and
-   * export the current view using renderOffscreen().
+   * Open an advanced export dialog built from descriptors and perform export
+   * using renderOffscreen().
    *
-   * This is intentionally implemented with browser prompts to keep the
-   * initial integration small; it can be replaced by a descriptor-based
-   * panel for a richer UI later.
+   * The dialog is rendered into a lightweight modal overlay and uses the
+   * shared descriptor/WidgetFactory infrastructure for a consistent look.
    *
    * @private
    */
@@ -130,46 +132,174 @@ export class ExportMenuPlugin extends JSRPlugin {
     // Determine default dimensions from current viewing component or last export
     const size = currentViewer.getViewingComponentSize
       ? currentViewer.getViewingComponentSize()
-      : { width: currentViewer.getViewingComponent()?.clientWidth || 800,
-          height: currentViewer.getViewingComponent()?.clientHeight || 600 };
+      : {
+          width: currentViewer.getViewingComponent()?.clientWidth || 800,
+          height: currentViewer.getViewingComponent()?.clientHeight || 600
+        };
 
-    const defaultWidth = this.#lastExportWidth ?? size.width ?? 800;
-    const defaultHeight = this.#lastExportHeight ?? size.height ?? 600;
+    let width = this.#lastExportWidth ?? size.width ?? 800;
+    let height = this.#lastExportHeight ?? size.height ?? 600;
+    let format = 'png';
+    let antialias = 1;
+    let includeAlpha = true;
+    let rememberDimensions = this.#lastExportWidth != null && this.#lastExportHeight != null;
 
-    const widthStr = window.prompt('Export width (pixels):', String(defaultWidth));
-    if (widthStr === null) return;
-    const heightStr = window.prompt('Export height (pixels):', String(defaultHeight));
-    if (heightStr === null) return;
-
-    const width = parseInt(widthStr, 10);
-    const height = parseInt(heightStr, 10);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      logger.warn('Invalid export dimensions');
-      return;
-    }
-
-    let format = (window.prompt('Image format (png or jpeg):', 'png') || 'png').toLowerCase();
-    if (format !== 'png' && format !== 'jpeg' && format !== 'jpg') {
-      logger.warn(`Unsupported format "${format}", defaulting to png`);
-      format = 'png';
-    }
-    if (format === 'jpg') {
-      format = 'jpeg';
-    }
-
-    const includeAlpha = window.confirm('Include alpha channel? (OK = yes, Cancel = no)');
-    const remember = window.confirm('Remember these dimensions for next export?');
-    if (remember) {
-      this.#lastExportWidth = width;
-      this.#lastExportHeight = height;
-    }
-
-    await this.#exportViaRenderOffscreen(width, height, {
-      format,
-      antialias: 1,
-      includeAlpha,
-      quality: 0.95
+    // Create modal overlay host for the descriptor-driven dialog
+    const modal = new ModalOverlay({
+      minWidth: 320,
+      maxWidth: 520,
+      closeOnBackdrop: true,
+      closeOnEscape: true
     });
+    const dialog = modal.getDialogElement();
+
+    const performExport = async () => {
+      const w = Math.floor(width);
+      const h = Math.floor(height);
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+        logger.warn('Invalid export dimensions');
+        return;
+      }
+
+      if (rememberDimensions) {
+        this.#lastExportWidth = w;
+        this.#lastExportHeight = h;
+      }
+
+      modal.close();
+
+      await this.#exportViaRenderOffscreen(w, h, {
+        format,
+        antialias,
+        includeAlpha,
+        quality: 0.95
+      });
+    };
+
+    // Build descriptors for the dialog form
+    const descriptors = [
+      {
+        type: DescriptorType.CONTAINER,
+        label: 'Dimensions',
+        direction: 'row',
+        items: [
+          {
+            type: DescriptorType.INT,
+            label: 'Width',
+            getValue: () => width,
+            setValue: (val) => {
+              if (Number.isFinite(val) && val > 0) {
+                width = val;
+              }
+            },
+            min: 1
+          },
+          {
+            type: DescriptorType.INT,
+            label: 'Height',
+            getValue: () => height,
+            setValue: (val) => {
+              if (Number.isFinite(val) && val > 0) {
+                height = val;
+              }
+            },
+            min: 1
+          }
+        ]
+      },
+      {
+        type: DescriptorType.CONTAINER,
+        label: 'Quality',
+        direction: 'row',
+        items: [
+          {
+            type: DescriptorType.ENUM,
+            label: 'Antialias',
+            options: [
+              { value: 1, label: '1×' },
+              { value: 2, label: '2×' },
+              { value: 4, label: '4×' }
+            ],
+            getValue: () => antialias,
+            setValue: (value) => {
+              const parsed = Number(value);
+              antialias = parsed === 2 || parsed === 4 ? parsed : 1;
+            }
+          },
+          {
+            type: DescriptorType.ENUM,
+            label: 'Format',
+            options: [
+              { value: 'png', label: 'PNG' },
+              { value: 'jpeg', label: 'JPEG' }
+            ],
+            getValue: () => format,
+            setValue: (value) => {
+              format = value === 'jpeg' ? 'jpeg' : 'png';
+            }
+          }
+        ]
+      },
+      {
+        type: DescriptorType.CONTAINER,
+        label: 'Options',
+        direction: 'column',
+        items: [
+          {
+            type: DescriptorType.TOGGLE,
+            label: 'Include alpha channel',
+            getValue: () => includeAlpha,
+            setValue: (val) => {
+              includeAlpha = Boolean(val);
+            }
+          },
+          {
+            type: DescriptorType.TOGGLE,
+            label: 'Remember dimensions',
+            getValue: () => rememberDimensions,
+            setValue: (val) => {
+              rememberDimensions = Boolean(val);
+            }
+          }
+        ]
+      },
+      {
+        type: DescriptorType.CONTAINER,
+        direction: 'row',
+        items: [
+          {
+            type: DescriptorType.BUTTON,
+            label: 'Cancel',
+            action: () => {
+              modal.close();
+            }
+          },
+          {
+            type: DescriptorType.BUTTON,
+            label: 'Export',
+            action: () => {
+              void performExport();
+            }
+          }
+        ]
+      }
+    ];
+
+    const panel = DescriptorUtility.createDefaultInspectorPanel(
+      'Export Image',
+      descriptors,
+      {
+        icon: '📤',
+        collapsed: false
+      }
+    );
+
+    // Tighten panel styling for dialog usage
+    panel.style.boxShadow = 'none';
+    panel.style.margin = '0';
+    panel.style.width = '100%';
+
+    dialog.appendChild(panel);
   }
 
   /**

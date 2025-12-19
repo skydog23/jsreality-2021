@@ -99,7 +99,7 @@ export class Canvas2DViewer extends Abstract2DViewer {
     // Set actual canvas size in memory (scaled up for retina)
     canvas.width = displayWidth * ratio;
     canvas.height = displayHeight * ratio;
-
+console.log('canvas.width', canvas.width, 'canvas.height', canvas.height);
     // Scale the drawing context so that 1 canvas unit = 1 CSS pixel
     this.#context.scale(ratio, ratio);
 
