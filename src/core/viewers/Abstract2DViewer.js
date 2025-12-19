@@ -203,6 +203,82 @@ export class Abstract2DViewer extends Viewer {
   // Protected helper methods for subclasses
 
   /**
+   * Shared helper for Canvas2D/WebGL offscreen rendering.
+   *
+   * This avoids duplicating the "create temp canvas → create temp viewer →
+   * render → downsample into output canvas" logic across viewers.
+   *
+   * NOTE: We intentionally do NOT import concrete viewer classes here to avoid
+   * circular module dependencies. Subclasses should pass their own constructor.
+   *
+   * @protected
+   * @template {new (canvas: HTMLCanvasElement, options?: any) => any} TViewerCtor
+   * @param {'canvas2d'|'webGL'} backend
+   * @param {TViewerCtor} ViewerCtor
+   * @param {number} width
+   * @param {number} height
+   * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
+   * @param {Object} [viewerOptions] - Extra options forwarded to the temp viewer ctor
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  async _renderOffscreen(backend, ViewerCtor, width, height, options = {}, viewerOptions = {}) {
+    if (backend !== 'canvas2d' && backend !== 'webGL') {
+      throw new Error(`Unsupported backend "${backend}" for _renderOffscreen`);
+    }
+
+    const { antialias = 1, includeAlpha = true } = options;
+    const exportWidth = Math.max(1, Math.floor(width));
+    const exportHeight = Math.max(1, Math.floor(height));
+    const aa = antialias > 0 ? antialias : 1;
+
+    const pixelRatio = typeof this._pixelRatio === 'number' ? this._pixelRatio : 1;
+
+    // Create a temporary off-screen canvas and viewer so that the
+    // camera/projection are computed for the requested aspect ratio.
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.style.width = `${exportWidth}px`;
+    tempCanvas.style.height = `${exportHeight}px`;
+    tempCanvas.style.position = 'absolute';
+    tempCanvas.style.left = '-9999px';
+    tempCanvas.style.top = '-9999px';
+    document.body.appendChild(tempCanvas);
+
+    try {
+      const tempViewer = new ViewerCtor(tempCanvas, {
+        autoResize: false,
+        pixelRatio: pixelRatio * aa,
+        ...viewerOptions
+      });
+      tempViewer.setSceneRoot?.(this.getSceneRoot());
+      tempViewer.setCameraPath?.(this.getCameraPath());
+      tempViewer.render?.();
+
+      const src = tempCanvas;
+      const out = document.createElement('canvas');
+      out.width = exportWidth;
+      out.height = exportHeight;
+
+      const ctx = out.getContext('2d');
+      if (!ctx) {
+        throw new Error('Failed to get 2D context for offscreen output canvas');
+      }
+      if (!includeAlpha) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, out.width, out.height);
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, out.width, out.height);
+
+      return out;
+    } finally {
+      if (tempCanvas.parentNode) {
+        tempCanvas.parentNode.removeChild(tempCanvas);
+      }
+    }
+  }
+
+  /**
    * Get camera from camera path
    * Uses CameraUtility.getCamera()
    * @protected

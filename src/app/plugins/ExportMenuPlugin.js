@@ -26,6 +26,8 @@ export class ExportMenuPlugin extends JSRPlugin {
   // Remember last used dimensions for advanced image export
   #lastExportWidth = null;
   #lastExportHeight = null;
+  // Remember last used antialias factor (1, 2, 4)
+  #lastExportAntialias = 1;
   /**
    * Get plugin metadata.
    * @returns {import('../plugin/JSRPlugin.js').PluginInfo}
@@ -140,7 +142,7 @@ export class ExportMenuPlugin extends JSRPlugin {
     let width = this.#lastExportWidth ?? size.width ?? 800;
     let height = this.#lastExportHeight ?? size.height ?? 600;
     let format = 'png';
-    let antialias = 1;
+    let antialias = this.#lastExportAntialias ?? 1;
     let includeAlpha = true;
     let rememberDimensions = this.#lastExportWidth != null && this.#lastExportHeight != null;
 
@@ -164,6 +166,7 @@ export class ExportMenuPlugin extends JSRPlugin {
       if (rememberDimensions) {
         this.#lastExportWidth = w;
         this.#lastExportHeight = h;
+        this.#lastExportAntialias = antialias;
       }
 
       modal.close();

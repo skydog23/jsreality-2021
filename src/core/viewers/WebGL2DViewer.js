@@ -220,57 +220,14 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * @returns {Promise<HTMLCanvasElement>}
    */
   async renderOffscreen(width, height, options = {}) {
-    const { antialias = 1, includeAlpha = true } = options;
-
-    const exportWidth = Math.max(1, Math.floor(width));
-    const exportHeight = Math.max(1, Math.floor(height));
-    const aa = antialias > 0 ? antialias : 1;
-
-    // Create a temporary off-screen canvas and viewer so that the
-    // camera/projection are computed for the requested aspect ratio.
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.style.width = `${exportWidth}px`;
-    tempCanvas.style.height = `${exportHeight}px`;
-    tempCanvas.style.position = 'absolute';
-    tempCanvas.style.left = '-9999px';
-    tempCanvas.style.top = '-9999px';
-    document.body.appendChild(tempCanvas);
-
-    try {
-      const tempViewer = new WebGL2DViewer(tempCanvas, {
-        autoResize: false,
-        pixelRatio: this._pixelRatio * aa,
-        webgl2: this.isWebGL2()
-      });
-      tempViewer.setSceneRoot(this.getSceneRoot());
-      tempViewer.setCameraPath(this.getCameraPath());
-      tempViewer.render();
-
-      const src = tempCanvas;
-      const out = document.createElement('canvas');
-      out.width = exportWidth;
-      out.height = exportHeight;
-
-      const ctx = out.getContext('2d');
-      if (!includeAlpha) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, out.width, out.height);
-      }
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      ctx.drawImage(
-        src,
-        0, 0, src.width, src.height,
-        0, 0, out.width, out.height
-      );
-
-      return out;
-    } finally {
-      if (tempCanvas.parentNode) {
-        tempCanvas.parentNode.removeChild(tempCanvas);
-      }
-    }
+    return await this._renderOffscreen(
+      'webGL',
+      WebGL2DViewer,
+      width,
+      height,
+      options,
+      { webgl2: this.isWebGL2() }
+    );
   }
 }
 
