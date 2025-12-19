@@ -50,6 +50,11 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * @param {boolean} [options.autoResize=true] - Whether to auto-resize canvas
    * @param {number} [options.pixelRatio] - Device pixel ratio (auto-detected if not provided)
    * @param {boolean} [options.webgl2=true] - Whether to prefer WebGL2 over WebGL1
+   * @param {boolean} [options.alpha=true] - Whether the drawing buffer has an alpha channel
+   * @param {boolean} [options.antialias=true] - Whether the default framebuffer is multisampled (MSAA)
+   * @param {boolean} [options.preserveDrawingBuffer=true] - Keep drawing buffer after presenting
+   * @param {boolean} [options.depth=false] - Whether to request a depth buffer
+   * @param {boolean} [options.stencil=false] - Whether to request a stencil buffer
    */
   constructor(canvas, options = {}) {
     super();
@@ -63,24 +68,23 @@ export class WebGL2DViewer extends Abstract2DViewer {
     // Try to get WebGL2 context first, fall back to WebGL1
     const preferWebGL2 = options.webgl2 !== false;
     let gl = null;
+    const contextAttributes = {
+      alpha: options.alpha !== false,
+      antialias: options.antialias !== false,
+      depth: options.depth === true,
+      stencil: options.stencil === true,
+      preserveDrawingBuffer: options.preserveDrawingBuffer !== false
+    };
     
     if (preferWebGL2) {
       gl = canvas.getContext('webgl2', {
-        alpha: true,
-        antialias: true,
-        depth: false, // 2D rendering doesn't need depth buffer
-        stencil: false,
-        preserveDrawingBuffer: true // Required for toDataURL() to work
+        ...contextAttributes
       });
     }
     
     if (!gl) {
       gl = canvas.getContext('webgl', {
-        alpha: true,
-        antialias: true,
-        depth: false,
-        stencil: false,
-        preserveDrawingBuffer: true // Required for toDataURL() to work
+        ...contextAttributes
       });
     }
     
@@ -214,19 +218,95 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * correct aspect ratio, then rasterizes that into the returned 2D canvas.
    * Callers are responsible for any download/export logic.
    *
+   * NOTE ON MAX EXPORT SIZE:
+   * Even if WebGL reports generous size limits (e.g. MAX_TEXTURE_SIZE and
+   * MAX_RENDERBUFFER_SIZE are often 16384), Chrome/driver may clamp the
+   * *default framebuffer* (gl.drawingBufferWidth/Height) to a smaller size
+   * due to GPU memory/tiling constraints. In our tests on one machine, asking
+   * for an 8192x8192 export produced a canvas backing store of 8192x8192, but
+   * the WebGL drawing buffer was clamped to ~5725x5794, causing truncation.
+   *
+   * Mitigations tried:
+   * - Disabling MSAA (context antialias=false) and requesting no depth/stencil
+   *   did not change the clamp on that machine.
+   * - Avoiding devicePixelRatio multiplication in export helped mitigate the
+   *   issue (smaller backing-store request).
+   *
+   * Next steps (not implemented):
+   * - Render to an offscreen framebuffer/texture (FBO) instead of relying on
+   *   the default framebuffer, then read back/blit to a 2D canvas.
+   * - Tiled rendering (split the requested export into tiles) to stay below
+   *   the per-drawing-buffer allocation ceiling.
+   *
    * @param {number} width
    * @param {number} height
    * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
    * @returns {Promise<HTMLCanvasElement>}
    */
   async renderOffscreen(width, height, options = {}) {
+    const { includeAlpha = true } = options;
     return await this._renderOffscreen(
       'webGL',
       WebGL2DViewer,
       width,
       height,
       options,
-      { webgl2: this.isWebGL2() }
+      {
+        webgl2: this.isWebGL2(),
+        // For large exports, MSAA on the default framebuffer can drastically
+        // increase memory usage and reduce the maximum allocatable size.
+        // Supersampling (our antialias factor) already provides anti-aliasing.
+        antialias: false,
+        // If the caller doesn't need alpha, request an opaque drawing buffer to
+        // reduce memory footprint.
+        alpha: includeAlpha,
+        preserveDrawingBuffer: true,
+        depth: false,
+        stencil: false
+      },
+      (tempViewer, tempCanvas, info) => {
+        const gl = tempViewer?.getGL?.();
+        if (!gl) return;
+
+        const targetW = Math.floor(info.exportWidth * info.pixelRatio * info.aa);
+        const targetH = Math.floor(info.exportHeight * info.pixelRatio * info.aa);
+
+        const actualCanvasW = tempCanvas.width;
+        const actualCanvasH = tempCanvas.height;
+        const actualDBW = gl.drawingBufferWidth;
+        const actualDBH = gl.drawingBufferHeight;
+
+        // Only log when something looks suspicious (clamping/truncation),
+        // or when exporting very large images where limits are likely.
+        const large = info.exportWidth >= 4096 || info.exportHeight >= 4096;
+        const mismatch =
+          actualCanvasW !== targetW ||
+          actualCanvasH !== targetH ||
+          actualDBW !== actualCanvasW ||
+          actualDBH !== actualCanvasH;
+
+        if (large || mismatch) {
+          console.log('[WebGL2D offscreen] size diagnostics', {
+            requestedCSS: { w: info.exportWidth, h: info.exportHeight },
+            antialias: info.aa,
+            pixelRatio: info.pixelRatio,
+            targetBackingStore: { w: targetW, h: targetH },
+            canvasBackingStore: { w: actualCanvasW, h: actualCanvasH },
+            drawingBuffer: { w: actualDBW, h: actualDBH },
+            MAX_TEXTURE_SIZE: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+            MAX_RENDERBUFFER_SIZE: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+            MAX_VIEWPORT_DIMS: gl.getParameter(gl.MAX_VIEWPORT_DIMS)
+          });
+        }
+
+        // Hard warning when Chrome/driver clamps drawing buffer smaller than canvas.
+        if (actualDBW !== actualCanvasW || actualDBH !== actualCanvasH) {
+          console.warn('[WebGL2D offscreen] drawingBuffer smaller than canvas backing store; export will be limited/clamped by GPU allocation', {
+            canvasBackingStore: { w: actualCanvasW, h: actualCanvasH },
+            drawingBuffer: { w: actualDBW, h: actualDBH }
+          });
+        }
+      }
     );
   }
 }
@@ -357,6 +437,50 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Index type constants
       UNSIGNED_SHORT: gl.UNSIGNED_SHORT
     };
+
+    // -------------------------------------------------------------------------
+    // Memory / size-related limits (useful for diagnosing export failures).
+    // Note: WebGL doesn't expose direct "GPU memory" numbers, but these limits
+    // strongly constrain maximum renderable image sizes.
+    // -------------------------------------------------------------------------
+    try {
+      caps.MAX_TEXTURE_SIZE = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    } catch (e) {
+      caps.MAX_TEXTURE_SIZE = null;
+    }
+    try {
+      caps.MAX_RENDERBUFFER_SIZE = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
+    } catch (e) {
+      caps.MAX_RENDERBUFFER_SIZE = null;
+    }
+    try {
+      caps.MAX_VIEWPORT_DIMS = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    } catch (e) {
+      caps.MAX_VIEWPORT_DIMS = null;
+    }
+    // WebGL2 only
+    if (gl.MAX_SAMPLES !== undefined) {
+      try {
+        caps.MAX_SAMPLES = gl.getParameter(gl.MAX_SAMPLES);
+      } catch (e) {
+        caps.MAX_SAMPLES = null;
+      }
+    }
+
+    // Log once at startup for easier debugging of size limits.
+    try {
+      console.log('[WebGL2D] Capabilities / size limits', {
+        isWebGL2: (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext,
+        MAX_TEXTURE_SIZE: caps.MAX_TEXTURE_SIZE,
+        MAX_RENDERBUFFER_SIZE: caps.MAX_RENDERBUFFER_SIZE,
+        MAX_VIEWPORT_DIMS: caps.MAX_VIEWPORT_DIMS,
+        MAX_SAMPLES: caps.MAX_SAMPLES ?? '(n/a)',
+        ALIASED_POINT_SIZE_RANGE: gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE),
+        ALIASED_LINE_WIDTH_RANGE: gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)
+      });
+    } catch (e) {
+      // Logging should never break rendering.
+    }
     
     // Query point size range
     const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);

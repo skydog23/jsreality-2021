@@ -217,7 +217,7 @@ export class ExportMenuPlugin extends JSRPlugin {
         items: [
           {
             type: DescriptorType.ENUM,
-            label: 'Antialias',
+            label: 'Supersamples',
             options: [
               { value: 1, label: '1×' },
               { value: 2, label: '2×' },
@@ -246,11 +246,11 @@ export class ExportMenuPlugin extends JSRPlugin {
       {
         type: DescriptorType.CONTAINER,
         label: 'Options',
-        direction: 'column',
+        direction: 'row',
         items: [
           {
             type: DescriptorType.TOGGLE,
-            label: 'Include alpha channel',
+            label: 'Save alpha',
             getValue: () => includeAlpha,
             setValue: (val) => {
               includeAlpha = Boolean(val);
@@ -258,7 +258,7 @@ export class ExportMenuPlugin extends JSRPlugin {
           },
           {
             type: DescriptorType.TOGGLE,
-            label: 'Remember dimensions',
+            label: 'Save dimns',
             getValue: () => rememberDimensions,
             setValue: (val) => {
               rememberDimensions = Boolean(val);
@@ -269,10 +269,12 @@ export class ExportMenuPlugin extends JSRPlugin {
       {
         type: DescriptorType.CONTAINER,
         direction: 'row',
+        justify: 'flex-end',
         items: [
           {
             type: DescriptorType.BUTTON,
             label: 'Cancel',
+            variant: 'secondary',
             action: () => {
               modal.close();
             }
@@ -280,6 +282,7 @@ export class ExportMenuPlugin extends JSRPlugin {
           {
             type: DescriptorType.BUTTON,
             label: 'Export',
+            variant: 'primary',
             action: () => {
               void performExport();
             }

@@ -96,16 +96,43 @@ function containerFactory(descriptor, context) {
   container.style.display = 'flex';
   const direction = descriptor.direction === 'row' ? 'row' : 'column';
   container.style.flexDirection = direction;
-  container.style.gap = '6px';
-  container.style.alignItems = 'center';
+  container.style.gap = '8px';
+  container.style.alignItems = direction === 'row' ? 'stretch' : 'center';
   if (direction === 'row') {
-    container.style.flexWrap = 'wrap';
+    container.style.width = '100%';
+    const justify =
+      descriptor.justify === 'flex-end' ||
+      descriptor.justify === 'center' ||
+      descriptor.justify === 'space-between'
+        ? descriptor.justify
+        : 'flex-start';
+    container.style.justifyContent = justify;
+  }
+  if (direction === 'row') {
+    // Prefer keeping row layouts on a single line; children will shrink.
+    // (Wrapping tends to turn "two per row" layouts into a long column.)
+    container.style.flexWrap = 'nowrap';
   }
 
   const widgetCatalog = context.widgetCatalog || WidgetCatalog.createDefault();
   const items = Array.isArray(descriptor.items) ? descriptor.items : [];
   for (const child of items) {
     const childElement = widgetCatalog.create(child, context);
+    if (direction === 'row') {
+      // Make nested rows behave like "form fields" rather than full-width blocks.
+      childElement.style.flex = '1 1 0';
+      childElement.style.minWidth = '0';
+      // If this is a standard inspector row, shrink its label column so that
+      // two items can fit in a single line within dialogs.
+      const labelEl = childElement.querySelector('.sg-prop-label');
+      if (labelEl) {
+        labelEl.style.flex = '0 0 80px';
+      }
+      const valueEl = childElement.querySelector('.sg-prop-value');
+      if (valueEl) {
+        valueEl.style.minWidth = '0';
+      }
+    }
     container.appendChild(childElement);
   }
 
@@ -193,9 +220,21 @@ function textFactory(descriptor) {
 }
 
 function buttonFactory(descriptor) {
-  const wrapper = createRow(descriptor);
+  // Buttons generally don't need a separate left-hand label because the button
+  // caption already communicates the action ("Cancel", "Export", ...).
+  // If a label is desired, callers can add a DescriptorType.LABEL above it.
+  const wrapper = createRow({
+    ...descriptor,
+    label: ''
+  });
   const button = document.createElement('button');
   button.type = 'button';
+  button.className = 'sg-button';
+  if (descriptor.variant === 'secondary') {
+    button.classList.add('sg-button--secondary');
+  } else if (descriptor.variant === 'primary') {
+    button.classList.add('sg-button--primary');
+  }
   button.textContent = descriptor.label || 'Action';
   button.disabled = descriptor.disabled || !descriptor.action;
   button.addEventListener('click', () => {
@@ -288,8 +327,15 @@ function createRow(descriptor) {
   }
   const label = document.createElement('label');
   label.className = 'sg-prop-label';
-  label.textContent = descriptor.label || descriptor.key;
-  if (descriptor.description) {
+  // IMPORTANT: allow an explicitly empty label ('') to mean "no label".
+  // Do not fall back to the auto-generated key in that case.
+  const labelText = descriptor.label !== undefined ? descriptor.label : descriptor.key;
+  label.textContent = labelText ?? '';
+  if (label.textContent === '') {
+    // Remove label from layout entirely so the value cell can use full width.
+    label.style.display = 'none';
+  }
+  if (descriptor.description && label.textContent !== '') {
     label.title = descriptor.description;
   }
   const value = document.createElement('div');

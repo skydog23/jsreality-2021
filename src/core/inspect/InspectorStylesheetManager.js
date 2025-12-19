@@ -327,6 +327,20 @@ export class InspectorStylesheetManager {
       .sg-button:hover {
         background: #1177bb;
       }
+
+      .sg-button--secondary {
+        background: #3c3c3c;
+        color: #cccccc;
+        border: 1px solid #555;
+      }
+
+      .sg-button--secondary:hover {
+        background: #4a4a4a;
+      }
+
+      /* Primary uses default .sg-button styling (blue); this is a hook for future refinement. */
+      .sg-button--primary {
+      }
       
       .sg-rotation-container .sg-number-input,
       .sg-vector-widget .sg-number-input {

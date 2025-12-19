@@ -219,9 +219,10 @@ export class Abstract2DViewer extends Viewer {
    * @param {number} height
    * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
    * @param {Object} [viewerOptions] - Extra options forwarded to the temp viewer ctor
+   * @param {(tempViewer: any, tempCanvas: HTMLCanvasElement, info: { exportWidth: number, exportHeight: number, aa: number, pixelRatio: number }) => void} [probe]
    * @returns {Promise<HTMLCanvasElement>}
    */
-  async _renderOffscreen(backend, ViewerCtor, width, height, options = {}, viewerOptions = {}) {
+  async _renderOffscreen(backend, ViewerCtor, width, height, options = {}, viewerOptions = {}, probe = null) {
     if (backend !== 'canvas2d' && backend !== 'webGL') {
       throw new Error(`Unsupported backend "${backend}" for _renderOffscreen`);
     }
@@ -231,7 +232,7 @@ export class Abstract2DViewer extends Viewer {
     const exportHeight = Math.max(1, Math.floor(height));
     const aa = antialias > 0 ? antialias : 1;
 
-    const pixelRatio = typeof this._pixelRatio === 'number' ? this._pixelRatio : 1;
+    const pixelRatio = 1;//typeof this._pixelRatio === 'number' ? this._pixelRatio : 1;
 
     // Create a temporary off-screen canvas and viewer so that the
     // camera/projection are computed for the requested aspect ratio.
@@ -252,6 +253,14 @@ export class Abstract2DViewer extends Viewer {
       tempViewer.setSceneRoot?.(this.getSceneRoot());
       tempViewer.setCameraPath?.(this.getCameraPath());
       tempViewer.render?.();
+
+      if (typeof probe === 'function') {
+        try {
+          probe(tempViewer, tempCanvas, { exportWidth, exportHeight, aa, pixelRatio });
+        } catch (e) {
+          // Probe failures should not break rendering.
+        }
+      }
 
       const src = tempCanvas;
       const out = document.createElement('canvas');

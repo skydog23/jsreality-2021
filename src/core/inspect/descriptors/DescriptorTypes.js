@@ -61,7 +61,9 @@ export const DescriptorType = Object.freeze({
 
 /**
  * @typedef {DescriptorCommon & {
- *   action: () => void
+ *   action: () => void,
+ *   // Optional visual hint for rendering this as primary/secondary action.
+ *   variant?: 'primary' | 'secondary' | 'default'
  * }} ButtonDescriptor
  */
 
@@ -78,20 +80,10 @@ export const DescriptorType = Object.freeze({
  *   // vertically, 'row' arranges them horizontally. Defaults to 'column'
  *   // when not specified.
  *   direction?: 'row' | 'column',
+ *   // Optional flexbox justify-content setting for the children.
+ *   justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between',
  *   // Child descriptors contained within this layout node.
  *   items: InspectorDescriptor[]
- * }} ContainerDescriptor
- */
-
-/**
- * @typedef {DescriptorCommon & {
- *   type: typeof DescriptorType.CONTAINER,
- *   // Layout direction for child descriptors. 'column' stacks children
-   * // vertically, 'row' arranges them horizontally. Defaults to 'column'
-   * // when not specified.
-   * @property {'row' | 'column'} [direction]
-   * // Child descriptors contained within this layout node.
-   * @property {InspectorDescriptor[]} items
  * }} ContainerDescriptor
  */
 
