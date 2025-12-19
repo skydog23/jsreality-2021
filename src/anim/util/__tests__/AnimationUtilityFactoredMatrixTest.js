@@ -14,7 +14,7 @@
  */
 
 import { AnimationUtility } from '../AnimationUtility.js';
-import { FactoredMatrix } from '../../../math/FactoredMatrix.js';
+import { FactoredMatrix } from '../../../core/math/FactoredMatrix.js';
 
 describe('AnimationUtility FactoredMatrix Interpolation', () => {
     let matrix1;

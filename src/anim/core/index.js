@@ -28,6 +28,5 @@ export { KeyFrameAnimatedBoolean } from './KeyFrameAnimatedBoolean.js';
 export { KeyFrameAnimatedInteger } from './KeyFrameAnimatedInteger.js';
 export { KeyFrameAnimatedColor } from './KeyFrameAnimatedColor.js';
 export { KeyFrameAnimatedIsometry } from './KeyFrameAnimatedIsometry.js';
-export { KeyFrameAnimatedTransformation } from './KeyFrameAnimatedTransformation.js';
 export { TimeMapper } from './TimeMapper.js';
 export { FramedCurve, ControlPoint } from './FramedCurve.js';

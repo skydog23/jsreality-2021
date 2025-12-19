@@ -17,8 +17,8 @@
 import { SimpleKeyFrameAnimated } from './SimpleKeyFrameAnimated.js';
 import { KeyFrameAnimatedDelegate } from './KeyFrameAnimatedDelegate.js';
 import { AnimationUtility, InterpolationTypes } from '../util/AnimationUtility.js';
-import { FactoredMatrix } from '../../math/FactoredMatrix.js';
-import * as Rn from '../../math/Rn.js';
+import { FactoredMatrix } from '../../core/math/FactoredMatrix.js';
+import * as Rn from '../../core/math/Rn.js';
 
 /**
  * The basic class for interpolating isometries in euclidean and non-euclidean spaces.

@@ -16,7 +16,7 @@
 import { SimpleKeyFrameAnimated } from './SimpleKeyFrameAnimated.js';
 import { KeyFrameAnimatedDelegate } from './KeyFrameAnimatedDelegate.js';
 import { AnimationUtility, InterpolationTypes } from '../util/AnimationUtility.js';
-import { Color } from '../../util/Color.js';
+import { Color } from '../../core/util/Color.js';
 
 /**
  * Animate an instance of {@link Color}.

@@ -13,8 +13,8 @@
  * @author Charles Gunn
  */
 
-import { FactoredMatrix } from '../../math/FactoredMatrix.js';
-import { Quaternion, linearInterpolation as quaternionLinearInterpolation } from '../../math/Quaternion.js';
+import { FactoredMatrix } from '../core/math/FactoredMatrix.js';
+import { Quaternion, linearInterpolation as quaternionLinearInterpolation } from '../core/math/Quaternion.js';
 
 /**
  * Enumeration of interpolation types.
@@ -286,13 +286,13 @@ export class AnimationUtility {
     /**
      * Linear interpolation between two FactoredMatrix objects.
      * Interpolates translation, rotation (using SLERP), and stretch separately.
-     * @param {import('../../math/FactoredMatrix.js').FactoredMatrix|null} dst - Destination matrix (optional)
+     * @param {import('../core/math/FactoredMatrix.js').FactoredMatrix|null} dst - Destination matrix (optional)
      * @param {number} t - The interpolation parameter
      * @param {number} t0 - Start time
      * @param {number} t1 - End time
-     * @param {import('../../math/FactoredMatrix.js').FactoredMatrix} m1 - Start matrix
-     * @param {import('../../math/FactoredMatrix.js').FactoredMatrix} m2 - End matrix
-     * @returns {import('../../math/FactoredMatrix.js').FactoredMatrix} The interpolated matrix
+     * @param {import('../core/math/FactoredMatrix.js').FactoredMatrix} m1 - Start matrix
+     * @param {import('../core/math/FactoredMatrix.js').FactoredMatrix} m2 - End matrix
+     * @returns {import('../core/math/FactoredMatrix.js').FactoredMatrix} The interpolated matrix
      */
     static linearInterpolationFactoredMatrix(dst, t, t0, t1, m1, m2) {
         if (t <= t0) return m1;

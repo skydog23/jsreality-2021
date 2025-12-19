@@ -13,12 +13,12 @@
  * @author Charles Gunn
  */
 
-import { KeyFrameAnimatedIsometry } from './KeyFrameAnimatedIsometry.js';
-import { KeyFrameAnimatedDelegate } from './KeyFrameAnimatedDelegate.js';
-import { FactoredMatrix } from '../../math/FactoredMatrix.js';
-import { Transformation } from '../../scene/Transformation.js';
-import * as Pn from '../../math/Pn.js';
-import * as Rn from '../../math/Rn.js';
+import { KeyFrameAnimatedIsometry } from '../core/KeyFrameAnimatedIsometry.js';
+import { KeyFrameAnimatedDelegate } from '../core/KeyFrameAnimatedDelegate.js';
+import { FactoredMatrix } from '../../core/math/FactoredMatrix.js';
+import { Transformation } from '../../core/scene/Transformation.js';
+import * as Pn from '../../core/math/Pn.js';
+import * as Rn from '../../core/math/Rn.js';
 
 /**
  * Animate an instance of {@link Transformation} by providing a delegate to

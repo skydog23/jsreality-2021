@@ -17,8 +17,8 @@ import { KeyFrameAnimatedIsometry } from '../KeyFrameAnimatedIsometry.js';
 import { TimeDescriptor } from '../TimeDescriptor.js';
 import { KeyFrameAnimatedDelegate } from '../KeyFrameAnimatedDelegate.js';
 import { InterpolationTypes } from '../../util/AnimationUtility.js';
-import { FactoredMatrix } from '../../../math/FactoredMatrix.js';
-import * as Pn from '../../../math/Pn.js';
+import { FactoredMatrix } from '../../../core/math/FactoredMatrix.js';
+import * as Pn from '../../../core/math/Pn.js';
 
 describe('KeyFrameAnimatedIsometry', () => {
     let animatedIsometry;
