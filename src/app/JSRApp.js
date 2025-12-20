@@ -24,6 +24,7 @@ import { AppMenuPlugin } from './plugins/AppMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 import { LoggingInspectorPlugin } from './plugins/LoggingInspectorPlugin.js';
+import { AnimationPlugin } from './plugins/AnimationPlugin.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -104,6 +105,7 @@ export class JSRApp extends JSRPlugin {
         // Register aggregator second (right panel)
         await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
         await this.#jsrViewer.registerPlugin(new LoggingInspectorPlugin());
+        await this.#jsrViewer.registerPlugin(new AnimationPlugin());
         // Then register ourselves (so we can use aggregator in install())
         await this.#jsrViewer.registerPlugin(this);
       } catch (error) {

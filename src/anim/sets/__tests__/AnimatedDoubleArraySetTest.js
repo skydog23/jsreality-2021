@@ -14,6 +14,7 @@
 
 import { AnimatedDoubleArraySet } from '../AnimatedDoubleArraySet.js';
 import { InterpolationTypes } from '../../util/AnimationUtility.js';
+import { jest } from '@jest/globals';
 
 /**
  * Test AnimatedDoubleArraySet basic functionality
@@ -112,10 +113,29 @@ export function testAnimatedDoubleArraySetDestination() {
     console.log('✓ AnimatedDoubleArraySet destination array tests passed');
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testAnimatedDoubleArraySetBasic();
-    testAnimatedDoubleArraySetInterpolation();
-    testAnimatedDoubleArraySetConstant();
-    testAnimatedDoubleArraySetDestination();
-}
+// Jest runner (turn legacy console.assert checks into test failures)
+describe('AnimatedDoubleArraySet (legacy assertions)', () => {
+  /** @type {import('@jest/globals').SpyInstance} */
+  let logSpy;
+  /** @type {import('@jest/globals').SpyInstance} */
+  let assertSpy;
+
+  beforeAll(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    assertSpy = jest.spyOn(console, 'assert').mockImplementation((condition, ...args) => {
+      if (!condition) {
+        throw new Error(args.join(' ') || 'console.assert failed');
+      }
+    });
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    assertSpy?.mockRestore();
+  });
+
+  test('basic', () => testAnimatedDoubleArraySetBasic());
+  test('interpolation', () => testAnimatedDoubleArraySetInterpolation());
+  test('constant interpolation', () => testAnimatedDoubleArraySetConstant());
+  test('destination array', () => testAnimatedDoubleArraySetDestination());
+});

@@ -14,6 +14,7 @@
 
 import { FramedCurve, ControlPoint } from '../FramedCurve.js';
 import { InterpolationTypes } from '../../util/AnimationUtility.js';
+import { jest } from '@jest/globals';
 
 /**
  * Test ControlPoint basic functionality
@@ -237,15 +238,34 @@ export function testFramedCurveFactory() {
     console.log('✓ FramedCurve factory tests passed');
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testControlPointBasic();
-    testControlPointScale();
-    testControlPointComparison();
-    testFramedCurveBasic();
-    testFramedCurveTimeBounds();
-    testFramedCurveInterpolation();
-    testFramedCurveBoundaryConditions();
-    testFramedCurveScaling();
-    testFramedCurveFactory();
-}
+// Jest runner (turn legacy console.assert checks into test failures)
+describe('FramedCurve (legacy assertions)', () => {
+  /** @type {import('@jest/globals').SpyInstance} */
+  let logSpy;
+  /** @type {import('@jest/globals').SpyInstance} */
+  let assertSpy;
+
+  beforeAll(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    assertSpy = jest.spyOn(console, 'assert').mockImplementation((condition, ...args) => {
+      if (!condition) {
+        throw new Error(args.join(' ') || 'console.assert failed');
+      }
+    });
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    assertSpy?.mockRestore();
+  });
+
+  test('ControlPoint basic', () => testControlPointBasic());
+  test('ControlPoint scale', () => testControlPointScale());
+  test('ControlPoint comparison', () => testControlPointComparison());
+  test('FramedCurve basic', () => testFramedCurveBasic());
+  test('FramedCurve time bounds', () => testFramedCurveTimeBounds());
+  test('FramedCurve interpolation', () => testFramedCurveInterpolation());
+  test('FramedCurve boundary conditions', () => testFramedCurveBoundaryConditions());
+  test('FramedCurve scaling', () => testFramedCurveScaling());
+  test('FramedCurve factory', () => testFramedCurveFactory());
+});

@@ -31,7 +31,8 @@ export class KeyFrame {
         this.td = timeDescriptor || new TimeDescriptor(0);
         
         /** @type {T} */
-        this.value = value || null;
+        // Preserve valid falsy values like 0, false, '' (Java semantics: allow any value).
+        this.value = (typeof value === 'undefined') ? null : value;
     }
 
     /**

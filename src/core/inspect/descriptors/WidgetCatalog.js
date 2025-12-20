@@ -65,6 +65,9 @@ export class WidgetCatalog {
     catalog.register(DescriptorType.BUTTON, buttonFactory);
     catalog.register(DescriptorType.LABEL, labelFactory);
     catalog.register(DescriptorType.ENUM, enumFactory);
+    // Phase 1: TEXT_SLIDER is rendered as a numeric text field.
+    // Phase 2: replace with a real slider+text widget.
+    catalog.register(DescriptorType.TEXT_SLIDER, textSliderFactory);
     catalog.register(DescriptorType.VECTOR, vectorFactory);
     catalog.register(DescriptorType.CONTAINER, containerFactory);
     return catalog;
@@ -172,6 +175,39 @@ function numericInputFactory(inputType, overrides = {}) {
     wrapper.value.appendChild(input);
     return wrapper.root;
   };
+}
+
+/**
+ * Placeholder TextSlider widget factory.
+ * Phase 1: uses the same UI as a numeric input field.
+ */
+function textSliderFactory(descriptor) {
+  const wrapper = createRow(descriptor);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.inputMode = 'decimal';
+  input.className = 'inspector-input inspector-input--number';
+  const fractionDigits = descriptor.fractionDigits ?? 4;
+  input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
+  if (descriptor.min !== undefined) input.min = descriptor.min;
+  if (descriptor.max !== undefined) input.max = descriptor.max;
+  if (descriptor.step !== undefined) input.step = descriptor.step;
+  if (descriptor.readonly || descriptor.disabled || !descriptor.setValue) {
+    input.disabled = true;
+  }
+  input.addEventListener('change', () => {
+    if (!descriptor.setValue) return;
+    const normalized = normalizeDecimalString(input.value);
+    const rawValue = parseFloat(normalized);
+    if (Number.isNaN(rawValue)) {
+      input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
+      return;
+    }
+    descriptor.setValue(rawValue);
+    input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
+  });
+  wrapper.value.appendChild(input);
+  return wrapper.root;
 }
 
 function toggleFactory(descriptor) {

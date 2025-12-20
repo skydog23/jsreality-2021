@@ -234,7 +234,7 @@ describe('KeyFrameAnimatedIsometry', () => {
             const complexMatrix = new FactoredMatrix();
             complexMatrix.setTranslation(1, 2, 3);
             complexMatrix.setRotation(Math.PI / 3, [1, 1, 1]); // 60 degrees around (1,1,1)
-            complexMatrix.setStretch(0.5, 1.5, 2.0);
+            complexMatrix.setStretchComponents(0.5, 1.5, 2.0);
             
             animatedIsometry.setCurrentValue(complexMatrix);
             animatedIsometry.addKeyFrame(new TimeDescriptor(0));

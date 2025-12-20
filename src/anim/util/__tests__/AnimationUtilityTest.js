@@ -13,6 +13,7 @@
  */
 
 import { AnimationUtility, InterpolationTypes, BoundaryModes, PlaybackModes } from '../AnimationUtility.js';
+import { jest } from '@jest/globals';
 
 /**
  * Test AnimationUtility constants
@@ -72,8 +73,8 @@ export function testAnimationUtilityHermiteInterpolation() {
     // Test basic hermite interpolation
     const result1 = AnimationUtility.hermiteInterpolation(0.5, 0, 1, 0, 10);
     console.assert(result1 > 0 && result1 < 10, `Hermite interpolation at 0.5 should be between 0 and 10, got ${result1}`);
-    // At t=0.5, hermite gives 7.5, linear gives 5.0
-    console.assert(Math.abs(result1 - 7.5) < 0.001, `Hermite interpolation at 0.5 should be 7.5, got ${result1}`);
+    // Our "hermite" here is smoothstep: -2t^3 + 3t^2. At t=0.5, this equals 0.5.
+    console.assert(Math.abs(result1 - 5.0) < 0.001, `Hermite interpolation at 0.5 should be 5.0, got ${result1}`);
     
     // Test boundary conditions
     const result2 = AnimationUtility.hermiteInterpolation(0, 0, 1, 0, 10);
@@ -141,11 +142,30 @@ export function testAnimationUtilityGetStandardTime() {
     console.log('✓ AnimationUtility getStandardTime tests passed');
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testAnimationUtilityConstants();
-    testAnimationUtilityLinearInterpolation();
-    testAnimationUtilityHermiteInterpolation();
-    testAnimationUtilityArrayInterpolation();
-    testAnimationUtilityGetStandardTime();
-}
+// Jest runner
+describe('AnimationUtility (legacy assertions)', () => {
+  /** @type {import('@jest/globals').SpyInstance} */
+  let logSpy;
+  /** @type {import('@jest/globals').SpyInstance} */
+  let assertSpy;
+
+  beforeAll(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    assertSpy = jest.spyOn(console, 'assert').mockImplementation((condition, ...args) => {
+      if (!condition) {
+        throw new Error(args.join(' ') || 'console.assert failed');
+      }
+    });
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    assertSpy?.mockRestore();
+  });
+
+  test('constants', () => testAnimationUtilityConstants());
+  test('linearInterpolation', () => testAnimationUtilityLinearInterpolation());
+  test('hermiteInterpolation', () => testAnimationUtilityHermiteInterpolation());
+  test('arrayInterpolation', () => testAnimationUtilityArrayInterpolation());
+  test('getStandardTime', () => testAnimationUtilityGetStandardTime());
+});

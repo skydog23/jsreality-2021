@@ -13,6 +13,12 @@ export const DescriptorType = Object.freeze({
   COLOR: 'color',
   TOGGLE: 'toggle',
   ENUM: 'enum',
+  /**
+   * Placeholder for a combined "text + slider" numeric widget.
+   * Phase 1: rendered as a numeric text field.
+   * Phase 2: rendered as slider + text input (and optional min/max buttons).
+   */
+  TEXT_SLIDER: 'text_slider',
   TEXT: 'text',
   BUTTON: 'button',
   LABEL: 'label',
@@ -61,6 +67,23 @@ export const DescriptorType = Object.freeze({
 
 /**
  * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.TEXT_SLIDER,
+ *   getValue: () => number,
+ *   setValue?: (value: number) => void,
+ *   min?: number,
+ *   max?: number,
+ *   step?: number,
+ *   // For future UI: log vs linear slider mapping.
+ *   scale?: 'linear' | 'log',
+ *   // For future UI: show min/max buttons like Java TextSlider.
+ *   showMinMaxButtons?: boolean,
+ *   // For future UI: decimal formatting control.
+ *   fractionDigits?: number
+ * }} TextSliderDescriptor
+ */
+
+/**
+ * @typedef {DescriptorCommon & {
  *   action: () => void,
  *   // Optional visual hint for rendering this as primary/secondary action.
  *   variant?: 'primary' | 'secondary' | 'default'
@@ -88,7 +111,7 @@ export const DescriptorType = Object.freeze({
  */
 
 /**
- * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | ButtonDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
+ * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | TextSliderDescriptor | ButtonDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
  */
 
 /**

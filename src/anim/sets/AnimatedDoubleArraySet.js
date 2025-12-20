@@ -101,10 +101,24 @@ export class AnimatedDoubleArraySet {
         let key = -1;
         const n = this.keySet.length;
         
-        // Handle wrap-around (REPEAT mode)
+        // Boundary handling: this class currently clamps to [tmin, tmax].
+        // (If we later add BoundaryModes.REPEAT, we can re-introduce wrap-around here.)
         const tmin = this.getTMin();
         const tmax = this.getTMax();
-        t = tmin + ((t - tmin) % (tmax - tmin));
+        if (t <= tmin) {
+            const firstValues = this.valueSet[0];
+            for (let j = 0; j < elementCount; ++j) {
+                vals[j] = firstValues[j];
+            }
+            return vals;
+        }
+        if (t >= tmax) {
+            const lastValues = this.valueSet[n - 1];
+            for (let j = 0; j < elementCount; ++j) {
+                vals[j] = lastValues[j];
+            }
+            return vals;
+        }
         
         for (let i = 1; i < n; ++i) {
             if (t < this.keySet[i]) {
@@ -113,14 +127,7 @@ export class AnimatedDoubleArraySet {
             }
         }
 
-        if (key === -1) {
-            // Time is at or beyond the last keyframe
-            const lastValues = this.valueSet[n - 1];
-            for (let j = 0; j < elementCount; ++j) {
-                vals[j] = lastValues[j];
-            }
-            return vals;
-        }
+        // At this point, we know t is strictly inside (tmin, tmax), so key must be found.
 
         // Interpolate between keyframes
         const t1 = this.keySet[key];

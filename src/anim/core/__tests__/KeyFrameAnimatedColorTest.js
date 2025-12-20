@@ -18,7 +18,7 @@ import { KeyFrame } from '../KeyFrame.js';
 import { TimeDescriptor } from '../TimeDescriptor.js';
 import { KeyFrameAnimatedDelegate } from '../KeyFrameAnimatedDelegate.js';
 import { InterpolationTypes } from '../../util/AnimationUtility.js';
-import { Color } from '../../../util/Color.js';
+import { Color } from '../../../core/util/Color.js';
 
 describe('KeyFrameAnimatedColor', () => {
     let animatedColor;

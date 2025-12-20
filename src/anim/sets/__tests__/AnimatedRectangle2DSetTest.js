@@ -14,6 +14,7 @@
 
 import { AnimatedRectangle2DSet } from '../AnimatedRectangle2DSet.js';
 import { InterpolationTypes, BoundaryModes } from '../../util/AnimationUtility.js';
+import { jest } from '@jest/globals';
 
 /**
  * Test AnimatedRectangle2DSet basic functionality
@@ -184,12 +185,31 @@ export function testAnimatedRectangle2DSetRectangleCreation() {
     console.log('✓ AnimatedRectangle2DSet rectangle creation tests passed');
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testAnimatedRectangle2DSetBasic();
-    testAnimatedRectangle2DSetInterpolation();
-    testAnimatedRectangle2DSetConstant();
-    testAnimatedRectangle2DSetBoundaries();
-    testAnimatedRectangle2DSetUtilities();
-    testAnimatedRectangle2DSetRectangleCreation();
-}
+// Jest runner (turn legacy console.assert checks into test failures)
+describe('AnimatedRectangle2DSet (legacy assertions)', () => {
+  /** @type {import('@jest/globals').SpyInstance} */
+  let logSpy;
+  /** @type {import('@jest/globals').SpyInstance} */
+  let assertSpy;
+
+  beforeAll(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    assertSpy = jest.spyOn(console, 'assert').mockImplementation((condition, ...args) => {
+      if (!condition) {
+        throw new Error(args.join(' ') || 'console.assert failed');
+      }
+    });
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    assertSpy?.mockRestore();
+  });
+
+  test('basic', () => testAnimatedRectangle2DSetBasic());
+  test('interpolation', () => testAnimatedRectangle2DSetInterpolation());
+  test('constant interpolation', () => testAnimatedRectangle2DSetConstant());
+  test('boundaries', () => testAnimatedRectangle2DSetBoundaries());
+  test('utilities', () => testAnimatedRectangle2DSetUtilities());
+  test('rectangle creation', () => testAnimatedRectangle2DSetRectangleCreation());
+});

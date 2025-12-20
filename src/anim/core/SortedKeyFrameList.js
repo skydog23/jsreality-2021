@@ -51,6 +51,16 @@ export class SortedKeyFrameList {
     }
 
     /**
+     * Get the index of a keyframe in this list.
+     * Java parity helper (AnimationPanel uses indexOf(kf)).
+     * @param {KeyFrame<T>} kf
+     * @returns {number} Index, or -1 if not found
+     */
+    indexOf(kf) {
+        return this.keyframes.indexOf(kf);
+    }
+
+    /**
      * Gets the minimum time value in the list.
      * @returns {number} The minimum time, or 0.0 if empty
      */
@@ -120,6 +130,18 @@ export class SortedKeyFrameList {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Remove a keyframe at a given index.
+     * Java parity helper (Swing code commonly calls remove(i)).
+     * @param {number} index
+     * @returns {KeyFrame<T>|undefined}
+     */
+    removeIndex(index) {
+        if (typeof index !== 'number') return undefined;
+        if (index < 0 || index >= this.keyframes.length) return undefined;
+        return this.removeAt(index);
     }
 
     /**

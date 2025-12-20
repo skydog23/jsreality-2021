@@ -9,56 +9,38 @@
  */
 
 /**
- * @fileoverview Tests for TimeDescriptor class.
+ * @fileoverview Jest tests for TimeDescriptor class.
  */
 
 import { TimeDescriptor } from '../TimeDescriptor.js';
 
-/**
- * Test TimeDescriptor basic functionality
- */
-export function testTimeDescriptorBasic() {
-    console.log('Testing TimeDescriptor basic functionality...');
-    
-    // Test default constructor
-    const td1 = new TimeDescriptor();
-    console.assert(td1.getTime() === 0, 'Default constructor should set time to 0');
-    console.assert(td1.getLastModified() > 0, 'Last modified should be set');
-    
-    // Test constructor with time
-    const td2 = new TimeDescriptor(5.5);
-    console.assert(td2.getTime() === 5.5, 'Constructor should set specified time');
-    
-    // Test setTime
-    const initialModified = td1.getLastModified();
-    // Small delay to ensure timestamp changes
-    setTimeout(() => {
-        td1.setTime(3.14);
-        console.assert(td1.getTime() === 3.14, 'setTime should update time value');
-        console.assert(td1.getLastModified() > initialModified, 'setTime should update last modified');
-        
-        console.log('✓ TimeDescriptor basic tests passed');
-    }, 1);
-}
+describe('TimeDescriptor', () => {
+  test('default constructor', () => {
+    const td = new TimeDescriptor();
+    expect(td.getTime()).toBe(0);
+    expect(td.getLastModified()).toBeGreaterThan(0);
+  });
 
-/**
- * Test TimeDescriptor with timestamp
- */
-export function testTimeDescriptorWithTimestamp() {
-    console.log('Testing TimeDescriptor with timestamp...');
-    
+  test('constructor with time', () => {
+    const td = new TimeDescriptor(5.5);
+    expect(td.getTime()).toBe(5.5);
+  });
+
+  test('setTime updates time and lastModified', async () => {
+    const td = new TimeDescriptor();
+    const before = td.getLastModified();
+    // Give the clock a tick so lastModified can advance.
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    td.setTime(3.14);
+    expect(td.getTime()).toBeCloseTo(3.14);
+    expect(td.getLastModified()).toBeGreaterThan(before);
+  });
+
+  test('setTimeWithTimestamp sets explicit timestamp', () => {
     const td = new TimeDescriptor();
     const customTimestamp = 1234567890;
-    
     td.setTimeWithTimestamp(2.5, customTimestamp);
-    console.assert(td.getTime() === 2.5, 'setTimeWithTimestamp should set time');
-    console.assert(td.getLastModified() === customTimestamp, 'setTimeWithTimestamp should set custom timestamp');
-    
-    console.log('✓ TimeDescriptor timestamp tests passed');
-}
-
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testTimeDescriptorBasic();
-    setTimeout(() => testTimeDescriptorWithTimestamp(), 10);
-}
+    expect(td.getTime()).toBe(2.5);
+    expect(td.getLastModified()).toBe(customTimestamp);
+  });
+});

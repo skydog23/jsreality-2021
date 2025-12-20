@@ -15,6 +15,7 @@
 import { KeyFrameAnimatedDouble } from '../KeyFrameAnimatedDouble.js';
 import { TimeDescriptor } from '../TimeDescriptor.js';
 import { InterpolationTypes } from '../../util/AnimationUtility.js';
+import { jest } from '@jest/globals';
 
 /**
  * Test KeyFrameAnimatedDouble basic functionality
@@ -105,13 +106,14 @@ export function testKeyFrameAnimatedDoubleHermiteInterpolation() {
     animated.setCurrentValue(10.0);
     animated.addKeyFrame(new TimeDescriptor(1.0));
     
-    // Test hermite interpolation at t=0.5
-    animated.setValueAtTime(0.5);
+    // Test hermite interpolation at t=0.25 (smoothstep differs from linear here)
+    animated.setValueAtTime(0.25);
     const interpolatedValue = animated.getCurrentValue();
     
     // Hermite interpolation should give smoother curve than linear
     console.assert(interpolatedValue > 0 && interpolatedValue < 10, `Hermite interpolated value should be between 0 and 10, got ${interpolatedValue}`);
-    console.assert(interpolatedValue !== 5.0, 'Hermite interpolation should differ from linear');
+    // Linear at t=0.25 would be 2.5; smoothstep should start slower -> value < 2.5
+    console.assert(interpolatedValue < 2.5, `Hermite (smoothstep) should start slower than linear, got ${interpolatedValue}`);
     
     console.log('✓ KeyFrameAnimatedDouble hermite interpolation tests passed');
 }
@@ -168,12 +170,31 @@ export function testKeyFrameAnimatedDoubleKeyframeDeletion() {
     console.log('✓ KeyFrameAnimatedDouble keyframe deletion tests passed');
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
-    testKeyFrameAnimatedDoubleBasic();
-    testKeyFrameAnimatedDoubleKeyframes();
-    testKeyFrameAnimatedDoubleLinearInterpolation();
-    testKeyFrameAnimatedDoubleHermiteInterpolation();
-    testKeyFrameAnimatedDoubleBoundaryHandling();
-    testKeyFrameAnimatedDoubleKeyframeDeletion();
-}
+// Jest runner (turn legacy console.assert checks into test failures)
+describe('KeyFrameAnimatedDouble (legacy assertions)', () => {
+  /** @type {import('@jest/globals').SpyInstance} */
+  let logSpy;
+  /** @type {import('@jest/globals').SpyInstance} */
+  let assertSpy;
+
+  beforeAll(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    assertSpy = jest.spyOn(console, 'assert').mockImplementation((condition, ...args) => {
+      if (!condition) {
+        throw new Error(args.join(' ') || 'console.assert failed');
+      }
+    });
+  });
+
+  afterAll(() => {
+    logSpy?.mockRestore();
+    assertSpy?.mockRestore();
+  });
+
+  test('basic', () => testKeyFrameAnimatedDoubleBasic());
+  test('keyframes', () => testKeyFrameAnimatedDoubleKeyframes());
+  test('linear interpolation', () => testKeyFrameAnimatedDoubleLinearInterpolation());
+  test('hermite interpolation', () => testKeyFrameAnimatedDoubleHermiteInterpolation());
+  test('boundary handling', () => testKeyFrameAnimatedDoubleBoundaryHandling());
+  test('keyframe deletion', () => testKeyFrameAnimatedDoubleKeyframeDeletion());
+});

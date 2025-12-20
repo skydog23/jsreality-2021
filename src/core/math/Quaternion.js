@@ -569,11 +569,21 @@ export function quaternionToRotationMatrix(rot, qt) {
  */
 export function linearInterpolation(dst, rot1, rot2, s) {
   if (dst === null) dst = new Quaternion();
+
+  // Use normalized linear interpolation (NLERP) in quaternion space.
+  // This is robust and avoids relying on projective interpolation utilities.
   const r1 = rot1.asDouble();
   const r2 = rot2.asDouble();
   if (Rn.innerProduct(r1, r2) < 0) Rn.times(r2, -1.0, r2);
-  const val = Pn.linearInterpolation(null, r1, r2, s, Pn.ELLIPTIC);
-  dst.setValue(val[0], val[1], val[2], val[3]);
+
+  const oneMinus = 1.0 - s;
+  dst.setValue(
+    oneMinus * r1[0] + s * r2[0],
+    oneMinus * r1[1] + s * r2[1],
+    oneMinus * r1[2] + s * r2[2],
+    oneMinus * r1[3] + s * r2[3]
+  );
+  normalize(dst, dst);
   return dst;
 }
 
