@@ -12,6 +12,10 @@
 
 /** @typedef {import('../scene/Viewer.js').Viewer} Viewer */
 
+import { InspectorStylesheetManager } from './InspectorStylesheetManager.js';
+import { DescriptorRenderer } from './descriptors/DescriptorRenderer.js';
+import { DescriptorType } from './descriptors/DescriptorTypes.js';
+
 /**
  * Panel component for displaying rendering statistics
  * Shows frame rate, points/edges/faces rendered per frame, etc.
@@ -63,6 +67,24 @@ export class RenderStatisticsPanel {
    */
   #lastUpdateTime = 0;
 
+  /** @type {InspectorStylesheetManager} */
+  #stylesheetManager = InspectorStylesheetManager.getInstance();
+
+  /** @type {DescriptorRenderer|null} */
+  #descriptorRenderer = null;
+
+  /**
+   * Cached snapshot of viewer statistics (updated on a throttle).
+   * @type {{pointsRendered: number, edgesRendered: number, facesRendered: number, totalPrimitives: number, renderCallCount: number}}
+   */
+  #stats = {
+    pointsRendered: 0,
+    edgesRendered: 0,
+    facesRendered: 0,
+    totalPrimitives: 0,
+    renderCallCount: 0
+  };
+
   /**
    * Create a new RenderStatisticsPanel
    * @param {HTMLElement} container - The container element
@@ -71,6 +93,7 @@ export class RenderStatisticsPanel {
   constructor(container, viewer = null) {
     this.#container = container;
     this.#viewer = viewer;
+    this.#stylesheetManager.acquire();
     this.#initializeUI();
   }
 
@@ -87,11 +110,52 @@ export class RenderStatisticsPanel {
     this.#statsContainer.className = 'sg-statistics-panel';
     this.#container.appendChild(this.#statsContainer);
 
-    // Inject styles if not already present
-    this.#injectStyles();
-
-    // Initial render
-    this.#updateDisplay();
+    // Render descriptor-based UI once. Individual fields update via LIVE_LABEL widgets.
+    this.#descriptorRenderer = new DescriptorRenderer(this.#statsContainer);
+    this.#descriptorRenderer.render([
+      {
+        key: 'render-stats',
+        title: '',
+        items: [
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Frame Rate',
+            updateIntervalMs: 200,
+            getValue: () => `${this.#calculateFrameRate().toFixed(1)} FPS`
+          },
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Points',
+            updateIntervalMs: 200,
+            getValue: () => this.#formatInt(this.#stats.pointsRendered)
+          },
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Edges',
+            updateIntervalMs: 200,
+            getValue: () => this.#formatInt(this.#stats.edgesRendered)
+          },
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Faces',
+            updateIntervalMs: 200,
+            getValue: () => this.#formatInt(this.#stats.facesRendered)
+          },
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Total Primitives',
+            updateIntervalMs: 200,
+            getValue: () => this.#formatInt(this.#stats.totalPrimitives)
+          },
+          {
+            type: DescriptorType.LIVE_LABEL,
+            label: 'Render Calls',
+            updateIntervalMs: 200,
+            getValue: () => this.#formatInt(this.#stats.renderCallCount)
+          }
+        ]
+      }
+    ]);
   }
 
   /**
@@ -100,6 +164,12 @@ export class RenderStatisticsPanel {
    */
   setViewer(viewer) {
     this.#viewer = viewer;
+  }
+
+  #formatInt(value) {
+    const num = Number(value ?? 0);
+    if (Number.isNaN(num)) return '0';
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
 
   /**
@@ -143,7 +213,7 @@ export class RenderStatisticsPanel {
 
     // Update display at throttled rate
     if (currentTime - this.#lastUpdateTime >= this.#updateInterval) {
-      this.#updateDisplay();
+      this.#updateStats();
       this.#lastUpdateTime = currentTime;
     }
 
@@ -165,120 +235,23 @@ export class RenderStatisticsPanel {
    * Update the display with current statistics
    * @private
    */
-  #updateDisplay() {
-    const frameRate = this.#calculateFrameRate();
-    
-    let stats = {
-      frameRate: frameRate,
-      pointsRendered: 0,
-      edgesRendered: 0,
-      facesRendered: 0,
-      totalPrimitives: 0,
-      renderCallCount: 0
-    };
-
+  #updateStats() {
     // Get statistics from viewer if available
     if (this.#viewer && typeof this.#viewer.getRenderStatistics === 'function') {
       const viewerStats = this.#viewer.getRenderStatistics();
-      stats.pointsRendered = viewerStats.pointsRendered || 0;
-      stats.edgesRendered = viewerStats.edgesRendered || 0;
-      stats.facesRendered = viewerStats.facesRendered || 0;
-      stats.renderCallCount = viewerStats.renderCallCount || 0;
-      stats.totalPrimitives = stats.pointsRendered + stats.edgesRendered + stats.facesRendered;
+      this.#stats.pointsRendered = viewerStats.pointsRendered || 0;
+      this.#stats.edgesRendered = viewerStats.edgesRendered || 0;
+      this.#stats.facesRendered = viewerStats.facesRendered || 0;
+      this.#stats.renderCallCount = viewerStats.renderCallCount || 0;
+      this.#stats.totalPrimitives =
+        this.#stats.pointsRendered + this.#stats.edgesRendered + this.#stats.facesRendered;
+    } else {
+      this.#stats.pointsRendered = 0;
+      this.#stats.edgesRendered = 0;
+      this.#stats.facesRendered = 0;
+      this.#stats.totalPrimitives = 0;
+      this.#stats.renderCallCount = 0;
     }
-
-    // Format numbers with commas
-    const formatNumber = (num) => {
-      return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
-    };
-
-    // Update HTML
-    this.#statsContainer.innerHTML = `
-      <div class="sg-statistics-header">Rendering Statistics</div>
-      <div class="sg-statistics-content">
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Frame Rate:</span>
-          <span class="sg-stat-value">${frameRate.toFixed(1)} FPS</span>
-        </div>
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Points:</span>
-          <span class="sg-stat-value">${formatNumber(stats.pointsRendered)}</span>
-        </div>
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Edges:</span>
-          <span class="sg-stat-value">${formatNumber(stats.edgesRendered)}</span>
-        </div>
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Faces:</span>
-          <span class="sg-stat-value">${formatNumber(stats.facesRendered)}</span>
-        </div>
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Total Primitives:</span>
-          <span class="sg-stat-value">${formatNumber(stats.totalPrimitives)}</span>
-        </div>
-        <div class="sg-stat-row">
-          <span class="sg-stat-label">Render Calls:</span>
-          <span class="sg-stat-value">${formatNumber(stats.renderCallCount)}</span>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Inject CSS styles
-   * @private
-   */
-  #injectStyles() {
-    if (document.getElementById('sg-statistics-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'sg-statistics-styles';
-    style.textContent = `
-      .sg-statistics-panel {
-        padding: 16px;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 13px;
-        color: #cccccc;
-        background: #1e1e1e;
-        height: 100%;
-        overflow-y: auto;
-      }
-      
-      .sg-statistics-header {
-        font-size: 14px;
-        font-weight: 600;
-        margin-bottom: 16px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #3e3e3e;
-        color: #ffffff;
-      }
-      
-      .sg-statistics-content {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      
-      .sg-stat-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-      }
-      
-      .sg-stat-label {
-        color: #858585;
-        font-weight: 500;
-      }
-      
-      .sg-stat-value {
-        color: #ffffff;
-        font-weight: 600;
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-        font-size: 13px;
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   /**
@@ -286,9 +259,12 @@ export class RenderStatisticsPanel {
    */
   destroy() {
     this.stop();
+    this.#descriptorRenderer?.dispose();
+    this.#descriptorRenderer = null;
     if (this.#statsContainer) {
       this.#statsContainer.innerHTML = '';
     }
+    this.#stylesheetManager.release();
   }
 }
 

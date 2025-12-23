@@ -12,6 +12,7 @@
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.ShrinkPanelAggregator');
 
@@ -65,7 +66,7 @@ export class ShrinkPanelAggregator extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'shrink-panel-aggregator',
+      id: PluginIds.SHRINK_PANEL_AGGREGATOR,
       name: 'Shrink Panel Aggregator',
       vendor: 'jsReality',
       version: '1.0.0',
@@ -96,14 +97,14 @@ export class ShrinkPanelAggregator extends JSRPlugin {
     // Request a panel for plugin inspectors using the controller API
     const inspectorContainer = this.#panelSide === 'right'
       ? controller.requestRightPanel({
-          id: 'shrink-panel-aggregator',
+          id: PluginIds.SHRINK_PANEL_AGGREGATOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: this.#fill,
           overflow: 'hidden' // We'll handle scrolling in individual panels
         })
       : controller.requestLeftPanel({
-          id: 'shrink-panel-aggregator',
+          id: PluginIds.SHRINK_PANEL_AGGREGATOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: this.#fill,

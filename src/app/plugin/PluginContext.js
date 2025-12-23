@@ -17,6 +17,9 @@
  * Note: For full Controller-style access (JRViewer pattern), plugins
  * can call getController() to get the PluginController facade.
  */
+
+import { PluginIds } from './PluginIds.js';
+
 export class PluginContext {
   /** @type {import('../JSRViewer.js').JSRViewer} */
   #viewer;
@@ -157,7 +160,10 @@ export class PluginContext {
    * @returns {import('../plugins/MenubarPlugin.js').MenubarPlugin|null} The menubar plugin or null
    */
   getMenubarPlugin() {
-    return this.getPlugin('menubar') || null;
+    // Avoid hard-coded ids; keep in sync with PluginIds.
+    // Note: this module is safe to import here (same folder, no runtime cycles).
+    // eslint-disable-next-line no-use-before-define
+    return this.getPlugin(PluginIds.MENUBAR) || null;
   }
 
   /**

@@ -694,6 +694,22 @@ export class JSRViewer {
   }
 
   /**
+   * Get render statistics from the currently selected viewer backend.
+   *
+   * Used by the inspector statistics panel. Concrete viewer implementations
+   * (Canvas2D/WebGL2D/SVG) inherit this API from Abstract2DViewer.
+   *
+   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
+   */
+  getRenderStatistics() {
+    const viewer = this.#viewerSwitch?.getCurrentViewer?.();
+    if (viewer && typeof viewer.getRenderStatistics === 'function') {
+      return viewer.getRenderStatistics();
+    }
+    return { renderCallCount: 0, pointsRendered: 0, edgesRendered: 0, facesRendered: 0 };
+  }
+
+  /**
    * Render asynchronously.
    */
   renderAsync() {
@@ -1198,6 +1214,17 @@ export class JSRViewer {
    */
   requestTopPanel(config = {}) {
     return this.getController().requestTopPanel(config);
+  }
+
+  /**
+   * Request a bottom panel (wide, short panels such as animation timeline).
+   * Convenience wrapper around PluginController.requestBottomPanel.
+   *
+   * @param {Object} [config]
+   * @returns {HTMLElement}
+   */
+  requestBottomPanel(config = {}) {
+    return this.getController().requestBottomPanel(config);
   }
 
   /**

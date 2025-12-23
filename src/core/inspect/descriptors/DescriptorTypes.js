@@ -23,6 +23,11 @@ export const DescriptorType = Object.freeze({
   BUTTON: 'button',
   LABEL: 'label',
   /**
+   * Like LABEL, but the renderer keeps the displayed text in sync by polling
+   * `getValue()` (without re-rendering the whole descriptor group).
+   */
+  LIVE_LABEL: 'live_label',
+  /**
    * Layout-only container for nested descriptors.
    * Renderers can use this to arrange child descriptors in rows/columns.
    */
@@ -59,6 +64,15 @@ export const DescriptorType = Object.freeze({
 
 /**
  * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.LIVE_LABEL,
+ *   getValue: () => string,
+ *   // Poll interval for updating the label text (ms). Defaults to 200ms.
+ *   updateIntervalMs?: number
+ * }} LiveLabelDescriptor
+ */
+
+/**
+ * @typedef {DescriptorCommon & {
  *   options: Array<{ value: string|number, label: string }>,
  *   getValue: () => string|number,
  *   setValue?: (value: string|number) => void
@@ -70,15 +84,20 @@ export const DescriptorType = Object.freeze({
  *   type: typeof DescriptorType.TEXT_SLIDER,
  *   getValue: () => number,
  *   setValue?: (value: number) => void,
- *   min?: number,
- *   max?: number,
+ *   // Bounds can be static numbers or computed lazily.
+ *   // (Useful for animation time sliders where tmax depends on keyframes.)
+ *   min?: number | (() => number),
+ *   max?: number | (() => number),
  *   step?: number,
  *   // For future UI: log vs linear slider mapping.
  *   scale?: 'linear' | 'log',
  *   // For future UI: show min/max buttons like Java TextSlider.
  *   showMinMaxButtons?: boolean,
  *   // For future UI: decimal formatting control.
- *   fractionDigits?: number
+ *   fractionDigits?: number,
+ *   // Optional polling interval (ms) for keeping UI in sync with external updates.
+ *   // Defaults to 200ms when omitted.
+ *   updateIntervalMs?: number
  * }} TextSliderDescriptor
  */
 
@@ -111,7 +130,7 @@ export const DescriptorType = Object.freeze({
  */
 
 /**
- * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | TextSliderDescriptor | ButtonDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
+ * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | TextSliderDescriptor | ButtonDescriptor | LiveLabelDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
  */
 
 /**
@@ -121,9 +140,6 @@ export const DescriptorType = Object.freeze({
  * @param {InspectorDescriptor} descriptor
  * @returns {InspectorDescriptor}
  */
-// Counter for auto-generating keys
-let keyCounter = 0;
-
 export function normalizeDescriptor(descriptor) {
   if (!descriptor || typeof descriptor !== 'object') {
     throw new Error('normalizeDescriptor requires a descriptor object');
@@ -133,7 +149,10 @@ export function normalizeDescriptor(descriptor) {
   }
   
   // Auto-generate key if missing
-  const key = descriptor.key || `descriptor-${++keyCounter}`;
+  if (typeof normalizeDescriptor.__jsrCounter !== 'number') {
+    normalizeDescriptor.__jsrCounter = 0;
+  }
+  const key = descriptor.key || `descriptor-${++normalizeDescriptor.__jsrCounter}`;
   
   const normalized = {
     key,
@@ -153,9 +172,6 @@ export function normalizeDescriptor(descriptor) {
  * @param {DescriptorGroup} group
  * @returns {DescriptorGroup}
  */
-// Counter for auto-generating group keys
-let groupKeyCounter = 0;
-
 export function normalizeGroup(group) {
   if (!group || typeof group !== 'object') {
     throw new Error('normalizeGroup requires a group definition');
@@ -166,7 +182,10 @@ export function normalizeGroup(group) {
   const items = group.items.map((item) => normalizeDescriptor(item));
   
   // Auto-generate key if missing
-  const key = group.key || `group-${++groupKeyCounter}`;
+  if (typeof normalizeGroup.__jsrCounter !== 'number') {
+    normalizeGroup.__jsrCounter = 0;
+  }
+  const key = group.key || `group-${++normalizeGroup.__jsrCounter}`;
   
   return {
     key,

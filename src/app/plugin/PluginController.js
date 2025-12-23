@@ -198,6 +198,36 @@ export class PluginController {
   }
 
   /**
+   * Request a bottom panel slot (wide, short panels such as an animation timeline).
+   *
+   * @param {PanelSlotConfig} [config={}] - Panel configuration
+   * @returns {HTMLElement} The panel container element
+   */
+  requestBottomPanel(config = {}) {
+    const slotId = config.id || 'default';
+    const cacheKey = `bottom:${slotId}`;
+
+    if (this.#panelSlots.has(cacheKey)) {
+      return this.#panelSlots.get(cacheKey);
+    }
+
+    const slot = this.#layoutManager.requestRegion('bottom', {
+      id: slotId,
+      initialSize: config.initialSize ?? 180,
+      minSize: config.minSize ?? 120,
+      fill: config.fill ?? true,
+      overflow: config.overflow ?? 'auto',
+      padding: config.padding ?? '8px'
+    });
+
+    this.#panelSlots.set(cacheKey, slot);
+    this.#panelVisibility.bottom = true;
+
+    logger.fine(`Bottom panel slot created: ${slotId}`);
+    return slot;
+  }
+
+  /**
    * Request a right side panel slot.
    * 
    * @param {PanelSlotConfig} [config={}] - Panel configuration

@@ -23,8 +23,8 @@ import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
 import { AppMenuPlugin } from './plugins/AppMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
-import { LoggingInspectorPlugin } from './plugins/LoggingInspectorPlugin.js';
 import { AnimationPlugin } from './plugins/AnimationPlugin.js';
+import { PluginIds } from './plugin/PluginIds.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -104,7 +104,6 @@ export class JSRApp extends JSRPlugin {
         await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
         // Register aggregator second (right panel)
         await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
-        await this.#jsrViewer.registerPlugin(new LoggingInspectorPlugin());
         await this.#jsrViewer.registerPlugin(new AnimationPlugin());
         // Then register ourselves (so we can use aggregator in install())
         await this.#jsrViewer.registerPlugin(this);
@@ -131,7 +130,7 @@ export class JSRApp extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'jsrapp',
+      id: PluginIds.JSRAPP,
       name: this.constructor.name,
       vendor: 'jsReality',
       version: '1.0.0',
@@ -261,12 +260,12 @@ export class JSRApp extends JSRPlugin {
     }
 
     // Get the aggregator plugin
-    const aggregator = context.getPlugin('shrink-panel-aggregator');
+    const aggregator = context.getPlugin(PluginIds.SHRINK_PANEL_AGGREGATOR);
     if (!aggregator || typeof aggregator.registerInspectorPanel !== 'function') {
       // Aggregator not yet registered - this shouldn't happen since we register it first
       // But handle it gracefully by waiting for it
       const unsubscribe = context.on('plugin:installed', (data) => {
-        if (data.plugin && data.plugin.getInfo && data.plugin.getInfo().id === 'shrink-panel-aggregator') {
+        if (data.plugin && data.plugin.getInfo && data.plugin.getInfo().id === PluginIds.SHRINK_PANEL_AGGREGATOR) {
           this.#registerInspectorPanel(context);
           unsubscribe();
         }
@@ -380,7 +379,7 @@ getInspectorDescriptors() {
     
     // Refresh inspector if it exists (plugin may have created it)
     const controller = this.#jsrViewer.getController?.();
-    const inspectorPlugin = controller?.getPlugin?.('scene-graph-inspector') || null;
+    const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
     const inspector = inspectorPlugin?.getInspector?.() || null;
     inspector?.refresh?.();
   }
@@ -391,7 +390,7 @@ getInspectorDescriptors() {
    */
   getInspector() {
     const controller = this.#jsrViewer.getController?.();
-    const inspectorPlugin = controller?.getPlugin?.('scene-graph-inspector') || null;
+    const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
     return inspectorPlugin?.getInspector?.() || null;
   }
 

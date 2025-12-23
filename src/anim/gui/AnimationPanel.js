@@ -13,6 +13,9 @@ import { SortedKeyFrameList } from '../core/SortedKeyFrameList.js';
 import { TimeDescriptor } from '../core/TimeDescriptor.js';
 import { PlaybackModes } from '../util/AnimationUtility.js';
 import { AnimationPanelEvent, EventType } from './AnimationPanelEvent.js';
+import { getLogger, Category } from '../../core/util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.anim.gui.AnimationPanel');
 
 /**
  * DOM-free port of charlesgunn.anim.gui.AnimationPanel.
@@ -77,6 +80,21 @@ export class AnimationPanel {
 
   /** dummy value used for keyframes (Java uses a shared Object instance) */
   static dummyObject = {};
+
+  #debugState(label) {
+    return {
+      label,
+      keyFramesSize: this.#keyFrames?.size?.() ?? 0,
+      inspectedKeyFrame: this.#inspectedKeyFrame,
+      currentTime: this.#currentTime,
+      currentKeyFrameTime: this.#currentKeyFrame?.getTime?.() ?? null,
+      tmin: this.#keyFrames?.getTmin?.() ?? null,
+      tmax: this.#keyFrames?.getTmax?.() ?? null,
+      isPaused: this.#isPaused,
+      playbackMode: this.#playbackMode,
+      playbackFactor: this.#playbackFactor
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Listener management
@@ -186,12 +204,16 @@ export class AnimationPanel {
    * Port of InsertKeyAction / insertKeyFrame().
    */
   insertKeyFrame() {
+    logger.fine(Category.ALL, 'insertKeyFrame: begin', this.#debugState('before'));
     /** @type {KeyFrame<any>} */
     let kf;
+    let branch = 'between';
     if (this.#keyFrames.size() === 0) {
       kf = new KeyFrame(new TimeDescriptor(0.0), AnimationPanel.dummyObject);
+      branch = 'empty';
     } else if (this.#keyFrames.size() - 1 === this.#inspectedKeyFrame) {
       kf = new KeyFrame(new TimeDescriptor(this.#keyFrames.getTmax() + 1), AnimationPanel.dummyObject);
+      branch = 'append';
     } else {
       const tm =
         (this.#keyFrames.get(this.#inspectedKeyFrame).getTime() +
@@ -199,12 +221,19 @@ export class AnimationPanel {
         0.5;
       kf = new KeyFrame(new TimeDescriptor(tm), AnimationPanel.dummyObject);
     }
+    logger.fine(Category.ALL, 'insertKeyFrame: computed time', {
+      branch,
+      newTime: kf.getTime?.(),
+      inspectedKeyFrame: this.#inspectedKeyFrame
+    });
     this.#keyFrames.sortedInsert(kf);
     this.#inspectedKeyFrame = this.#keyFrames.indexOf(kf);
     this.#currentKeyFrame = kf;
     this.setCurrentTime(kf.getTime());
+    logger.fine(Category.ALL, 'insertKeyFrame: inserted', this.#debugState('after-insert'));
     this.#fireEvent(new AnimationPanelEvent(EventType.KEY_FRAME_ADDED, this, kf.getTimeDescriptor(), kf));
     this.inspectKeyFrame();
+    logger.fine(Category.ALL, 'insertKeyFrame: end', this.#debugState('after-inspect'));
   }
 
   /**
@@ -212,11 +241,24 @@ export class AnimationPanel {
    * (Listeners use this to overwrite values at this keyframe.)
    */
   saveKeyFrame() {
+    logger.fine(Category.ALL, 'saveKeyFrame: begin', this.#debugState('before'));
     if (this.#keyFrames.size() === 0 || !this.#currentKeyFrame) {
+      logger.fine(
+        Category.ALL,
+        'saveKeyFrame: no current keyframe; delegating to insertKeyFrame()',
+        this.#debugState('delegating')
+      );
       this.insertKeyFrame();
       return;
     }
+    const oldTime = this.#currentKeyFrame.getTime?.();
     this.#currentKeyFrame.setTime(this.#currentTime);
+    logger.fine(Category.ALL, 'saveKeyFrame: updated keyframe time', {
+      oldTime,
+      newTime: this.#currentTime,
+      inspectedKeyFrame: this.#inspectedKeyFrame,
+      keyFramesSize: this.#keyFrames.size()
+    });
     this.#fireEvent(
       new AnimationPanelEvent(
         EventType.KEY_FRAME_CHANGED,
@@ -226,6 +268,7 @@ export class AnimationPanel {
       )
     );
     this.inspectKeyFrame();
+    logger.fine(Category.ALL, 'saveKeyFrame: end', this.#debugState('after'));
   }
 
   /**

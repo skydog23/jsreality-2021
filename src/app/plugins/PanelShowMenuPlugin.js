@@ -11,6 +11,7 @@
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.PanelShowMenuPlugin');
 
@@ -30,12 +31,12 @@ export class PanelShowMenuPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'panel-show-menu',
+      id: PluginIds.PANEL_SHOW_MENU,
       name: 'Panel Show Menu',
       vendor: 'jsReality',
       version: '1.0.0',
       description: 'Adds checkboxes to View menu for showing/hiding panels',
-      dependencies: ['menubar']  // Requires MenubarPlugin
+      dependencies: [PluginIds.MENUBAR]  // Requires MenubarPlugin
     };
   }
 

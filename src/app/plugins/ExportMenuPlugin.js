@@ -16,6 +16,7 @@ import { getLogger } from '../../core/util/LoggingSystem.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import { DescriptorUtility } from '../../core/inspect/descriptors/DescriptorUtility.js';
 import { ModalOverlay } from '../ui/ModalOverlay.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.ExportMenuPlugin');
 
@@ -34,12 +35,12 @@ export class ExportMenuPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'export-menu',
+      id: PluginIds.EXPORT_MENU,
       name: 'Export Menu',
       vendor: 'jsReality',
       version: '1.0.0',
       description: 'Adds export functionality to the File menu',
-      dependencies: ['menubar']  // Requires MenubarPlugin
+      dependencies: [PluginIds.MENUBAR]  // Requires MenubarPlugin
     };
   }
 

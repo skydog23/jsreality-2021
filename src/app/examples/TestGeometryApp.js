@@ -281,7 +281,7 @@ function initGridFactory(parent) {
         // miscComponent.getTransformation().setMatrix(matrix);
     
          ap.setAttribute(CommonAttributes.POINT_SHADER + '.' + CommonAttributes.POINT_RADIUS, .003);
-        ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .00125);
+        ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .0125);
       }
       parent.addChild(miscComponent);
       components.push(miscComponent);

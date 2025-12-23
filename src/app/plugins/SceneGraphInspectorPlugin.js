@@ -10,8 +10,9 @@
  */
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
-import { SceneGraphInspector } from '../../core/inspect/SceneGraphInspector.js';
+import { TabbedInspector } from '../../core/inspect/TabbedInspector.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.SceneGraphInspectorPlugin');
 
@@ -25,7 +26,7 @@ const logger = getLogger('jsreality.app.plugins.SceneGraphInspectorPlugin');
  * 4. Adds menu items for inspector controls
  */
 export class SceneGraphInspectorPlugin extends JSRPlugin {
-  /** @type {import('../../core/inspect/SceneGraphInspector.js').SceneGraphInspector|null} */
+  /** @type {import('../../core/inspect/TabbedInspector.js').TabbedInspector|null} */
   #inspector = null;
 
   /** @type {Function|null} */
@@ -61,7 +62,7 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'scene-graph-inspector',
+      id: PluginIds.SCENE_GRAPH_INSPECTOR,
       name: 'Scene Graph Inspector',
       vendor: 'jsReality',
       version: '1.0.0',
@@ -93,14 +94,14 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
     // Use the configured side (left or right)
     const inspectorContainer = this.#panelSide === 'right'
       ? controller.requestRightPanel({
-          id: 'scene-graph-inspector',
+          id: PluginIds.SCENE_GRAPH_INSPECTOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: true,
           overflow: 'auto'
         })
       : controller.requestLeftPanel({
-          id: 'scene-graph-inspector',
+          id: PluginIds.SCENE_GRAPH_INSPECTOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: true,
@@ -128,16 +129,16 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
       controller.render();
     };
 
-    this.#inspector = new SceneGraphInspector(inspectorContainer, sceneRoot, {
+    this.#inspector = new TabbedInspector(inspectorContainer, sceneRoot, viewer, {
       onRender: renderCallback
     });
 
     if (!this.#inspector) {
-      logger.severe('Failed to create SceneGraphInspector instance!');
-      throw new Error('Failed to create SceneGraphInspector');
+      logger.severe('Failed to create TabbedInspector instance!');
+      throw new Error('Failed to create TabbedInspector');
     }
 
-    logger.info('SceneGraphInspector instance created');
+    logger.info('TabbedInspector instance created');
 
     // Set up refresh handler
     const refreshInspector = () => {
@@ -174,7 +175,10 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
       this.#unsubscribeSceneChanged = null;
     }
 
-    this.#inspector = null;
+    if (this.#inspector) {
+      this.#inspector.destroy();
+      this.#inspector = null;
+    }
 
     await super.uninstall();
     logger.info('SceneGraphInspector cleaned up');
@@ -214,6 +218,14 @@ export class SceneGraphInspectorPlugin extends JSRPlugin {
    * @returns {SceneGraphInspector|null}
    */
   getInspector() {
+    return this.#inspector?.getSceneGraphInspector?.() ?? null;
+  }
+
+  /**
+   * Get the underlying TabbedInspector instance.
+   * @returns {import('../../core/inspect/TabbedInspector.js').TabbedInspector|null}
+   */
+  getTabbedInspector() {
     return this.#inspector;
   }
 

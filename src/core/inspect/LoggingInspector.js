@@ -74,11 +74,12 @@ export class LoggingInspector {
 
   /**
    * @param {HTMLElement} container - Container element for the inspector UI
+   * @param {{ title?: string }} [options] - Optional configuration (omit/empty title hides header)
    */
-  constructor(container) {
+  constructor(container, options = {}) {
     this.#container = container;
     this.#uiManager = new UIManager(container);
-    const { treeView, propertyPanel } = this.#uiManager.initializeUI('Loggers');
+    const { treeView, propertyPanel } = this.#uiManager.initializeUI(options.title ?? 'Loggers');
     this.#propertyPanel = propertyPanel;
     this.#descriptorRenderer = new DescriptorRenderer(propertyPanel);
 

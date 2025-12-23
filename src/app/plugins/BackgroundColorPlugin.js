@@ -13,6 +13,7 @@ import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { Color } from '../../core/util/Color.js';
 import { Appearance } from '../../core/scene/Appearance.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 /**
  * Plugin for controlling scene background color.
@@ -37,7 +38,7 @@ export class BackgroundColorPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'background-color',
+      id: PluginIds.BACKGROUND_COLOR,
       name: 'Background Color',
       vendor: 'jsReality',
       version: '1.0.0',

@@ -4,6 +4,7 @@
  */
 
 import { DescriptorType, normalizeDescriptor } from './DescriptorTypes.js';
+import { textSliderWidgetFactory } from './widgets/TextSliderWidget.js';
 
 /**
  * @typedef {(descriptor: import('./DescriptorTypes.js').InspectorDescriptor, context: WidgetContext) => HTMLElement} WidgetFactoryFn
@@ -64,10 +65,11 @@ export class WidgetCatalog {
     catalog.register(DescriptorType.TEXT, textFactory);
     catalog.register(DescriptorType.BUTTON, buttonFactory);
     catalog.register(DescriptorType.LABEL, labelFactory);
+    catalog.register(DescriptorType.LIVE_LABEL, liveLabelFactory);
     catalog.register(DescriptorType.ENUM, enumFactory);
-    // Phase 1: TEXT_SLIDER is rendered as a numeric text field.
-    // Phase 2: replace with a real slider+text widget.
-    catalog.register(DescriptorType.TEXT_SLIDER, textSliderFactory);
+    catalog.register(DescriptorType.TEXT_SLIDER, (descriptor, context) =>
+      textSliderWidgetFactory(descriptor, context, createRow, formatNumber, normalizeDecimalString)
+    );
     catalog.register(DescriptorType.VECTOR, vectorFactory);
     catalog.register(DescriptorType.CONTAINER, containerFactory);
     return catalog;
@@ -177,39 +179,6 @@ function numericInputFactory(inputType, overrides = {}) {
   };
 }
 
-/**
- * Placeholder TextSlider widget factory.
- * Phase 1: uses the same UI as a numeric input field.
- */
-function textSliderFactory(descriptor) {
-  const wrapper = createRow(descriptor);
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.inputMode = 'decimal';
-  input.className = 'inspector-input inspector-input--number';
-  const fractionDigits = descriptor.fractionDigits ?? 4;
-  input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
-  if (descriptor.min !== undefined) input.min = descriptor.min;
-  if (descriptor.max !== undefined) input.max = descriptor.max;
-  if (descriptor.step !== undefined) input.step = descriptor.step;
-  if (descriptor.readonly || descriptor.disabled || !descriptor.setValue) {
-    input.disabled = true;
-  }
-  input.addEventListener('change', () => {
-    if (!descriptor.setValue) return;
-    const normalized = normalizeDecimalString(input.value);
-    const rawValue = parseFloat(normalized);
-    if (Number.isNaN(rawValue)) {
-      input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
-      return;
-    }
-    descriptor.setValue(rawValue);
-    input.value = formatNumber(descriptor.getValue?.(), fractionDigits);
-  });
-  wrapper.value.appendChild(input);
-  return wrapper.root;
-}
-
 function toggleFactory(descriptor) {
   const wrapper = createRow(descriptor);
   const input = document.createElement('input');
@@ -285,6 +254,44 @@ function labelFactory(descriptor) {
   const span = document.createElement('span');
   span.textContent = descriptor.getValue?.() ?? '';
   wrapper.value.appendChild(span);
+  return wrapper.root;
+}
+
+function liveLabelFactory(descriptor, context) {
+  const wrapper = createRow(descriptor);
+  const span = document.createElement('span');
+  wrapper.value.appendChild(span);
+
+  let lastText = null;
+  const readText = () => {
+    try {
+      return descriptor.getValue?.() ?? '';
+    } catch (e) {
+      // Avoid throwing from a polling loop; show a stable fallback.
+      return '';
+    }
+  };
+
+  const update = () => {
+    const nextText = String(readText());
+    if (nextText !== lastText) {
+      span.textContent = nextText;
+      lastText = nextText;
+    }
+  };
+
+  update();
+
+  const intervalMs =
+    typeof descriptor.updateIntervalMs === 'number' && descriptor.updateIntervalMs > 0
+      ? descriptor.updateIntervalMs
+      : 200;
+  const intervalId = setInterval(update, intervalMs);
+
+  if (context?.registerCleanup) {
+    context.registerCleanup(() => clearInterval(intervalId));
+  }
+
   return wrapper.root;
 }
 

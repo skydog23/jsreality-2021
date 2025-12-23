@@ -103,6 +103,7 @@ export class SceneGraphInspector {
    * @param {SceneGraphComponent} root - The root scene graph component
    * @param {Object} [options] - Configuration options
    * @param {Function} [options.onRender] - Callback to trigger render when properties change
+ * @param {string} [options.title] - Optional title for the tree header (omit/empty to hide)
    */
   constructor(container, root = null, options = {}) {
     this.#container = container;
@@ -110,7 +111,7 @@ export class SceneGraphInspector {
     
     // Initialize managers
     this.#uiManager = new UIManager(container);
-    const { treeView, propertyPanel } = this.#uiManager.initializeUI('Scene Graph');
+    const { treeView, propertyPanel } = this.#uiManager.initializeUI(options.title ?? 'Scene Graph');
     
     this.#widgetFactory = new WidgetFactory();
     

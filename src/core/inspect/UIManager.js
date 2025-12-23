@@ -52,7 +52,7 @@ export class UIManager {
   
   /**
    * Initialize the inspector UI.
-   * @param {string} [title='Scene Graph'] - Title for the tree view header
+   * @param {string} [title='Scene Graph'] - Title for the tree view header (omit/empty to hide header)
    * @returns {{treeView: HTMLElement, propertyPanel: HTMLElement}}
    */
   initializeUI(title = 'Scene Graph') {
@@ -67,14 +67,16 @@ export class UIManager {
     const treePanel = document.createElement('div');
     treePanel.className = 'sg-tree-panel';
     
-    const treeHeader = document.createElement('div');
-    treeHeader.className = 'sg-panel-header';
-    treeHeader.textContent = title;
-    
     this.#treeView = document.createElement('div');
     this.#treeView.className = 'sg-tree-view';
     
-    treePanel.appendChild(treeHeader);
+    // Optional header (tabs already provide context in some UIs)
+    if (title) {
+      const treeHeader = document.createElement('div');
+      treeHeader.className = 'sg-panel-header';
+      treeHeader.textContent = title;
+      treePanel.appendChild(treeHeader);
+    }
     treePanel.appendChild(this.#treeView);
     
     // Create resizable divider

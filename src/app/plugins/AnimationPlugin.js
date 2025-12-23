@@ -31,6 +31,7 @@ import { InterpolationTypes, PlaybackModes } from '../../anim/util/AnimationUtil
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { AnimationPanel } from '../../anim/gui/AnimationPanel.js';
 import { AnimationPanelListenerImpl } from '../../anim/gui/AnimationPanelListenerImpl.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.AnimationPlugin');
 
@@ -71,7 +72,7 @@ export class AnimationPlugin extends JSRPlugin {
 
   getInfo() {
     return {
-      id: 'animation',
+      id: PluginIds.ANIMATION,
       name: 'Animation',
       vendor: 'Charles Gunn',
       version: '1.0.0',
@@ -318,6 +319,11 @@ export class AnimationPlugin extends JSRPlugin {
         type: DescriptorType.TEXT_SLIDER,
         label: 't',
         min: 0,
+        max: () => {
+          const kf = this.#ap?.getKeyFrames?.();
+          const tmax = kf?.getTmax?.();
+          return Number.isFinite(tmax) ? tmax : 1;
+        },
         step: 0.01,
         getValue: () => this.#ap?.getCurrentTime?.() ?? 0,
         setValue: (v) => this.#ap?.scrubTime?.(v)
@@ -431,39 +437,29 @@ export class AnimationPlugin extends JSRPlugin {
     });
     this.#ap?.addAnimationPanelListener?.(this.#animPanelListener);
 
-    // Register shrink-panel UI with aggregator (similar to JSRApp.#registerInspectorPanel)
-    const registerPanel = () => {
-      const aggregator = context.getPlugin('shrink-panel-aggregator');
-      if (!aggregator || typeof aggregator.registerInspectorPanel !== 'function') {
-        return false;
+    // Register a wide "timeline-style" UI in the bottom panel slot.
+    const bottomSlot = controller.requestBottomPanel({
+      id: this.getInfo().id,
+      initialSize: 200,
+      minSize: 120,
+      overflow: 'auto',
+      padding: '8px'
+    });
+    bottomSlot.innerHTML = '';
+    const descriptors = this.#getInspectorDescriptors();
+    const panel = DescriptorUtility.createDefaultInspectorPanel(
+      'Animation',
+      descriptors,
+      {
+        id: this.getInfo().id,
+        icon: '🎞️',
+        collapsed: false,
+        // Ensure changes get a render pass.
+        onPropertyChange: () => controller.render()
       }
-
-      const descriptors = this.#getInspectorDescriptors();
-      const panel = DescriptorUtility.createDefaultInspectorPanel(
-        'Animation',
-        descriptors,
-        {
-          id: this.getInfo().id,
-          icon: '🎞️',
-          collapsed: false,
-          // Ensure changes get a render pass.
-          onPropertyChange: () => controller.render()
-        }
-      );
-      this.#panel = panel;
-      aggregator.registerInspectorPanel(this.getInfo().id, panel);
-      return true;
-    };
-
-    if (!registerPanel()) {
-      // Aggregator not yet registered (should be rare). Wait and retry.
-      const unsubscribe = context.on('plugin:installed', (data) => {
-        if (data?.plugin?.getInfo?.().id === 'shrink-panel-aggregator') {
-          registerPanel();
-          unsubscribe();
-        }
-      });
-    }
+    );
+    this.#panel = panel;
+    bottomSlot.appendChild(panel);
 
     // Content change wiring (Java: ContentChangedListener)
     this.#unsubscribeSceneChanged = controller.on('scene:changed', () => {
@@ -489,10 +485,8 @@ export class AnimationPlugin extends JSRPlugin {
       this.#unsubscribeSceneChanged = null;
     }
 
-    // Unregister panel from aggregator (if present)
-    const aggregator = this.context?.getPlugin?.('shrink-panel-aggregator');
-    if (aggregator && typeof aggregator.unregisterInspectorPanel === 'function') {
-      aggregator.unregisterInspectorPanel(this.getInfo().id);
+    if (this.#panel && this.#panel.parentNode) {
+      this.#panel.parentNode.removeChild(this.#panel);
     }
     this.#panel = null;
     this.#descriptorRenderer = null;

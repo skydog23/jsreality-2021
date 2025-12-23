@@ -18,6 +18,7 @@
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { LoggingInspector } from '../../core/inspect/LoggingInspector.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.LoggingInspectorPlugin');
 
@@ -53,7 +54,7 @@ export class LoggingInspectorPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'logging-inspector',
+      id: PluginIds.LOGGING_INSPECTOR,
       name: 'Logging Inspector',
       vendor: 'jsReality',
       version: '1.0.0',
@@ -81,14 +82,14 @@ export class LoggingInspectorPlugin extends JSRPlugin {
 
     const container = this.#panelSide === 'left'
       ? controller.requestLeftPanel({
-          id: 'logging-inspector',
+          id: PluginIds.LOGGING_INSPECTOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: true,
           overflow: 'auto'
         })
       : controller.requestRightPanel({
-          id: 'logging-inspector',
+          id: PluginIds.LOGGING_INSPECTOR,
           initialSize: this.#initialSize,
           minSize: this.#minSize,
           fill: true,

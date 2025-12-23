@@ -15,6 +15,9 @@ export class PluginLayoutManager {
   #topRegion;
 
   /** @type {HTMLElement} */
+  #bottomRegion;
+
+  /** @type {HTMLElement} */
   #mainRegion;
 
   /** @type {HTMLElement} */
@@ -53,7 +56,7 @@ export class PluginLayoutManager {
 
   /**
    * Request a layout region for a plugin or system component.
-   * Currently supported regions: 'top', 'left', 'right'.
+   * Currently supported regions: 'top', 'bottom', 'left', 'right'.
    *
    * @param {string} regionName
    * @param {Object} [options]
@@ -74,6 +77,9 @@ export class PluginLayoutManager {
     switch (regionName) {
       case 'top':
         slot = this.#createTopSlot(options);
+        break;
+      case 'bottom':
+        slot = this.#createBottomSlot(options);
         break;
       case 'left':
         slot = this.#createLeftSlot(options);
@@ -114,6 +120,16 @@ export class PluginLayoutManager {
     this.#topRegion.style.background = '#252526';
     this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
 
+    // Bottom region for wide, short panels (e.g., animation timeline).
+    this.#bottomRegion = document.createElement('div');
+    this.#bottomRegion.className = 'jsr-layout-bottom';
+    this.#bottomRegion.style.display = 'none';
+    this.#bottomRegion.style.flex = '0 0 auto';
+    this.#bottomRegion.style.width = '100%';
+    this.#bottomRegion.style.background = '#1e1e1e';
+    this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
+    this.#bottomRegion.style.overflow = 'hidden';
+
     // Main region (vertical flex)
     this.#mainRegion = document.createElement('div');
     this.#mainRegion.className = 'jsr-layout-main';
@@ -149,6 +165,7 @@ export class PluginLayoutManager {
     this.#container.appendChild(this.#topRegion);
     this.#container.appendChild(this.#mainRegion);
     this.#mainRegion.appendChild(this.#contentContainer);
+    this.#container.appendChild(this.#bottomRegion);
   }
 
   /**
@@ -168,6 +185,27 @@ export class PluginLayoutManager {
     slot.style.boxSizing = 'border-box';
 
     this.#topRegion.appendChild(slot);
+    return slot;
+  }
+
+  /**
+   * Ensure the bottom region is visible and return a dedicated slot.
+   * @private
+   */
+  #createBottomSlot(options) {
+    this.#activateBottomRegion(options);
+
+    const slot = document.createElement('div');
+    slot.className = 'jsr-layout-bottom-slot';
+    slot.style.width = '100%';
+    slot.style.height = '100%';
+    slot.style.display = 'flex';
+    slot.style.flexDirection = 'column';
+    slot.style.boxSizing = 'border-box';
+    slot.style.overflow = options.overflow || 'auto';
+    slot.style.padding = options.padding ?? '8px';
+
+    this.#bottomRegion.appendChild(slot);
     return slot;
   }
 
@@ -217,6 +255,19 @@ export class PluginLayoutManager {
     if (this.#topRegion.style.display !== 'flex') {
       this.#topRegion.style.display = 'flex';
     }
+  }
+
+  /**
+   * Makes the bottom region visible the first time something requests it.
+   * @private
+   */
+  #activateBottomRegion(options = {}) {
+    const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 180;
+    if (this.#bottomRegion.style.display !== 'flex') {
+      this.#bottomRegion.style.display = 'flex';
+    }
+    this.#bottomRegion.style.height = `${initialSize}px`;
+    this.#bottomRegion.style.flexShrink = '0';
   }
 
   /**
@@ -300,6 +351,10 @@ export class PluginLayoutManager {
         this.#topRegion.style.display = visibility.top ? 'flex' : 'none';
       }
     }
+
+    if (this.#bottomRegion !== null && visibility.bottom !== undefined) {
+      this.#bottomRegion.style.display = visibility.bottom ? 'flex' : 'none';
+    }
     
     // Always ensure top region is visible if it has content, regardless of visibility settings
     // This is a safety check to prevent the menubar from disappearing
@@ -307,6 +362,6 @@ export class PluginLayoutManager {
       if (this.#topRegion.style.display === 'none') {
         this.#topRegion.style.display = 'flex';
       }
+    }
   }
-}
 }

@@ -394,6 +394,60 @@ export class InspectorStylesheetManager {
       .sg-tab-content-active {
         display: block;
       }
+
+      .sg-statistics-panel {
+        padding: 16px;
+        font-size: 13px;
+        color: #cccccc;
+        background: #1e1e1e;
+        height: 100%;
+        overflow-y: auto;
+      }
+
+      .sg-statistics-header {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #3e3e3e;
+        color: #ffffff;
+      }
+
+      .sg-statistics-content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .sg-stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+      }
+
+      .sg-stat-label {
+        color: #858585;
+        font-weight: 500;
+      }
+
+      .sg-stat-value {
+        color: #ffffff;
+        font-weight: 600;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+      }
+
+      .inspector-text-slider__range {
+        width: 100%;
+      }
+
+      .inspector-text-slider__bound {
+        padding: 2px 8px;
+        margin-top: 0;
+        font-size: 10px;
+        line-height: 1.2;
+      }
     `;
   }
 }

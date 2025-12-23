@@ -8,6 +8,7 @@
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { getLogger, Category } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.AppMenuPlugin');
 
@@ -30,12 +31,12 @@ export class AppMenuPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'app-menu',
+      id: PluginIds.APP_MENU,
       name: 'Application Menu',
       vendor: 'jsReality',
       version: '1.0.0',
       description: 'Adds an application-specific menu and About panel',
-      dependencies: ['menubar', 'jsrapp']
+      dependencies: [PluginIds.MENUBAR, PluginIds.JSRAPP]
     };
   }
 
@@ -49,7 +50,7 @@ export class AppMenuPlugin extends JSRPlugin {
     await super.install(viewer, context);
 
     // Determine current app name from the jsrapp plugin
-    const appPlugin = context.getPlugin('jsrapp');
+    const appPlugin = context.getPlugin(PluginIds.JSRAPP);
     this.#appPlugin = appPlugin;
     if (appPlugin) {
       try {

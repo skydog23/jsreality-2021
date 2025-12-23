@@ -14,6 +14,7 @@
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { Menubar } from '../ui/Menubar.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
+import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.MenubarPlugin');
 
@@ -59,7 +60,7 @@ export class MenubarPlugin extends JSRPlugin {
    */
   getInfo() {
     return {
-      id: 'menubar',
+      id: PluginIds.MENUBAR,
       name: 'Menubar',
       vendor: 'jsReality',
       version: '1.0.0',

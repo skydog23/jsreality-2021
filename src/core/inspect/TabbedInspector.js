@@ -8,16 +8,24 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// Tabbed Inspector - Wrapper for SceneGraphInspector with tabs for Scene Graph and Statistics
+// Tabbed Inspector - Wrapper for multiple inspector panels in a tabbed UI.
 
 import { SceneGraphInspector } from './SceneGraphInspector.js';
+import { LoggingInspector } from './LoggingInspector.js';
 import { RenderStatisticsPanel } from './RenderStatisticsPanel.js';
+import { InspectorStylesheetManager } from './InspectorStylesheetManager.js';
 import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
 
 /** @typedef {import('../scene/Viewer.js').Viewer} Viewer */
 
 /**
- * Tabbed inspector panel with Scene Graph and Statistics tabs
+ * @typedef {{
+ *   onRender?: Function
+ * }} TabbedInspectorOptions
+ */
+
+/**
+ * Tabbed inspector panel with Scene Graph, Logging, and Statistics tabs
  */
 export class TabbedInspector {
   /**
@@ -51,6 +59,11 @@ export class TabbedInspector {
   #sceneGraphInspector = null;
 
   /**
+   * @type {LoggingInspector|null}
+   */
+  #loggingInspector = null;
+
+  /**
    * @type {RenderStatisticsPanel|null}
    */
   #statisticsPanel = null;
@@ -59,6 +72,11 @@ export class TabbedInspector {
    * @type {HTMLElement}
    */
   #sceneGraphTab;
+
+  /**
+   * @type {HTMLElement}
+   */
+  #loggingTab;
 
   /**
    * @type {HTMLElement}
@@ -73,6 +91,11 @@ export class TabbedInspector {
   /**
    * @type {HTMLElement}
    */
+  #loggingContent;
+
+  /**
+   * @type {HTMLElement}
+   */
   #statisticsContent;
 
   /**
@@ -80,16 +103,26 @@ export class TabbedInspector {
    */
   #activeTab = 'scene-graph';
 
+  /** @type {InspectorStylesheetManager} */
+  #stylesheetManager = InspectorStylesheetManager.getInstance();
+
+  /** @type {TabbedInspectorOptions} */
+  #sceneGraphOptions = {};
+
   /**
    * Create a new TabbedInspector
    * @param {HTMLElement} container - The container element for the inspector
    * @param {SceneGraphComponent} [root] - The root scene graph component
    * @param {Viewer} [viewer] - Optional viewer reference for statistics
+   * @param {TabbedInspectorOptions} [options] - Options passed to SceneGraphInspector
    */
-  constructor(container, root = null, viewer = null) {
+  constructor(container, root = null, viewer = null, options = {}) {
     this.#container = container;
     this.#root = root;
     this.#viewer = viewer;
+    // In a tabbed context the tab label already provides the panel title, so default to hidden header.
+    this.#sceneGraphOptions = { ...(options || {}), title: options?.title ?? '' };
+    this.#stylesheetManager.acquire();
     this.#initializeUI();
     
     if (root) {
@@ -104,9 +137,6 @@ export class TabbedInspector {
   #initializeUI() {
     // Clear container
     this.#container.innerHTML = '';
-
-    // Inject styles
-    this.#injectStyles();
 
     // Create main container
     const inspectorDiv = document.createElement('div');
@@ -123,6 +153,13 @@ export class TabbedInspector {
     this.#sceneGraphTab.dataset.tab = 'scene-graph';
     this.#sceneGraphTab.addEventListener('click', () => this.#switchTab('scene-graph'));
 
+    // Create Logging tab
+    this.#loggingTab = document.createElement('div');
+    this.#loggingTab.className = 'sg-tab';
+    this.#loggingTab.textContent = 'Logging';
+    this.#loggingTab.dataset.tab = 'logging';
+    this.#loggingTab.addEventListener('click', () => this.#switchTab('logging'));
+
     // Create Statistics tab
     this.#statisticsTab = document.createElement('div');
     this.#statisticsTab.className = 'sg-tab';
@@ -131,6 +168,7 @@ export class TabbedInspector {
     this.#statisticsTab.addEventListener('click', () => this.#switchTab('statistics'));
 
     this.#tabBar.appendChild(this.#sceneGraphTab);
+    this.#tabBar.appendChild(this.#loggingTab);
     this.#tabBar.appendChild(this.#statisticsTab);
 
     // Create content area
@@ -142,12 +180,18 @@ export class TabbedInspector {
     this.#sceneGraphContent.className = 'sg-tab-content sg-tab-content-active';
     this.#sceneGraphContent.id = 'sg-scene-graph-content';
 
+    // Create Logging content container
+    this.#loggingContent = document.createElement('div');
+    this.#loggingContent.className = 'sg-tab-content';
+    this.#loggingContent.id = 'sg-logging-content';
+
     // Create Statistics content container
     this.#statisticsContent = document.createElement('div');
     this.#statisticsContent.className = 'sg-tab-content';
     this.#statisticsContent.id = 'sg-statistics-content';
 
     this.#contentArea.appendChild(this.#sceneGraphContent);
+    this.#contentArea.appendChild(this.#loggingContent);
     this.#contentArea.appendChild(this.#statisticsContent);
 
     // Assemble
@@ -156,7 +200,14 @@ export class TabbedInspector {
     this.#container.appendChild(inspectorDiv);
 
     // Initialize Scene Graph Inspector
-    this.#sceneGraphInspector = new SceneGraphInspector(this.#sceneGraphContent, this.#root);
+    this.#sceneGraphInspector = new SceneGraphInspector(
+      this.#sceneGraphContent,
+      this.#root,
+      this.#sceneGraphOptions
+    );
+
+    // Initialize Logging Inspector
+    this.#loggingInspector = new LoggingInspector(this.#loggingContent, { title: '' });
 
     // Initialize Statistics Panel
     this.#statisticsPanel = new RenderStatisticsPanel(this.#statisticsContent, this.#viewer);
@@ -166,17 +217,19 @@ export class TabbedInspector {
   /**
    * Switch between tabs
    * @private
-   * @param {string} tabName - Name of the tab to switch to ('scene-graph' or 'statistics')
+   * @param {string} tabName - Name of the tab to switch to ('scene-graph', 'logging', or 'statistics')
    */
   #switchTab(tabName) {
     if (this.#activeTab === tabName) return;
 
     // Update tab buttons
     this.#sceneGraphTab.classList.toggle('sg-tab-active', tabName === 'scene-graph');
+    this.#loggingTab.classList.toggle('sg-tab-active', tabName === 'logging');
     this.#statisticsTab.classList.toggle('sg-tab-active', tabName === 'statistics');
 
     // Update content visibility
     this.#sceneGraphContent.classList.toggle('sg-tab-content-active', tabName === 'scene-graph');
+    this.#loggingContent.classList.toggle('sg-tab-content-active', tabName === 'logging');
     this.#statisticsContent.classList.toggle('sg-tab-content-active', tabName === 'statistics');
 
     this.#activeTab = tabName;
@@ -211,6 +264,7 @@ export class TabbedInspector {
     if (this.#sceneGraphInspector) {
       this.#sceneGraphInspector.refresh();
     }
+    this.#loggingInspector?.refresh();
   }
 
   /**
@@ -230,77 +284,11 @@ export class TabbedInspector {
   }
 
   /**
-   * Inject CSS styles
-   * @private
+   * Get the LoggingInspector instance
+   * @returns {LoggingInspector}
    */
-  #injectStyles() {
-    if (document.getElementById('sg-tabbed-inspector-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'sg-tabbed-inspector-styles';
-    style.textContent = `
-      .sg-tabbed-inspector {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 12px;
-        color: #cccccc;
-        background: #1e1e1e;
-        overflow: hidden;
-      }
-      
-      .sg-tab-bar {
-        display: flex;
-        background: #2d2d2d;
-        border-bottom: 1px solid #3e3e3e;
-        flex-shrink: 0;
-      }
-      
-      .sg-tab {
-        padding: 10px 16px;
-        cursor: pointer;
-        user-select: none;
-        font-size: 12px;
-        font-weight: 500;
-        color: #858585;
-        border-bottom: 2px solid transparent;
-        transition: color 0.2s, border-color 0.2s;
-      }
-      
-      .sg-tab:hover {
-        color: #cccccc;
-        background: #252525;
-      }
-      
-      .sg-tab.sg-tab-active {
-        color: #ffffff;
-        border-bottom-color: #007acc;
-        background: #1e1e1e;
-      }
-      
-      .sg-tab-content-area {
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-      }
-      
-      .sg-tab-content {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: none;
-        overflow: hidden;
-      }
-      
-      .sg-tab-content.sg-tab-content-active {
-        display: flex;
-        flex-direction: column;
-      }
-    `;
-    document.head.appendChild(style);
+  getLoggingInspector() {
+    return this.#loggingInspector;
   }
 
   /**
@@ -310,12 +298,16 @@ export class TabbedInspector {
     if (this.#statisticsPanel) {
       this.#statisticsPanel.destroy();
     }
+    if (this.#loggingInspector) {
+      this.#loggingInspector.dispose();
+    }
     if (this.#sceneGraphInspector) {
       // SceneGraphInspector doesn't have a destroy method, but we can clear the container
       if (this.#sceneGraphContent) {
         this.#sceneGraphContent.innerHTML = '';
       }
     }
+    this.#stylesheetManager.release();
   }
 }
 
