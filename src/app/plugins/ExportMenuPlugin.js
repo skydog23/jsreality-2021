@@ -369,17 +369,22 @@ export class ExportMenuPlugin extends JSRPlugin {
     tempContainer.style.height = `${height}px`;
 
     // Create SVGViewer and render
-    const svgViewer = new SVGViewer(tempContainer);
-    svgViewer.setSceneRoot(viewer.getSceneRoot());
-    svgViewer.setCameraPath(viewer.getCameraPath());
-    svgViewer.render();
+    const svgViewer = new SVGViewer(tempContainer, { autoResize: false });
+    try {
+      svgViewer.setSceneRoot(viewer.getSceneRoot());
+      svgViewer.setCameraPath(viewer.getCameraPath());
+      svgViewer.render();
 
-    // Export and download
-    const svgString = svgViewer.exportSVG();
-    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    this.#downloadURL(url, 'scene-export.svg');
-    URL.revokeObjectURL(url);
+      // Export and download
+      const svgString = svgViewer.exportSVG();
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      this.#downloadURL(url, 'scene-export.svg');
+      URL.revokeObjectURL(url);
+    } finally {
+      // Ensure temporary viewer doesn't retain DOM via observers.
+      svgViewer.destroy();
+    }
 
     logger.info('Exported scene as SVG');
   }

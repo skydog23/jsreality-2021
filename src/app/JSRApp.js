@@ -39,6 +39,18 @@ import { PluginIds } from './plugin/PluginIds.js';
  * @abstract
  */
 export class JSRApp extends JSRPlugin {
+  /** @type {boolean} */
+  #isAnimating = false;
+
+  /** @type {string} */
+  #name = '';
+
+  /** @type {AnimationPlugin|null} */
+  #animationPlugin = null;
+
+  /** @type {import('../anim/gui/AnimationPanel.js').AnimationPanel|null} */
+  #animationPanel = null;
+
   /**
    * @type {JSRViewer} The JSRViewer instance (private)
    */
@@ -51,6 +63,33 @@ export class JSRApp extends JSRPlugin {
 
   getShowPanels() {
     return [true, true, false, false];
+  }
+
+  /**
+   * Hook for subclasses to supply additional plugins to register, without
+   * manually calling registerPlugin() themselves (mirrors Assignment.java).
+   *
+   * Subclasses can override and typically do:
+   *   const plugins = super.getPluginsToRegister();
+   *   plugins.push(new MyPlugin());
+   *   return plugins;
+   *
+   * @returns {Array<import('./plugin/JSRPlugin.js').JSRPlugin>}
+   */
+  getPluginsToRegister() {
+    // NOTE: Ordering matters for layout + menu aggregation:
+    // - SceneGraphInspectorPlugin should come first (claims the left panel slot)
+    // - ShrinkPanelAggregator comes next (claims right panel slot)
+    // - MenubarPlugin should come before menu-contributing plugins
+    return [
+      new SceneGraphInspectorPlugin(this.#inspectorConfig),
+      new ShrinkPanelAggregator(this.#shrinkPanelConfig),
+      new AnimationPlugin(),
+      new MenubarPlugin(),
+      new PanelShowMenuPlugin(),
+      new AppMenuPlugin(),
+      new ExportMenuPlugin()
+    ];
   }
 
   /**
@@ -70,6 +109,7 @@ export class JSRApp extends JSRPlugin {
    */
   constructor(options = {}) {
     super(); // Call super constructor first
+    this.#name = this.constructor.name;
     
     const {
       container,
@@ -95,19 +135,15 @@ export class JSRApp extends JSRPlugin {
       viewerTypes
     });
     
-    // Register plugins in order: SceneGraphInspectorPlugin first (needs left panel),
-    // then ShrinkPanelAggregator (needs right panel), then ourselves
-    // This ensures panel slots are created in the right order
+    // Register plugins (mirrors Assignment.java: subclasses can override the list).
     Promise.resolve().then(async () => {
-      try {
-        // Register SceneGraphInspectorPlugin first so left panel split pane is created
-        await this.#jsrViewer.registerPlugin(new SceneGraphInspectorPlugin(this.#inspectorConfig));
-        // Register aggregator second (right panel)
-        await this.#jsrViewer.registerPlugin(new ShrinkPanelAggregator(this.#shrinkPanelConfig));
-        await this.#jsrViewer.registerPlugin(new AnimationPlugin());
-        // Then register ourselves (so we can use aggregator in install())
+    try {
+        // Finally register ourselves.
         await this.#jsrViewer.registerPlugin(this);
-      } catch (error) {
+        for (const plugin of this.getPluginsToRegister()) {
+          await this.#jsrViewer.registerPlugin(plugin);
+        }
+       } catch (error) {
         console.error('Failed to register plugins:', error);
       }
     });
@@ -237,8 +273,45 @@ export class JSRApp extends JSRPlugin {
     // Register inspector panel with aggregator (like Assignment.java pattern)
     this.#registerInspectorPanel(context);
 
-    // Register other plugins asynchronously
-    this.#initializePlugins();
+    // -----------------------------------------------------------------------
+    // Animation support (inspired by Assignment.java)
+    // -----------------------------------------------------------------------
+    if (!this.#wireAnimationSupport(context)) {
+      // If JSRApp is registered before AnimationPlugin (Assignment-style),
+      // wait for it to install and then wire animation support.
+      const unsubscribe = context.on('plugin:installed', (data) => {
+        if (data?.plugin?.getInfo?.().id === PluginIds.ANIMATION) {
+          this.#wireAnimationSupport(context);
+          unsubscribe();
+        }
+      });
+    }
+  }
+
+  /**
+   * Attempt to wire the app into AnimationPlugin (Assignment.java parity).
+   * @param {import('./plugin/PluginContext.js').PluginContext} context
+   * @returns {boolean} true if wiring succeeded, else false
+   */
+  #wireAnimationSupport(context) {
+    const animationPlugin = context.getPlugin(PluginIds.ANIMATION);
+    if (!animationPlugin) return false;
+
+    this.#animationPlugin = animationPlugin;
+    this.#animationPanel = animationPlugin.getAnimationPanel?.() ?? null;
+
+    // Match Assignment.java behavior: default to animating this app instance,
+    // not the whole scene graph, unless a subclass/plugin opts in.
+    this.#animationPlugin.setAnimateSceneGraph?.(false);
+
+    // Match Assignment.java: add the app itself to the Animated list so it
+    // receives startAnimation/endAnimation/setValueAtTime callbacks via
+    // AnimationPanelListenerImpl (installed by AnimationPlugin).
+    const animated = this.#animationPlugin.getAnimated?.();
+    if (Array.isArray(animated) && !animated.includes(this)) {
+      animated.push(this);
+    }
+    return true;
   }
 
   /**
@@ -294,35 +367,15 @@ export class JSRApp extends JSRPlugin {
   }
 
   /**
-   * Initialize other plugins (menubar, export menu, scene graph inspector).
-   * Note: ShrinkPanelAggregator is registered in constructor before JSRApp.
-   * @private
+   * Get inspector descriptors for application parameters.
+   * Subclasses can override this to expose editable parameters.
+   *
+   * The panel title is automatically set to the subclass name. Subclasses should
+   * return a flat array of descriptors (no grouping required).
+   *
+   * @returns {Array<import('../core/inspect/descriptors/DescriptorTypes.js').InspectorDescriptor>}
    */
-  #initializePlugins() {
-    Promise.resolve().then(async () => {
-      try {
-        await this.#jsrViewer.registerPlugin(new MenubarPlugin());
-        await this.#jsrViewer.registerPlugin(new PanelShowMenuPlugin());
-       await this.#jsrViewer.registerPlugin(new AppMenuPlugin());
-        await this.#jsrViewer.registerPlugin(new ExportMenuPlugin());
-         // SceneGraphInspectorPlugin and ShrinkPanelAggregator are already registered in constructor
-      } catch (error) {
-        console.error('Failed to initialize plugins:', error);
-      }
-    });
-  }
-
- // In JSRApp
-/**
- * Get inspector descriptors for application parameters.
- * Subclasses can override this to expose editable parameters.
- * 
- * The panel title is automatically set to the subclass name. Subclasses should
- * return a flat array of descriptors (no grouping required).
- * 
- * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').InspectorDescriptor>}
- */
-getInspectorDescriptors() {
+  getInspectorDescriptors() {
   return [
     // Subclasses add their parameter descriptors here
     // Example:
@@ -344,6 +397,22 @@ getInspectorDescriptors() {
 
   getViewer() {
     return this.#jsrViewer.getViewer();
+  }
+
+  /**
+   * Java parity: return the AnimationPlugin instance (if present).
+   * @returns {AnimationPlugin|null}
+   */
+  getAnimationPlugin() {
+    return this.#animationPlugin;
+  }
+
+  /**
+   * Java parity: return the AnimationPanel instance (if present).
+   * @returns {import('../anim/gui/AnimationPanel.js').AnimationPanel|null}
+   */
+  getAnimationPanel() {
+    return this.#animationPanel;
   }
 
   /**
@@ -408,7 +477,7 @@ getInspectorDescriptors() {
    * Override in subclasses to implement animation start behavior.
    */
   startAnimation() {
-    // Override in subclasses
+    this.#isAnimating = true;
   }
 
   /**
@@ -416,7 +485,30 @@ getInspectorDescriptors() {
    * Override in subclasses to implement animation end behavior.
    */
   endAnimation() {
-    // Override in subclasses
+    this.#isAnimating = false;
+  }
+
+  /**
+   * @returns {boolean}
+   */
+  isAnimating() {
+    return this.#isAnimating;
+  }
+
+  /**
+   * Named interface (used by anim core types).
+   * @returns {string}
+   */
+  getName() {
+    return this.#name;
+  }
+
+  /**
+   * Named interface (used by anim core types).
+   * @param {string} name
+   */
+  setName(name) {
+    this.#name = String(name ?? '');
   }
 
   /**
@@ -434,6 +526,15 @@ getInspectorDescriptors() {
       this.#jsrViewer.dispose();
       this.#jsrViewer = null;
     }
+    if (this.#animationPlugin) {
+      const animated = this.#animationPlugin.getAnimated?.();
+      if (Array.isArray(animated)) {
+        const idx = animated.indexOf(this);
+        if (idx >= 0) animated.splice(idx, 1);
+      }
+    }
+    this.#animationPlugin = null;
+    this.#animationPanel = null;
     this._toolSystem = null;
   }
 }

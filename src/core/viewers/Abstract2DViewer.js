@@ -46,6 +46,12 @@ export class Abstract2DViewer extends Viewer {
   /** @type {number} Number of faces rendered in current render call */
   #facesRendered = 0;
 
+  /** @type {number} Last render duration in milliseconds */
+  #lastRenderDurationMs = 0;
+
+  /** @type {number[]} Recent render duration samples (ms) */
+  #renderDurationSamples = [];
+
   /**
    * Create a new Abstract2DViewer
    */
@@ -82,20 +88,26 @@ export class Abstract2DViewer extends Viewer {
   /**
    * Get render statistics (for internal use by renderer)
    * @protected
-   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
+   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number, renderDurationMs: number, avgRenderDurationMs: number}}
    */
   _getRenderStatistics() {
+    const avg =
+      this.#renderDurationSamples.length === 0
+        ? 0
+        : this.#renderDurationSamples.reduce((a, b) => a + b, 0) / this.#renderDurationSamples.length;
     return {
       renderCallCount: this.#renderCallCount,
       pointsRendered: this.#pointsRendered,
       edgesRendered: this.#edgesRendered,
-      facesRendered: this.#facesRendered
+      facesRendered: this.#facesRendered,
+      renderDurationMs: this.#lastRenderDurationMs,
+      avgRenderDurationMs: Number.isFinite(avg) ? avg : 0
     };
   }
 
   /**
    * Get render statistics (public API for inspector)
-   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
+   * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number, renderDurationMs: number, avgRenderDurationMs: number}}
    */
   getRenderStatistics() {
     return this._getRenderStatistics();
@@ -109,6 +121,22 @@ export class Abstract2DViewer extends Viewer {
     this.#pointsRendered = 0;
     this.#edgesRendered = 0;
     this.#facesRendered = 0;
+  }
+
+  /**
+   * Record the duration of the most recent render call (ms).
+   * Called by Abstract2DRenderer.render().
+   * @protected
+   * @param {number} ms
+   */
+  _setRenderDurationMs(ms) {
+    const value = Number(ms);
+    if (!Number.isFinite(value) || value < 0) return;
+    this.#lastRenderDurationMs = value;
+    this.#renderDurationSamples.push(value);
+    if (this.#renderDurationSamples.length > 20) {
+      this.#renderDurationSamples.shift();
+    }
   }
 
   /**
@@ -144,16 +172,6 @@ export class Abstract2DViewer extends Viewer {
    */
   _finalizeRenderStatistics() {
     this.#renderCallCount++;
-    
-    // Print statistics after every 100th render call
-    if (this.#renderCallCount % 100 === 0) {
-      console.log(`[Render Statistics - Call #${this.#renderCallCount}]`, {
-        points: this.#pointsRendered,
-        edges: this.#edgesRendered,
-        faces: this.#facesRendered,
-        total: this.#pointsRendered + this.#edgesRendered + this.#facesRendered
-      });
-    }
   }
 
   hasViewingComponent() {

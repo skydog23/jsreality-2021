@@ -47,15 +47,19 @@ export class RenderStatisticsPanel {
   #isUpdating = false;
 
   /**
-   * Frame rate tracking
+   * Render rate tracking (based on backend renderCallCount deltas).
+   * This is more meaningful than requestAnimationFrame cadence, which mostly
+   * reflects the display refresh rate (often 60/120Hz).
+   *
    * @type {number[]}
    */
-  #frameTimes = [];
+  #renderFpsSamples = [];
 
-  /**
-   * @type {number}
-   */
-  #lastFrameTime = 0;
+  /** @type {number} */
+  #lastRenderSampleTime = 0;
+
+  /** @type {number} */
+  #lastRenderCallCount = 0;
 
   /**
    * @type {number}
@@ -73,6 +77,12 @@ export class RenderStatisticsPanel {
   /** @type {DescriptorRenderer|null} */
   #descriptorRenderer = null;
 
+  /** @type {boolean} */
+  #continuousRendering = false;
+
+  /** @type {number|null} */
+  #continuousRenderRafId = null;
+
   /**
    * Cached snapshot of viewer statistics (updated on a throttle).
    * @type {{pointsRendered: number, edgesRendered: number, facesRendered: number, totalPrimitives: number, renderCallCount: number}}
@@ -82,7 +92,9 @@ export class RenderStatisticsPanel {
     edgesRendered: 0,
     facesRendered: 0,
     totalPrimitives: 0,
-    renderCallCount: 0
+    renderCallCount: 0,
+    renderDurationMs: 0,
+    avgRenderDurationMs: 0
   };
 
   /**
@@ -118,10 +130,18 @@ export class RenderStatisticsPanel {
         title: '',
         items: [
           {
+            type: DescriptorType.TOGGLE,
+            label: 'Continuous rendering',
+            description:
+              'When enabled, triggers continuous renders (vsync) so timing averages are meaningful. May use more CPU/GPU.',
+            getValue: () => this.#continuousRendering,
+            setValue: (v) => this.#setContinuousRendering(Boolean(v))
+          },
+          {
             type: DescriptorType.LIVE_LABEL,
             label: 'Frame Rate',
             updateIntervalMs: 200,
-            getValue: () => `${this.#calculateFrameRate().toFixed(1)} FPS`
+            getValue: () => `${this.#calculateRenderRate().toFixed(1)} FPS`
           },
           {
             type: DescriptorType.LIVE_LABEL,
@@ -141,17 +161,24 @@ export class RenderStatisticsPanel {
             updateIntervalMs: 200,
             getValue: () => this.#formatInt(this.#stats.facesRendered)
           },
+          // {
+          //   type: DescriptorType.LIVE_LABEL,
+          //   label: 'Total Primitives',
+          //   updateIntervalMs: 200,
+          //   getValue: () => this.#formatInt(this.#stats.totalPrimitives)
+          // },
+          // {
+          //   type: DescriptorType.LIVE_LABEL,
+          //   label: 'Render Calls',
+          //   updateIntervalMs: 200,
+          //   getValue: () => this.#formatInt(this.#stats.renderCallCount)
+          // }
+          // ,
           {
             type: DescriptorType.LIVE_LABEL,
-            label: 'Total Primitives',
+            label: 'Avg Render Time',
             updateIntervalMs: 200,
-            getValue: () => this.#formatInt(this.#stats.totalPrimitives)
-          },
-          {
-            type: DescriptorType.LIVE_LABEL,
-            label: 'Render Calls',
-            updateIntervalMs: 200,
-            getValue: () => this.#formatInt(this.#stats.renderCallCount)
+            getValue: () => `${(this.#stats.avgRenderDurationMs ?? 0).toFixed(2)} ms`
           }
         ]
       }
@@ -166,6 +193,41 @@ export class RenderStatisticsPanel {
     this.#viewer = viewer;
   }
 
+  #setContinuousRendering(enabled) {
+    this.#continuousRendering = Boolean(enabled);
+    if (this.#continuousRendering) {
+      this.#startContinuousRenderLoop();
+    } else {
+      this.#stopContinuousRenderLoop();
+    }
+  }
+
+  #startContinuousRenderLoop() {
+    this.#stopContinuousRenderLoop();
+    const loop = () => {
+      if (!this.#continuousRendering) return;
+      try {
+        // Prefer direct render() so renderCallCount increments immediately.
+        if (this.#viewer && typeof this.#viewer.render === 'function') {
+          this.#viewer.render();
+        } else if (this.#viewer && typeof this.#viewer.renderAsync === 'function') {
+          this.#viewer.renderAsync();
+        }
+      } catch {
+        // Ignore render exceptions in stats loop.
+      }
+      this.#continuousRenderRafId = requestAnimationFrame(loop);
+    };
+    this.#continuousRenderRafId = requestAnimationFrame(loop);
+  }
+
+  #stopContinuousRenderLoop() {
+    if (this.#continuousRenderRafId !== null) {
+      cancelAnimationFrame(this.#continuousRenderRafId);
+      this.#continuousRenderRafId = null;
+    }
+  }
+
   #formatInt(value) {
     const num = Number(value ?? 0);
     if (Number.isNaN(num)) return '0';
@@ -178,7 +240,10 @@ export class RenderStatisticsPanel {
   start() {
     if (this.#isUpdating) return;
     this.#isUpdating = true;
-    this.#lastFrameTime = performance.now();
+    const now = performance.now();
+    this.#lastRenderSampleTime = now;
+    // Seed the call count so the first delta is stable.
+    this.#lastRenderCallCount = this.#viewer?.getRenderStatistics?.()?.renderCallCount ?? 0;
     this.#updateLoop();
   }
 
@@ -191,6 +256,7 @@ export class RenderStatisticsPanel {
       cancelAnimationFrame(this.#animationFrameId);
       this.#animationFrameId = null;
     }
+    this.#stopContinuousRenderLoop();
   }
 
   /**
@@ -201,15 +267,6 @@ export class RenderStatisticsPanel {
     if (!this.#isUpdating) return;
 
     const currentTime = performance.now();
-    const frameTime = currentTime - this.#lastFrameTime;
-    
-    // Track frame times (keep last 20 frames)
-    this.#frameTimes.push(frameTime);
-    if (this.#frameTimes.length > 20) {
-      this.#frameTimes.shift();
-    }
-    
-    this.#lastFrameTime = currentTime;
 
     // Update display at throttled rate
     if (currentTime - this.#lastUpdateTime >= this.#updateInterval) {
@@ -221,14 +278,15 @@ export class RenderStatisticsPanel {
   }
 
   /**
-   * Calculate average frame rate
+   * Calculate average render rate (renders per second).
    * @private
    * @returns {number} Frames per second
    */
-  #calculateFrameRate() {
-    if (this.#frameTimes.length === 0) return 0;
-    const avgFrameTime = this.#frameTimes.reduce((a, b) => a + b, 0) / this.#frameTimes.length;
-    return avgFrameTime > 0 ? 1000 / avgFrameTime : 0;
+  #calculateRenderRate() {
+    // if (this.#renderFpsSamples.length === 0) return 0;
+    // const avg = this.#renderFpsSamples.reduce((a, b) => a + b, 0) / this.#renderFpsSamples.length;
+   
+return 1000 / (this.#stats.avgRenderDurationMs ?? 0);
   }
 
   /**
@@ -245,12 +303,37 @@ export class RenderStatisticsPanel {
       this.#stats.renderCallCount = viewerStats.renderCallCount || 0;
       this.#stats.totalPrimitives =
         this.#stats.pointsRendered + this.#stats.edgesRendered + this.#stats.facesRendered;
+      this.#stats.renderDurationMs = viewerStats.renderDurationMs || 0;
+      this.#stats.avgRenderDurationMs = viewerStats.avgRenderDurationMs || 0;
+
+      // Update render FPS samples based on renderCallCount delta.
+      const now = performance.now();
+      const dt = now - this.#lastRenderSampleTime;
+      const currentCount = this.#stats.renderCallCount;
+      const deltaCalls = currentCount - this.#lastRenderCallCount;
+      if (dt > 0 && deltaCalls >= 0) {
+        const fps = (deltaCalls * 1000) / dt;
+        if (Number.isFinite(fps)) {
+          this.#renderFpsSamples.push(fps);
+          if (this.#renderFpsSamples.length > 20) {
+            this.#renderFpsSamples.shift();
+          }
+        }
+      } else if (deltaCalls < 0) {
+        // Defensive: if counter resets, clear samples.
+        this.#renderFpsSamples.length = 0;
+      }
+      this.#lastRenderSampleTime = now;
+      this.#lastRenderCallCount = currentCount;
     } else {
       this.#stats.pointsRendered = 0;
       this.#stats.edgesRendered = 0;
       this.#stats.facesRendered = 0;
       this.#stats.totalPrimitives = 0;
       this.#stats.renderCallCount = 0;
+      this.#stats.renderDurationMs = 0;
+      this.#stats.avgRenderDurationMs = 0;
+      this.#renderFpsSamples.length = 0;
     }
   }
 
@@ -259,6 +342,7 @@ export class RenderStatisticsPanel {
    */
   destroy() {
     this.stop();
+    this.#continuousRendering = false;
     this.#descriptorRenderer?.dispose();
     this.#descriptorRenderer = null;
     if (this.#statsContainer) {

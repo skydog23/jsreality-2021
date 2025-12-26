@@ -340,6 +340,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
    * Render the scene (device-independent orchestration)
    */
   render() {
+    const nowFn = globalThis?.performance?.now ? () => globalThis.performance.now() : () => Date.now();
+    const t0 = nowFn();
+
     // Reset render statistics for this call
     this.#viewer._resetRenderStatistics();
 
@@ -362,6 +365,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
 
     // Finalize render statistics (increments counter and prints if needed)
     this.#viewer._finalizeRenderStatistics();
+
+    const t1 = nowFn();
+    this.#viewer._setRenderDurationMs?.(t1 - t0);
   }
 
   /**

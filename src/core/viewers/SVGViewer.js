@@ -46,6 +46,12 @@ export class SVGViewer extends Abstract2DViewer {
   /** @type {SVGSVGElement} */
   #svgElement;
 
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+
+  /** @type {number|null} */
+  #pendingRafId = null;
+
   /** @type {SceneGraphComponent|null} */
   #sceneRoot = null;
 
@@ -116,7 +122,8 @@ export class SVGViewer extends Abstract2DViewer {
    */
   #setupResizeHandling() {
     // Use ResizeObserver to watch for container size changes
-    const resizeObserver = new ResizeObserver(() => {
+    // Keep a reference so we can disconnect on destroy().
+    this.#resizeObserver = new ResizeObserver(() => {
       this.#updateSize();
       // Note: We don't call render() here. The ResizeObserver fires during initialization
       // before the viewer is selected, and we don't want to render inactive viewers.
@@ -124,7 +131,7 @@ export class SVGViewer extends Abstract2DViewer {
     });
 
     // Observe the container element
-    resizeObserver.observe(this.#container);
+    this.#resizeObserver.observe(this.#container);
   }
 
   /**
@@ -221,7 +228,47 @@ export class SVGViewer extends Abstract2DViewer {
 
   renderAsync() {
     // Defer rendering to avoid blocking event handlers
-    requestAnimationFrame(() => this.render());
+    if (this.#pendingRafId !== null) {
+      return;
+    }
+    this.#pendingRafId = requestAnimationFrame(() => {
+      this.#pendingRafId = null;
+      this.render();
+    });
+  }
+
+  /**
+   * Release resources held by this viewer.
+   *
+   * Important: SVGViewer installs a ResizeObserver by default; if you create
+   * temporary SVGViewer instances (e.g. for export), call destroy() so the
+   * observer doesn't retain the container and SVG DOM.
+   */
+  destroy() {
+    if (this.#pendingRafId !== null) {
+      cancelAnimationFrame(this.#pendingRafId);
+      this.#pendingRafId = null;
+    }
+
+    if (this.#resizeObserver) {
+      try {
+        this.#resizeObserver.disconnect();
+      } finally {
+        this.#resizeObserver = null;
+      }
+    }
+
+    // Drop SVG DOM content to help GC in long-running sessions.
+    // replaceChildren() is fast and clears all descendants in one go.
+    this.#svgElement.replaceChildren();
+  }
+
+  /**
+   * Alias for common Viewer lifecycle APIs.
+   * ViewerSwitch calls dispose() when tearing down an app.
+   */
+  dispose() {
+    this.destroy();
   }
 
   // SVG-specific methods

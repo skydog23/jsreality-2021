@@ -137,6 +137,12 @@ export class ViewerSwitch extends Viewer {
   /** @type {Map<HTMLElement, EventDispatcher>} */
   #elementDispatchers = new Map();
 
+  /** @type {Map<HTMLElement, {eventTypes: string[], handler: (e: Event) => void, keyHandler: (e: Event) => void, wheelHandler: (e: Event) => void}>} */
+  #elementListenerRecords = new Map();
+
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+
   /**
    * Create a new ViewerSwitch.
    * @param {Viewer[]} viewers - Array of viewer instances
@@ -184,14 +190,14 @@ export class ViewerSwitch extends Viewer {
    * @private
    */
   #setupResizeHandling() {
-    const resizeObserver = new ResizeObserver(() => {
+    this.#resizeObserver = new ResizeObserver(() => {
       // Only render the current viewer - it will have already updated its canvas size
       // via its own ResizeObserver
       if (this.#currentViewer) {
         this.#currentViewer.render();
       }
     });
-    resizeObserver.observe(this.#wrapperElement);
+    this.#resizeObserver.observe(this.#wrapperElement);
   }
 
   /**
@@ -279,6 +285,9 @@ export class ViewerSwitch extends Viewer {
       }
     });
 
+    // Record listeners so we can remove them on unregister/dispose.
+    this.#elementListenerRecords.set(component, { eventTypes, handler, keyHandler, wheelHandler });
+
     // Add component to wrapper
     this.#wrapperElement.appendChild(component);
     
@@ -330,6 +339,23 @@ export class ViewerSwitch extends Viewer {
       return;
     }
 
+    // Remove event listeners (important to avoid retaining detached DOM).
+    const record = this.#elementListenerRecords.get(component);
+    if (record) {
+      record.eventTypes.forEach(type => {
+        if (type.startsWith('mouse') || type === 'click' || type === 'dblclick' || type === 'contextmenu') {
+          component.removeEventListener(type, record.handler, { passive: false });
+        } else if (type.startsWith('key')) {
+          component.removeEventListener(type, record.keyHandler, { passive: false });
+        } else if (type === 'wheel') {
+          component.removeEventListener(type, record.wheelHandler, { passive: false });
+        } else {
+          component.removeEventListener(type, record.handler, { passive: false });
+        }
+      });
+      this.#elementListenerRecords.delete(component);
+    }
+
     // Remove dispatcher
     const dispatcher = this.#elementDispatchers.get(component);
     if (dispatcher) {
@@ -340,9 +366,6 @@ export class ViewerSwitch extends Viewer {
     if (component.parentElement === this.#wrapperElement) {
       this.#wrapperElement.removeChild(component);
     }
-
-    // Note: We don't remove event listeners here because the component might be reused
-    // The component will be garbage collected along with its listeners when the viewer is disposed
 
     logger.fine(`Unregistered component for viewer ${viewer.constructor.name}`);
   }
@@ -507,6 +530,14 @@ export class ViewerSwitch extends Viewer {
   dispose() {
     logger.info('Disposing ViewerSwitch');
 
+    if (this.#resizeObserver) {
+      try {
+        this.#resizeObserver.disconnect();
+      } finally {
+        this.#resizeObserver = null;
+      }
+    }
+
     // Unregister current component
     if (this.#currentViewer.hasViewingComponent()) {
       this.#unregisterComponent(this.#currentViewer);
@@ -518,6 +549,8 @@ export class ViewerSwitch extends Viewer {
       try {
         if (typeof viewer.dispose === 'function') {
           viewer.dispose();
+        } else if (typeof viewer.destroy === 'function') {
+          viewer.destroy();
         }
       } catch (error) {
         logger.warn(`Exception when disposing viewer ${this.#viewerNames[i]}: ${error.message}`);
@@ -526,6 +559,7 @@ export class ViewerSwitch extends Viewer {
 
     // Clear dispatchers
     this.#elementDispatchers.clear();
+    this.#elementListenerRecords.clear();
 
     // Clear wrapper element
     if (this.#wrapperElement.parentElement) {

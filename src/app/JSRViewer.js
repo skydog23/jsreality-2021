@@ -856,13 +856,18 @@ export class JSRViewer {
 
     try {
       // Create SVG viewer - dimensions will be read from container
-      const svgViewer = new SVGViewer(tempContainer);
-      svgViewer.setSceneRoot(this.#sceneRoot);
-      svgViewer.setCameraPath(this.#cameraPath);
-      svgViewer.render();
+      const svgViewer = new SVGViewer(tempContainer, { autoResize: false });
+      let svgString = '';
+      try {
+        svgViewer.setSceneRoot(this.#sceneRoot);
+        svgViewer.setCameraPath(this.#cameraPath);
+        svgViewer.render();
 
-      // Export SVG
-      const svgString = svgViewer.exportSVG();
+        // Export SVG
+        svgString = svgViewer.exportSVG();
+      } finally {
+        svgViewer.dispose();
+      }
       
       // Trigger download
       const filename = `jsreality-export-${Date.now()}.svg`;

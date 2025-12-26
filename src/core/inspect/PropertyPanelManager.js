@@ -185,7 +185,7 @@ export class PropertyPanelManager {
     const rotationAngleDescriptor = {
       id: 'rotation-angle',
       type: DescriptorType.FLOAT,
-      label: 'Rotation Angle (°)',
+      label: 'Rot. Angle',
       min: -360,
       max: 360,
       step: 1,
@@ -201,7 +201,7 @@ export class PropertyPanelManager {
     const rotationAxisDescriptor = {
       id: 'rotation-axis',
       type: DescriptorType.VECTOR,
-      label: 'Rotation Axis',
+      label: 'Rot. Axis',
       getValue: () => {
         const axis = fm.getRotationAxis();
         return [axis[0], axis[1], axis[2]];
@@ -232,17 +232,17 @@ export class PropertyPanelManager {
     return [
       {
         id: 'transform-position',
-        title: 'Position',
+        title: '',
         items: [translationDescriptor]
       },
       {
         id: 'transform-rotation',
-        title: 'Rotation',
+        title: '',
         items: [rotationAngleDescriptor, rotationAxisDescriptor]
       },
       {
         id: 'transform-scale',
-        title: 'Scale',
+        title: '',
         items: [scaleDescriptor]
       }
     ];

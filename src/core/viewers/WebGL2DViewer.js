@@ -37,6 +37,9 @@ export class WebGL2DViewer extends Abstract2DViewer {
   /** @type {boolean} */
   #autoResize = true;
 
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+
   /** @type {number} */
   _pixelRatio = 1;
 
@@ -142,14 +145,14 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * @private
    */
   #setupResizeHandling() {
-    const resizeObserver = new ResizeObserver(() => {
+    this.#resizeObserver = new ResizeObserver(() => {
       this.#setupCanvas();
       // Note: We don't call render() here. The ResizeObserver fires during initialization
       // before the viewer is selected, and we don't want to render inactive viewers.
       // The caller is responsible for triggering render() when needed.
     });
 
-    resizeObserver.observe(this.#canvas);
+    this.#resizeObserver.observe(this.#canvas);
   }
 
   /**
@@ -207,6 +210,32 @@ export class WebGL2DViewer extends Abstract2DViewer {
    */
   exportImage(format = 'image/png', quality) {
     return this.#canvas.toDataURL(format, quality);
+  }
+
+  /**
+   * Dispose viewer resources (ResizeObserver, GPU context).
+   * Called by ViewerSwitch on teardown.
+   */
+  dispose() {
+    if (this.#resizeObserver) {
+      try {
+        this.#resizeObserver.disconnect();
+      } finally {
+        this.#resizeObserver = null;
+      }
+    }
+
+    // Drop renderer reference (releases JS-side caches).
+    this.#renderer = null;
+
+    // Attempt to release GPU resources aggressively.
+    // Safe to ignore if extension is unavailable.
+    try {
+      const loseExt = this.#gl?.getExtension?.('WEBGL_lose_context');
+      loseExt?.loseContext?.();
+    } catch {
+      // ignore
+    }
   }
 
   /**
@@ -367,6 +396,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /** @type {number[]} Batched distances from centerline for edge smoothing */
   #batchedDistances = [];
+
+  /** @type {Uint16Array} Cached sequential indices for LINE_STRIP draws */
+  #sequentialIndexCache = new Uint16Array(0);
 
   /**
    * Create a new WebGL2D renderer
@@ -1090,11 +1122,11 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       2
     );
     
-    // Reset batching arrays and vertex offset
-    this.#batchedVertices = [];
-    this.#batchedColors = [];
-    this.#batchedIndices = [];
-    this.#batchedDistances = [];
+    // Reset batching arrays without allocating new arrays (reduces GC churn).
+    this.#batchedVertices.length = 0;
+    this.#batchedColors.length = 0;
+    this.#batchedIndices.length = 0;
+    this.#batchedDistances.length = 0;
     this.#batchedVertexOffset = 0;
     
     // Only reset color/width if we're not preserving for continued batching
@@ -1145,12 +1177,37 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Draw using LINE_STRIP mode (use cached constant)
     // Note: We need sequential indices since vertexArray is compacted
-    const sequentialIndices = new Uint16Array(indices.length);
-    for (let i = 0; i < indices.length; i++) {
-      sequentialIndices[i] = i;
-    }
+    const sequentialIndices = this.#getSequentialIndices(indices.length);
     
     this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
+  }
+
+  /**
+   * Get a cached Uint16Array [0..n-1] view.
+   * Grows the cache as needed and reuses it across draws to reduce allocations.
+   * @private
+   * @param {number} n
+   * @returns {Uint16Array}
+   */
+  #getSequentialIndices(n) {
+    const count = Math.max(0, n | 0);
+    if (count === 0) return this.#sequentialIndexCache.subarray(0, 0);
+
+    // Uint16 indices cap at 65535.
+    if (count > 65535) {
+      return this.#sequentialIndexCache.subarray(0, 0);
+    }
+
+    if (this.#sequentialIndexCache.length < count) {
+      const oldLen = this.#sequentialIndexCache.length;
+      const next = new Uint16Array(count);
+      next.set(this.#sequentialIndexCache);
+      for (let i = oldLen; i < count; i++) {
+        next[i] = i;
+      }
+      this.#sequentialIndexCache = next;
+    }
+    return this.#sequentialIndexCache.subarray(0, count);
   }
   
   /**

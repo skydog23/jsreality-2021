@@ -293,6 +293,12 @@ export class InspectorStylesheetManager {
         border-radius: 3px;
         font-size: 12px;
       }
+
+      /* Narrow numeric inputs (override the generic width:100% rule above). */
+      .sg-prop-value input.inspector-input--number:not(.sg-number-widget-input) {
+        width: 4rem;
+        max-width: 4rem;
+      }
       
       .sg-prop-value input[type="checkbox"] {
         margin: 0;

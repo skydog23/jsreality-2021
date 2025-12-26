@@ -61,7 +61,7 @@ export function textSliderWidgetFactory(descriptor, context, createRow, formatNu
 
   let internalMin = readNumber(descriptor.min, 0);
   let internalMax = readNumber(descriptor.max, Number.NaN);
-  if (!Number.isFinite(internalMax)) {
+  if (!Number.isFinite(internalMax) || internalMax === internalMin) {
     internalMax = internalMin + 1;
   }
 
@@ -147,7 +147,7 @@ export function textSliderWidgetFactory(descriptor, context, createRow, formatNu
   input.type = 'text';
   input.inputMode = 'decimal';
   input.className = 'inspector-input inspector-input--number inspector-text-slider__input';
-  input.style.width = '6rem';
+
 
   const disabled = descriptor.readonly || descriptor.disabled || !descriptor.setValue;
   input.disabled = disabled;

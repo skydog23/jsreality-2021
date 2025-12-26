@@ -37,8 +37,11 @@ export class TestAnimApp extends JSRApp {
     return [true, true, false, false];
   }
 
+  #tform = null;
+
   getContent() {
     const world = SceneGraphUtility.createFullSceneGraphComponent('world');
+    this.#tform = world.getTransformation();
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
     squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
@@ -50,6 +53,15 @@ export class TestAnimApp extends JSRApp {
     world.addChild(squareSGC);
     this.#squareSGC = squareSGC;
     return world;
+  }
+
+  display() {
+    super.display();
+    // set up animation keyframes
+  }
+
+  setValueAtTime(t) {
+    console.log('setValueAtTime', t);
   }
 
   /**
@@ -67,69 +79,9 @@ export class TestAnimApp extends JSRApp {
     ];
   }
 
-  async #play() {
-    const controller = this.context?.getController?.();
-    if (!controller) return;
-
-    /** @type {import('../plugins/AnimationPlugin.js').AnimationPlugin|null} */
-    const animPlugin = controller.getPlugin?.('animation') ?? null;
-    if (!animPlugin) {
-      console.warn('TestAnimApp: AnimationPlugin not available');
-      return;
-    }
-
-    const ap = animPlugin.getAnimationPanel?.();
-    if (!ap) {
-      console.warn('TestAnimApp: AnimationPanel not available');
-      return;
-    }
-
-    if (!this.#squareSGC) {
-      console.warn('TestAnimApp: square scene graph component not available');
-      return;
-    }
-
-    if (!this.#squareAnimator) {
-      const tform = this.#squareSGC.getTransformation();
-      if (!tform) {
-        console.warn('TestAnimApp: square has no transformation');
-        return;
-      }
-
-      this.#squareAnimator = KeyFrameAnimatedTransformation.withTransformation(tform, Pn.EUCLIDEAN);
-      this.#squareAnimator.setName?.('squareRotation');
-
-      // Register animator with AnimationPlugin so its AnimationPanelListenerImpl will drive it.
-      animPlugin.getAnimated()?.push(this.#squareAnimator);
-    }
-
-    // Ensure the AnimationPanel has a basic timeline so playback can run.
-    // (The panel drives time; the Animated instances respond to setValueAtTime(t).)
-    const panelKeys = new SortedKeyFrameList();
-    panelKeys.add(new KeyFrame(new TimeDescriptor(0.0), {}));
-    panelKeys.add(new KeyFrame(new TimeDescriptor(1.0), {}));
-    ap.setKeyFrames?.(panelKeys);
-    ap.setInspectedKeyFrame?.(0);
-
-    // Programmatically define two keyframes: identity at t=0, 90 degrees about Z at t=1.
-    // This mimics the Java workflow but avoids manual keyframe editing for this demo.
-    const fm0 = new FactoredMatrix(Pn.EUCLIDEAN);
-    fm0.setRotation(0, [0, 0, 1]);
-
-    const fm1 = new FactoredMatrix(Pn.EUCLIDEAN);
-    fm1.setRotation(Math.PI / 2, [0, 0, 1]);
-
-    this.#squareAnimator.setCurrentValue(fm0);
-    this.#squareAnimator.addKeyFrame(new TimeDescriptor(0.0));
-
-    this.#squareAnimator.setCurrentValue(fm1);
-    this.#squareAnimator.addKeyFrame(new TimeDescriptor(1.0));
-
-    // Start playback via AnimationPlugin's panel model.
-    ap.setCurrentTime?.(0.0);
-    ap.inspectKeyFrame?.();
-    ap.setPaused?.(true);
-    ap.togglePlay?.();
+  #play() {
+    console.log('play');
   }
+ 
 }
 

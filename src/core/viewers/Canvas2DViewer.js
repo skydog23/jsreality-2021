@@ -45,6 +45,12 @@ export class Canvas2DViewer extends Abstract2DViewer {
   /** @type {boolean} */
   #autoResize = true;
 
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+
+  /** @type {(() => void)|null} */
+  #windowResizeHandler = null;
+
   /** @type {number} */
   _pixelRatio = 1;
 
@@ -115,17 +121,18 @@ console.log('canvas.width', canvas.width, 'canvas.height', canvas.height);
   #setupResizeHandling() {
     // Use ResizeObserver if available, otherwise fall back to window resize
     if (window.ResizeObserver) {
-      const resizeObserver = new ResizeObserver(() => {
+      this.#resizeObserver = new ResizeObserver(() => {
         this.#setupCanvas();
         this.render();
       });
-      resizeObserver.observe(this.#canvas);
+      this.#resizeObserver.observe(this.#canvas);
     } else {
       // Fallback for older browsers
-      window.addEventListener('resize', () => {
+      this.#windowResizeHandler = () => {
         this.#setupCanvas();
         this.render();
-      });
+      };
+      window.addEventListener('resize', this.#windowResizeHandler);
     }
   }
 
@@ -179,6 +186,25 @@ console.log('canvas.width', canvas.width, 'canvas.height', canvas.height);
    */
   exportImage(format = 'image/png', quality) {
     return this.#canvas.toDataURL(format, quality);
+  }
+
+  /**
+   * Dispose viewer resources (ResizeObserver / window listeners).
+   * Called by ViewerSwitch on teardown.
+   */
+  dispose() {
+    if (this.#resizeObserver) {
+      try {
+        this.#resizeObserver.disconnect();
+      } finally {
+        this.#resizeObserver = null;
+      }
+    }
+
+    if (this.#windowResizeHandler) {
+      window.removeEventListener('resize', this.#windowResizeHandler);
+      this.#windowResizeHandler = null;
+    }
   }
 
   /**
