@@ -21,6 +21,9 @@ import * as Rn from '../math/Rn.js';
 import { DefaultPointShader } from '../shader/DefaultPointShader.js';
 import { DefaultLineShader } from '../shader/DefaultLineShader.js';
 import { DefaultPolygonShader } from '../shader/DefaultPolygonShader.js';
+import { getLogger } from '../util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.core.viewers.Canvas2DViewer');
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -105,7 +108,7 @@ export class Canvas2DViewer extends Abstract2DViewer {
     // Set actual canvas size in memory (scaled up for retina)
     canvas.width = displayWidth * ratio;
     canvas.height = displayHeight * ratio;
-console.log('canvas.width', canvas.width, 'canvas.height', canvas.height);
+    logger.fine(-1, 'canvas buffer size', { width: canvas.width, height: canvas.height });
     // Scale the drawing context so that 1 canvas unit = 1 CSS pixel
     this.#context.scale(ratio, ratio);
 

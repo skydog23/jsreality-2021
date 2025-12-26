@@ -52,8 +52,8 @@ export class AnimationPlugin extends JSRPlugin {
   /** @type {AnimationPanelListenerImpl|null} */
   #animPanelListener = null;
 
-  /** @type {Array<import('../../anim/core/Animated.js').Animated>} */
-  #animated = [];
+  /** @type {Set<import('../../anim/core/Animated.js').Animated>} */
+  #animated = new Set();
 
   /** @type {any|null} */
   #sga = null;
@@ -82,7 +82,7 @@ export class AnimationPlugin extends JSRPlugin {
   }
 
   /**
-   * @returns {Array<import('../../anim/core/Animated.js').Animated>}
+   * @returns {Set<import('../../anim/core/Animated.js').Animated>}
    */
   getAnimated() {
     return this.#animated;
@@ -157,7 +157,7 @@ export class AnimationPlugin extends JSRPlugin {
    * establishes the animated list container.
    */
   init() {
-    if (!Array.isArray(this.#animated)) this.#animated = [];
+    if (!(this.#animated instanceof Set)) this.#animated = new Set();
     if (!this.#ap) this.#ap = new AnimationPanel();
   }
 
@@ -176,9 +176,7 @@ export class AnimationPlugin extends JSRPlugin {
    * list membership semantics, but do not attempt to animate camera state yet.
    */
   #animateCameraImpl() {
-    if (this.#ac && this.#animated.includes(this.#ac)) {
-      this.#animated = this.#animated.filter((x) => x !== this.#ac);
-    }
+    if (this.#ac) this.#animated.delete(this.#ac);
     this.#ac = null;
     this.#syncAnimatedList();
 
@@ -196,7 +194,7 @@ export class AnimationPlugin extends JSRPlugin {
         name: 'cameraBean',
         target: camera
       };
-      this.#animated.push(this.#ac);
+      this.#animated.add(this.#ac);
       this.#syncAnimatedList();
     } catch (e) {
       logger.warn(-1, `animateCamera failed: ${e?.message ?? e}`);
@@ -216,9 +214,7 @@ export class AnimationPlugin extends JSRPlugin {
    * before that class is fully implemented/ported.
    */
   async resetSceneGraph() {
-    if (this.#sga && this.#animated.includes(this.#sga)) {
-      this.#animated = this.#animated.filter((x) => x !== this.#sga);
-    }
+    if (this.#sga) this.#animated.delete(this.#sga);
     this.#sga = null;
     this.#syncAnimatedList();
 
@@ -251,7 +247,7 @@ export class AnimationPlugin extends JSRPlugin {
       if (typeof this.#sga.init === 'function') {
         this.#sga.init();
       }
-      this.#animated.push(this.#sga);
+      this.#animated.add(this.#sga);
       this.#syncAnimatedList();
     } catch (e) {
       logger.warn(-1, `resetSceneGraph failed: ${e?.message ?? e}`);
@@ -498,7 +494,7 @@ export class AnimationPlugin extends JSRPlugin {
     this.#ap = null;
     this.#animPanelListener = null;
 
-    this.#animated = [];
+    this.#animated = new Set();
     this.#sga = null;
     this.#ac = null;
 

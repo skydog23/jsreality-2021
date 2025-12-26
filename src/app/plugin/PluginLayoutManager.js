@@ -18,10 +18,7 @@ export class PluginLayoutManager {
   #bottomRegion;
 
   /** @type {HTMLElement} */
-  #mainRegion;
-
-  /** @type {HTMLElement} */
-  #contentContainer; // Horizontal flex container for left panel, viewer, right panel
+  #centerColumn; // Vertical flex container: top | viewer | bottom
 
   /** @type {HTMLElement} */
   #viewerHost;
@@ -104,13 +101,23 @@ export class PluginLayoutManager {
   #setupBaseLayout() {
     this.#container.innerHTML = '';
     this.#container.style.display = 'flex';
-    this.#container.style.flexDirection = 'column';
+    // Feature 1: Left - (top/center/bottom column) - Right
+    this.#container.style.flexDirection = 'row';
     this.#container.style.width = '100%';
     this.#container.style.height = '100%';
     this.#container.style.minHeight = '0';
     this.#container.style.minWidth = '0';
 
-    // Top region for menubar, etc.
+    // Center column (always present): top | viewer | bottom
+    this.#centerColumn = document.createElement('div');
+    this.#centerColumn.className = 'jsr-layout-center-column';
+    this.#centerColumn.style.display = 'flex';
+    this.#centerColumn.style.flexDirection = 'column';
+    this.#centerColumn.style.flex = '1 1 auto';
+    this.#centerColumn.style.minHeight = '0';
+    this.#centerColumn.style.minWidth = '0';
+
+    // Top region for menubar/toolbars (center column only).
     this.#topRegion = document.createElement('div');
     this.#topRegion.className = 'jsr-layout-top';
     this.#topRegion.style.display = 'none';
@@ -120,7 +127,7 @@ export class PluginLayoutManager {
     this.#topRegion.style.background = '#252526';
     this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
 
-    // Bottom region for wide, short panels (e.g., animation timeline).
+    // Bottom region for wide, short panels (center column only).
     this.#bottomRegion = document.createElement('div');
     this.#bottomRegion.className = 'jsr-layout-bottom';
     this.#bottomRegion.style.display = 'none';
@@ -130,42 +137,23 @@ export class PluginLayoutManager {
     this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
     this.#bottomRegion.style.overflow = 'hidden';
 
-    // Main region (vertical flex)
-    this.#mainRegion = document.createElement('div');
-    this.#mainRegion.className = 'jsr-layout-main';
-    this.#mainRegion.style.flex = '1 1 auto';
-    this.#mainRegion.style.minHeight = '0';
-    this.#mainRegion.style.display = 'flex';
-    this.#mainRegion.style.flexDirection = 'row'; // Horizontal: left panel | viewer | right panel
-    this.#mainRegion.style.position = 'relative';
-
-    // Content container: horizontal flex for left panel, viewer, right panel
-    this.#contentContainer = document.createElement('div');
-    this.#contentContainer.className = 'jsr-layout-content';
-    this.#contentContainer.style.display = 'flex';
-    this.#contentContainer.style.flexDirection = 'row';
-    this.#contentContainer.style.flex = '1 1 auto';
-    this.#contentContainer.style.minHeight = '0';
-    this.#contentContainer.style.minWidth = '0';
-    this.#contentContainer.style.width = '100%';
-    this.#contentContainer.style.height = '100%';
-
-    // Viewer host (takes remaining space)
+    // Viewer host (center area; takes remaining space inside center column)
     this.#viewerHost = document.createElement('div');
     this.#viewerHost.className = 'jsr-layout-viewer-host';
     this.#viewerHost.style.flex = '1 1 auto';
-    this.#viewerHost.style.width = '0'; // Flexbox needs this to shrink properly
+    // In the center column (flex-direction: column), width is the cross-axis.
+    // Keep it at 100% so the viewer fills the column.
+    this.#viewerHost.style.width = '100%';
     this.#viewerHost.style.height = '100%';
     this.#viewerHost.style.position = 'relative';
     this.#viewerHost.style.minHeight = '0';
     this.#viewerHost.style.minWidth = '0';
 
-    this.#contentContainer.appendChild(this.#viewerHost);
-
-    this.#container.appendChild(this.#topRegion);
-    this.#container.appendChild(this.#mainRegion);
-    this.#mainRegion.appendChild(this.#contentContainer);
-    this.#container.appendChild(this.#bottomRegion);
+    // Assemble center column, then mount it. Left/right columns are inserted lazily.
+    this.#centerColumn.appendChild(this.#topRegion);
+    this.#centerColumn.appendChild(this.#viewerHost);
+    this.#centerColumn.appendChild(this.#bottomRegion);
+    this.#container.appendChild(this.#centerColumn);
   }
 
   /**
@@ -290,8 +278,8 @@ export class PluginLayoutManager {
       this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
       this.#leftPanelWrapper.style.overflow = 'hidden';
 
-      // Insert before viewer host
-      this.#contentContainer.insertBefore(this.#leftPanelWrapper, this.#viewerHost);
+      // Insert before center column
+      this.#container.insertBefore(this.#leftPanelWrapper, this.#centerColumn);
     }
     return this.#leftPanelWrapper;
   }
@@ -316,8 +304,8 @@ export class PluginLayoutManager {
       this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
       this.#rightPanelWrapper.style.overflow = 'hidden';
 
-      // Append after viewer host
-      this.#contentContainer.appendChild(this.#rightPanelWrapper);
+      // Append after center column
+      this.#container.appendChild(this.#rightPanelWrapper);
     }
     return this.#rightPanelWrapper;
   }

@@ -8,18 +8,12 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { JSRApp } from '../JSRApp.js';
-import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { Primitives } from '../../core/geometry/Primitives.js';
+import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
-import { FactoredMatrix } from '../../core/math/FactoredMatrix.js';
-import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
-import { KeyFrame } from '../../anim/core/KeyFrame.js';
-import { SortedKeyFrameList } from '../../anim/core/SortedKeyFrameList.js';
-import { KeyFrameAnimatedTransformation } from '../../anim/scenegraph/KeyFrameAnimatedTransformation.js';
-import * as Pn from '../../core/math/Pn.js';
-import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { JSRApp } from '../JSRApp.js';
 
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
@@ -34,7 +28,7 @@ export class TestAnimApp extends JSRApp {
 
   getShowPanels() {
     // Show left panel only (like other test apps); right panel holds shrink panels.
-    return [true, true, false, false];
+    return [true, true, true, false];
   }
 
   #tform = null;

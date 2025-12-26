@@ -308,9 +308,7 @@ export class JSRApp extends JSRPlugin {
     // receives startAnimation/endAnimation/setValueAtTime callbacks via
     // AnimationPanelListenerImpl (installed by AnimationPlugin).
     const animated = this.#animationPlugin.getAnimated?.();
-    if (Array.isArray(animated) && !animated.includes(this)) {
-      animated.push(this);
-    }
+    animated?.add?.(this);
     return true;
   }
 

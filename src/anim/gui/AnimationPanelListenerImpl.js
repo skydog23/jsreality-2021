@@ -20,7 +20,7 @@ export class AnimationPanelListenerImpl {
   /** @type {string} */
   #name = 'unnamed';
 
-  /** @type {Array<import('../core/Animated.js').Animated>} */
+  /** @type {Iterable<import('../core/Animated.js').Animated>} */
   #animated = [];
 
   /** @type {Array<import('../core/KeyFrameAnimated.js').KeyFrameAnimated<any>>} */
@@ -32,12 +32,12 @@ export class AnimationPanelListenerImpl {
   /**
    * @param {Object} [options]
    * @param {string} [options.name='application']
-   * @param {Array<import('../core/Animated.js').Animated>} [options.animated=[]]
+   * @param {Iterable<import('../core/Animated.js').Animated>} [options.animated=[]]
    * @param {Function} [options.afterApply] - Optional callback after SET_VALUE_AT_TIME is applied.
    */
   constructor(options = {}) {
     this.#name = options.name ?? 'application';
-    this.#animated = options.animated ?? [];
+    this.setAnimated(options.animated ?? []);
     this.#afterApply = options.afterApply ?? null;
   }
 
@@ -50,17 +50,18 @@ export class AnimationPanelListenerImpl {
   }
 
   /**
-   * @returns {Array<import('../core/Animated.js').Animated>}
+   * @returns {Iterable<import('../core/Animated.js').Animated>}
    */
   getAnimated() {
     return this.#animated;
   }
 
   /**
-   * @param {Array<import('../core/Animated.js').Animated>} animated
+   * @param {Iterable<import('../core/Animated.js').Animated>} animated
    */
   setAnimated(animated) {
-    this.#animated = Array.isArray(animated) ? animated : [];
+    const isIterable = animated != null && typeof animated[Symbol.iterator] === 'function';
+    this.#animated = isIterable ? animated : [];
   }
 
   printState() {
@@ -74,7 +75,8 @@ export class AnimationPanelListenerImpl {
    * Java version returns the animated list.
    */
   getState() {
-    return this.#animated;
+    // Phase 2: archive format should be JSON-friendly; always return a plain array snapshot.
+    return Array.from(this.#animated ?? []);
   }
 
   /**
