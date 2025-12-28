@@ -55,12 +55,16 @@ export class TestAnimApp extends JSRApp {
     console.log('TestAnimApp display',this._animationPlugin);
     this._animationPlugin.setAnimateSceneGraph(false);
     this._animationPlugin.setAnimateCamera(false);
+    console.log('animated list', this._animationPlugin.getAnimated());
     // set up animation keyframes
   }
 
   setValueAtTime(t) {
-    const mat = MatrixBuilder.euclidean().rotateZ(Math.PI/2 * t).getArray();
+    console.log('TestAnimApp setValueAtTime', t);
+    const mat = MatrixBuilder.euclidean().translate(t,0,0).getArray(); //rotateZ(Math.PI/2 * t).getArray();
+    console.log('TestAnimApp setValueAtTime matrix', mat);
     this._worldSGC.getTransformation().setMatrix(mat);
+    console.log('TestAnimApp setValueAtTime matrix', this._worldSGC.getTransformation().getMatrix());
     this.getJSRViewer().render();
   }
 

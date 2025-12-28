@@ -62,7 +62,7 @@ export class AnimationPlugin extends JSRPlugin {
   #ac = null;
 
   /** @type {boolean} */
-  #animateSceneGraph = true;
+  #animateSceneGraph = false;
 
   /** @type {boolean} */
   #animateCamera = false;
@@ -214,6 +214,7 @@ export class AnimationPlugin extends JSRPlugin {
    * before that class is fully implemented/ported.
    */
   async resetSceneGraph() {
+    console.log('AnimationPlugin resetSceneGraph',this.#animateSceneGraph);
     if (this.#sga) this.#animated.delete(this.#sga);
     this.#sga = null;
     this.#syncAnimatedList();
