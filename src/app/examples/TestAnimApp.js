@@ -10,6 +10,7 @@
 
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
@@ -27,15 +28,15 @@ export class TestAnimApp extends JSRApp {
   #squareAnimator = null;
 
   getShowPanels() {
-    // Show left panel only (like other test apps); right panel holds shrink panels.
-    return [true, true, true, false];
+    return [true, false, false, true];
   }
 
   #tform = null;
 
+  _worldSGC = null;
   getContent() {
-    const world = SceneGraphUtility.createFullSceneGraphComponent('world');
-    this.#tform = world.getTransformation();
+    this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
+    this.#tform = this._worldSGC.getTransformation();
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
     squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
@@ -44,18 +45,23 @@ export class TestAnimApp extends JSRApp {
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(`polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
 
-    world.addChild(squareSGC);
+    this._worldSGC.addChild(squareSGC);
     this.#squareSGC = squareSGC;
-    return world;
+    return this._worldSGC;
   }
 
   display() {
     super.display();
+    console.log('TestAnimApp display',this._animationPlugin);
+    this._animationPlugin.setAnimateSceneGraph(false);
+    this._animationPlugin.setAnimateCamera(false);
     // set up animation keyframes
   }
 
   setValueAtTime(t) {
-    console.log('setValueAtTime', t);
+    const mat = MatrixBuilder.euclidean().rotateZ(Math.PI/2 * t).getArray();
+    this._worldSGC.getTransformation().setMatrix(mat);
+    this.getJSRViewer().render();
   }
 
   /**

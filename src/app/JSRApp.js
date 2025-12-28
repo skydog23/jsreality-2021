@@ -46,10 +46,10 @@ export class JSRApp extends JSRPlugin {
   #name = '';
 
   /** @type {AnimationPlugin|null} */
-  #animationPlugin = null;
+  _animationPlugin = null;
 
   /** @type {import('../anim/gui/AnimationPanel.js').AnimationPanel|null} */
-  #animationPanel = null;
+  _animationPanel = null;
 
   /**
    * @type {JSRViewer} The JSRViewer instance (private)
@@ -81,13 +81,17 @@ export class JSRApp extends JSRPlugin {
     // - SceneGraphInspectorPlugin should come first (claims the left panel slot)
     // - ShrinkPanelAggregator comes next (claims right panel slot)
     // - MenubarPlugin should come before menu-contributing plugins
+    const appMenu = new AppMenuPlugin();
+    // Remove AppMenuPlugin's dependency on a JSRApp plugin: provide info up-front.
+    appMenu.setAppInfo(this.getInfo());
+
     return [
       new SceneGraphInspectorPlugin(this.#inspectorConfig),
       new ShrinkPanelAggregator(this.#shrinkPanelConfig),
       new AnimationPlugin(),
       new MenubarPlugin(),
       new PanelShowMenuPlugin(),
-      new AppMenuPlugin(),
+      appMenu,
       new ExportMenuPlugin()
     ];
   }
@@ -136,17 +140,35 @@ export class JSRApp extends JSRPlugin {
     });
     
     // Register plugins (mirrors Assignment.java: subclasses can override the list).
-    Promise.resolve().then(async () => {
-    try {
-        // Finally register ourselves.
-        await this.#jsrViewer.registerPlugin(this);
+    // NOTE: This is asynchronous. Callers that need plugins installed (e.g. before
+    // calling display()) should await `whenReady()`.
+    this.#readyPromise = Promise.resolve().then(async () => {
+      try {
         for (const plugin of this.getPluginsToRegister()) {
           await this.#jsrViewer.registerPlugin(plugin);
         }
-       } catch (error) {
+        // Finally register ourselves.
+        await this.#jsrViewer.registerPlugin(this);
+      } catch (error) {
         console.error('Failed to register plugins:', error);
+        throw error;
       }
     });
+
+  }
+
+  /** @type {Promise<void>|null} */
+  #readyPromise = null;
+
+  /**
+   * Promise that resolves once all default plugins (and this app) are installed.
+   * Consumers like `test/test-jsrapp-example.html` should await this before
+   * calling `display()` if the app relies on installed plugins.
+   *
+   * @returns {Promise<void>}
+   */
+  whenReady() {
+    return this.#readyPromise ?? Promise.resolve();
   }
 
   /** @type {HTMLElement} */
@@ -238,6 +260,7 @@ export class JSRApp extends JSRPlugin {
    */
   async install(viewer, context) {
     await super.install(viewer, context);
+    console.log('JSRApp install');
 
     // Ensure we have a viewer (should be the one we created)
     if (!this.#jsrViewer) {
@@ -273,19 +296,14 @@ export class JSRApp extends JSRPlugin {
     // Register inspector panel with aggregator (like Assignment.java pattern)
     this.#registerInspectorPanel(context);
 
-    // -----------------------------------------------------------------------
-    // Animation support (inspired by Assignment.java)
-    // -----------------------------------------------------------------------
-    if (!this.#wireAnimationSupport(context)) {
-      // If JSRApp is registered before AnimationPlugin (Assignment-style),
-      // wait for it to install and then wire animation support.
-      const unsubscribe = context.on('plugin:installed', (data) => {
-        if (data?.plugin?.getInfo?.().id === PluginIds.ANIMATION) {
-          this.#wireAnimationSupport(context);
-          unsubscribe();
-        }
-      });
-    }
+    const animationPlugin = context.getPlugin(PluginIds.ANIMATION);
+    if (!animationPlugin) throw new Error('AnimationPlugin not found');
+
+    this._animationPlugin = animationPlugin;
+    this._animationPanel = animationPlugin.getAnimationPanel?.() ?? null;
+
+    this._animationPlugin.getAnimated?.().add?.(this);
+    console.log('JSRApp install done, added to animated');
   }
 
   /**
@@ -297,17 +315,17 @@ export class JSRApp extends JSRPlugin {
     const animationPlugin = context.getPlugin(PluginIds.ANIMATION);
     if (!animationPlugin) return false;
 
-    this.#animationPlugin = animationPlugin;
-    this.#animationPanel = animationPlugin.getAnimationPanel?.() ?? null;
+    this._animationPlugin = animationPlugin;
+    this._animationPanel = animationPlugin.getAnimationPanel?.() ?? null;
 
     // Match Assignment.java behavior: default to animating this app instance,
     // not the whole scene graph, unless a subclass/plugin opts in.
-    this.#animationPlugin.setAnimateSceneGraph?.(false);
+    this._animationPlugin.setAnimateSceneGraph?.(false);
 
     // Match Assignment.java: add the app itself to the Animated list so it
     // receives startAnimation/endAnimation/setValueAtTime callbacks via
     // AnimationPanelListenerImpl (installed by AnimationPlugin).
-    const animated = this.#animationPlugin.getAnimated?.();
+    const animated = this._animationPlugin.getAnimated?.();
     animated?.add?.(this);
     return true;
   }
@@ -402,7 +420,7 @@ export class JSRApp extends JSRPlugin {
    * @returns {AnimationPlugin|null}
    */
   getAnimationPlugin() {
-    return this.#animationPlugin;
+    return this._animationPlugin;
   }
 
   /**
@@ -410,7 +428,7 @@ export class JSRApp extends JSRPlugin {
    * @returns {import('../anim/gui/AnimationPanel.js').AnimationPanel|null}
    */
   getAnimationPanel() {
-    return this.#animationPanel;
+    return this._animationPanel;
   }
 
   /**
@@ -438,28 +456,15 @@ export class JSRApp extends JSRPlugin {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
     
-    // Note: Inspector is now handled by SceneGraphInspectorPlugin, so we don't
-    // call enableInspector() here. The plugin will create it during installation.
-    // If display() is called before the plugin installs, we'll refresh it after render.
-  
     this.#jsrViewer.getViewer().render();
     
-    // Refresh inspector if it exists (plugin may have created it)
-    const controller = this.#jsrViewer.getController?.();
-    const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
-    const inspector = inspectorPlugin?.getInspector?.() || null;
-    inspector?.refresh?.();
+    // // Refresh inspector if it exists (plugin may have created it)
+    // const controller = this.#jsrViewer.getController?.();
+    // const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
+    // const inspector = inspectorPlugin?.getInspector?.() || null;
+    // inspector?.refresh?.();
   }
 
-  /**
-   * Get the scene graph inspector instance.
-   * @returns {SceneGraphInspector|null} The inspector instance, or null if not enabled
-   */
-  getInspector() {
-    const controller = this.#jsrViewer.getController?.();
-    const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
-    return inspectorPlugin?.getInspector?.() || null;
-  }
 
   /**
    * Set value at time (for animation).
@@ -524,15 +529,15 @@ export class JSRApp extends JSRPlugin {
       this.#jsrViewer.dispose();
       this.#jsrViewer = null;
     }
-    if (this.#animationPlugin) {
-      const animated = this.#animationPlugin.getAnimated?.();
+    if (this._animationPlugin) {
+      const animated = this._animationPlugin.getAnimated?.();
       if (Array.isArray(animated)) {
         const idx = animated.indexOf(this);
         if (idx >= 0) animated.splice(idx, 1);
       }
     }
-    this.#animationPlugin = null;
-    this.#animationPanel = null;
+    this._animationPlugin = null;
+    this._animationPanel = null;
     this._toolSystem = null;
   }
 }

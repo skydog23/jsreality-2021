@@ -120,7 +120,13 @@
             // Layout manager + viewers will fill the container automatically
             const app = new AppClass({ container });
             
-            info.textContent = `${APP_CONFIG.className} created. Calling display()...`;
+            // JSRApp registers plugins asynchronously; wait for them before calling display().
+            if (app && typeof app.whenReady === 'function') {
+                info.textContent = `${APP_CONFIG.className} created. Waiting for plugins...`;
+                await app.whenReady();
+            }
+
+            info.textContent = `${APP_CONFIG.className} ready. Calling display()...`;
             
             // Call display() method to render
             app.display();
