@@ -52,6 +52,17 @@ export class PropertyPanelManager {
    * @type {DescriptorRenderer}
    */
   #descriptorRenderer;
+
+  /**
+   * Preferred rotation axis per Transformation.
+   *
+   * Axis-angle is underdetermined at the identity rotation (angle = 0),
+   * so if the user edits the axis while the rotation is identity, we store
+   * that axis here and use it when the user later sets a non-zero angle.
+   *
+   * @type {WeakMap<Transformation, [number, number, number]>}
+   */
+  #preferredRotationAxis = new WeakMap();
   
   /**
    * @param {HTMLElement} propertyPanel - The property panel DOM element
@@ -161,6 +172,27 @@ export class PropertyPanelManager {
   
   #buildTransformationDescriptors(transform) {
     const fm = new FactoredMatrix(Pn.EUCLIDEAN, transform.getMatrix());
+    const EPS = 1e-8;
+
+    const normalizeAxis = (axis) => {
+      const [x = 0, y = 0, z = 0] = axis || [];
+      const n = Math.sqrt(x * x + y * y + z * z);
+      if (n < EPS) return null;
+      return /** @type {[number, number, number]} */ ([x / n, y / n, z / n]);
+    };
+
+    const getPreferredAxis = () => {
+      return this.#preferredRotationAxis.get(transform) || /** @type {[number, number, number]} */ ([0, 0, 1]);
+    };
+
+    const setPreferredAxis = (axis) => {
+      const normalized = normalizeAxis(axis) || /** @type {[number, number, number]} */ ([0, 0, 1]);
+      this.#preferredRotationAxis.set(transform, normalized);
+      return normalized;
+    };
+
+    const isIdentityRotation = () => Math.abs(fm.getRotationAngle()) < EPS;
+
     const updateTransform = () => {
       transform.setMatrix(fm.getArray());
       this.#onPropertyChange();
@@ -192,7 +224,18 @@ export class PropertyPanelManager {
       getValue: () => (fm.getRotationAngle() * 180) / Math.PI,
       setValue: (degrees) => {
         const radians = Number(degrees) * Math.PI / 180;
-        const axis = fm.getRotationAxis();
+        let axis = fm.getRotationAxis();
+        const normalized = normalizeAxis(axis);
+
+        if (!normalized) {
+          // Identity rotation (axis undefined): use the stored preference.
+          axis = getPreferredAxis();
+        } else {
+          // Keep preference in sync with meaningful rotations.
+          setPreferredAxis(normalized);
+        }
+
+        // If radians is ~0, this still sets identity (fine); axis may be ignored internally.
         fm.setRotation(radians, axis);
         updateTransform();
       }
@@ -203,13 +246,20 @@ export class PropertyPanelManager {
       type: DescriptorType.VECTOR,
       label: 'Rot. Axis',
       getValue: () => {
-        const axis = fm.getRotationAxis();
+        const axis = normalizeAxis(fm.getRotationAxis()) || getPreferredAxis();
         return [axis[0], axis[1], axis[2]];
       },
       setValue: (axis) => {
-        const [x = 0, y = 0, z = 1] = axis || [];
+        const preferred = setPreferredAxis(axis);
         const angle = fm.getRotationAngle();
-        fm.setRotation(angle, [x, y, z]);
+
+        if (isIdentityRotation()) {
+          // Rotation is identity: store preference only, do not change matrix yet.
+          this.#onRefreshPropertyPanel(transform);
+          return;
+        }
+
+        fm.setRotation(angle, preferred);
         updateTransform();
       }
     };
