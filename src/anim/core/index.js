@@ -26,6 +26,7 @@ export { SimpleKeyFrameAnimated } from './SimpleKeyFrameAnimated.js';
 export { KeyFrameAnimatedDouble } from './KeyFrameAnimatedDouble.js';
 export { KeyFrameAnimatedBoolean } from './KeyFrameAnimatedBoolean.js';
 export { KeyFrameAnimatedInteger } from './KeyFrameAnimatedInteger.js';
+export { KeyFrameAnimatedBean } from './KeyFrameAnimatedBean.js';
 export { KeyFrameAnimatedColor } from './KeyFrameAnimatedColor.js';
 export { KeyFrameAnimatedIsometry } from './KeyFrameAnimatedIsometry.js';
 export { TimeMapper } from './TimeMapper.js';
