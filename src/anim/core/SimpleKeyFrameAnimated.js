@@ -217,14 +217,27 @@ export class SimpleKeyFrameAnimated extends KeyFrameAnimated {
      */
     addKeyFrame(td) {
         if (!this.writable) return;
-        
+
+        // Java parity: capture current value from the delegate/target right now.
+        // This is essential when the underlying target (e.g. a SceneGraph Transformation)
+        // was changed externally since the last animation tick.
+        let copy = this.copyFromTo(this.currentValue, this.getNewInstance());
+        // Only gather from delegate when the target is a mutable object.
+        // In JS, primitives like number/string/boolean are immutable and are often used
+        // as "targets" in the simplified ports; gathering from them would ignore the
+        // explicitly set `currentValue`.
+        const hasMutableTarget = this.target !== null && typeof this.target === 'object';
+        if (hasMutableTarget && this.delegate && typeof this.delegate.gatherCurrentValue === 'function') {
+            copy = this.delegate.gatherCurrentValue(copy) || copy;
+        }
+
         const existingKF = this.keyFrames.existingKeyFrameAt(td);
         if (existingKF) {
             // Update existing keyframe
-            existingKF.setValue(this.copyFromTo(this.currentValue, this.getNewInstance()));
+            existingKF.setValue(copy);
         } else {
             // Create new keyframe
-            const newKF = new KeyFrame(td, this.copyFromTo(this.currentValue, this.getNewInstance()));
+            const newKF = new KeyFrame(td, copy);
             this.keyFrames.add(newKF);
         }
         this.keyFramesChanged = true;

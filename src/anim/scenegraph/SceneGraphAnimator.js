@@ -156,6 +156,7 @@ export class SceneGraphAnimator {
 
     const visited = new Set();
     this.#visitComponent(this.#root, visited, Pn.EUCLIDEAN);
+    logger.fine(-1, 'SceneGraphAnimator init', { count: this.#animated.length });
   }
 
   /**
@@ -163,7 +164,13 @@ export class SceneGraphAnimator {
    * @param {TimeDescriptor} td
    */
   addKeyFrame(td) {
-    for (const a of this.#animated) a?.addKeyFrame?.(td);
+    for (const a of this.#animated) {
+      a?.addKeyFrame?.(td);
+      // Optional debug: uncomment if you want per-animator dumps.
+      // a?.printState?.();
+    }
+    logger.fine(-1, 'SceneGraphAnimator addKeyFrame', td);
+    // this.printState();
   }
 
   /**
@@ -217,7 +224,7 @@ export class SceneGraphAnimator {
       return;
     }
     visited.add(component);
-    console.log('SceneGraphAnimator #visitComponent', component.getName?.());
+    logger.fine(-1, 'SceneGraphAnimator visit', component.getName?.());
     // Phase 1: ignore ANIMATED / LOCAL_ANIMATED flags and metric changes.
 
     let tform = component.getTransformation?.() ?? null;
@@ -225,13 +232,14 @@ export class SceneGraphAnimator {
       tform = new Transformation();
       component.setTransformation?.(tform);
     }
-
+    logger.fine(-1, 'SceneGraphAnimator tform', tform);
     if (tform && typeof tform.isReadOnly === 'function' && !tform.isReadOnly()) {
       const kfat = KeyFrameAnimatedTransformation.withTransformation(tform, metric);
       kfat.setInterpolationType?.(this.#defaultInterp);
       kfat.setGivesWay?.(this.#givesWay);
       const cname = component.getName?.() || 'component';
       kfat.setName?.(`${cname} Tform`);
+      logger.fine(-1, 'SceneGraphAnimator kfat', kfat);
       this.#animated.push(kfat);
     }
 

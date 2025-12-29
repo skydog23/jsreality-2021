@@ -17,8 +17,11 @@ import { KeyFrameAnimatedIsometry } from '../core/KeyFrameAnimatedIsometry.js';
 import { KeyFrameAnimatedDelegate } from '../core/KeyFrameAnimatedDelegate.js';
 import { FactoredMatrix } from '../../core/math/FactoredMatrix.js';
 import { Transformation } from '../../core/scene/Transformation.js';
+import { getLogger } from '../../core/util/LoggingSystem.js';
 import * as Pn from '../../core/math/Pn.js';
 import * as Rn from '../../core/math/Rn.js';
+
+const logger = getLogger('jsreality.anim.scenegraph.KeyFrameAnimatedTransformation');
 
 /**
  * Animate an instance of {@link Transformation} by providing a delegate to
@@ -97,10 +100,12 @@ export class KeyFrameAnimatedTransformation extends KeyFrameAnimatedIsometry {
             }
             this.currentValue.assignFrom(tform.getMatrix());
             
-            // Set up the default delegate if none exists
-            if (!this.delegate) {
-                this.setDelegate(this.#createDefaultDelegate());
-            }
+            // Always bind to the transformation when one is set.
+            // The base class constructor may have installed a default delegate that
+            // only copies between FactoredMatrix instances; for Transformation
+            // animation we need a delegate that propagates to/from the SceneGraph
+            // Transformation.
+            this.setDelegate(this.#createDefaultDelegate());
         }
     }
 
@@ -130,7 +135,7 @@ export class KeyFrameAnimatedTransformation extends KeyFrameAnimatedIsometry {
              */
             gatherCurrentValue(fm) {
                 if (tform) {
-                    fm.assignFrom(tform.getMatrix());
+                     fm.assignFrom(tform.getMatrix());
                 }
                 return fm;
             }

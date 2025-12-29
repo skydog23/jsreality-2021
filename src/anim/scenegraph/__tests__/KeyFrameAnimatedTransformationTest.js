@@ -13,10 +13,10 @@
  * @author Charles Gunn
  */
 
-import { KeyFrameAnimatedTransformation } from './KeyFrameAnimatedTransformation.js';
-import { TimeDescriptor } from '../core/TimeDescriptor.js';
-import { KeyFrameAnimatedDelegate } from '../core/KeyFrameAnimatedDelegate.js';
-import { InterpolationTypes } from '../../util/AnimationUtility.js';
+import { jest } from '@jest/globals';
+import { KeyFrameAnimatedTransformation } from '../KeyFrameAnimatedTransformation.js';
+import { TimeDescriptor } from '../../core/TimeDescriptor.js';
+import { KeyFrameAnimatedDelegate } from '../../core/KeyFrameAnimatedDelegate.js';
 import { FactoredMatrix } from '../../../core/math/FactoredMatrix.js';
 import { Transformation } from '../../../core/scene/Transformation.js';
 import * as Pn from '../../../core/math/Pn.js';
@@ -45,7 +45,6 @@ describe('KeyFrameAnimatedTransformation', () => {
         transformation.setMatrix(identityMatrix);
         
         animatedTransform = new KeyFrameAnimatedTransformation();
-        animatedTransform.setDelegate(mockDelegate);
     });
 
     describe('Construction', () => {
@@ -97,11 +96,15 @@ describe('KeyFrameAnimatedTransformation', () => {
             // Set up keyframes
             const identityMatrix = new FactoredMatrix();
             animatedTransform.setCurrentValue(identityMatrix);
+            // For mutable targets, addKeyFrame() captures from the delegate/target.
+            // Ensure the underlying Transformation reflects the intended value.
+            animatedTransform.delegate.propagateCurrentValue(animatedTransform.currentValue);
             animatedTransform.addKeyFrame(new TimeDescriptor(0));
             
             const translatedMatrix = new FactoredMatrix();
             translatedMatrix.setTranslation(20, 30, 40);
             animatedTransform.setCurrentValue(translatedMatrix);
+            animatedTransform.delegate.propagateCurrentValue(animatedTransform.currentValue);
             animatedTransform.addKeyFrame(new TimeDescriptor(10));
             
             // Animate to the translated position
@@ -122,17 +125,20 @@ describe('KeyFrameAnimatedTransformation', () => {
             // Create keyframes: identity -> translation -> rotation+translation
             const identity = new FactoredMatrix();
             animatedTransform.setCurrentValue(identity);
+            animatedTransform.delegate.propagateCurrentValue(animatedTransform.currentValue);
             animatedTransform.addKeyFrame(new TimeDescriptor(0));
             
             const translated = new FactoredMatrix();
             translated.setTranslation(10, 0, 0);
             animatedTransform.setCurrentValue(translated);
+            animatedTransform.delegate.propagateCurrentValue(animatedTransform.currentValue);
             animatedTransform.addKeyFrame(new TimeDescriptor(5));
             
             const rotated = new FactoredMatrix();
             rotated.setTranslation(10, 0, 0);
             rotated.setRotation(Math.PI / 2, [0, 0, 1]); // 90 degrees around Z
             animatedTransform.setCurrentValue(rotated);
+            animatedTransform.delegate.propagateCurrentValue(animatedTransform.currentValue);
             animatedTransform.addKeyFrame(new TimeDescriptor(10));
         });
 
