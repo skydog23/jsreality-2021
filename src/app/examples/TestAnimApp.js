@@ -15,6 +15,7 @@ import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
+import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
@@ -39,7 +40,7 @@ export class TestAnimApp extends JSRApp {
     this.#tform = this._worldSGC.getTransformation();
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
-    squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
+    squareSGC.setGeometry(SphereUtility.tessellatedIcosahedronSphere(4)); //Primitives.regularPolygon(4, 0));
     const ap = squareSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);

@@ -101,7 +101,9 @@ export class TestJSRApp extends JSRApp {
    */
   display() {
     super.display();
-    
+    this._animationPlugin.setAnimateSceneGraph(true);
+    this._animationPlugin.setAnimateCamera(false);
+
     this.getViewer().render();
   }
 
