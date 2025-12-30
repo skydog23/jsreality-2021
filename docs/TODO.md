@@ -6,3 +6,5 @@ This is a private todo list for me (a person named Charlie Gunn)
 ** To test the rendering of a given backend, use the Viewer menu to select that backend. Add a flag to the file dialog to use the current viewer (type) to generate the image.
 
 * Extend the scenegraph inspector with a tabbed pane and pack the SGI along with performance statistics and logger controls in separate tabs.
+
+* Revive Renderman backend?

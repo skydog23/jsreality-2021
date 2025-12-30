@@ -399,6 +399,39 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /** @type {Uint16Array} Cached sequential indices for LINE_STRIP draws */
   #sequentialIndexCache = new Uint16Array(0);
+  #triangulationCache = new Map(); // numVertices -> Uint16Array
+
+  // Cache compacted vertex arrays per (indices array identity).
+  // This works well once upstream stops recreating `indices` each frame.
+  #compactedVerticesCache = new WeakMap(); // indices(Array) -> { verticesRef, array(Float32Array), size(number) }
+
+  // ---------------------------------------------------------------------------
+  // Coarse static-scene caches (first version)
+  //
+  // Goal: For animation where only transforms change, keep geometry + appearance
+  // static and avoid rebuilding typed arrays and re-uploading buffers every frame.
+  //
+  // These caches are intentionally coarse and do NOT attempt to precisely
+  // invalidate on appearance/shader changes yet.
+  // ---------------------------------------------------------------------------
+
+  /** @type {boolean} Enables caching of expanded typed arrays and GPU buffers for static scenes */
+  #enableStaticGeometryCache = true;
+
+  /** @type {number} Max number of cached GPU buffers (LRU). */
+  #maxCachedGpuBuffers = 512;
+
+  /** @type {Map<object, { buffer: WebGLBuffer, byteLength: number }>} */
+  #arrayBufferCache = new Map(); // key: Float32Array used for ARRAY_BUFFER
+
+  /** @type {Map<object, { buffer: WebGLBuffer, byteLength: number }>} */
+  #elementBufferCache = new Map(); // key: Uint16Array used for ELEMENT_ARRAY_BUFFER
+
+  /** @type {WeakMap<object, Map<string, Float32Array>>} */
+  #singleColorExpandedCache = new WeakMap(); // indices(Array) -> Map(colorKey -> Float32Array)
+
+  /** @type {WeakMap<object, Map<string, { verticesRef: any, vertexArray: Float32Array, colorArray: Float32Array, distanceArray: Float32Array, indexArray: Uint16Array }>>} */
+  #polylineQuadMeshCache = new WeakMap(); // indices(Array) -> Map(meshKey -> cached quad mesh)
 
   /**
    * Create a new WebGL2D renderer
@@ -411,6 +444,75 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Initialize WebGL resources
     this.#initWebGL();
+  }
+
+  #touchLRU(map, key, value) {
+    // Move to end (most recently used)
+    map.delete(key);
+    map.set(key, value);
+  }
+
+  #evictOldestGpuBuffersIfNeeded() {
+    const gl = this.#gl;
+    while (this.#arrayBufferCache.size + this.#elementBufferCache.size > this.#maxCachedGpuBuffers) {
+      // Evict from the larger cache first (simple heuristic)
+      const fromArray = this.#arrayBufferCache.size >= this.#elementBufferCache.size;
+      const cache = fromArray ? this.#arrayBufferCache : this.#elementBufferCache;
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey === undefined) return;
+      const oldest = cache.get(oldestKey);
+      cache.delete(oldestKey);
+      try {
+        gl.deleteBuffer(oldest?.buffer);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  #getOrCreateArrayBuffer(typedArray) {
+    const gl = this.#gl;
+    const cached = this.#arrayBufferCache.get(typedArray);
+    if (cached && cached.byteLength === typedArray.byteLength) {
+      this.#touchLRU(this.#arrayBufferCache, typedArray, cached);
+      return cached.buffer;
+    }
+    const buffer = gl.createBuffer();
+    if (!buffer) return null;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, typedArray, gl.STATIC_DRAW);
+    const entry = { buffer, byteLength: typedArray.byteLength };
+    this.#touchLRU(this.#arrayBufferCache, typedArray, entry);
+    this.#evictOldestGpuBuffersIfNeeded();
+    return buffer;
+  }
+
+  #getOrCreateElementBuffer(typedArray) {
+    const gl = this.#gl;
+    const cached = this.#elementBufferCache.get(typedArray);
+    if (cached && cached.byteLength === typedArray.byteLength) {
+      this.#touchLRU(this.#elementBufferCache, typedArray, cached);
+      return cached.buffer;
+    }
+    const buffer = gl.createBuffer();
+    if (!buffer) return null;
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, typedArray, gl.STATIC_DRAW);
+    const entry = { buffer, byteLength: typedArray.byteLength };
+    this.#touchLRU(this.#elementBufferCache, typedArray, entry);
+    this.#evictOldestGpuBuffersIfNeeded();
+    return buffer;
+  }
+
+  #colorKey(color4) {
+    // Coarse quantization to avoid churn from tiny float diffs.
+    if (!color4 || color4.length < 4) return 'null';
+    const q = (v) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 0;
+      return Math.round(n * 1e6) / 1e6;
+    };
+    return `${q(color4[0])},${q(color4[1])},${q(color4[2])},${q(color4[3])}`;
   }
 
   /**
@@ -1179,7 +1281,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Note: We need sequential indices since vertexArray is compacted
     const sequentialIndices = this.#getSequentialIndices(indices.length);
     
-    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
+    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize, 'static');
   }
 
   /**
@@ -1224,15 +1326,39 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     if (indices.length < 2) {
       return; // Need at least 2 points for a line
     }
+
+    // Get the color for this edge (or use current color)
+    const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
+
+    // Coarse mesh cache for static scenes (keyed by indices identity + (halfWidth,color)).
+    if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
+      let byKey = this.#polylineQuadMeshCache.get(indices);
+      if (!byKey) {
+        byKey = new Map();
+        this.#polylineQuadMeshCache.set(indices, byKey);
+      }
+      const key = `${this.#colorKey(edgeColor)}|w=${Number(halfWidth)}`;
+      const cached = byKey.get(key);
+      if (cached && cached.verticesRef === vertices) {
+        this.#drawGeometry(
+          cached.vertexArray,
+          cached.colorArray,
+          cached.indexArray,
+          this.#capabilities.TRIANGLES,
+          cached.distanceArray,
+          halfWidth,
+          2,
+          'static'
+        );
+        return;
+      }
+    }
     
     const allQuadVertices = [];
     const allQuadColors = [];
     const allQuadDistances = []; // Distance from centerline for edge smoothing
     const allQuadIndices = [];
     let vertexOffset = 0;
-    
-    // Get the color for this edge (or use current color)
-    const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
     
     // Draw each line segment as a quad
     for (let i = 0; i < indices.length - 1; i++) {
@@ -1304,8 +1430,25 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         this.#capabilities.TRIANGLES,
         distanceArray,
         halfWidth,
-        2
+        2,
+        'static'
       );
+
+      if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
+        let byKey = this.#polylineQuadMeshCache.get(indices);
+        if (!byKey) {
+          byKey = new Map();
+          this.#polylineQuadMeshCache.set(indices, byKey);
+        }
+        const key = `${this.#colorKey(edgeColor)}|w=${Number(halfWidth)}`;
+        byKey.set(key, {
+          verticesRef: vertices,
+          vertexArray,
+          colorArray,
+          distanceArray,
+          indexArray
+        });
+      }
     }
   }
 
@@ -1320,7 +1463,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   _drawPolygon(vertices, color, indices, fill) {
     const gl = this.#gl;
     // console.error('🔵 WebGL2DRenderer._drawPolygon CALLED - color:', color);
-    if (color != null) color = color.map(c => c/255);
     // Convert vertices to Float32Array (creates compacted array, preserve dimension)
     const { array: vertexArray, size: positionSize } = this.#verticesToFloat32Array(vertices, indices);
     // colors is a single color per face (or null) - replicate it for all vertices
@@ -1334,7 +1476,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const indexArray = this.#triangulatePolygonSequential(numVertices);
     
     // Use cached TRIANGLES constant
-    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
+    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize, 'static');
   }
 
   /**
@@ -1348,7 +1490,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing (0 for non-lines)
    * @param {number} [positionSize=2] - Number of components per vertex position (2, 3, or 4)
    */
-  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
+  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2, cachePolicy = 'stream') {
     const gl = this.#gl;
     const program = this.#program;
     
@@ -1372,10 +1514,23 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
     this.#updateUniforms(lineHalfWidth, 1.0);
-    
-    // Bind buffers
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+
+    const useStatic = (cachePolicy === 'static') && this.#enableStaticGeometryCache;
+
+    // -----------------------------------------------------------------------
+    // Vertex buffer
+    // -----------------------------------------------------------------------
+    if (useStatic) {
+      const vbo = this.#getOrCreateArrayBuffer(vertices);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo || this.#vertexBuffer);
+      // If cache failed (no buffer), fall back to streaming upload.
+      if (!vbo) {
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+      }
+    } else {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+    }
     
     const positionLoc = gl.getAttribLocation(program, 'a_position');
     if (positionLoc === -1) {
@@ -1386,8 +1541,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Use the provided component count so 3D/4D vertices reach the shader intact
     gl.vertexAttribPointer(positionLoc, positionSize, gl.FLOAT, false, 0, 0);
     
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+    // -----------------------------------------------------------------------
+    // Color buffer
+    // -----------------------------------------------------------------------
+    if (useStatic) {
+      const cbo = this.#getOrCreateArrayBuffer(colors);
+      gl.bindBuffer(gl.ARRAY_BUFFER, cbo || this.#colorBuffer);
+      if (!cbo) {
+        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+      }
+    } else {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+    }
     
     const colorLoc = gl.getAttribLocation(program, 'a_color');
     if (colorLoc === -1) {
@@ -1401,8 +1567,16 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const distanceLoc = gl.getAttribLocation(program, 'a_distance');
     if (distanceLoc !== -1) {
       if (distances && distances.length > 0) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
+        if (useStatic) {
+          const dbo = this.#getOrCreateArrayBuffer(distances);
+          gl.bindBuffer(gl.ARRAY_BUFFER, dbo || this.#distanceBuffer);
+          if (!dbo) {
+            gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
+          }
+        } else {
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
+        }
         gl.enableVertexAttribArray(distanceLoc);
         gl.vertexAttribPointer(distanceLoc, 1, gl.FLOAT, false, 0, 0);
       } else {
@@ -1416,8 +1590,16 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Note: We don't validate mode here because gl.POINTS, gl.LINE_STRIP, etc. should always be valid
     // The INVALID_ENUM error might be from something else (like gl.UNSIGNED_SHORT)
     if (indices && indices.length > 0) {
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
+      if (useStatic) {
+        const ibo = this.#getOrCreateElementBuffer(indices);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo || this.#indexBuffer);
+        if (!ibo) {
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
+        }
+      } else {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
+      }
       
       // Use cached UNSIGNED_SHORT constant
       const indexType = this.#capabilities.UNSIGNED_SHORT;
@@ -1485,16 +1667,22 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {{ array: Float32Array, size: number }} vertices array and component count per vertex
    */
   #verticesToFloat32Array(vertices, indices) {
-    const result = [];
-
     if (!indices || indices.length === 0) {
       return { array: new Float32Array(0), size: 2 };
+    }
+
+    // Cache hit: compacted vertex array for this specific indices array.
+    // Assumes `indices` identity is stable for static geometry.
+    const cached = this.#compactedVerticesCache.get(indices);
+    if (cached && cached.verticesRef === vertices && cached.array && typeof cached.size === 'number') {
+      return { array: cached.array, size: cached.size };
     }
 
     // Determine component count from first vertex (clamped to [2, 4])
     const firstVertex = this._extractPoint(vertices[indices[0]]);
     const size = Math.min(Math.max(firstVertex.length || 2, 2), 4);
 
+    const result = [];
     for (const index of indices) {
       const vertex = vertices[index];
       const point = this._extractPoint(vertex);
@@ -1505,7 +1693,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       }
     }
 
-    return { array: new Float32Array(result), size };
+    const array = new Float32Array(result);
+    this.#compactedVerticesCache.set(indices, { verticesRef: vertices, array, size });
+    return { array, size };
   }
 
   /**
@@ -1531,6 +1721,24 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     if (isSingleColor) {
       // Single color for entire face/line - apply to all vertices
       const color = this.#toWebGLColor(colors);
+      if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
+        let byColor = this.#singleColorExpandedCache.get(indices);
+        if (!byColor) {
+          byColor = new Map();
+          this.#singleColorExpandedCache.set(indices, byColor);
+        }
+        const key = this.#colorKey(color);
+        const cached = byColor.get(key);
+        if (cached) {
+          return cached;
+        }
+        for (let i = 0; i < indices.length; i++) {
+          result.push(...color);
+        }
+        const arr = new Float32Array(result);
+        byColor.set(key, arr);
+        return arr;
+      }
       for (let i = 0; i < indices.length; i++) {
         result.push(...color);
       }
@@ -1560,12 +1768,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {Uint16Array}
    */
   #triangulatePolygonSequential(numVertices) {
+    const n = Math.max(0, numVertices | 0);
+    if (n < 3) return new Uint16Array(0);
+    const cached = this.#triangulationCache.get(n);
+    if (cached) return cached;
+
     const result = [];
     // Fan triangulation: triangle fan from vertex 0
-    for (let i = 1; i < numVertices - 1; i++) {
+    for (let i = 1; i < n - 1; i++) {
       result.push(0, i, i + 1);
     }
-    return new Uint16Array(result);
+    const arr = new Uint16Array(result);
+    this.#triangulationCache.set(n, arr);
+    return arr;
   }
 
   /**
@@ -1576,9 +1791,23 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   #toWebGLColor(color) {
     if (color instanceof Color) {
-    return color.toFloatArray();
+      return color.toFloatArray();
     } else if (Array.isArray(color)) {
-      return color;
+      // Coarse normalization: if values look like 0..255 bytes, convert to 0..1.
+      // This keeps caching stable and avoids per-call `map(c=>c/255)` allocations.
+      let max = 0;
+      for (let i = 0; i < Math.min(color.length, 4); i++) {
+        const v = Number(color[i]);
+        if (Number.isFinite(v)) max = Math.max(max, v);
+      }
+      if (max > 1.0) {
+        const r = (color[0] ?? 255) / 255;
+        const g = (color[1] ?? 255) / 255;
+        const b = (color[2] ?? 255) / 255;
+        const a = (color.length >= 4 ? (color[3] ?? 255) : 255) / 255;
+        return [r, g, b, a];
+      }
+      return color.length === 4 ? color : [color[0] ?? 1.0, color[1] ?? 1.0, color[2] ?? 1.0, color[3] ?? 1.0];
     } else return [1.0, 1.0, 1.0, 1.0];
   }
 }

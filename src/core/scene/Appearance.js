@@ -57,9 +57,13 @@ export class Appearance extends SceneGraphNode {
   #attributes = new Map();
   
   /**
-   * @type {Set<string>} Changed attributes for batched events
+   * Changed attributes for batched events.
+   *
+   * We store a mapping key -> oldValue so listeners can inspect what changed.
+   *
+   * @type {Map<string, *>}
    */
-  #changedAttributes = new Set();
+  #changedAttributes = new Map();
 
   /**
    * @type {number} Counter for unnamed appearances
@@ -242,7 +246,11 @@ export class Appearance extends SceneGraphNode {
    * @private
    */
   #fireAppearanceChanged(key, oldValue) {
-    this.#changedAttributes.add(key);
+    // Record oldValue once; if a key is changed multiple times within a single
+    // write transaction, we keep the first observed oldValue.
+    if (!this.#changedAttributes.has(key)) {
+      this.#changedAttributes.set(key, oldValue);
+    }
   }
 
   /**

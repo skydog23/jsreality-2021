@@ -70,6 +70,29 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   #showFaces = true;
 
   /**
+   * Cache of JS-array conversions for geometry DataLists.
+   *
+   * Motivation: `fromDataList(...).toNestedArray()` allocates a lot; for static
+   * geometries we want to reuse the converted arrays across frames.
+   *
+   * Note: This cache is *identity-based* on the DataList object returned by
+   * geometry getters. If a DataList is mutated in-place (instead of replaced),
+   * this cache will not notice. The intended usage pattern in jsreality is to
+   * update geometry via `set*Attribute(...)` which replaces DataLists and thus
+   * invalidates naturally.
+   *
+   * @type {WeakMap<object, {
+   *   vertexCoordsDL: any, vertexCoords: any,
+   *   vertexColorsDL: any, vertexColors: any,
+   *   edgeIndicesDL: any, edgeIndices: any,
+   *   edgeColorsDL: any, edgeColors: any,
+   *   faceIndicesDL: any, faceIndices: any,
+   *   faceColorsDL: any, faceColors: any
+   * }>}
+   */
+  #geometryArrayCache = new WeakMap();
+
+  /**
    * Create a new Abstract2DRenderer
    * @param {Abstract2DViewer} viewer - The viewer
    */
@@ -80,6 +103,123 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this.#world2ndc = new Array(16);
     // Initialize with an empty root EffectiveAppearance
     this.#effectiveAppearance = EffectiveAppearance.create();
+  }
+
+  /**
+   * Get (and lazily create) cache entry for a geometry object.
+   * @private
+   * @param {object} geometry
+   */
+  #getGeometryCache(geometry) {
+    let entry = this.#geometryArrayCache.get(geometry);
+    if (!entry) {
+      entry = {
+        vertexCoordsDL: null,
+        vertexCoords: null,
+        vertexColorsDL: null,
+        vertexColors: null,
+        edgeIndicesDL: null,
+        edgeIndices: null,
+        edgeColorsDL: null,
+        edgeColors: null,
+        faceIndicesDL: null,
+        faceIndices: null,
+        faceColorsDL: null,
+        faceColors: null,
+      };
+      this.#geometryArrayCache.set(geometry, entry);
+    }
+    return entry;
+  }
+
+  /**
+   * Cached conversion: geometry vertex coordinates -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getVertexCoordsArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getVertexCoordinates?.() || null;
+    if (dl !== entry.vertexCoordsDL) {
+      entry.vertexCoordsDL = dl;
+      entry.vertexCoords = fromDataList(dl);
+    }
+    return entry.vertexCoords;
+  }
+
+  /**
+   * Cached conversion: geometry vertex colors -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getVertexColorsArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getVertexColors?.() || null;
+    if (dl !== entry.vertexColorsDL) {
+      entry.vertexColorsDL = dl;
+      entry.vertexColors = fromDataList(dl);
+    }
+    return entry.vertexColors;
+  }
+
+  /**
+   * Cached conversion: geometry edge indices -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getEdgeIndicesArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getEdgeIndices?.() || null;
+    if (dl !== entry.edgeIndicesDL) {
+      entry.edgeIndicesDL = dl;
+      entry.edgeIndices = fromDataList(dl);
+    }
+    return entry.edgeIndices;
+  }
+
+  /**
+   * Cached conversion: geometry edge colors -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getEdgeColorsArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getEdgeAttribute?.(GeometryAttribute.COLORS) || null;
+    if (dl !== entry.edgeColorsDL) {
+      entry.edgeColorsDL = dl;
+      entry.edgeColors = fromDataList(dl);
+    }
+    return entry.edgeColors;
+  }
+
+  /**
+   * Cached conversion: geometry face indices -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getFaceIndicesArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getFaceIndices?.() || null;
+    if (dl !== entry.faceIndicesDL) {
+      entry.faceIndicesDL = dl;
+      entry.faceIndices = fromDataList(dl);
+    }
+    return entry.faceIndices;
+  }
+
+  /**
+   * Cached conversion: geometry face colors -> nested JS array.
+   * @private
+   * @param {*} geometry
+   */
+  #getFaceColorsArray(geometry) {
+    const entry = this.#getGeometryCache(geometry);
+    const dl = geometry.getFaceAttribute?.(GeometryAttribute.COLORS) || null;
+    if (dl !== entry.faceColorsDL) {
+      entry.faceColorsDL = dl;
+      entry.faceColors = fromDataList(dl);
+    }
+    return entry.faceColors;
   }
 
   // ============================================================================
@@ -611,9 +751,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = fromDataList(geometry.getVertexCoordinates());
+    const vertices = this.#getVertexCoordsArray(geometry);
     if (!vertices) return;
-    const colors = fromDataList(geometry.getVertexColors());
+    const colors = this.#getVertexColorsArray(geometry);
     
     
     const numVertices = geometry.getNumPoints ? geometry.getNumPoints() : 
@@ -644,12 +784,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return;
     }
     
-    const vertices = fromDataList(geometry.getVertexCoordinates());
+    const vertices = this.#getVertexCoordsArray(geometry);
     if (!vertices) return;
     
     // Get appropriate edge indices - try both convenience method and direct attribute access
-    let indices = fromDataList(geometry.getEdgeIndices());
-    // Fallback: try getting indices directly from edge attributes
+    let indices = this.#getEdgeIndicesArray(geometry);
+    // Fallback: try getting indices directly from edge attributes (rare path)
     if (!indices && geometry.getEdgeAttributes) {
       const edgeAttrs = geometry.getEdgeAttributes();
       if (edgeAttrs && edgeAttrs.size > 0) {
@@ -658,10 +798,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
     
     // Get edge colors and convert from DataList if present
-    let edgeColors = geometry.getEdgeAttribute(GeometryAttribute.COLORS);
-    if (edgeColors) {
-      edgeColors = fromDataList(edgeColors);
-    }
+    const edgeColors = this.#getEdgeColorsArray(geometry);
     
     this._beginPrimitiveGroup(CommonAttributes.LINE);
     
@@ -690,16 +827,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return;
     }
 
-    const vertices = fromDataList(geometry.getVertexCoordinates());
-    const indices = fromDataList(geometry.getFaceIndices());
+    const vertices = this.#getVertexCoordsArray(geometry);
+    const indices = this.#getFaceIndicesArray(geometry);
     if (!vertices || !indices) return;
 
      // Get face colors and convert from DataList if present
-    let faceColors = geometry.getFaceAttribute(GeometryAttribute.COLORS);
-    if (faceColors) {
-      faceColors = fromDataList(faceColors);
-      // faceColors = faceColors.map(color => new Color(color[0], color[1], color[2]));
-    }
+    const faceColors = this.#getFaceColorsArray(geometry);
      // Begin nested group for faces
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     
