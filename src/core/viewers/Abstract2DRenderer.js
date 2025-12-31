@@ -93,6 +93,18 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   #geometryArrayCache = new WeakMap();
 
   /**
+   * Per-frame debug counters for CPU-side caching.
+   * Filled when viewer debugPerf is enabled.
+   * @type {null|{ enabled: boolean, vertexCoordsHit: number, vertexCoordsMiss: number,
+   *              vertexColorsHit: number, vertexColorsMiss: number,
+   *              edgeIndicesHit: number, edgeIndicesMiss: number,
+   *              edgeColorsHit: number, edgeColorsMiss: number,
+   *              faceIndicesHit: number, faceIndicesMiss: number,
+   *              faceColorsHit: number, faceColorsMiss: number }}
+   */
+  #debugCpu = null;
+
+  /**
    * Create a new Abstract2DRenderer
    * @param {Abstract2DViewer} viewer - The viewer
    */
@@ -103,6 +115,14 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this.#world2ndc = new Array(16);
     // Initialize with an empty root EffectiveAppearance
     this.#effectiveAppearance = EffectiveAppearance.create();
+  }
+
+  /**
+   * @protected
+   * @returns {null|object} CPU-side debug counters for the current frame
+   */
+  _debugPerfGetCpuCounters() {
+    return this.#debugCpu ? { ...this.#debugCpu } : null;
   }
 
   /**
@@ -143,6 +163,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.vertexCoordsDL) {
       entry.vertexCoordsDL = dl;
       entry.vertexCoords = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.vertexCoordsMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.vertexCoordsHit++;
     }
     return entry.vertexCoords;
   }
@@ -158,6 +181,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.vertexColorsDL) {
       entry.vertexColorsDL = dl;
       entry.vertexColors = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.vertexColorsMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.vertexColorsHit++;
     }
     return entry.vertexColors;
   }
@@ -173,6 +199,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.edgeIndicesDL) {
       entry.edgeIndicesDL = dl;
       entry.edgeIndices = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.edgeIndicesMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.edgeIndicesHit++;
     }
     return entry.edgeIndices;
   }
@@ -188,6 +217,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.edgeColorsDL) {
       entry.edgeColorsDL = dl;
       entry.edgeColors = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.edgeColorsMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.edgeColorsHit++;
     }
     return entry.edgeColors;
   }
@@ -203,6 +235,9 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.faceIndicesDL) {
       entry.faceIndicesDL = dl;
       entry.faceIndices = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.faceIndicesMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.faceIndicesHit++;
     }
     return entry.faceIndices;
   }
@@ -218,8 +253,45 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     if (dl !== entry.faceColorsDL) {
       entry.faceColorsDL = dl;
       entry.faceColors = fromDataList(dl);
+      if (this.#debugCpu) this.#debugCpu.faceColorsMiss++;
+    } else {
+      if (this.#debugCpu) this.#debugCpu.faceColorsHit++;
     }
     return entry.faceColors;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Protected wrappers for cached geometry arrays (for subclass overrides).
+  // ---------------------------------------------------------------------------
+
+  /** @protected */
+  _cacheGetVertexCoordsArray(geometry) {
+    return this.#getVertexCoordsArray(geometry);
+  }
+
+  /** @protected */
+  _cacheGetVertexColorsArray(geometry) {
+    return this.#getVertexColorsArray(geometry);
+  }
+
+  /** @protected */
+  _cacheGetEdgeIndicesArray(geometry) {
+    return this.#getEdgeIndicesArray(geometry);
+  }
+
+  /** @protected */
+  _cacheGetEdgeColorsArray(geometry) {
+    return this.#getEdgeColorsArray(geometry);
+  }
+
+  /** @protected */
+  _cacheGetFaceIndicesArray(geometry) {
+    return this.#getFaceIndicesArray(geometry);
+  }
+
+  /** @protected */
+  _cacheGetFaceColorsArray(geometry) {
+    return this.#getFaceColorsArray(geometry);
   }
 
   // ============================================================================
@@ -486,6 +558,22 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // Reset render statistics for this call
     this.#viewer._resetRenderStatistics();
 
+    // Initialize per-frame debug counters if enabled on the viewer.
+    const debugPerf = this.#viewer.getDebugPerfOptions?.();
+    if (debugPerf?.enabled) {
+      this.#debugCpu = {
+        enabled: true,
+        vertexCoordsHit: 0, vertexCoordsMiss: 0,
+        vertexColorsHit: 0, vertexColorsMiss: 0,
+        edgeIndicesHit: 0, edgeIndicesMiss: 0,
+        edgeColorsHit: 0, edgeColorsMiss: 0,
+        faceIndicesHit: 0, faceIndicesMiss: 0,
+        faceColorsHit: 0, faceColorsMiss: 0
+      };
+    } else {
+      this.#debugCpu = null;
+    }
+
     const sceneRoot = this.#viewer.getSceneRoot();
 
     if (!this.beginRender()) {
@@ -508,6 +596,29 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
 
     const t1 = nowFn();
     this.#viewer._setRenderDurationMs?.(t1 - t0);
+
+    // Backend-agnostic debug/perf logging.
+    // (WebGL backend may add additional GL counters in its own _endRender().)
+    if (debugPerf?.enabled && typeof debugPerf.logFn === 'function') {
+      const stats = this.#viewer.getRenderStatistics?.();
+      const every = Math.max(1, debugPerf.everyNFrames | 0);
+      const frame = stats?.renderCallCount ?? 0;
+      if (frame > 0 && frame % every === 0) {
+        debugPerf.logFn('[Abstract2DRenderer debugPerf]', {
+          viewer: this.#viewer?.constructor?.name,
+          renderer: this.constructor?.name,
+          frame,
+          renderMs: stats?.renderDurationMs,
+          avgRenderMs: stats?.avgRenderDurationMs,
+          primitives: {
+            points: stats?.pointsRendered,
+            edges: stats?.edgesRendered,
+            faces: stats?.facesRendered
+          },
+          cpuCache: this._debugPerfGetCpuCounters?.()
+        });
+      }
+    }
   }
 
   /**
@@ -737,8 +848,21 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // 2. Faces as filled polygons (if FACE_DRAW) - render first so edges appear on top
     // 3. Edges as lines (if EDGE_DRAW) - render last so they're visible over faces
     this._renderVerticesAsPoints(geometryToRender);
-    this._renderFacesAsPolygons(geometryToRender);
+    this._renderFaces(geometryToRender);
     this._renderEdgesAsLines(geometryToRender);
+  }
+
+  /**
+   * Render faces for a face geometry.
+   *
+   * Default behavior draws faces one-by-one as polygons.
+   * WebGL renderer can override this to batch faces into a single mesh draw.
+   *
+   * @protected
+   * @param {*} geometry
+   */
+  _renderFaces(geometry) {
+    this._renderFacesAsPolygons(geometry);
   }
 
   /**

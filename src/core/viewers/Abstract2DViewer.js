@@ -53,10 +53,49 @@ export class Abstract2DViewer extends Viewer {
   #renderDurationSamples = [];
 
   /**
+   * Debug/perf instrumentation options for renderers.
+   *
+   * Kept in the viewer so device-specific renderers can log consistent stats.
+   *
+   * @type {{ enabled: boolean, everyNFrames: number, logFn: Function } }
+   */
+  #debugPerfOptions = { enabled: false, everyNFrames: 60, logFn: console.log };
+
+  /**
    * Create a new Abstract2DViewer
    */
   constructor() {
     super();
+  }
+
+  /**
+   * Configure debug/perf logging.
+   *
+   * @param {boolean|{ enabled?: boolean, everyNFrames?: number, logFn?: Function }} options
+   */
+  setDebugPerf(options) {
+    if (options === true) {
+      this.#debugPerfOptions = { ...this.#debugPerfOptions, enabled: true };
+      return;
+    }
+    if (options === false || options == null) {
+      this.#debugPerfOptions = { ...this.#debugPerfOptions, enabled: false };
+      return;
+    }
+    if (typeof options === 'object') {
+      const enabled = options.enabled !== undefined ? Boolean(options.enabled) : this.#debugPerfOptions.enabled;
+      const everyNFrames = options.everyNFrames !== undefined ? Math.max(1, options.everyNFrames | 0) : this.#debugPerfOptions.everyNFrames;
+      const logFn = typeof options.logFn === 'function' ? options.logFn : this.#debugPerfOptions.logFn;
+      this.#debugPerfOptions = { enabled, everyNFrames, logFn };
+    }
+  }
+
+  /**
+   * Get current debug/perf options.
+   * @returns {{ enabled: boolean, everyNFrames: number, logFn: Function }}
+   */
+  getDebugPerfOptions() {
+    return { ...this.#debugPerfOptions };
   }
 
   // Viewer interface implementation

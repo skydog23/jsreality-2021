@@ -17,6 +17,7 @@ import { Dimension } from '../scene/Viewer.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { INHERITED } from '../scene/Appearance.js';
 import { Color } from '../util/Color.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -56,8 +57,9 @@ export class WebGL2DViewer extends Abstract2DViewer {
    * @param {boolean} [options.alpha=true] - Whether the drawing buffer has an alpha channel
    * @param {boolean} [options.antialias=true] - Whether the default framebuffer is multisampled (MSAA)
    * @param {boolean} [options.preserveDrawingBuffer=true] - Keep drawing buffer after presenting
-   * @param {boolean} [options.depth=false] - Whether to request a depth buffer
+   * @param {boolean} [options.depth=true] - Whether to request a depth buffer
    * @param {boolean} [options.stencil=false] - Whether to request a stencil buffer
+   * @param {boolean|{ enabled?: boolean, everyNFrames?: number, logFn?: Function }} [options.debugPerf=false]
    */
   constructor(canvas, options = {}) {
     super();
@@ -74,7 +76,7 @@ export class WebGL2DViewer extends Abstract2DViewer {
     const contextAttributes = {
       alpha: options.alpha !== false,
       antialias: options.antialias !== false,
-      depth: options.depth === true,
+      depth: options.depth !== false,
       stencil: options.stencil === true,
       preserveDrawingBuffer: options.preserveDrawingBuffer !== false
     };
@@ -98,6 +100,11 @@ export class WebGL2DViewer extends Abstract2DViewer {
     this.#gl = gl;
     this.#autoResize = options.autoResize !== false;
     this._pixelRatio = options.pixelRatio || window.devicePixelRatio || 1;
+
+    // Optional perf debug logging (counts cache hits, GL uploads/draws, etc.)
+    if (options.debugPerf) {
+      this.setDebugPerf(options.debugPerf);
+    }
     
     // Setup resize handling first - it will trigger setupCanvas when canvas has dimensions
     if (this.#autoResize) {
@@ -290,7 +297,7 @@ export class WebGL2DViewer extends Abstract2DViewer {
         // reduce memory footprint.
         alpha: includeAlpha,
         preserveDrawingBuffer: true,
-        depth: false,
+        depth: true,
         stencil: false
       },
       (tempViewer, tempCanvas, info) => {
@@ -355,6 +362,24 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   /** @type {WebGLProgram|null} */
   #program = null;
 
+  /** @type {WebGLProgram|null} Program for instanced point-quads (WebGL2) */
+  #pointProgram = null;
+
+  /** @type {WebGLBuffer|null} */
+  #pointCornerBuffer = null; // vec2 corners for the base quad
+
+  /** @type {WebGLBuffer|null} */
+  #pointIndexBuffer = null; // indices for base quad
+
+  /** @type {WebGLBuffer|null} */
+  #pointCenterBuffer = null; // per-instance vec4 center
+
+  /** @type {WebGLBuffer|null} */
+  #pointColorInstBuffer = null; // per-instance vec4 color
+
+  /** @type {WeakMap<object, { coordsDL: any, colorsDL: any, centers: Float32Array, colors: Float32Array, count: number }>} */
+  #pointInstanceCache = new WeakMap();
+
   /** @type {WebGLBuffer|null} */
   #vertexBuffer = null;
 
@@ -375,6 +400,15 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /** @type {Object} Cached WebGL capabilities */
   #capabilities = null;
+
+  /** @type {boolean} Whether the underlying WebGL context has a depth buffer */
+  #hasDepthBuffer = false;
+
+  /** @type {number} Debug frame counter (independent of viewer renderCallCount timing) */
+  #debugFrame = 0;
+
+  /** @type {null|{ bufferDataArray: number, bufferDataElement: number, drawElements: number, drawArrays: number }} */
+  #debugGL = null;
 
   /** @type {number[]} Batched vertices for lines (to combine multiple edges into single draw call) */
   #batchedVertices = [];
@@ -397,42 +431,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   /** @type {number[]} Batched distances from centerline for edge smoothing */
   #batchedDistances = [];
 
-  /** @type {Uint16Array} Cached sequential indices for LINE_STRIP draws */
-  #sequentialIndexCache = new Uint16Array(0);
-  #triangulationCache = new Map(); // numVertices -> Uint16Array
-
-  // Cache compacted vertex arrays per (indices array identity).
-  // This works well once upstream stops recreating `indices` each frame.
-  #compactedVerticesCache = new WeakMap(); // indices(Array) -> { verticesRef, array(Float32Array), size(number) }
-
-  // ---------------------------------------------------------------------------
-  // Coarse static-scene caches (first version)
-  //
-  // Goal: For animation where only transforms change, keep geometry + appearance
-  // static and avoid rebuilding typed arrays and re-uploading buffers every frame.
-  //
-  // These caches are intentionally coarse and do NOT attempt to precisely
-  // invalidate on appearance/shader changes yet.
-  // ---------------------------------------------------------------------------
-
-  /** @type {boolean} Enables caching of expanded typed arrays and GPU buffers for static scenes */
-  #enableStaticGeometryCache = true;
-
-  /** @type {number} Max number of cached GPU buffers (LRU). */
-  #maxCachedGpuBuffers = 512;
-
-  /** @type {Map<object, { buffer: WebGLBuffer, byteLength: number }>} */
-  #arrayBufferCache = new Map(); // key: Float32Array used for ARRAY_BUFFER
-
-  /** @type {Map<object, { buffer: WebGLBuffer, byteLength: number }>} */
-  #elementBufferCache = new Map(); // key: Uint16Array used for ELEMENT_ARRAY_BUFFER
-
-  /** @type {WeakMap<object, Map<string, Float32Array>>} */
-  #singleColorExpandedCache = new WeakMap(); // indices(Array) -> Map(colorKey -> Float32Array)
-
-  /** @type {WeakMap<object, Map<string, { verticesRef: any, vertexArray: Float32Array, colorArray: Float32Array, distanceArray: Float32Array, indexArray: Uint16Array }>>} */
-  #polylineQuadMeshCache = new WeakMap(); // indices(Array) -> Map(meshKey -> cached quad mesh)
-
   /**
    * Create a new WebGL2D renderer
    * @param {WebGL2DViewer} viewer - The viewer
@@ -446,75 +444,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     this.#initWebGL();
   }
 
-  #touchLRU(map, key, value) {
-    // Move to end (most recently used)
-    map.delete(key);
-    map.set(key, value);
-  }
-
-  #evictOldestGpuBuffersIfNeeded() {
-    const gl = this.#gl;
-    while (this.#arrayBufferCache.size + this.#elementBufferCache.size > this.#maxCachedGpuBuffers) {
-      // Evict from the larger cache first (simple heuristic)
-      const fromArray = this.#arrayBufferCache.size >= this.#elementBufferCache.size;
-      const cache = fromArray ? this.#arrayBufferCache : this.#elementBufferCache;
-      const oldestKey = cache.keys().next().value;
-      if (oldestKey === undefined) return;
-      const oldest = cache.get(oldestKey);
-      cache.delete(oldestKey);
-      try {
-        gl.deleteBuffer(oldest?.buffer);
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  #getOrCreateArrayBuffer(typedArray) {
-    const gl = this.#gl;
-    const cached = this.#arrayBufferCache.get(typedArray);
-    if (cached && cached.byteLength === typedArray.byteLength) {
-      this.#touchLRU(this.#arrayBufferCache, typedArray, cached);
-      return cached.buffer;
-    }
-    const buffer = gl.createBuffer();
-    if (!buffer) return null;
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, typedArray, gl.STATIC_DRAW);
-    const entry = { buffer, byteLength: typedArray.byteLength };
-    this.#touchLRU(this.#arrayBufferCache, typedArray, entry);
-    this.#evictOldestGpuBuffersIfNeeded();
-    return buffer;
-  }
-
-  #getOrCreateElementBuffer(typedArray) {
-    const gl = this.#gl;
-    const cached = this.#elementBufferCache.get(typedArray);
-    if (cached && cached.byteLength === typedArray.byteLength) {
-      this.#touchLRU(this.#elementBufferCache, typedArray, cached);
-      return cached.buffer;
-    }
-    const buffer = gl.createBuffer();
-    if (!buffer) return null;
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, typedArray, gl.STATIC_DRAW);
-    const entry = { buffer, byteLength: typedArray.byteLength };
-    this.#touchLRU(this.#elementBufferCache, typedArray, entry);
-    this.#evictOldestGpuBuffersIfNeeded();
-    return buffer;
-  }
-
-  #colorKey(color4) {
-    // Coarse quantization to avoid churn from tiny float diffs.
-    if (!color4 || color4.length < 4) return 'null';
-    const q = (v) => {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return 0;
-      return Math.round(n * 1e6) / 1e6;
-    };
-    return `${q(color4[0])},${q(color4[1])},${q(color4[2])},${q(color4[3])}`;
-  }
-
   /**
    * Initialize WebGL shaders and buffers
    * @private
@@ -524,6 +453,20 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     // Cache WebGL capabilities at startup
     this.#capabilities = this.#queryWebGLCapabilities(gl);
+    // Determine whether 32-bit element indices are usable.
+    // WebGL2: core support via UNSIGNED_INT
+    // WebGL1: requires OES_element_index_uint
+    try {
+      const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+      if (isWebGL2) {
+        this.#capabilities.supportsUint32Indices = true;
+      } else {
+        const ext = gl.getExtension?.('OES_element_index_uint');
+        this.#capabilities.supportsUint32Indices = Boolean(ext);
+      }
+    } catch {
+      this.#capabilities.supportsUint32Indices = false;
+    }
     
     // Create shader program
     this.#program = this.#createShaderProgram();
@@ -537,6 +480,34 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     this.#colorBuffer = gl.createBuffer();
     this.#indexBuffer = gl.createBuffer();
     this.#distanceBuffer = gl.createBuffer();
+
+    // Create instanced point resources (WebGL2 only).
+    if (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext) {
+      this.#pointProgram = this.#createInstancedPointProgram();
+      this.#pointCornerBuffer = gl.createBuffer();
+      this.#pointIndexBuffer = gl.createBuffer();
+      this.#pointCenterBuffer = gl.createBuffer();
+      this.#pointColorInstBuffer = gl.createBuffer();
+
+      // Base quad corners in local space (scaled by u_pointRadius in shader).
+      // 4 vertices, vec2 each: (-1,-1), (1,-1), (-1,1), (1,1)
+      const corners = new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+         1,  1
+      ]);
+      const quadIndices = new Uint16Array([0, 1, 2, 1, 3, 2]);
+
+      if (this.#pointCornerBuffer) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#pointCornerBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, corners, gl.STATIC_DRAW);
+      }
+      if (this.#pointIndexBuffer) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#pointIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIndices, gl.STATIC_DRAW);
+      }
+    }
     
     if (!this.#vertexBuffer || !this.#colorBuffer || !this.#indexBuffer || !this.#distanceBuffer) {
       throw new Error('Failed to create WebGL buffers');
@@ -545,6 +516,20 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Enable blending for transparency
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // Depth is opt-in (the viewer can request a depth buffer via options.depth=true).
+    // If present, enable depth testing so 3D scenes render correctly.
+    try {
+      this.#hasDepthBuffer = Boolean(gl.getContextAttributes?.().depth);
+    } catch {
+      this.#hasDepthBuffer = false;
+    }
+    if (this.#hasDepthBuffer) {
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.clearDepth(1.0);
+      gl.depthMask(true);
+    }
   }
 
   /**
@@ -569,7 +554,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       minPointSize: 1.0,
       
       // Index type constants
-      UNSIGNED_SHORT: gl.UNSIGNED_SHORT
+      UNSIGNED_SHORT: gl.UNSIGNED_SHORT,
+      UNSIGNED_INT: gl.UNSIGNED_INT,
+      supportsUint32Indices: false
     };
 
     // -------------------------------------------------------------------------
@@ -753,6 +740,330 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   }
 
   /**
+   * WebGL2-only: program for instanced point quads.
+   * @private
+   * @returns {WebGLProgram|null}
+   */
+  #createInstancedPointProgram() {
+    const gl = this.#gl;
+    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+      return null;
+    }
+
+    const vs = `#version 300 es
+      precision mediump float;
+      in vec2 a_corner;      // base quad corner in [-1,1]^2
+      in vec4 a_center;      // per-instance center (x,y,z,w)
+      in vec4 a_color;       // per-instance color
+
+      uniform mat4 u_transform;
+      uniform float u_pointRadius;
+
+      out vec4 v_color;
+
+      void main() {
+        vec4 center = a_center;
+        if (center.w == 0.0) center.w = 1.0;
+        vec4 p = center + vec4(a_corner * u_pointRadius, 0.0, 0.0);
+        gl_Position = u_transform * p;
+        v_color = a_color;
+      }`;
+
+    const fs = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
+    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
+    if (!vsh || !fsh) return null;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vsh);
+    gl.attachShader(program, fsh);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('WebGL instanced point program link error:', gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
+      return null;
+    }
+    return program;
+  }
+
+  /**
+   * WebGL override: batch edge rendering.
+   * - If tubesDraw is enabled, batch all polylines into one triangle draw via existing batching arrays.
+   * - Otherwise fall back to the base behavior (line strips).
+   *
+   * @protected
+   * @param {*} geometry
+   */
+  _renderEdgesAsLines(geometry) {
+    const showLines = this.getBooleanAttribute?.(CommonAttributes.EDGE_DRAW, true);
+    if (!showLines) return;
+
+    const vertices = this._cacheGetVertexCoordsArray(geometry);
+    if (!vertices) return;
+
+    // Indices and optional per-edge colors
+    const indices = this._cacheGetEdgeIndicesArray(geometry);
+    const edgeColors = this._cacheGetEdgeColorsArray(geometry);
+    if (!indices || indices.length === 0) return;
+
+    // Decide tube vs line strip
+    const tubeDraw = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER,
+      CommonAttributes.TUBES_DRAW,
+      CommonAttributes.TUBES_DRAW_DEFAULT
+    ));
+
+    this._beginPrimitiveGroup(CommonAttributes.LINE);
+
+    if (tubeDraw) {
+      const tubeRadius = this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER,
+        CommonAttributes.TUBE_RADIUS,
+        CommonAttributes.TUBE_RADIUS_DEFAULT
+      );
+      const halfWidth = tubeRadius;
+
+      const edgeColorDefault = this.#currentColor;
+      for (let i = 0; i < indices.length; i++) {
+        const poly = indices[i];
+        const c = edgeColors ? edgeColors[i] : null;
+        const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+        this.#addPolylineToBatch(vertices, poly, edgeColor, halfWidth);
+      }
+      // Flush happens in _endPrimitiveGroup()
+    } else {
+      // Fallback: still per-polyline line strips.
+      const lineWidth = this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER,
+        CommonAttributes.LINE_WIDTH,
+        CommonAttributes.LINE_WIDTH_DEFAULT
+      );
+      for (let i = 0; i < indices.length; i++) {
+        this.#drawPolylineAsLineStrip(vertices, edgeColors ? edgeColors[i] : null, indices[i], lineWidth);
+      }
+    }
+
+    this._getViewer()?._incrementEdgesRendered?.(indices.length);
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * WebGL override: batch point rendering.
+   * - If spheresDraw is true and WebGL2 is available, use instanced quad rendering.
+   * - Otherwise batch GL_POINTS into one drawArrays.
+   *
+   * @protected
+   * @param {*} geometry
+   */
+  _renderVerticesAsPoints(geometry) {
+    const showPoints = this.getBooleanAttribute?.(CommonAttributes.VERTEX_DRAW, true);
+    if (!showPoints) return;
+
+    const vertsDL = geometry?.getVertexCoordinates?.() || null;
+    if (!vertsDL) return;
+
+    const shape = vertsDL.shape;
+    const fiber = Array.isArray(shape) && shape.length >= 2 ? shape[shape.length - 1] : 0;
+    const positionFiber = fiber || 3;
+    const vertsFlat = typeof vertsDL.getFlatData === 'function' ? vertsDL.getFlatData() : null;
+    if (!vertsFlat) {
+      return super._renderVerticesAsPoints(geometry);
+    }
+
+    const numPoints = typeof geometry.getNumPoints === 'function' ? geometry.getNumPoints() : (shape?.[0] ?? 0);
+    if (!numPoints) return;
+
+    this._beginPrimitiveGroup(CommonAttributes.POINT);
+
+    const spheresDraw = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.POINT_SHADER,
+      CommonAttributes.SPHERES_DRAW,
+      CommonAttributes.SPHERES_DRAW_DEFAULT
+    ));
+
+    const gl = this.#gl;
+    const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+
+    if (spheresDraw && isWebGL2 && this.#pointProgram && this.#pointCornerBuffer && this.#pointIndexBuffer && this.#pointCenterBuffer && this.#pointColorInstBuffer) {
+      const pointRadius = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.POINT_RADIUS,
+        CommonAttributes.POINT_RADIUS_DEFAULT
+      );
+
+      // Prepare (or reuse) instance arrays per geometry, only rebuilding when DataList identity changes.
+      const colorsDL = geometry?.getVertexColors?.() || null;
+      const cached = this.#pointInstanceCache.get(geometry);
+      if (!cached || cached.coordsDL !== vertsDL || cached.colorsDL !== colorsDL || cached.count !== numPoints) {
+        const centers = new Float32Array(numPoints * 4);
+        const colors = new Float32Array(numPoints * 4);
+
+        // Centers: copy from vertex coords, pad to vec4.
+        for (let i = 0; i < numPoints; i++) {
+          const src = i * positionFiber;
+          const dst = i * 4;
+          centers[dst + 0] = Number(vertsFlat[src + 0] ?? 0);
+          centers[dst + 1] = Number(vertsFlat[src + 1] ?? 0);
+          centers[dst + 2] = Number(vertsFlat[src + 2] ?? 0);
+          // w: if provided use it, else 1
+          centers[dst + 3] = Number(positionFiber >= 4 ? (vertsFlat[src + 3] ?? 1) : 1);
+        }
+
+        // Colors: per-vertex if present, else current color
+        const defaultColor = this.#currentColor;
+        if (colorsDL && typeof colorsDL.getFlatData === 'function') {
+          const cFlat = colorsDL.getFlatData();
+          const cShape = colorsDL.shape;
+          const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
+          const cf = cFiber || 4;
+          for (let i = 0; i < numPoints; i++) {
+            const src = i * cf;
+            const dst = i * 4;
+            const r0 = cFlat[src + 0] ?? 255;
+            const g0 = cFlat[src + 1] ?? 255;
+            const b0 = cFlat[src + 2] ?? 255;
+            const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
+            const max = Math.max(r0, g0, b0, a0);
+            if (max > 1.0) {
+              colors[dst + 0] = r0 / 255;
+              colors[dst + 1] = g0 / 255;
+              colors[dst + 2] = b0 / 255;
+              colors[dst + 3] = a0 / 255;
+            } else {
+              colors[dst + 0] = r0;
+              colors[dst + 1] = g0;
+              colors[dst + 2] = b0;
+              colors[dst + 3] = a0;
+            }
+          }
+        } else {
+          for (let i = 0; i < numPoints; i++) {
+            const dst = i * 4;
+            colors[dst + 0] = defaultColor[0];
+            colors[dst + 1] = defaultColor[1];
+            colors[dst + 2] = defaultColor[2];
+            colors[dst + 3] = defaultColor[3];
+          }
+        }
+
+        this.#pointInstanceCache.set(geometry, { coordsDL: vertsDL, colorsDL, centers, colors, count: numPoints });
+      }
+
+      const inst = this.#pointInstanceCache.get(geometry);
+
+      gl.useProgram(this.#pointProgram);
+      // uniforms
+      const transformLoc = gl.getUniformLocation(this.#pointProgram, 'u_transform');
+      gl.uniformMatrix4fv(transformLoc, true, this.getCurrentTransformation());
+      const radiusLoc = gl.getUniformLocation(this.#pointProgram, 'u_pointRadius');
+      gl.uniform1f(radiusLoc, pointRadius);
+
+      // attributes
+      const cornerLoc = gl.getAttribLocation(this.#pointProgram, 'a_corner');
+      const centerLoc = gl.getAttribLocation(this.#pointProgram, 'a_center');
+      const colorLoc = gl.getAttribLocation(this.#pointProgram, 'a_color');
+
+      // bind base quad
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#pointCornerBuffer);
+      gl.enableVertexAttribArray(cornerLoc);
+      gl.vertexAttribPointer(cornerLoc, 2, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(cornerLoc, 0);
+
+      // bind per-instance center
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#pointCenterBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, inst.centers, gl.DYNAMIC_DRAW);
+      if (this.#debugGL) this.#debugGL.bufferDataArray++;
+      gl.enableVertexAttribArray(centerLoc);
+      gl.vertexAttribPointer(centerLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(centerLoc, 1);
+
+      // bind per-instance color
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#pointColorInstBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
+      if (this.#debugGL) this.#debugGL.bufferDataArray++;
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(colorLoc, 1);
+
+      // draw instanced quad
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#pointIndexBuffer);
+      gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, numPoints);
+
+      if (this.#debugGL) this.#debugGL.drawElements++;
+      this._getViewer()?._incrementPointsRendered?.(numPoints);
+      this._endPrimitiveGroup();
+      return;
+    }
+
+    // Fallback: batch GL_POINTS in one draw.
+    const pointSize = this.getAppearanceAttribute(
+      CommonAttributes.POINT_SHADER,
+      CommonAttributes.POINT_SIZE,
+      CommonAttributes.POINT_SIZE_DEFAULT
+    );
+    // Build compact positions as Float32Array [numPoints, positionSize]
+    const positionSize = Math.min(Math.max(positionFiber || 2, 2), 4);
+    const vertexArray = new Float32Array(numPoints * positionSize);
+    for (let i = 0; i < numPoints; i++) {
+      const src = i * positionFiber;
+      const dst = i * positionSize;
+      for (let k = 0; k < positionSize; k++) {
+        const val = (k < positionFiber) ? vertsFlat[src + k] : (k === 3 ? 1.0 : 0.0);
+        vertexArray[dst + k] = Number(val) || 0.0;
+      }
+    }
+    const colorArray = new Float32Array(numPoints * 4);
+    const colorsDL = geometry?.getVertexColors?.() || null;
+    if (colorsDL && typeof colorsDL.getFlatData === 'function') {
+      const cFlat = colorsDL.getFlatData();
+      const cShape = colorsDL.shape;
+      const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
+      const cf = cFiber || 4;
+      for (let i = 0; i < numPoints; i++) {
+        const src = i * cf;
+        const dst = i * 4;
+        const r0 = cFlat[src + 0] ?? 255;
+        const g0 = cFlat[src + 1] ?? 255;
+        const b0 = cFlat[src + 2] ?? 255;
+        const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
+        const max = Math.max(r0, g0, b0, a0);
+        if (max > 1.0) {
+          colorArray[dst + 0] = r0 / 255;
+          colorArray[dst + 1] = g0 / 255;
+          colorArray[dst + 2] = b0 / 255;
+          colorArray[dst + 3] = a0 / 255;
+        } else {
+          colorArray[dst + 0] = r0;
+          colorArray[dst + 1] = g0;
+          colorArray[dst + 2] = b0;
+          colorArray[dst + 3] = a0;
+        }
+      }
+    } else {
+      const c = this.#currentColor;
+      for (let i = 0; i < numPoints; i++) {
+        const dst = i * 4;
+        colorArray[dst + 0] = c[0];
+        colorArray[dst + 1] = c[1];
+        colorArray[dst + 2] = c[2];
+        colorArray[dst + 3] = c[3];
+      }
+    }
+
+    // Use existing geometry path with POINTS.
+    this.#drawGeometry(vertexArray, colorArray, null, this.#capabilities.POINTS, null, 0, positionSize);
+    this._getViewer()?._incrementPointsRendered?.(numPoints);
+    this._endPrimitiveGroup();
+  }
+
+  /**
    * Compile a WebGL shader
    * @private
    * @param {number} type - Shader type (VERTEX_SHADER or FRAGMENT_SHADER)
@@ -781,6 +1092,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   _beginRender() {
     const gl = this.#gl;
     const canvas = this.#canvas;
+
+    // Setup per-frame debug counters if enabled.
+    const dbg = this._getViewer()?.getDebugPerfOptions?.();
+    if (dbg?.enabled) {
+      this.#debugGL = {
+        bufferDataArray: 0,
+        bufferDataElement: 0,
+        drawElements: 0,
+        drawArrays: 0
+      };
+    } else {
+      this.#debugGL = null;
+    }
     
     // Set viewport first (before clearing)
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -802,7 +1126,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Clear the canvas with background color
     // Note: With alpha: true canvas, transparent backgrounds are supported
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(this.#hasDepthBuffer ? (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) : gl.COLOR_BUFFER_BIT);
     
     // Use our shader program
     gl.useProgram(this.#program);
@@ -813,7 +1137,33 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @protected
    */
   _endRender() {
-    // No cleanup needed for WebGL
+    // Optional perf logging (every N frames).
+    const viewer = this._getViewer?.();
+    const dbg = viewer?.getDebugPerfOptions?.();
+    if (dbg?.enabled && typeof dbg.logFn === 'function') {
+      this.#debugFrame++;
+      const every = Math.max(1, dbg.everyNFrames | 0);
+      if (this.#debugFrame % every === 0) {
+        const r = viewer.getRenderStatistics?.();
+        const cpu = this._debugPerfGetCpuCounters?.();
+        const glc = this.#debugGL;
+
+        dbg.logFn('[WebGL2D debugPerf]', {
+          frame: this.#debugFrame,
+          renderMs: r?.renderDurationMs,
+          avgRenderMs: r?.avgRenderDurationMs,
+          primitives: {
+            points: r?.pointsRendered,
+            edges: r?.edgesRendered,
+            faces: r?.facesRendered
+          },
+          cpuCache: cpu,
+          gl: glc,
+          // Note: we intentionally removed per-typed-array GPU buffer caching once batching/instancing
+          // reduced us to a handful of uploads per frame.
+        });
+      }
+    }
   }
 
   /**
@@ -822,6 +1172,152 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   _applyAppearance() {
     // Appearance attributes are applied per-primitive in _beginPrimitiveGroup
+  }
+
+  /**
+   * WebGL override: batch face rendering for IndexedFaceSet into a single mesh draw.
+   *
+   * This dramatically reduces draw calls compared to per-face `_drawPolygon()` calls.
+   * We intentionally keep this as a coarse, always-batched implementation for now.
+   *
+   * Note: This implementation supports per-face colors by expanding vertices
+   * (duplicate vertices per face). This keeps correct "flat" face coloring.
+   *
+   * @protected
+   * @param {*} geometry
+   */
+  _renderFaces(geometry) {
+    // Respect FACE_DRAW flag (effective appearance).
+    // Use the base class resolver so we don’t need direct access to its private state.
+    const showFaces = this.getBooleanAttribute?.(CommonAttributes.FACE_DRAW, true);
+    if (!showFaces) return;
+
+    // Require face indices + vertex coords.
+    const vertsDL = geometry?.getVertexCoordinates?.() || null;
+    const facesDL = geometry?.getFaceIndices?.() || null;
+    if (!vertsDL || !facesDL) return;
+
+    // Extract vertex coordinate storage (prefer flat typed data).
+    const shape = vertsDL.shape;
+    const fiber = Array.isArray(shape) && shape.length >= 2 ? shape[shape.length - 1] : 0;
+    const positionSize = Math.min(Math.max(fiber || 3, 2), 4);
+    const vertsFlat = typeof vertsDL.getFlatData === 'function' ? vertsDL.getFlatData() : null;
+    if (!vertsFlat || !fiber) {
+      // Fallback: if the data list doesn’t provide flat data, fall back to the default behavior.
+      return super._renderFaces(geometry);
+    }
+
+    // Face indices: prefer VariableDataList.rows to avoid allocation.
+    const faceRows = Array.isArray(facesDL.rows) ? facesDL.rows : (typeof facesDL.toNestedArray === 'function' ? facesDL.toNestedArray() : null);
+    if (!faceRows || faceRows.length === 0) return;
+
+    // Face colors (optional).
+    const faceColorsDL = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS) || null;
+    const faceColorsFlat = faceColorsDL && typeof faceColorsDL.getFlatData === 'function' ? faceColorsDL.getFlatData() : null;
+    const faceColorsShape = faceColorsDL?.shape;
+    const faceColorChannels = Array.isArray(faceColorsShape) && faceColorsShape.length >= 2 ? faceColorsShape[faceColorsShape.length - 1] : 0;
+
+    // Helper to read face color i -> normalized RGBA
+    const defaultColor = this.#currentColor; // already normalized 0..1
+    const getFaceColor = (i) => {
+      if (!faceColorsFlat || !faceColorChannels) return defaultColor;
+      const base = i * faceColorChannels;
+      const r0 = faceColorsFlat[base + 0] ?? 255;
+      const g0 = faceColorsFlat[base + 1] ?? 255;
+      const b0 = faceColorsFlat[base + 2] ?? 255;
+      const a0 = faceColorChannels >= 4 ? (faceColorsFlat[base + 3] ?? 255) : 255;
+      const max = Math.max(r0, g0, b0, a0);
+      if (max > 1.0) {
+        return [r0 / 255, g0 / 255, b0 / 255, a0 / 255];
+      }
+      return [r0, g0, b0, a0];
+    };
+
+    // Batch faces. If we can use 32-bit indices, we can draw the whole expanded mesh in one go.
+    // Otherwise, chunk into <=65535 expanded vertices per draw (still only a few draw calls).
+    const supportsUint32 = Boolean(this.#capabilities?.supportsUint32Indices);
+    const MAX_UINT16_VERTS = 65535;
+
+    this._beginPrimitiveGroup(CommonAttributes.POLYGON);
+    let f0 = 0;
+    while (f0 < faceRows.length) {
+      // Determine batch end (first pass: count verts/tris)
+      let f1 = f0;
+      let batchVerts = 0;
+      let batchTris = 0;
+      while (f1 < faceRows.length) {
+        const row = faceRows[f1];
+        const len = row?.length ?? 0;
+        if (len >= 3) {
+          if (!supportsUint32 && batchVerts > 0 && (batchVerts + len) > MAX_UINT16_VERTS) break;
+          batchVerts += len;
+          batchTris += (len - 2);
+        }
+        f1++;
+        // If we can't use uint32 and we hit the limit exactly, stop this batch.
+        if (!supportsUint32 && batchVerts >= MAX_UINT16_VERTS) break;
+      }
+      if (batchVerts === 0 || batchTris === 0) {
+        // This can happen if we advanced over only degenerate faces.
+        f0 = f1;
+        continue;
+      }
+
+      const vertexArray = new Float32Array(batchVerts * positionSize);
+      const colorArray = new Float32Array(batchVerts * 4);
+      const indexArray = supportsUint32 ? new Uint32Array(batchTris * 3) : new Uint16Array(batchTris * 3);
+
+      let vOut = 0; // vertex index within this batch
+      let vFloat = 0;
+      let cFloat = 0;
+      let iOut = 0;
+
+      // Second pass: fill
+      for (let f = f0; f < f1; f++) {
+        const row = faceRows[f];
+        const len = row?.length ?? 0;
+        if (len < 3) continue;
+
+        const faceColor = getFaceColor(f);
+        const startVertex = vOut;
+
+        for (let j = 0; j < len; j++) {
+          const vid = row[j] | 0;
+          const srcBase = vid * fiber;
+
+          for (let k = 0; k < positionSize; k++) {
+            let val;
+            if (k < fiber) {
+              val = vertsFlat[srcBase + k];
+            } else if (k === 3) {
+              val = 1.0;
+            } else {
+              val = 0.0;
+            }
+            vertexArray[vFloat++] = Number(val) || 0.0;
+          }
+
+          colorArray[cFloat++] = faceColor[0];
+          colorArray[cFloat++] = faceColor[1];
+          colorArray[cFloat++] = faceColor[2];
+          colorArray[cFloat++] = faceColor[3];
+
+          vOut++;
+        }
+
+        for (let j = 1; j < len - 1; j++) {
+          indexArray[iOut++] = startVertex;
+          indexArray[iOut++] = startVertex + j;
+          indexArray[iOut++] = startVertex + j + 1;
+        }
+      }
+
+      this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
+      f0 = f1;
+    }
+    this._endPrimitiveGroup();
+
+    this._getViewer()?._incrementFacesRendered?.(faceRows.length);
   }
 
   /**
@@ -1239,21 +1735,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   }
   
   /**
-   * Check if two arrays are equal (for color comparison)
-   * @private
-   * @param {number[]} a - First array
-   * @param {number[]} b - Second array
-   * @returns {boolean}
-   */
-  #arraysEqual(a, b) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (Math.abs(a[i] - b[i]) > 1e-6) return false;
-    }
-    return true;
-  }
-  
-  /**
    * Draw a polyline using gl.LINE_STRIP (simple line rendering)
    * @private
    * @param {*} vertices - Vertex coordinate data
@@ -1280,8 +1761,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Draw using LINE_STRIP mode (use cached constant)
     // Note: We need sequential indices since vertexArray is compacted
     const sequentialIndices = this.#getSequentialIndices(indices.length);
-    
-    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize, 'static');
+    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
   }
 
   /**
@@ -1293,23 +1773,11 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   #getSequentialIndices(n) {
     const count = Math.max(0, n | 0);
-    if (count === 0) return this.#sequentialIndexCache.subarray(0, 0);
-
-    // Uint16 indices cap at 65535.
-    if (count > 65535) {
-      return this.#sequentialIndexCache.subarray(0, 0);
-    }
-
-    if (this.#sequentialIndexCache.length < count) {
-      const oldLen = this.#sequentialIndexCache.length;
-      const next = new Uint16Array(count);
-      next.set(this.#sequentialIndexCache);
-      for (let i = oldLen; i < count; i++) {
-        next[i] = i;
-      }
-      this.#sequentialIndexCache = next;
-    }
-    return this.#sequentialIndexCache.subarray(0, count);
+    if (count === 0) return new Uint16Array(0);
+    if (count > 65535) return new Uint16Array(0);
+    const result = new Uint16Array(count);
+    for (let i = 0; i < count; i++) result[i] = i;
+    return result;
   }
   
   /**
@@ -1329,30 +1797,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
     // Get the color for this edge (or use current color)
     const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
-
-    // Coarse mesh cache for static scenes (keyed by indices identity + (halfWidth,color)).
-    if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
-      let byKey = this.#polylineQuadMeshCache.get(indices);
-      if (!byKey) {
-        byKey = new Map();
-        this.#polylineQuadMeshCache.set(indices, byKey);
-      }
-      const key = `${this.#colorKey(edgeColor)}|w=${Number(halfWidth)}`;
-      const cached = byKey.get(key);
-      if (cached && cached.verticesRef === vertices) {
-        this.#drawGeometry(
-          cached.vertexArray,
-          cached.colorArray,
-          cached.indexArray,
-          this.#capabilities.TRIANGLES,
-          cached.distanceArray,
-          halfWidth,
-          2,
-          'static'
-        );
-        return;
-      }
-    }
     
     const allQuadVertices = [];
     const allQuadColors = [];
@@ -1430,25 +1874,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         this.#capabilities.TRIANGLES,
         distanceArray,
         halfWidth,
-        2,
-        'static'
+        2
       );
-
-      if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
-        let byKey = this.#polylineQuadMeshCache.get(indices);
-        if (!byKey) {
-          byKey = new Map();
-          this.#polylineQuadMeshCache.set(indices, byKey);
-        }
-        const key = `${this.#colorKey(edgeColor)}|w=${Number(halfWidth)}`;
-        byKey.set(key, {
-          verticesRef: vertices,
-          vertexArray,
-          colorArray,
-          distanceArray,
-          indexArray
-        });
-      }
     }
   }
 
@@ -1476,7 +1903,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const indexArray = this.#triangulatePolygonSequential(numVertices);
     
     // Use cached TRIANGLES constant
-    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize, 'static');
+    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
   }
 
   /**
@@ -1490,7 +1917,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing (0 for non-lines)
    * @param {number} [positionSize=2] - Number of components per vertex position (2, 3, or 4)
    */
-  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2, cachePolicy = 'stream') {
+  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
     const gl = this.#gl;
     const program = this.#program;
     
@@ -1515,22 +1942,12 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
     this.#updateUniforms(lineHalfWidth, 1.0);
 
-    const useStatic = (cachePolicy === 'static') && this.#enableStaticGeometryCache;
-
     // -----------------------------------------------------------------------
     // Vertex buffer
     // -----------------------------------------------------------------------
-    if (useStatic) {
-      const vbo = this.#getOrCreateArrayBuffer(vertices);
-      gl.bindBuffer(gl.ARRAY_BUFFER, vbo || this.#vertexBuffer);
-      // If cache failed (no buffer), fall back to streaming upload.
-      if (!vbo) {
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
-      }
-    } else {
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
-    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+    if (this.#debugGL) this.#debugGL.bufferDataArray++;
     
     const positionLoc = gl.getAttribLocation(program, 'a_position');
     if (positionLoc === -1) {
@@ -1540,20 +1957,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     gl.enableVertexAttribArray(positionLoc);
     // Use the provided component count so 3D/4D vertices reach the shader intact
     gl.vertexAttribPointer(positionLoc, positionSize, gl.FLOAT, false, 0, 0);
+    // Important for WebGL2: instanced rendering (points) sets attribute divisors, and
+    // divisors are sticky per-attribute-index across programs. Ensure non-instanced
+    // draws use divisor=0 so per-vertex attributes advance correctly.
+    if (typeof gl.vertexAttribDivisor === 'function') {
+      gl.vertexAttribDivisor(positionLoc, 0);
+    }
     
     // -----------------------------------------------------------------------
     // Color buffer
     // -----------------------------------------------------------------------
-    if (useStatic) {
-      const cbo = this.#getOrCreateArrayBuffer(colors);
-      gl.bindBuffer(gl.ARRAY_BUFFER, cbo || this.#colorBuffer);
-      if (!cbo) {
-        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
-      }
-    } else {
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
-    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+    if (this.#debugGL) this.#debugGL.bufferDataArray++;
     
     const colorLoc = gl.getAttribLocation(program, 'a_color');
     if (colorLoc === -1) {
@@ -1562,27 +1978,29 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     }
     gl.enableVertexAttribArray(colorLoc);
     gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+    if (typeof gl.vertexAttribDivisor === 'function') {
+      gl.vertexAttribDivisor(colorLoc, 0);
+    }
     
     // Handle distance attribute for edge smoothing (optional)
     const distanceLoc = gl.getAttribLocation(program, 'a_distance');
     if (distanceLoc !== -1) {
       if (distances && distances.length > 0) {
-        if (useStatic) {
-          const dbo = this.#getOrCreateArrayBuffer(distances);
-          gl.bindBuffer(gl.ARRAY_BUFFER, dbo || this.#distanceBuffer);
-          if (!dbo) {
-            gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
-          }
-        } else {
-          gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
-          gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
-        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, distances, gl.DYNAMIC_DRAW);
+        if (this.#debugGL) this.#debugGL.bufferDataArray++;
         gl.enableVertexAttribArray(distanceLoc);
         gl.vertexAttribPointer(distanceLoc, 1, gl.FLOAT, false, 0, 0);
+        if (typeof gl.vertexAttribDivisor === 'function') {
+          gl.vertexAttribDivisor(distanceLoc, 0);
+        }
       } else {
         // Disable distance attribute if not provided (for non-line primitives)
         gl.disableVertexAttribArray(distanceLoc);
         gl.vertexAttrib1f(distanceLoc, 0.0);
+        if (typeof gl.vertexAttribDivisor === 'function') {
+          gl.vertexAttribDivisor(distanceLoc, 0);
+        }
       }
     }
     
@@ -1590,25 +2008,22 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Note: We don't validate mode here because gl.POINTS, gl.LINE_STRIP, etc. should always be valid
     // The INVALID_ENUM error might be from something else (like gl.UNSIGNED_SHORT)
     if (indices && indices.length > 0) {
-      if (useStatic) {
-        const ibo = this.#getOrCreateElementBuffer(indices);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo || this.#indexBuffer);
-        if (!ibo) {
-          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
-        }
-      } else {
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
-      }
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW);
+      if (this.#debugGL) this.#debugGL.bufferDataElement++;
       
-      // Use cached UNSIGNED_SHORT constant
-      const indexType = this.#capabilities.UNSIGNED_SHORT;
-      if (indexType === undefined || indexType === null) {
-        console.error('WebGL2DRenderer: gl.UNSIGNED_SHORT is not available');
-        return;
+      // Choose index type based on typed array
+      let indexType = this.#capabilities.UNSIGNED_SHORT;
+      if (indices instanceof Uint32Array) {
+        if (!this.#capabilities?.supportsUint32Indices || this.#capabilities.UNSIGNED_INT === undefined) {
+          console.error('WebGL2DRenderer: Uint32 indices requested but UNSIGNED_INT indices are not supported by this context');
+          return;
+        }
+        indexType = this.#capabilities.UNSIGNED_INT;
       }
       
       gl.drawElements(mode, indices.length, indexType, 0);
+      if (this.#debugGL) this.#debugGL.drawElements++;
     } else {
       const vertexCount = vertices.length / positionSize;
       // Ensure mode is a number (not undefined), default to cached LINE_STRIP
@@ -1620,6 +2035,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
       
       gl.drawArrays(drawMode, 0, vertexCount);
+      if (this.#debugGL) this.#debugGL.drawArrays++;
     }
     
     // Check for WebGL errors immediately after draw call
@@ -1671,30 +2087,22 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       return { array: new Float32Array(0), size: 2 };
     }
 
-    // Cache hit: compacted vertex array for this specific indices array.
-    // Assumes `indices` identity is stable for static geometry.
-    const cached = this.#compactedVerticesCache.get(indices);
-    if (cached && cached.verticesRef === vertices && cached.array && typeof cached.size === 'number') {
-      return { array: cached.array, size: cached.size };
-    }
-
     // Determine component count from first vertex (clamped to [2, 4])
     const firstVertex = this._extractPoint(vertices[indices[0]]);
     const size = Math.min(Math.max(firstVertex.length || 2, 2), 4);
 
-    const result = [];
+    const array = new Float32Array(indices.length * size);
+    let out = 0;
     for (const index of indices) {
       const vertex = vertices[index];
       const point = this._extractPoint(vertex);
       for (let i = 0; i < size; i++) {
         // If the vertex has fewer components than size, pad with sensible defaults
         const value = (point && i < point.length) ? point[i] : (i === 3 ? 1.0 : 0.0);
-        result.push(value);
+        array[out++] = Number(value) || 0.0;
       }
     }
 
-    const array = new Float32Array(result);
-    this.#compactedVerticesCache.set(indices, { verticesRef: vertices, array, size });
     return { array, size };
   }
 
@@ -1721,24 +2129,6 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     if (isSingleColor) {
       // Single color for entire face/line - apply to all vertices
       const color = this.#toWebGLColor(colors);
-      if (this.#enableStaticGeometryCache && indices && Array.isArray(indices)) {
-        let byColor = this.#singleColorExpandedCache.get(indices);
-        if (!byColor) {
-          byColor = new Map();
-          this.#singleColorExpandedCache.set(indices, byColor);
-        }
-        const key = this.#colorKey(color);
-        const cached = byColor.get(key);
-        if (cached) {
-          return cached;
-        }
-        for (let i = 0; i < indices.length; i++) {
-          result.push(...color);
-        }
-        const arr = new Float32Array(result);
-        byColor.set(key, arr);
-        return arr;
-      }
       for (let i = 0; i < indices.length; i++) {
         result.push(...color);
       }
@@ -1770,16 +2160,15 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   #triangulatePolygonSequential(numVertices) {
     const n = Math.max(0, numVertices | 0);
     if (n < 3) return new Uint16Array(0);
-    const cached = this.#triangulationCache.get(n);
-    if (cached) return cached;
 
-    const result = [];
     // Fan triangulation: triangle fan from vertex 0
+    const arr = new Uint16Array((n - 2) * 3);
+    let out = 0;
     for (let i = 1; i < n - 1; i++) {
-      result.push(0, i, i + 1);
+      arr[out++] = 0;
+      arr[out++] = i;
+      arr[out++] = i + 1;
     }
-    const arr = new Uint16Array(result);
-    this.#triangulationCache.set(n, arr);
     return arr;
   }
 

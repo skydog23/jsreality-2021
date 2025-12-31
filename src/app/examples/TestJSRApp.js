@@ -101,6 +101,19 @@ export class TestJSRApp extends JSRApp {
    */
   display() {
     super.display();
+    // Enable debug/perf logging on viewers (logs every N frames).
+    // Note: JSRApp.getViewer() returns a ViewerSwitch; enable on all contained viewers
+    // so whichever viewer is active will report stats.
+    const viewerSwitch = this.getViewer();
+    const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')
+      ? viewerSwitch.getViewers()
+      : [viewerSwitch];
+    for (const v of viewers) {
+      if (v && typeof v.setDebugPerf === 'function') {
+        v.setDebugPerf({ enabled: true, everyNFrames: 30 });
+      }
+    }
+
     this._animationPlugin.setAnimateSceneGraph(true);
     this._animationPlugin.setAnimateCamera(false);
 
