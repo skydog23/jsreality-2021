@@ -365,6 +365,12 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   /** @type {WebGLProgram|null} Program for instanced point-quads (WebGL2) */
   #pointProgram = null;
 
+  /** @type {WebGLProgram|null} Program for instanced 3D spheres (WebGL2) */
+  #sphereProgram = null;
+
+  /** @type {WebGLProgram|null} Program for instanced tube segments (WebGL2) */
+  #tubeProgram = null;
+
   /** @type {WebGLBuffer|null} */
   #pointCornerBuffer = null; // vec2 corners for the base quad
 
@@ -376,6 +382,36 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
   /** @type {WebGLBuffer|null} */
   #pointColorInstBuffer = null; // per-instance vec4 color
+
+  /** @type {Map<number, { vbo: WebGLBuffer, ibo: WebGLBuffer, indexCount: number }>} */
+  #sphereMeshCache = new Map();
+
+  /** @type {WebGLBuffer|null} Per-instance center buffer for spheres (vec3) */
+  #sphereCenterBuffer = null;
+
+  /** @type {WebGLBuffer|null} Per-instance color buffer for spheres (vec4) */
+  #sphereColorInstBuffer = null;
+
+  /** @type {WeakMap<object, { coordsDL: any, colorsDL: any, centers: Float32Array, colors: Float32Array, count: number }>} */
+  #sphereInstanceCache = new WeakMap();
+
+  /** @type {WebGLBuffer|null} Base tube vertex buffer: interleaved (circleX, circleY, t) */
+  #tubeVertexBuffer = null;
+
+  /** @type {WebGLBuffer|null} Base tube index buffer */
+  #tubeIndexBuffer = null;
+
+  /** @type {WebGLBuffer|null} Per-instance p0 buffer (vec3) */
+  #tubeP0Buffer = null;
+
+  /** @type {WebGLBuffer|null} Per-instance p1 buffer (vec3) */
+  #tubeP1Buffer = null;
+
+  /** @type {WebGLBuffer|null} Per-instance color buffer (vec4) */
+  #tubeColorInstBuffer = null;
+
+  /** @type {number} */
+  #tubeIndexCount = 0;
 
   /** @type {WeakMap<object, { coordsDL: any, colorsDL: any, centers: Float32Array, colors: Float32Array, count: number }>} */
   #pointInstanceCache = new WeakMap();
@@ -506,6 +542,57 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       if (this.#pointIndexBuffer) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#pointIndexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIndices, gl.STATIC_DRAW);
+      }
+
+      // Create instanced sphere resources (WebGL2 only).
+      this.#sphereProgram = this.#createInstancedSphereProgram();
+      this.#sphereCenterBuffer = gl.createBuffer();
+      this.#sphereColorInstBuffer = gl.createBuffer();
+
+      // Create instanced tube resources (WebGL2 only).
+      this.#tubeProgram = this.#createInstancedTubeProgram();
+      this.#tubeVertexBuffer = gl.createBuffer();
+      this.#tubeIndexBuffer = gl.createBuffer();
+      this.#tubeP0Buffer = gl.createBuffer();
+      this.#tubeP1Buffer = gl.createBuffer();
+      this.#tubeColorInstBuffer = gl.createBuffer();
+
+      // Base tube mesh: a unit-radius cylinder along the segment from p0->p1, represented as:
+      // - circle basis (cx, cy) in local cross-section plane
+      // - t in [0,1] along the segment
+      //
+      // The shader expands this into world-space using p0/p1 and u_radius.
+      const SEG = 12; // cross-section resolution (12-gon). Tune for quality/perf.
+      const base = new Float32Array(SEG * 2 * 3); // (cx,cy,t) * (2 rings)
+      let o = 0;
+      for (let i = 0; i < SEG; i++) {
+        const a = (i / SEG) * Math.PI * 2;
+        const cx = Math.cos(a);
+        const cy = Math.sin(a);
+        // ring at t=0
+        base[o++] = cx; base[o++] = cy; base[o++] = 0.0;
+        // ring at t=1
+        base[o++] = cx; base[o++] = cy; base[o++] = 1.0;
+      }
+      const idx = new Uint16Array(SEG * 6);
+      let io = 0;
+      for (let i = 0; i < SEG; i++) {
+        const i0 = 2 * i;
+        const i1 = i0 + 1;
+        const j0 = 2 * ((i + 1) % SEG);
+        const j1 = j0 + 1;
+        // two triangles for quad between segment i and i+1
+        idx[io++] = i0; idx[io++] = i1; idx[io++] = j0;
+        idx[io++] = i1; idx[io++] = j1; idx[io++] = j0;
+      }
+      this.#tubeIndexCount = idx.length;
+      if (this.#tubeVertexBuffer) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeVertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, base, gl.STATIC_DRAW);
+      }
+      if (this.#tubeIndexBuffer) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
       }
     }
     
@@ -794,6 +881,263 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   }
 
   /**
+   * WebGL2-only: program for instanced 3D spheres.
+   * We instance a pre-tessellated unit icosphere mesh and translate/scale it per point.
+   * @private
+   * @returns {WebGLProgram|null}
+   */
+  #createInstancedSphereProgram() {
+    const gl = this.#gl;
+    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+      return null;
+    }
+
+    const vs = `#version 300 es
+      precision mediump float;
+
+      in vec3 a_pos;       // unit sphere position
+      in vec3 a_center;    // per-instance center
+      in vec4 a_color;     // per-instance color
+
+      uniform mat4 u_transform;
+      uniform float u_radius;
+
+      out vec4 v_color;
+
+      void main() {
+        vec3 p = a_center + a_pos * u_radius;
+        gl_Position = u_transform * vec4(p, 1.0);
+        v_color = a_color;
+      }`;
+
+    const fs = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
+    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
+    if (!vsh || !fsh) return null;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vsh);
+    gl.attachShader(program, fsh);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('WebGL instanced sphere program link error:', gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
+      return null;
+    }
+    return program;
+  }
+
+  /**
+   * Create (or fetch) an icosphere mesh uploaded to GPU buffers.
+   * @private
+   * @param {number} level - subdivision level (0..4 recommended)
+   * @returns {{ vbo: WebGLBuffer, ibo: WebGLBuffer, indexCount: number } | null}
+   */
+  #getOrCreateSphereMesh(level) {
+    const gl = this.#gl;
+    const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+    if (!isWebGL2) return null;
+
+    const lvl = Math.max(0, Math.min(4, level | 0));
+    const cached = this.#sphereMeshCache.get(lvl);
+    if (cached) return cached;
+
+    const mesh = this.#buildIcoSphere(lvl);
+    if (!mesh) return null;
+
+    const vbo = gl.createBuffer();
+    const ibo = gl.createBuffer();
+    if (!vbo || !ibo) return null;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, mesh.positions, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
+
+    const entry = { vbo, ibo, indexCount: mesh.indices.length };
+    this.#sphereMeshCache.set(lvl, entry);
+    return entry;
+  }
+
+  /**
+   * Build an icosphere (tessellated icosahedron) in JS.
+   * Returns unit-radius positions (Float32Array) and triangle indices (Uint16Array).
+   * @private
+   * @param {number} level
+   * @returns {{ positions: Float32Array, indices: Uint16Array } | null}
+   */
+  #buildIcoSphere(level) {
+    const t = (1 + Math.sqrt(5)) / 2;
+    let verts = [
+      [-1,  t,  0], [ 1,  t,  0], [-1, -t,  0], [ 1, -t,  0],
+      [ 0, -1,  t], [ 0,  1,  t], [ 0, -1, -t], [ 0,  1, -t],
+      [ t,  0, -1], [ t,  0,  1], [-t,  0, -1], [-t,  0,  1]
+    ];
+    // normalize to unit sphere
+    for (let i = 0; i < verts.length; i++) {
+      const x = verts[i][0], y = verts[i][1], z = verts[i][2];
+      const len = Math.sqrt(x * x + y * y + z * z) || 1;
+      verts[i] = [x / len, y / len, z / len];
+    }
+
+    let faces = [
+      [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+      [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+      [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+      [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+    ];
+
+    const midpointCache = new Map(); // "a,b" -> index
+    const midpoint = (a, b) => {
+      const i0 = Math.min(a, b);
+      const i1 = Math.max(a, b);
+      const key = `${i0},${i1}`;
+      const hit = midpointCache.get(key);
+      if (hit !== undefined) return hit;
+      const v0 = verts[a];
+      const v1 = verts[b];
+      const mx = (v0[0] + v1[0]) * 0.5;
+      const my = (v0[1] + v1[1]) * 0.5;
+      const mz = (v0[2] + v1[2]) * 0.5;
+      const len = Math.sqrt(mx * mx + my * my + mz * mz) || 1;
+      const idx = verts.length;
+      verts.push([mx / len, my / len, mz / len]);
+      midpointCache.set(key, idx);
+      return idx;
+    };
+
+    const lvl = Math.max(0, level | 0);
+    for (let s = 0; s < lvl; s++) {
+      midpointCache.clear();
+      const next = [];
+      for (const f of faces) {
+        const a = f[0], b = f[1], c = f[2];
+        const ab = midpoint(a, b);
+        const bc = midpoint(b, c);
+        const ca = midpoint(c, a);
+        next.push([a, ab, ca]);
+        next.push([b, bc, ab]);
+        next.push([c, ca, bc]);
+        next.push([ab, bc, ca]);
+      }
+      faces = next;
+    }
+
+    if (verts.length > 65535) {
+      // Keep WebGL2 mesh indices in Uint16 for now (levels 0..4 are safe).
+      return null;
+    }
+
+    const positions = new Float32Array(verts.length * 3);
+    for (let i = 0; i < verts.length; i++) {
+      positions[i * 3 + 0] = verts[i][0];
+      positions[i * 3 + 1] = verts[i][1];
+      positions[i * 3 + 2] = verts[i][2];
+    }
+    const indices = new Uint16Array(faces.length * 3);
+    let o = 0;
+    for (const f of faces) {
+      indices[o++] = f[0];
+      indices[o++] = f[1];
+      indices[o++] = f[2];
+    }
+    return { positions, indices };
+  }
+
+  /**
+   * WebGL2-only: program for instanced tube segments (true 3D tubes).
+   *
+   * We instance one unit cylinder cross-section along each segment (p0->p1).
+   * Per-instance attributes provide endpoints and color; the vertex shader builds
+   * an orthonormal frame on the fly and expands the tube in 3D.
+   *
+   * @private
+   * @returns {WebGLProgram|null}
+   */
+  #createInstancedTubeProgram() {
+    const gl = this.#gl;
+    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+      return null;
+    }
+
+    const vs = `#version 300 es
+      precision mediump float;
+
+      // Base mesh vertex: (circleX, circleY, t)
+      in vec3 a_circleT;
+
+      // Per-instance segment endpoints (world/object space)
+      in vec3 a_p0;
+      in vec3 a_p1;
+
+      // Per-instance color
+      in vec4 a_color;
+
+      uniform mat4 u_transform;
+      uniform float u_radius;
+
+      out vec4 v_color;
+
+      // Build a stable basis from a direction vector.
+      void makeBasis(in vec3 dir, out vec3 bx, out vec3 by) {
+        // Choose an "up" that isn't parallel to dir.
+        vec3 up = (abs(dir.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+        bx = normalize(cross(dir, up));
+        by = cross(bx, dir);
+      }
+
+      void main() {
+        vec3 p0 = a_p0;
+        vec3 p1 = a_p1;
+        vec3 d = p1 - p0;
+        float len = length(d);
+        // Avoid NaNs for degenerate segments.
+        vec3 dir = (len > 0.0) ? (d / len) : vec3(0.0, 0.0, 1.0);
+
+        vec3 bx, by;
+        makeBasis(dir, bx, by);
+
+        float t = a_circleT.z;
+        vec2 c = a_circleT.xy;
+        vec3 center = mix(p0, p1, t);
+        vec3 offset = (bx * c.x + by * c.y) * u_radius;
+        vec4 worldPos = vec4(center + offset, 1.0);
+        gl_Position = u_transform * worldPos;
+        v_color = a_color;
+      }`;
+
+    const fs = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
+    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
+    if (!vsh || !fsh) return null;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vsh);
+    gl.attachShader(program, fsh);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('WebGL instanced tube program link error:', gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
+      return null;
+    }
+    return program;
+  }
+
+  /**
    * WebGL override: batch edge rendering.
    * - If tubesDraw is enabled, batch all polylines into one triangle draw via existing batching arrays.
    * - Otherwise fall back to the base behavior (line strips).
@@ -828,9 +1172,107 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         CommonAttributes.TUBE_RADIUS,
         CommonAttributes.TUBE_RADIUS_DEFAULT
       );
-      const halfWidth = tubeRadius;
-
       const edgeColorDefault = this.#currentColor;
+
+      const gl = this.#gl;
+      const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+      const canInstanceTubes = Boolean(isWebGL2 && this.#tubeProgram && this.#tubeVertexBuffer && this.#tubeIndexBuffer && this.#tubeP0Buffer && this.#tubeP1Buffer && this.#tubeColorInstBuffer && this.#tubeIndexCount > 0);
+
+      if (canInstanceTubes) {
+        // Instanced true-3D tube segments: one instance per polyline segment.
+        // Build instance arrays of p0/p1/color for all segments and draw once.
+        let segCount = 0;
+        for (let i = 0; i < indices.length; i++) {
+          const poly = indices[i];
+          if (poly && poly.length >= 2) segCount += (poly.length - 1);
+        }
+        if (segCount > 0) {
+          const p0s = new Float32Array(segCount * 3);
+          const p1s = new Float32Array(segCount * 3);
+          const cols = new Float32Array(segCount * 4);
+
+          let s = 0;
+          for (let i = 0; i < indices.length; i++) {
+            const poly = indices[i];
+            if (!poly || poly.length < 2) continue;
+            const c = edgeColors ? edgeColors[i] : null;
+            const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+            for (let j = 0; j < poly.length - 1; j++) {
+              const idx0 = poly[j];
+              const idx1 = poly[j + 1];
+              const v0 = vertices[idx0];
+              const v1 = vertices[idx1];
+              const p0 = this._extractPoint(v0);
+              const p1 = this._extractPoint(v1);
+              const o0 = s * 3;
+              const oc = s * 4;
+              p0s[o0 + 0] = Number(p0[0] ?? 0) || 0;
+              p0s[o0 + 1] = Number(p0[1] ?? 0) || 0;
+              p0s[o0 + 2] = Number(p0[2] ?? 0) || 0;
+              p1s[o0 + 0] = Number(p1[0] ?? 0) || 0;
+              p1s[o0 + 1] = Number(p1[1] ?? 0) || 0;
+              p1s[o0 + 2] = Number(p1[2] ?? 0) || 0;
+              cols[oc + 0] = edgeColor[0];
+              cols[oc + 1] = edgeColor[1];
+              cols[oc + 2] = edgeColor[2];
+              cols[oc + 3] = edgeColor[3];
+              s++;
+            }
+          }
+
+          gl.useProgram(this.#tubeProgram);
+          const transformLoc = gl.getUniformLocation(this.#tubeProgram, 'u_transform');
+          gl.uniformMatrix4fv(transformLoc, true, this.getCurrentTransformation());
+          const radiusLoc = gl.getUniformLocation(this.#tubeProgram, 'u_radius');
+          gl.uniform1f(radiusLoc, tubeRadius);
+
+          const circleTLoc = gl.getAttribLocation(this.#tubeProgram, 'a_circleT');
+          const p0Loc = gl.getAttribLocation(this.#tubeProgram, 'a_p0');
+          const p1Loc = gl.getAttribLocation(this.#tubeProgram, 'a_p1');
+          const colorLoc = gl.getAttribLocation(this.#tubeProgram, 'a_color');
+
+          // Base mesh
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeVertexBuffer);
+          gl.enableVertexAttribArray(circleTLoc);
+          gl.vertexAttribPointer(circleTLoc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(circleTLoc, 0);
+
+          // Per-instance p0
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP0Buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, p0s, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(p0Loc);
+          gl.vertexAttribPointer(p0Loc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(p0Loc, 1);
+
+          // Per-instance p1
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP1Buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, p1s, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(p1Loc);
+          gl.vertexAttribPointer(p1Loc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(p1Loc, 1);
+
+          // Per-instance color
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeColorInstBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, cols, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(colorLoc);
+          gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(colorLoc, 1);
+
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
+          gl.drawElementsInstanced(gl.TRIANGLES, this.#tubeIndexCount, gl.UNSIGNED_SHORT, 0, segCount);
+          if (this.#debugGL) this.#debugGL.drawElements++;
+
+          this._getViewer()?._incrementEdgesRendered?.(indices.length);
+          this._endPrimitiveGroup();
+          return;
+        }
+      }
+
+      // Fallback: batched quads (CPU-expanded)
+      const halfWidth = tubeRadius;
       for (let i = 0; i < indices.length; i++) {
         const poly = indices[i];
         const c = edgeColors ? edgeColors[i] : null;
@@ -891,6 +1333,130 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const gl = this.#gl;
     const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
 
+    // WebGL2 + spheresDraw: draw instanced real 3D spheres (icospheres).
+    if (spheresDraw && isWebGL2 && this.#sphereProgram && this.#sphereCenterBuffer && this.#sphereColorInstBuffer) {
+      const pointRadius = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.POINT_RADIUS,
+        CommonAttributes.POINT_RADIUS_DEFAULT
+      );
+
+      // Sphere tessellation level (coarse default; clamp to keep vertex counts sane).
+      const sphereRes = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.SPHERE_RESOLUTION,
+        2
+      );
+      const sphereLevel = Math.max(0, Math.min(4, (sphereRes == null ? 2 : sphereRes) | 0));
+      const sphereMesh = this.#getOrCreateSphereMesh(sphereLevel);
+      if (!sphereMesh) {
+        // If we can’t build/upload a sphere mesh, fall back to old quad instancing if available.
+        // (keeps behavior functional on platforms with partial WebGL2 support).
+      } else {
+        // Prepare (or reuse) instance arrays per geometry, only rebuilding when DataList identity changes.
+        const colorsDL = geometry?.getVertexColors?.() || null;
+        const cached = this.#sphereInstanceCache.get(geometry);
+        if (!cached || cached.coordsDL !== vertsDL || cached.colorsDL !== colorsDL || cached.count !== numPoints) {
+          const centers = new Float32Array(numPoints * 3);
+          const colors = new Float32Array(numPoints * 4);
+
+          // Centers: copy from vertex coords (xyz).
+          for (let i = 0; i < numPoints; i++) {
+            const src = i * positionFiber;
+            const dst = i * 3;
+            centers[dst + 0] = Number(vertsFlat[src + 0] ?? 0);
+            centers[dst + 1] = Number(vertsFlat[src + 1] ?? 0);
+            centers[dst + 2] = Number(vertsFlat[src + 2] ?? 0);
+          }
+
+          // Colors: per-vertex if present, else current color
+          const defaultColor = this.#currentColor;
+          if (colorsDL && typeof colorsDL.getFlatData === 'function') {
+            const cFlat = colorsDL.getFlatData();
+            const cShape = colorsDL.shape;
+            const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
+            const cf = cFiber || 4;
+            for (let i = 0; i < numPoints; i++) {
+              const src = i * cf;
+              const dst = i * 4;
+              const r0 = cFlat[src + 0] ?? 255;
+              const g0 = cFlat[src + 1] ?? 255;
+              const b0 = cFlat[src + 2] ?? 255;
+              const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
+              const max = Math.max(r0, g0, b0, a0);
+              if (max > 1.0) {
+                colors[dst + 0] = r0 / 255;
+                colors[dst + 1] = g0 / 255;
+                colors[dst + 2] = b0 / 255;
+                colors[dst + 3] = a0 / 255;
+              } else {
+                colors[dst + 0] = r0;
+                colors[dst + 1] = g0;
+                colors[dst + 2] = b0;
+                colors[dst + 3] = a0;
+              }
+            }
+          } else {
+            for (let i = 0; i < numPoints; i++) {
+              const dst = i * 4;
+              colors[dst + 0] = defaultColor[0];
+              colors[dst + 1] = defaultColor[1];
+              colors[dst + 2] = defaultColor[2];
+              colors[dst + 3] = defaultColor[3];
+            }
+          }
+
+          this.#sphereInstanceCache.set(geometry, { coordsDL: vertsDL, colorsDL, centers, colors, count: numPoints });
+        }
+
+        const inst = this.#sphereInstanceCache.get(geometry);
+        gl.useProgram(this.#sphereProgram);
+
+        // uniforms
+        const transformLoc = gl.getUniformLocation(this.#sphereProgram, 'u_transform');
+        gl.uniformMatrix4fv(transformLoc, true, this.getCurrentTransformation());
+        const radiusLoc = gl.getUniformLocation(this.#sphereProgram, 'u_radius');
+        gl.uniform1f(radiusLoc, pointRadius);
+
+        // attributes
+        const posLoc = gl.getAttribLocation(this.#sphereProgram, 'a_pos');
+        const centerLoc = gl.getAttribLocation(this.#sphereProgram, 'a_center');
+        const colorLoc = gl.getAttribLocation(this.#sphereProgram, 'a_color');
+
+        // base sphere positions
+        gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.vbo);
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(posLoc, 0);
+
+        // per-instance center
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereCenterBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, inst.centers, gl.DYNAMIC_DRAW);
+        if (this.#debugGL) this.#debugGL.bufferDataArray++;
+        gl.enableVertexAttribArray(centerLoc);
+        gl.vertexAttribPointer(centerLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(centerLoc, 1);
+
+        // per-instance color
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
+        if (this.#debugGL) this.#debugGL.bufferDataArray++;
+        gl.enableVertexAttribArray(colorLoc);
+        gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(colorLoc, 1);
+
+        // draw instanced sphere
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
+        gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, numPoints);
+
+        if (this.#debugGL) this.#debugGL.drawElements++;
+        this._getViewer()?._incrementPointsRendered?.(numPoints);
+        this._endPrimitiveGroup();
+        return;
+      }
+    }
+
+    // Legacy WebGL2 instanced point-quads (kept as fallback).
     if (spheresDraw && isWebGL2 && this.#pointProgram && this.#pointCornerBuffer && this.#pointIndexBuffer && this.#pointCenterBuffer && this.#pointColorInstBuffer) {
       const pointRadius = this.getAppearanceAttribute(
         CommonAttributes.POINT_SHADER,
@@ -1657,13 +2223,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Normalize and get perpendicular (rotate 90 degrees)
       const nx = -dy / len;
       const ny = dx / len;
-      
-      // Create quad vertices (4 corners of the rectangle)
+
+      // Preserve depth: carry through the original Z coordinate (if present) for p0/p1.
+      // Note: we still compute the quad offset in XY for now (2D-style thickening),
+      // but the resulting quad vertices are 3D so depth testing works correctly.
+      const z0 = Number(p0[2] ?? 0.0) || 0.0;
+      const z1 = Number(p1[2] ?? 0.0) || 0.0;
+
+      // Create quad vertices (4 corners of the rectangle), as (x,y,z) triplets
       const quadVertices = [
-        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth,  // 0: left of p0
-        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth,  // 1: right of p0
-        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth,  // 2: left of p1
-        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth   // 3: right of p1
+        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth, z0,  // 0: left of p0
+        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth, z0,  // 1: right of p0
+        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth, z1,  // 2: left of p1
+        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth, z1   // 3: right of p1
       ];
       
       // Add vertices
@@ -1709,7 +2281,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const distanceArray = new Float32Array(this.#batchedDistances);
     
     // Single draw call for all batched edges
-    // Batched quads are generated in 2D (x,y) so positionSize is 2
+    // Batched quads are generated in 3D (x,y,z) so positionSize is 3
     this.#drawGeometry(
       vertexArray,
       colorArray,
@@ -1717,7 +2289,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       this.#capabilities.TRIANGLES,
       distanceArray,
       this.#currentBatchedHalfWidth,
-      2
+      3
     );
     
     // Reset batching arrays without allocating new arrays (reduces GC churn).
@@ -1824,13 +2396,16 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       // Normalize and get perpendicular (rotate 90 degrees)
       const nx = -dy / len;
       const ny = dx / len;
-      
-      // Create quad vertices (4 corners of the rectangle)
+
+      const z0 = Number(p0[2] ?? 0.0) || 0.0;
+      const z1 = Number(p1[2] ?? 0.0) || 0.0;
+
+      // Create quad vertices (4 corners of the rectangle), as (x,y,z) triplets
       const quadVertices = [
-        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth,  // 0: left of p0
-        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth,  // 1: right of p0
-        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth,  // 2: left of p1
-        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth   // 3: right of p1
+        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth, z0,  // 0: left of p0
+        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth, z0,  // 1: right of p0
+        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth, z1,  // 2: left of p1
+        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth, z1   // 3: right of p1
       ];
       
       // Distance from centerline: -halfWidth for left side, +halfWidth for right side
@@ -1866,7 +2441,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       const distanceArray = new Float32Array(allQuadDistances);
       const indexArray = new Uint16Array(allQuadIndices);
       // Use cached TRIANGLES constant
-      // Quads are generated in 2D (x,y) so positionSize is 2
+      // Quads are generated in 3D (x,y,z) so positionSize is 3
       this.#drawGeometry(
         vertexArray,
         colorArray,
@@ -1874,7 +2449,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         this.#capabilities.TRIANGLES,
         distanceArray,
         halfWidth,
-        2
+        3
       );
     }
   }
@@ -2084,12 +2659,12 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   #verticesToFloat32Array(vertices, indices) {
     if (!indices || indices.length === 0) {
-      return { array: new Float32Array(0), size: 2 };
+      return { array: new Float32Array(0), size: 3 };
     }
 
     // Determine component count from first vertex (clamped to [2, 4])
     const firstVertex = this._extractPoint(vertices[indices[0]]);
-    const size = Math.min(Math.max(firstVertex.length || 2, 2), 4);
+    const size = Math.min(Math.max(firstVertex.length || 3, 3), 4);
 
     const array = new Float32Array(indices.length * size);
     let out = 0;
