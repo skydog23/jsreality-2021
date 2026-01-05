@@ -16,6 +16,7 @@ import { Color } from '../../core/util/Color.js';
 import { toDataList } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 
 /**
  * Abstract base class for jsReality applications.
@@ -25,7 +26,7 @@ import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.j
  */
 export class TestJSRApp extends JSRApp {
   _sphereLevel = 3;
-  _scale = 0.5;
+  _scale = 1.0;
   _world = SceneGraphUtility.createFullSceneGraphComponent("world");
 
   getContent() {
@@ -68,7 +69,7 @@ export class TestJSRApp extends JSRApp {
         getValue: () => this._scale,
         setValue: (val) => {
           this._scale = val;
-          console.log('scale', val);
+          this.updateSphere();
         },
         min: 0.1,
         max: 2.0,
@@ -80,6 +81,7 @@ export class TestJSRApp extends JSRApp {
   updateSphere() {
     const ifs = this.createSphere(this._sphereLevel);
     this._world.setGeometry(ifs);
+    MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
   }
 
   createSphere(level) {

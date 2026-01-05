@@ -141,7 +141,31 @@ function containerFactory(descriptor, context) {
     container.appendChild(childElement);
   }
 
-  wrapper.value.appendChild(container);
+  // Optional "group box" styling (Swing-like titled border).
+  // This simulates:
+  //   new CompoundBorder(new EmptyBorder(5,5,5,5),
+  //     BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Groups"))
+  const wantsBorder = Boolean(descriptor.border) || Boolean(descriptor.containerLabel);
+  if (wantsBorder) {
+    const group = document.createElement('div');
+    group.className = 'inspector-container-group';
+    // Styling is provided by InspectorStylesheetManager (dark theme) and can be
+    // overridden by page-level CSS in standalone tests.
+
+    const title = (descriptor.containerLabel ?? '').trim();
+    if (title) {
+      const legend = document.createElement('div');
+      legend.className = 'inspector-container-group__label';
+      legend.textContent = title;
+      group.appendChild(legend);
+      group.classList.add('inspector-container-group--titled');
+    }
+
+    group.appendChild(container);
+    wrapper.value.appendChild(group);
+  } else {
+    wrapper.value.appendChild(container);
+  }
   return wrapper.root;
 }
 
