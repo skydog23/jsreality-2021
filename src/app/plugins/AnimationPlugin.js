@@ -338,6 +338,7 @@ export class AnimationPlugin extends JSRPlugin {
       },
       {
         type: DescriptorType.TEXT_SLIDER,
+        valueType: 'float',
         label: 't',
         min: 0,
         max: () => {

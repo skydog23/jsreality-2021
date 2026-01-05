@@ -13,7 +13,8 @@
  */
 
 import { FactoredMatrix } from '../../core/math/FactoredMatrix.js';
-import { Quaternion, linearInterpolation as quaternionLinearInterpolation } from '../../core/math/Quaternion.js';
+import { linearInterpolation as quaternionLinearInterpolation } from '../../core/math/Quaternion.js';
+import { Color } from '../../core/util/Color.js';
 
 /**
  * Enumeration of interpolation types.
@@ -154,6 +155,14 @@ export class AnimationUtility {
         return { r, g, b, a };
     }
 
+
+    static saturate(color, factor) {
+        const max = Math.max(color.r, color.g, color.b)/255.0;
+        const newColor = AnimationUtility.linearInterpolationColorDirect(color, Color.WHITE, factor*max);
+        return new Color(...newColor);
+    }
+
+ 
     /**
      * Linear interpolation for arrays.
      * @param {number} t - The interpolation parameter

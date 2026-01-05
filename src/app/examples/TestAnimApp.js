@@ -8,14 +8,12 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { Primitives } from '../../core/geometry/Primitives.js';
+import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
-import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
-import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.

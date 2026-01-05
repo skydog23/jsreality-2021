@@ -8,15 +8,16 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { JSRApp } from '../JSRApp.js';
-import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
-import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
-import { Color } from '../../core/util/Color.js';
+import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import * as Rn from '../../core/math/Rn.js';
 import { toDataList } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
-import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
-import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
+import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { Color } from '../../core/util/Color.js';
+import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { JSRApp } from '../JSRApp.js';
+import * as CameraUtility from '../../core/util/CameraUtility.js';
 
 /**
  * Abstract base class for jsReality applications.
@@ -26,12 +27,13 @@ import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
  */
 export class TestJSRApp extends JSRApp {
   _sphereLevel = 3;
-  _scale = 1.0;
+  _saturate = 1.0;
+  _ifs = null;
+  _origFaceColors = null;
   _world = SceneGraphUtility.createFullSceneGraphComponent("world");
 
   getContent() {
-     const ifs = this.createSphere(this._sphereLevel);
-    this._world.setGeometry(ifs);
+     this.updateSphere();
   
 
     const ap = this._world.getAppearance();
@@ -51,50 +53,71 @@ export class TestJSRApp extends JSRApp {
     return [
       {
         key: 'sphere-level',
-        type: DescriptorType.INT,
+        type: DescriptorType.TEXT_SLIDER,
+        valueType: 'int',
         label: 'Sphere Level',
         getValue: () => this._sphereLevel,
         setValue: (val) => {
           this._sphereLevel = val;
           this.updateSphere();
         },
-        min: 0,
+        min: 1,
         max: 8,
         step: 1
       },
       {
-        key: 'scale',
-        type: DescriptorType.FLOAT,
-        label: 'Scale',
-        getValue: () => this._scale,
+        key: 'saturate',
+        type: DescriptorType.TEXT_SLIDER,
+        valueType: 'float',
+        label: 'Saturate',
+        getValue: () => this._saturate,
         setValue: (val) => {
-          this._scale = val;
-          this.updateSphere();
+          this._saturate = val;
+          this.updateSaturate();
         },
-        min: 0.1,
-        max: 2.0,
-        step: 0.1
+        min: 0.0,
+        max: 1.0,
       }
     ];
   }
-  
+
+
   updateSphere() {
-    const ifs = this.createSphere(this._sphereLevel);
-    this._world.setGeometry(ifs);
-    MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
+    this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
+    this.updateSaturate();
+    this._world.setGeometry(this._ifs);
+    //MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
+
   }
 
-  createSphere(level) {
-    const ifs = SphereUtility.tessellatedIcosahedronSphere(level);
-    const n = ifs.getNumFaces();
+  updateSaturate() {
     // generate a random color for each face
-    const colors = new Array(n).map(() => new Color(255*Math.random(), 255*Math.random(), 255*Math.random()));
-    for (let i = 0; i < n; i++) {
-      colors[i] = new Color(255*Math.random(), 255*Math.random(), 255*Math.random());
+    const n = this._ifs.getNumFaces();
+    if (this._origFaceColors == null || this._origFaceColors.length != n) {
+      this._origFaceColors = new Array(n);
+      for (let i = 0; i < n; i++) {
+        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random()];
+      }
     }
-    const data = toDataList(colors, null, 'float32');
-    ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
-    return ifs;
+  
+    const satColors = new Array(n);
+     const white = [1,1,1];
+    for (let i = 0; i < n; i++) {
+      let c = this._origFaceColors[i];
+      let max = Math.max(c[0], c[1], c[2]);
+      let min = Math.min(c[0], c[1], c[2]);
+      min = 0;
+      if (max == min) {
+        c = white;
+      } else {
+      let t = (max-min)/max;
+      c = c.map(x => (1-this._saturate)*x + this._saturate*(x-min)/(max-min));
+      }
+      Rn.times(c, 255, c);
+      satColors[i] = new Color(...c);
+    }
+    const data = toDataList(satColors, null, 'float32');
+    this._ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
   }
 
   /**
@@ -106,6 +129,9 @@ export class TestJSRApp extends JSRApp {
     // Enable debug/perf logging on viewers (logs every N frames).
     // Note: JSRApp.getViewer() returns a ViewerSwitch; enable on all contained viewers
     // so whichever viewer is active will report stats.
+    const camera = CameraUtility.getCamera(this.getViewer());
+    camera.setFieldOfView(30);
+
     const viewerSwitch = this.getViewer();
     const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')
       ? viewerSwitch.getViewers()
