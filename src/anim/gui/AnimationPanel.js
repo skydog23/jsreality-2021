@@ -56,6 +56,9 @@ export class AnimationPanel {
   /** @type {boolean} */
   #recording = false;
 
+  /** @type {any} Recording/export settings (state-only; UI/environment-specific). */
+  #recordPrefs = null;
+
   /** @type {number} */
   #fps = 30;
 
@@ -333,6 +336,22 @@ export class AnimationPanel {
 
   setRecording(recording) {
     this.#recording = Boolean(recording);
+  }
+
+  /**
+   * Parity hook for Java AnimationPanelRecordListener.
+   * @returns {any}
+   */
+  getRecordPrefs() {
+    return this.#recordPrefs;
+  }
+
+  /**
+   * Parity hook for Java AnimationPanelRecordListener.
+   * @param {any} prefs
+   */
+  setRecordPrefs(prefs) {
+    this.#recordPrefs = prefs ?? null;
   }
 
   getCurrentFrame() {

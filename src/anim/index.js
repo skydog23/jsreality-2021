@@ -54,3 +54,13 @@ export {
     AnimatedDoubleArrayArraySet,
     AnimatedRectangle2DSet
 } from './sets/index.js';
+
+// Animation GUI (DOM-free model/controller + recording state)
+export {
+    AnimationPanel,
+    AnimationPanelEvent,
+    EventType,
+    AnimationPanelListenerImpl,
+    AnimationPanelRecordListener,
+    RecordingPreferences
+} from './gui/index.js';
