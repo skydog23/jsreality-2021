@@ -122,6 +122,13 @@ export const DescriptorType = Object.freeze({
  *   // vertically, 'row' arranges them horizontally. Defaults to 'column'
  *   // when not specified.
  *   direction?: 'row' | 'column',
+ *   // Optional visual grouping for this container.
+ *   // When enabled, the renderer should draw a border around the container.
+ *   // This is intended to simulate Swing's titled borders/group boxes.
+ *   border?: boolean,
+ *   // Optional label to render on the container's border (like Swing's TitledBorder title).
+ *   // If set, renderers should display it even if `label` is empty (the left label cell).
+ *   containerLabel?: string,
  *   // Optional flexbox justify-content setting for the children.
  *   justify?: 'flex-start' | 'flex-end' | 'center' | 'space-between',
  *   // Child descriptors contained within this layout node.

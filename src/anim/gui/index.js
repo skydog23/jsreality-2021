@@ -12,10 +12,12 @@ export { AnimationPanelEvent, EventType } from './AnimationPanelEvent.js';
 export { AnimationPanelListenerImpl } from './AnimationPanelListenerImpl.js';
 export { AnimationPanelRecordListener } from './AnimationPanelRecordListener.js';
 export { RecordingPreferences } from './RecordingPreferences.js';
+export { createRecordingPreferencesDescriptors } from './RecordingPreferencesDescriptors.js';
 
 // Recording backends (browser vs node/electron)
 export {} from './recording/RecorderBackend.js';
 export { BrowserRecorderBackend } from './recording/BrowserRecorderBackend.js';
+export { FileSystemAccessRecorderBackend } from './recording/FileSystemAccessRecorderBackend.js';
 export { NodeRecorderBackend } from './recording/NodeRecorderBackend.js';
 
 

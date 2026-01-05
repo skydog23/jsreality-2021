@@ -303,6 +303,38 @@ export class InspectorStylesheetManager {
       .sg-prop-value input[type="checkbox"] {
         margin: 0;
       }
+
+      /* ------------------------------------------------------------------- */
+      /* ContainerDescriptor titled border ("group box") styling               */
+      /* ------------------------------------------------------------------- */
+
+      .inspector-container-group {
+        position: relative;
+        padding: 5px;
+        border: 1px solid #555;
+        border-radius: 4px;
+        /* subtle etched feel */
+        box-shadow: inset 0 0 0 1px #2d2d2d;
+      }
+
+      .inspector-container-group--titled {
+        /* Leave room for the title label sitting on the border */
+        padding-top: 10px;
+      }
+
+      .inspector-container-group__label {
+        position: absolute;
+        top: -0.75em;
+        left: 10px;
+        padding: 0 6px;
+        background: #252526; /* match inspector panel background */
+        color: #9cdcfe;      /* match .sg-prop-label */
+        font-weight: 600;
+        font-size: 11px;
+        letter-spacing: 0.2px;
+        opacity: 0.95;
+        pointer-events: none;
+      }
       
       .sg-matrix-grid {
         display: grid;

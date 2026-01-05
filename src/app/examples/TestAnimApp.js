@@ -69,20 +69,91 @@ export class TestAnimApp extends JSRApp {
     // this.getJSRViewer().render();
   }
 
+  #state = {
+    alpha: 0.5,
+    beta: 2,
+    enabled: true,
+    name: "demo"
+  };
+  updateState() {
+    // Test app: no dedicated DOM state panel here.
+    // Keeping this hook for parity with descriptor examples.
+  }
+
   /**
    * Build an inspector panel for the app with a single "Play" button.
    * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').InspectorDescriptor>}
    */
   getInspectorDescriptors() {
-    return [
-      {
-        type: DescriptorType.BUTTON,
-        label: 'Play animation',
-        variant: 'primary',
-        action: () => void this.#play()
-      }
-    ];
-  }
+      // IMPORTANT:
+      // JSRApp expects getInspectorDescriptors() to return a *flat array of descriptors*.
+      // DescriptorUtility wraps these into a single group internally.
+      return [{
+        key: "groups-container",
+        type: DescriptorType.CONTAINER,
+        direction: "column",
+        border: true,
+        containerLabel: "Groups",
+        items: [
+          {
+            key: "row-controls",
+            type: DescriptorType.CONTAINER,
+            direction: "row",
+            justify: "space-between",
+            border: true,
+            containerLabel: "Row Controls",
+            items: [
+              {
+                key: "alpha",
+                label: "Alpha",
+                type: DescriptorType.FLOAT,
+                min: 0,
+                max: 1,
+                step: 0.01,
+                getValue: () => this.#state.alpha,
+                setValue: (v) => {
+                  this.#state.alpha = Number(v);
+                  this.updateState();
+                }
+              },
+              {
+                key: "beta",
+                label: "Beta",
+                type: DescriptorType.INT,
+                min: 0,
+                max: 10,
+                step: 1,
+                getValue: () => this.#state.beta,
+                setValue: (v) => {
+                  this.#state.beta = Number(v) | 0;
+                  this.updateState();
+                }
+              }
+            ]
+          },
+          {
+            key: "enabled",
+            label: "Enabled",
+            type: DescriptorType.TOGGLE,
+            getValue: () => this.#state.enabled,
+            setValue: (v) => {
+              this.#state.enabled = Boolean(v);
+              this.updateState();
+            }
+          },
+          {
+            key: "name",
+            label: "Name",
+            type: DescriptorType.TEXT,
+            getValue: () => this.#state.name,
+            setValue: (v) => {
+              this.#state.name = String(v ?? "");
+              this.updateState();
+            }
+          }
+        ]
+      }];
+    }
 
   #play() {
     console.log('play');

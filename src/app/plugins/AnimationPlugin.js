@@ -31,6 +31,10 @@ import { InterpolationTypes, PlaybackModes } from '../../anim/util/AnimationUtil
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { AnimationPanel } from '../../anim/gui/AnimationPanel.js';
 import { AnimationPanelListenerImpl } from '../../anim/gui/AnimationPanelListenerImpl.js';
+import { AnimationPanelRecordListener } from '../../anim/gui/AnimationPanelRecordListener.js';
+import { RecordingPreferences } from '../../anim/gui/RecordingPreferences.js';
+import { FileSystemAccessRecorderBackend } from '../../anim/gui/recording/FileSystemAccessRecorderBackend.js';
+import { createRecordingPreferencesDescriptors } from '../../anim/gui/RecordingPreferencesDescriptors.js';
 import { PluginIds } from '../plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.AnimationPlugin');
@@ -43,6 +47,12 @@ export class AnimationPlugin extends JSRPlugin {
   /** @type {HTMLElement|null} */
   #panel = null;
 
+  /** @type {HTMLElement|null} */
+  #bottomSlot = null;
+
+  /** @type {any|null} */
+  #controller = null;
+
   /** @type {Function|null} */
   #unsubscribeSceneChanged = null;
 
@@ -51,6 +61,15 @@ export class AnimationPlugin extends JSRPlugin {
 
   /** @type {AnimationPanelListenerImpl|null} */
   #animPanelListener = null;
+
+  /** @type {AnimationPanelRecordListener|null} */
+  #recordListener = null;
+
+  /** @type {RecordingPreferences|null} */
+  #recordPrefs = null;
+
+  /** @type {boolean} */
+  #recordPrefsOpen = false;
 
   /** @type {Set<import('../../anim/core/Animated.js').Animated>} */
   #animated = new Set();
@@ -159,6 +178,9 @@ export class AnimationPlugin extends JSRPlugin {
   init() {
     if (!(this.#animated instanceof Set)) this.#animated = new Set();
     if (!this.#ap) this.#ap = new AnimationPanel();
+    if (!this.#recordPrefs) this.#recordPrefs = new RecordingPreferences();
+    // Keep AnimationPanel parity hook populated so record listeners can read prefs.
+    this.#ap?.setRecordPrefs?.(this.#recordPrefs);
   }
 
   /**
@@ -268,6 +290,8 @@ export class AnimationPlugin extends JSRPlugin {
       { value: InterpolationTypes.CUBIC_BSPLINE, label: 'CUBIC_BSPLINE' }
     ];
 
+    const canPickDirectory = FileSystemAccessRecorderBackend.isSupported();
+
     return [
       {
         type: DescriptorType.LABEL,
@@ -366,6 +390,37 @@ export class AnimationPlugin extends JSRPlugin {
         setValue: (v) => this.#ap?.setPlaybackFactor?.(v)
       },
       {
+        type: DescriptorType.CONTAINER,
+        label: '',
+        direction: 'row',
+        justify: 'space-between',
+        items: [
+          {
+            type: DescriptorType.BUTTON,
+            label: this.#recordPrefsOpen ? 'Hide Recording…' : 'Recording…',
+            variant: 'secondary',
+            action: () => {
+              this.#recordPrefsOpen = !this.#recordPrefsOpen;
+              this.#renderBottomPanel();
+            }
+          },
+          {
+            type: DescriptorType.TOGGLE,
+            label: 'Recording',
+            description:
+              'When enabled, playback emits frames to the configured recorder backend (downloads or directory picker).',
+            getValue: () => this.#ap?.isRecording?.() ?? false,
+            setValue: (v) => this.#ap?.setRecording?.(Boolean(v))
+          }
+        ]
+      },
+      ...(this.#recordPrefsOpen && this.#recordPrefs
+        ? createRecordingPreferencesDescriptors(this.#recordPrefs, {
+            canPickDirectory,
+            onPickDirectory: () => this.#pickRecordingDirectory()
+          })
+        : []),
+      {
         type: DescriptorType.TOGGLE,
         label: 'Animate scene graph',
         getValue: () => this.#animateSceneGraph,
@@ -413,6 +468,78 @@ export class AnimationPlugin extends JSRPlugin {
     ];
   }
 
+  #renderBottomPanel() {
+    const controller = this.#controller;
+    const bottomSlot = this.#bottomSlot;
+    if (!controller || !bottomSlot) return;
+
+    bottomSlot.innerHTML = '';
+    const descriptors = this.#getInspectorDescriptors();
+    const panel = DescriptorUtility.createDefaultInspectorPanel('Animation', descriptors, {
+      id: this.getInfo().id,
+      icon: '🎞️',
+      collapsed: false,
+      onPropertyChange: () => {
+        this.#syncRecorderBackendFromPrefs();
+        controller.render();
+      }
+    });
+    this.#panel = panel;
+    bottomSlot.appendChild(panel);
+  }
+
+  #syncRecorderBackendFromPrefs() {
+    // Keep recorder backend settings in sync with prefs when user edits fields.
+    const prefs = this.#recordPrefs;
+    const rl = this.#recordListener;
+    if (!prefs || !rl) return;
+
+    // Browser canvas.toBlob() support is typically PNG/JPEG. If TIFF is selected,
+    // coerce to PNG to avoid mismatched extension/content.
+    const suffix = String(prefs.getFileFormatSuffix?.() ?? 'png').toLowerCase();
+    let mimeType = 'image/png';
+    if (suffix === 'jpg' || suffix === 'jpeg') mimeType = 'image/jpeg';
+    if (suffix === 'tiff' || suffix === 'tif') {
+      prefs.setFileFormatSuffix('png');
+      mimeType = 'image/png';
+    }
+
+    // Best-effort: both BrowserRecorderBackend and FileSystemAccessRecorderBackend
+    // expose a writable `.mimeType` field.
+    try {
+      if (rl.recorderBackend) rl.recorderBackend.mimeType = mimeType;
+    } catch {
+      // ignore
+    }
+  }
+
+  async #pickRecordingDirectory() {
+    if (!FileSystemAccessRecorderBackend.isSupported()) return;
+    const prefs = this.#recordPrefs;
+    const rl = this.#recordListener;
+    if (!prefs || !rl) return;
+
+    try {
+      const dir = await window.showDirectoryPicker();
+      if (!dir) return;
+
+      let backend = rl.recorderBackend;
+      if (!(backend instanceof FileSystemAccessRecorderBackend)) {
+        backend = new FileSystemAccessRecorderBackend();
+        rl.recorderBackend = backend;
+      }
+      backend.setDirectoryHandle(dir);
+
+      // We cannot get an absolute filesystem path from File System Access API.
+      // Store a friendly label so the UI shows where frames will go.
+      prefs.setCurrentDirectoryPath(dir?.name ? `📁 ${dir.name}` : '📁 (picked)');
+      this.#syncRecorderBackendFromPrefs();
+      this.#renderBottomPanel();
+    } catch {
+      // user canceled or permission denied
+    }
+  }
+
   async install(viewer, context) {
     await super.install(viewer, context);
 
@@ -421,6 +548,7 @@ export class AnimationPlugin extends JSRPlugin {
     this.init();
 
     const controller = context.getController();
+    this.#controller = controller;
     if (!controller) {
       logger.severe(-1, 'Controller not available in context!');
       throw new Error('PluginController not available');
@@ -434,6 +562,11 @@ export class AnimationPlugin extends JSRPlugin {
     });
     this.#ap?.addAnimationPanelListener?.(this.#animPanelListener);
 
+    // Recorder listener: receives AnimationPanel events and calls viewer.renderOffscreen().
+    this.#recordListener = new AnimationPanelRecordListener(viewer, 'recorder');
+    this.#syncRecorderBackendFromPrefs();
+    this.#ap?.addAnimationPanelListener?.(this.#recordListener);
+
     // Register a wide "timeline-style" UI in the bottom panel slot.
     const bottomSlot = controller.requestBottomPanel({
       id: this.getInfo().id,
@@ -442,21 +575,8 @@ export class AnimationPlugin extends JSRPlugin {
       overflow: 'auto',
       padding: '8px'
     });
-    bottomSlot.innerHTML = '';
-    const descriptors = this.#getInspectorDescriptors();
-    const panel = DescriptorUtility.createDefaultInspectorPanel(
-      'Animation',
-      descriptors,
-      {
-        id: this.getInfo().id,
-        icon: '🎞️',
-        collapsed: false,
-        // Ensure changes get a render pass.
-        onPropertyChange: () => controller.render()
-      }
-    );
-    this.#panel = panel;
-    bottomSlot.appendChild(panel);
+    this.#bottomSlot = bottomSlot;
+    this.#renderBottomPanel();
 
     // Content change wiring (Java: ContentChangedListener)
     this.#unsubscribeSceneChanged = controller.on('scene:changed', () => {
@@ -486,6 +606,8 @@ export class AnimationPlugin extends JSRPlugin {
       this.#panel.parentNode.removeChild(this.#panel);
     }
     this.#panel = null;
+    this.#bottomSlot = null;
+    this.#controller = null;
     this.#descriptorRenderer = null;
 
     // Stop playback loop and drop listener references.
@@ -494,6 +616,9 @@ export class AnimationPlugin extends JSRPlugin {
     }
     this.#ap = null;
     this.#animPanelListener = null;
+    this.#recordListener = null;
+    this.#recordPrefs = null;
+    this.#recordPrefsOpen = false;
 
     this.#animated = new Set();
     this.#sga = null;
