@@ -16,6 +16,10 @@
  *
  * @implements {import('./RecorderBackend.js').RecorderBackend}
  */
+import { getLogger, Category } from '../../../core/util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.anim.gui.recording.BrowserRecorderBackend');
+
 export class BrowserRecorderBackend {
   /**
    * @param {{ mimeType?: string, quality?: number }} [options]
@@ -32,7 +36,13 @@ export class BrowserRecorderBackend {
   async saveFrame(info) {
     const canvas = info?.canvas;
     const filename = String(info?.filename ?? `frame-${info?.frame ?? 0}.png`);
-    if (!canvas || typeof canvas.toBlob !== 'function') return;
+    if (!canvas || typeof canvas.toBlob !== 'function') {
+      logger.finer(Category.ALL, 'saveFrame: no canvas/toBlob (nothing to download)', {
+        hasCanvas: Boolean(canvas),
+        canvasType: canvas?.constructor?.name ?? null
+      });
+      return;
+    }
 
     const blob = await new Promise((resolve) => {
       try {
@@ -41,7 +51,10 @@ export class BrowserRecorderBackend {
         resolve(null);
       }
     });
-    if (!blob) return;
+    if (!blob) {
+      logger.warn(Category.ALL, 'saveFrame: toBlob returned null/failed', { filename });
+      return;
+    }
 
     const url = URL.createObjectURL(blob);
     try {
@@ -50,6 +63,7 @@ export class BrowserRecorderBackend {
       a.download = filename.split('/').pop() || filename;
       // Don’t attach to DOM; most browsers accept programmatic click.
       a.click();
+      logger.fine(Category.ALL, 'download triggered', { filename: a.download, size: blob.size });
     } finally {
       // Revoke in a microtask to avoid revoking before navigation/click completes.
       setTimeout(() => URL.revokeObjectURL(url), 0);

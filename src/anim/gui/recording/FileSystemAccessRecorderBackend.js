@@ -21,6 +21,11 @@
  *
  * @implements {import('./RecorderBackend.js').RecorderBackend}
  */
+
+import { getLogger, Category } from '../../../core/util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.anim.gui.recording.FileSystemAccessRecorderBackend');
+
 export class FileSystemAccessRecorderBackend {
   /** @type {FileSystemDirectoryHandle|null} */
   #dirHandle = null;
@@ -55,14 +60,19 @@ export class FileSystemAccessRecorderBackend {
    */
   async saveFrame(info) {
     const dir = this.#dirHandle;
-    if (!dir) return;
+    if (!dir) {
+      logger.finer(Category.ALL, 'saveFrame: no directory handle (nothing will be written)');
+      return;
+    }
 
     // Ensure we have readwrite permission (may prompt).
     try {
       if (typeof dir.queryPermission === 'function') {
         const status = await dir.queryPermission({ mode: 'readwrite' });
+        logger.finest(Category.ALL, 'permission status', status);
         if (status !== 'granted' && typeof dir.requestPermission === 'function') {
           const req = await dir.requestPermission({ mode: 'readwrite' });
+          logger.finest(Category.ALL, 'permission request result', req);
           if (req !== 'granted') return;
         }
       }
@@ -71,7 +81,14 @@ export class FileSystemAccessRecorderBackend {
     }
 
     const canvas = info?.canvas;
-    if (!canvas || typeof canvas.toBlob !== 'function') return;
+    if (!canvas || typeof canvas.toBlob !== 'function') {
+      logger.finer(Category.ALL, 'saveFrame: no canvas/toBlob (did renderOffscreen fail or wrong viewer?)', {
+        hasCanvas: Boolean(canvas),
+        canvasType: canvas?.constructor?.name ?? null,
+        hasToBlob: Boolean(canvas && typeof canvas.toBlob === 'function')
+      });
+      return;
+    }
 
     const blob = await new Promise((resolve) => {
       try {
@@ -80,19 +97,25 @@ export class FileSystemAccessRecorderBackend {
         resolve(null);
       }
     });
-    if (!blob) return;
+    if (!blob) {
+      logger.warn(Category.ALL, 'saveFrame: toBlob returned null/failed');
+      return;
+    }
 
     // Use basename only; directory is chosen by handle.
     const full = String(info?.filename ?? `frame-${info?.frame ?? 0}.png`);
     const base = full.split('/').pop() || full;
+    logger.fine(Category.ALL, 'writing file', { base, mimeType: this.mimeType, size: blob.size });
 
     try {
       const fileHandle = await dir.getFileHandle(base, { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
       await writable.close();
+      logger.fine(Category.ALL, 'write ok', { base });
     } catch {
       // ignore write errors (permission revoked, quota, etc.)
+      logger.warn(Category.ALL, 'write failed', { base });
     }
   }
 

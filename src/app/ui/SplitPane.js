@@ -1,21 +1,11 @@
 /**
  * SplitPane - A resizable split pane component for dividing space between two panels.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
- */
-
-/**
- * Creates a resizable split pane with two panels.
- * @param {HTMLElement} container - Container element for the split pane
- * @param {Object} options - Configuration options
- * @param {HTMLElement} options.leftPanel - Left/top panel element
- * @param {HTMLElement} options.rightPanel - Right/bottom panel element
- * @param {string} [options.orientation='horizontal'] - 'horizontal' (left/right) or 'vertical' (top/bottom)
- * @param {number} [options.initialSize=300] - Initial size of the first panel in pixels
- * @param {number} [options.minSize=100] - Minimum size of either panel in pixels
- * @param {number} [options.splitterWidth=4] - Width of the splitter bar in pixels
+ *
+ * Notes:
+ * - Orientation 'horizontal' means left/right split.
+ * - Orientation 'vertical' means top/bottom split.
+ * - `primary` controls which pane is explicitly sized (and thus which side "feels fixed").
+ * - Uses pointer events with pointer capture (mouse/touch/pen).
  */
 export class SplitPane {
   /** @type {HTMLElement} */
@@ -30,17 +20,20 @@ export class SplitPane {
   /** @type {HTMLElement} */
   #splitter;
 
-  /** @type {string} */
+  /** @type {'horizontal'|'vertical'} */
   #orientation;
 
   /** @type {number} */
-  #initialSize;
+  #minSizeFirst;
 
   /** @type {number} */
-  #minSize;
+  #minSizeSecond;
 
   /** @type {number} */
   #splitterWidth;
+
+  /** @type {'first'|'second'} */
+  #primary;
 
   /** @type {boolean} */
   #isResizing = false;
@@ -49,20 +42,42 @@ export class SplitPane {
   #startPos = 0;
 
   /** @type {number} */
-  #startSize = 0;
+  #startFirst = 0;
+
+  /** @type {number} */
+  #startSecond = 0;
+
+  /** @type {boolean} */
+  #splitterVisible = true;
 
   /**
-   * Create a new SplitPane.
+   * @param {HTMLElement} container
+   * @param {{
+   *  leftPanel: HTMLElement,
+   *  rightPanel: HTMLElement,
+   *  orientation?: 'horizontal'|'vertical',
+   *  primary?: 'first'|'second',
+   *  initialSize?: number,
+   *  minSize?: number,
+   *  minSizeFirst?: number,
+   *  minSizeSecond?: number,
+   *  splitterWidth?: number,
+   *  splitterVisible?: boolean
+   * }} options
    */
   constructor(container, options) {
     const {
       leftPanel,
       rightPanel,
       orientation = 'horizontal',
+      primary = 'first',
       initialSize = 300,
       minSize = 100,
-      splitterWidth = 4
-    } = options;
+      minSizeFirst = undefined,
+      minSizeSecond = undefined,
+      splitterWidth = 4,
+      splitterVisible = true
+    } = options ?? {};
 
     if (!container || !leftPanel || !rightPanel) {
       throw new Error('SplitPane requires container, leftPanel, and rightPanel');
@@ -71,61 +86,47 @@ export class SplitPane {
     this.#container = container;
     this.#leftPanel = leftPanel;
     this.#rightPanel = rightPanel;
-    this.#orientation = orientation;
-    this.#initialSize = initialSize;
-    this.#minSize = minSize;
-    this.#splitterWidth = splitterWidth;
+    this.#orientation = orientation === 'vertical' ? 'vertical' : 'horizontal';
+    this.#primary = primary === 'second' ? 'second' : 'first';
+    this.#minSizeFirst = typeof minSizeFirst === 'number' ? Math.max(0, minSizeFirst) : Math.max(0, minSize);
+    this.#minSizeSecond = typeof minSizeSecond === 'number' ? Math.max(0, minSizeSecond) : Math.max(0, minSize);
+    this.#splitterWidth = Math.max(1, splitterWidth | 0);
 
     this.#setupLayout();
     this.#createSplitter();
     this.#attachEventListeners();
+
+    this.setPrimarySize(initialSize);
+    this.setSplitterVisible(Boolean(splitterVisible));
   }
 
-  /**
-   * Set up the layout structure.
-   * @private
-   */
   #setupLayout() {
-    // Set container to flex layout
     this.#container.style.display = 'flex';
     this.#container.style.flexDirection = this.#orientation === 'horizontal' ? 'row' : 'column';
     this.#container.style.width = '100%';
     this.#container.style.height = '100%';
     this.#container.style.overflow = 'hidden';
+    this.#container.style.minWidth = '0';
+    this.#container.style.minHeight = '0';
 
-    // Style left panel
-    this.#leftPanel.style.flex = '0 0 auto';
-    this.#leftPanel.style.overflow = 'auto'; // Allow scrolling
-    if (this.#orientation === 'horizontal') {
-      this.#leftPanel.style.width = `${this.#initialSize}px`;
-      this.#leftPanel.style.height = '100%';
-    } else {
-      this.#leftPanel.style.width = '100%';
-      this.#leftPanel.style.height = `${this.#initialSize}px`;
-    }
-
-    // Style right panel
-    this.#rightPanel.style.flex = '1 1 auto';
-    this.#rightPanel.style.overflow = 'auto'; // Allow scrolling
-    this.#rightPanel.style.minWidth = '0'; // Allow flexbox to shrink below content size
+    // Ensure panes can shrink inside nested flex containers.
+    this.#leftPanel.style.minWidth = '0';
+    this.#leftPanel.style.minHeight = '0';
+    this.#rightPanel.style.minWidth = '0';
     this.#rightPanel.style.minHeight = '0';
-    if (this.#orientation === 'horizontal') {
-      this.#rightPanel.style.width = '0'; // Flexbox will handle sizing
-      this.#rightPanel.style.height = '100%';
+
+    if (this.#primary === 'first') {
+      this.#leftPanel.style.flex = '0 0 auto';
+      this.#rightPanel.style.flex = '1 1 auto';
     } else {
-      this.#rightPanel.style.width = '100%';
-      this.#rightPanel.style.height = '0'; // Flexbox will handle sizing
+      this.#leftPanel.style.flex = '1 1 auto';
+      this.#rightPanel.style.flex = '0 0 auto';
     }
 
-    // Insert panels into container
     this.#container.appendChild(this.#leftPanel);
     this.#container.appendChild(this.#rightPanel);
   }
 
-  /**
-   * Create the splitter bar.
-   * @private
-   */
   #createSplitter() {
     this.#splitter = document.createElement('div');
     this.#splitter.className = 'jsr-splitter';
@@ -133,7 +134,8 @@ export class SplitPane {
     this.#splitter.style.backgroundColor = '#3e3e3e';
     this.#splitter.style.cursor = this.#orientation === 'horizontal' ? 'col-resize' : 'row-resize';
     this.#splitter.style.userSelect = 'none';
-    
+    this.#splitter.style.touchAction = 'none';
+
     if (this.#orientation === 'horizontal') {
       this.#splitter.style.width = `${this.#splitterWidth}px`;
       this.#splitter.style.height = '100%';
@@ -142,134 +144,141 @@ export class SplitPane {
       this.#splitter.style.height = `${this.#splitterWidth}px`;
     }
 
-    // Hover effect
     this.#splitter.addEventListener('mouseenter', () => {
       this.#splitter.style.backgroundColor = '#007acc';
     });
     this.#splitter.addEventListener('mouseleave', () => {
-      if (!this.#isResizing) {
-        this.#splitter.style.backgroundColor = '#3e3e3e';
-      }
+      if (!this.#isResizing) this.#splitter.style.backgroundColor = '#3e3e3e';
     });
 
     // Insert splitter between panels
     this.#container.insertBefore(this.#splitter, this.#rightPanel);
   }
 
-  /**
-   * Attach event listeners for resizing.
-   * @private
-   */
   #attachEventListeners() {
-    this.#splitter.addEventListener('mousedown', (e) => {
+    this.#splitter.addEventListener('pointerdown', (e) => {
+      if (!this.#splitterVisible) return;
       e.preventDefault();
+      this.#splitter.setPointerCapture?.(e.pointerId);
       this.#startResize(e);
     });
-
-    document.addEventListener('mousemove', (e) => {
-      if (this.#isResizing) {
-        this.#handleResize(e);
-      }
+    this.#splitter.addEventListener('pointermove', (e) => {
+      if (!this.#isResizing) return;
+      this.#handleResize(e);
     });
-
-    document.addEventListener('mouseup', () => {
-      if (this.#isResizing) {
-        this.#endResize();
+    const end = (e) => {
+      if (!this.#isResizing) return;
+      try {
+        this.#splitter.releasePointerCapture?.(e.pointerId);
+      } catch {
+        // ignore
       }
-    });
+      this.#endResize();
+    };
+    this.#splitter.addEventListener('pointerup', end);
+    this.#splitter.addEventListener('pointercancel', end);
   }
 
-  /**
-   * Start resizing.
-   * @param {MouseEvent} e - Mouse event
-   * @private
-   */
   #startResize(e) {
     this.#isResizing = true;
     this.#splitter.style.backgroundColor = '#007acc';
     document.body.style.cursor = this.#orientation === 'horizontal' ? 'col-resize' : 'row-resize';
     document.body.style.userSelect = 'none';
 
+    const a = this.#leftPanel.getBoundingClientRect();
+    const b = this.#rightPanel.getBoundingClientRect();
     if (this.#orientation === 'horizontal') {
       this.#startPos = e.clientX;
-      this.#startSize = this.#leftPanel.offsetWidth;
+      this.#startFirst = a.width;
+      this.#startSecond = b.width;
     } else {
       this.#startPos = e.clientY;
-      this.#startSize = this.#leftPanel.offsetHeight;
+      this.#startFirst = a.height;
+      this.#startSecond = b.height;
     }
   }
 
-  /**
-   * Handle resizing.
-   * @param {MouseEvent} e - Mouse event
-   * @private
-   */
   #handleResize(e) {
-    if (!this.#isResizing) return;
+    const containerSize =
+      this.#orientation === 'horizontal' ? this.#container.offsetWidth : this.#container.offsetHeight;
+    const delta = (this.#orientation === 'horizontal' ? e.clientX : e.clientY) - this.#startPos;
 
-    const containerSize = this.#orientation === 'horizontal' 
-      ? this.#container.offsetWidth 
-      : this.#container.offsetHeight;
-    
-    let delta;
-    if (this.#orientation === 'horizontal') {
-      delta = e.clientX - this.#startPos;
+    if (this.#primary === 'first') {
+      const max = containerSize - this.#splitterWidth - this.#minSizeSecond;
+      const next = Math.max(this.#minSizeFirst, Math.min(this.#startFirst + delta, max));
+      this.#applyPrimarySize(next);
     } else {
-      delta = e.clientY - this.#startPos;
-    }
-
-    const newSize = this.#startSize + delta;
-    const maxSize = containerSize - this.#splitterWidth - this.#minSize;
-
-    // Clamp to min/max sizes
-    const clampedSize = Math.max(this.#minSize, Math.min(newSize, maxSize));
-
-    if (this.#orientation === 'horizontal') {
-      this.#leftPanel.style.width = `${clampedSize}px`;
-    } else {
-      this.#leftPanel.style.height = `${clampedSize}px`;
+      const max = containerSize - this.#splitterWidth - this.#minSizeFirst;
+      const next = Math.max(this.#minSizeSecond, Math.min(this.#startSecond - delta, max));
+      this.#applyPrimarySize(next);
     }
   }
 
-  /**
-   * End resizing.
-   * @private
-   */
   #endResize() {
-    if (!this.#isResizing) return;
-
     this.#isResizing = false;
     this.#splitter.style.backgroundColor = '#3e3e3e';
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   }
 
-  /**
-   * Get the current size of the left panel.
-   * @returns {number} Size in pixels
-   */
-  getLeftPanelSize() {
-    return this.#orientation === 'horizontal' 
-      ? this.#leftPanel.offsetWidth 
-      : this.#leftPanel.offsetHeight;
+  #applyPrimarySize(px) {
+    const pane = this.#primary === 'first' ? this.#leftPanel : this.#rightPanel;
+    if (this.#orientation === 'horizontal') {
+      pane.style.width = `${px}px`;
+      pane.style.height = '100%';
+    } else {
+      pane.style.height = `${px}px`;
+      pane.style.width = '100%';
+    }
   }
 
-  /**
-   * Set the size of the left panel.
-   * @param {number} size - Size in pixels
-   */
-  setLeftPanelSize(size) {
-    const containerSize = this.#orientation === 'horizontal' 
-      ? this.#container.offsetWidth 
-      : this.#container.offsetHeight;
-    const maxSize = containerSize - this.#splitterWidth - this.#minSize;
-    const clampedSize = Math.max(this.#minSize, Math.min(size, maxSize));
+  setMinSizes(minFirst, minSecond) {
+    if (Number.isFinite(minFirst)) this.#minSizeFirst = Math.max(0, minFirst);
+    if (Number.isFinite(minSecond)) this.#minSizeSecond = Math.max(0, minSecond);
+  }
 
-    if (this.#orientation === 'horizontal') {
-      this.#leftPanel.style.width = `${clampedSize}px`;
-    } else {
-      this.#leftPanel.style.height = `${clampedSize}px`;
+  setSplitterVisible(visible) {
+    this.#splitterVisible = Boolean(visible);
+    this.#splitter.style.display = this.#splitterVisible ? 'block' : 'none';
+    this.#splitter.style.pointerEvents = this.#splitterVisible ? 'auto' : 'none';
+  }
+
+  getPrimarySize() {
+    const pane = this.#primary === 'first' ? this.#leftPanel : this.#rightPanel;
+    const r = pane.getBoundingClientRect();
+    return this.#orientation === 'horizontal' ? r.width : r.height;
+  }
+
+  setPrimarySize(sizePx) {
+    const containerSize =
+      this.#orientation === 'horizontal' ? this.#container.offsetWidth : this.#container.offsetHeight;
+    const min = this.#primary === 'first' ? this.#minSizeFirst : this.#minSizeSecond;
+
+    // When SplitPane is configured before layout (e.g., during initial app bootstrap),
+    // `containerSize` can be 0. In that case, clamping against a negative `max` would
+    // collapse panes to 0 even if the caller requested a non-zero initial size.
+    if (containerSize <= 0) {
+      const next = Math.max(min, Number(sizePx) || 0);
+      this.#applyPrimarySize(next);
+      return;
     }
+
+    const max =
+      containerSize -
+      this.#splitterWidth -
+      (this.#primary === 'first' ? this.#minSizeSecond : this.#minSizeFirst);
+    const next = Math.max(min, Math.min(Number(sizePx) || 0, max));
+    this.#applyPrimarySize(next);
+  }
+
+  // Back-compat helpers
+  getLeftPanelSize() {
+    const r = this.#leftPanel.getBoundingClientRect();
+    return this.#orientation === 'horizontal' ? r.width : r.height;
+  }
+  setLeftPanelSize(size) {
+    this.#primary = 'first';
+    this.setPrimarySize(size);
   }
 }
 

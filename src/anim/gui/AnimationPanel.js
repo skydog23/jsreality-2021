@@ -321,6 +321,22 @@ export class AnimationPanel {
     this.#playbackFactor = Number.isFinite(f) ? f : 1.0;
   }
 
+  getFps() {
+    return this.#fps;
+  }
+
+  setFps(fps) {
+    const n = Number(fps);
+    const next = Number.isFinite(n) && n > 0 ? (n | 0) : this.#fps;
+    if (!next || next <= 0) return;
+    if (next === this.#fps) return;
+    this.#fps = next;
+    // If we're currently playing, restart timer to apply the new interval.
+    if (!this.#isPaused) {
+      this.#startTimer();
+    }
+  }
+
   isPaused() {
     return this.#isPaused;
   }
@@ -336,6 +352,13 @@ export class AnimationPanel {
 
   setRecording(recording) {
     this.#recording = Boolean(recording);
+    // When recording is enabled, default to the FPS in RecordingPreferences (if available).
+    // This keeps the timer interval consistent with expected frame counts.
+    if (this.#recording) {
+      const p = this.#recordPrefs;
+      const fps = p && typeof p.getFps === 'function' ? p.getFps() : null;
+      if (fps != null) this.setFps(fps);
+    }
   }
 
   /**
@@ -421,13 +444,23 @@ export class AnimationPanel {
       }
       this.#fireEvent(new AnimationPanelEvent(EventType.PLAYBACK_COMPLETED, this, new TimeDescriptor(this.#currentTime), this.#currentKeyFrame));
       this.#updatePlayState();
+      return; // IMPORTANT: stop advancing after completion handling
     }
 
-    // Advance ticks (Phase 1: wall-clock stepping like Java's non-recording branch)
-    const newTime = Date.now();
-    const dt = newTime - this.#systemTime;
-    this.#systemTime = newTime;
-    const dticks = (dt / 1000.0) * this.#fps * this.#playbackFactor * this.#reversed;
+    // Advance ticks.
+    //
+    // Non-recording mode: wall-clock integration (smooth interactive playback).
+    // Recording mode: deterministic stepping so we get the expected number of frames
+    // even if rendering/writing slows the event loop (no skipped frames).
+    let dticks;
+    if (this.#recording) {
+      dticks = this.#playbackFactor * this.#reversed;
+    } else {
+      const newTime = Date.now();
+      const dt = newTime - this.#systemTime;
+      this.#systemTime = newTime;
+      dticks = (dt / 1000.0) * this.#fps * this.#playbackFactor * this.#reversed;
+    }
     this.#dcurrentTick += dticks;
 
     this.#frameCount++;

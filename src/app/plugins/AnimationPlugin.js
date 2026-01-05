@@ -495,6 +495,15 @@ export class AnimationPlugin extends JSRPlugin {
     const rl = this.#recordListener;
     if (!prefs || !rl) return;
 
+    // Keep AnimationPanel playback tick interval aligned with recording preferences.
+    // This makes recording frame counts deterministic w.r.t. prefs.fps.
+    try {
+      const fps = prefs.getFps?.();
+      if (fps != null) this.#ap?.setFps?.(fps);
+    } catch {
+      // ignore
+    }
+
     // Browser canvas.toBlob() support is typically PNG/JPEG. If TIFF is selected,
     // coerce to PNG to avoid mismatched extension/content.
     const suffix = String(prefs.getFileFormatSuffix?.() ?? 'png').toLowerCase();
@@ -564,7 +573,10 @@ export class AnimationPlugin extends JSRPlugin {
     this.#ap?.addAnimationPanelListener?.(this.#animPanelListener);
 
     // Recorder listener: receives AnimationPanel events and calls viewer.renderOffscreen().
-    this.#recordListener = new AnimationPanelRecordListener(viewer, 'recorder');
+    // IMPORTANT: the plugin install() parameter `viewer` is a JSRViewer (app wrapper).
+    // Recording needs access to the ViewerSwitch/current backend viewer.
+    const viewerSwitch = viewer?.getViewer?.() ?? viewer;
+    this.#recordListener = new AnimationPanelRecordListener(viewerSwitch, 'recorder');
     this.#syncRecorderBackendFromPrefs();
     this.#ap?.addAnimationPanelListener?.(this.#recordListener);
 

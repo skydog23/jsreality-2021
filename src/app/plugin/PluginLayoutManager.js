@@ -7,6 +7,8 @@
  * Similar to jReality's approach.
  */
 
+import { SplitPane } from '../ui/SplitPane.js';
+
 export class PluginLayoutManager {
   /** @type {HTMLElement} */
   #container;
@@ -23,11 +25,23 @@ export class PluginLayoutManager {
   /** @type {HTMLElement} */
   #viewerHost;
 
-  /** @type {HTMLElement|null} */
-  #leftPanelWrapper = null;
+  /** @type {HTMLElement} */
+  #leftPanelWrapper;
 
-  /** @type {HTMLElement|null} */
-  #rightPanelWrapper = null;
+  /** @type {HTMLElement} */
+  #rightPanelWrapper;
+
+  /** @type {SplitPane} */
+  #splitLM;
+
+  /** @type {SplitPane} */
+  #splitMR;
+
+  /** @type {SplitPane} */
+  #splitTC;
+
+  /** @type {SplitPane} */
+  #splitCB;
 
   /** @type {Map<string, HTMLElement>} */
   #regionSlots = new Map();
@@ -101,59 +115,141 @@ export class PluginLayoutManager {
   #setupBaseLayout() {
     this.#container.innerHTML = '';
     this.#container.style.display = 'flex';
-    // Feature 1: Left - (top/center/bottom column) - Right
+    // Layout: Left | Center | Right, where Center contains Top / Viewer / Bottom.
+    // All boundaries are draggable via nested SplitPane instances.
     this.#container.style.flexDirection = 'row';
     this.#container.style.width = '100%';
     this.#container.style.height = '100%';
     this.#container.style.minHeight = '0';
     this.#container.style.minWidth = '0';
 
-    // Center column (always present): top | viewer | bottom
+    // Left panel wrapper (exists always; starts collapsed)
+    this.#leftPanelWrapper = document.createElement('div');
+    this.#leftPanelWrapper.className = 'jsr-layout-left-panel';
+    this.#leftPanelWrapper.style.display = 'flex';
+    this.#leftPanelWrapper.style.flexDirection = 'column';
+    this.#leftPanelWrapper.style.width = '0px';
+    this.#leftPanelWrapper.style.height = '100%';
+    this.#leftPanelWrapper.style.minHeight = '0';
+    this.#leftPanelWrapper.style.minWidth = '0';
+    this.#leftPanelWrapper.style.background = '#1e1e1e';
+    this.#leftPanelWrapper.style.borderRight = 'none';
+    this.#leftPanelWrapper.style.overflow = 'hidden';
+
+    // Right panel wrapper (exists always; starts collapsed)
+    this.#rightPanelWrapper = document.createElement('div');
+    this.#rightPanelWrapper.className = 'jsr-layout-right-panel';
+    this.#rightPanelWrapper.style.display = 'flex';
+    this.#rightPanelWrapper.style.flexDirection = 'column';
+    this.#rightPanelWrapper.style.width = '0px';
+    this.#rightPanelWrapper.style.height = '100%';
+    this.#rightPanelWrapper.style.minHeight = '0';
+    this.#rightPanelWrapper.style.minWidth = '0';
+    this.#rightPanelWrapper.style.background = '#1e1e1e';
+    this.#rightPanelWrapper.style.borderLeft = 'none';
+    this.#rightPanelWrapper.style.overflow = 'hidden';
+
+    // Center column container (host for top/center/bottom split panes)
     this.#centerColumn = document.createElement('div');
     this.#centerColumn.className = 'jsr-layout-center-column';
-    this.#centerColumn.style.display = 'flex';
-    this.#centerColumn.style.flexDirection = 'column';
-    this.#centerColumn.style.flex = '1 1 auto';
     this.#centerColumn.style.minHeight = '0';
     this.#centerColumn.style.minWidth = '0';
 
     // Top region for menubar/toolbars (center column only).
     this.#topRegion = document.createElement('div');
     this.#topRegion.className = 'jsr-layout-top';
-    this.#topRegion.style.display = 'none';
-    this.#topRegion.style.flex = '0 0 auto';
+    this.#topRegion.style.display = 'flex';
     this.#topRegion.style.width = '100%';
     this.#topRegion.style.flexDirection = 'column';
     this.#topRegion.style.background = '#252526';
-    this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+    this.#topRegion.style.borderBottom = 'none';
+    this.#topRegion.style.overflow = 'hidden';
 
     // Bottom region for wide, short panels (center column only).
     this.#bottomRegion = document.createElement('div');
     this.#bottomRegion.className = 'jsr-layout-bottom';
-    this.#bottomRegion.style.display = 'none';
-    this.#bottomRegion.style.flex = '0 0 auto';
+    this.#bottomRegion.style.display = 'flex';
     this.#bottomRegion.style.width = '100%';
     this.#bottomRegion.style.background = '#1e1e1e';
-    this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
+    this.#bottomRegion.style.borderTop = 'none';
     this.#bottomRegion.style.overflow = 'hidden';
 
     // Viewer host (center area; takes remaining space inside center column)
     this.#viewerHost = document.createElement('div');
     this.#viewerHost.className = 'jsr-layout-viewer-host';
-    this.#viewerHost.style.flex = '1 1 auto';
-    // In the center column (flex-direction: column), width is the cross-axis.
-    // Keep it at 100% so the viewer fills the column.
     this.#viewerHost.style.width = '100%';
     this.#viewerHost.style.height = '100%';
     this.#viewerHost.style.position = 'relative';
     this.#viewerHost.style.minHeight = '0';
     this.#viewerHost.style.minWidth = '0';
 
-    // Assemble center column, then mount it. Left/right columns are inserted lazily.
-    this.#centerColumn.appendChild(this.#topRegion);
-    this.#centerColumn.appendChild(this.#viewerHost);
-    this.#centerColumn.appendChild(this.#bottomRegion);
-    this.#container.appendChild(this.#centerColumn);
+    // Build nested split panes:
+    // - Left | (Center | Right)
+    // - Center | Right
+    // - Top | (Viewer | Bottom)
+    // - Viewer | Bottom
+    const centerBottomContainer = document.createElement('div');
+    centerBottomContainer.style.width = '100%';
+    centerBottomContainer.style.height = '100%';
+    centerBottomContainer.style.minWidth = '0';
+    centerBottomContainer.style.minHeight = '0';
+
+    this.#splitCB = new SplitPane(centerBottomContainer, {
+      leftPanel: this.#viewerHost,
+      rightPanel: this.#bottomRegion,
+      orientation: 'vertical',
+      primary: 'second',
+      initialSize: 0,
+      minSizeFirst: 0,
+      minSizeSecond: 0,
+      splitterVisible: false
+    });
+
+    this.#splitTC = new SplitPane(this.#centerColumn, {
+      leftPanel: this.#topRegion,
+      rightPanel: centerBottomContainer,
+      orientation: 'vertical',
+      primary: 'first',
+      initialSize: 0,
+      minSizeFirst: 0,
+      minSizeSecond: 0,
+      splitterVisible: true
+    });
+
+    const centerRightContainer = document.createElement('div');
+    centerRightContainer.style.width = '100%';
+    centerRightContainer.style.height = '100%';
+    centerRightContainer.style.minWidth = '0';
+    centerRightContainer.style.minHeight = '0';
+
+    this.#splitMR = new SplitPane(centerRightContainer, {
+      leftPanel: this.#centerColumn,
+      rightPanel: this.#rightPanelWrapper,
+      orientation: 'horizontal',
+      primary: 'second',
+      initialSize: 0,
+      minSizeFirst: 0,
+      minSizeSecond: 0,
+      splitterVisible: true
+    });
+
+    this.#splitLM = new SplitPane(this.#container, {
+      leftPanel: this.#leftPanelWrapper,
+      rightPanel: centerRightContainer,
+      orientation: 'horizontal',
+      primary: 'first',
+      initialSize: 0,
+      minSizeFirst: 0,
+      minSizeSecond: 0,
+      splitterVisible: true
+    });
+
+    // Startup defaults: keep splitters visible and allow dragging panels open even before
+    // any plugin requests a region. Top/left start collapsed, but will expand as soon as
+    // their regions are requested (and SplitPane will no longer clamp to 0 before layout).
+    this.#splitLM.setMinSizes(0, 0);
+    this.#splitMR.setMinSizes(0, 0);
+    this.#splitTC.setMinSizes(0, 0);
   }
 
   /**
@@ -161,7 +257,7 @@ export class PluginLayoutManager {
    * @private
    */
   #createTopSlot(options) {
-    this.#activateTopRegion();
+    this.#activateTopRegion(options);
 
     const slot = document.createElement('div');
     slot.className = 'jsr-layout-top-slot';
@@ -239,10 +335,13 @@ export class PluginLayoutManager {
    * Makes the top region visible the first time something requests it.
    * @private
    */
-  #activateTopRegion() {
-    if (this.#topRegion.style.display !== 'flex') {
-      this.#topRegion.style.display = 'flex';
-    }
+  #activateTopRegion(options = {}) {
+    const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 44;
+    const minSize = typeof options.minSize === 'number' ? options.minSize : 24;
+    this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+    this.#splitTC.setMinSizes(minSize, 0);
+    this.#splitTC.setPrimarySize(initialSize);
+    this.#splitTC.setSplitterVisible(true);
   }
 
   /**
@@ -251,11 +350,11 @@ export class PluginLayoutManager {
    */
   #activateBottomRegion(options = {}) {
     const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 180;
-    if (this.#bottomRegion.style.display !== 'flex') {
-      this.#bottomRegion.style.display = 'flex';
-    }
-    this.#bottomRegion.style.height = `${initialSize}px`;
-    this.#bottomRegion.style.flexShrink = '0';
+    const minSize = typeof options.minSize === 'number' ? options.minSize : 80;
+    this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
+    this.#splitCB.setMinSizes(0, minSize);
+    this.#splitCB.setPrimarySize(initialSize);
+    this.#splitCB.setSplitterVisible(true);
   }
 
   /**
@@ -263,24 +362,14 @@ export class PluginLayoutManager {
    * @private
    */
   #ensureLeftPanel(options = {}) {
-    if (!this.#leftPanelWrapper) {
-      const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
-      
-      this.#leftPanelWrapper = document.createElement('div');
-      this.#leftPanelWrapper.className = 'jsr-layout-left-panel';
-      this.#leftPanelWrapper.style.display = 'flex';
-      this.#leftPanelWrapper.style.flexDirection = 'column';
-      this.#leftPanelWrapper.style.width = `${initialSize}px`;
-      this.#leftPanelWrapper.style.flexShrink = '0'; // Fixed width
-      this.#leftPanelWrapper.style.height = '100%';
-      this.#leftPanelWrapper.style.minHeight = '0';
-      this.#leftPanelWrapper.style.background = '#1e1e1e';
-      this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
-      this.#leftPanelWrapper.style.overflow = 'hidden';
-
-      // Insert before center column
-      this.#container.insertBefore(this.#leftPanelWrapper, this.#centerColumn);
+    const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
+    const minSize = typeof options.minSize === 'number' ? options.minSize : 180;
+    this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
+    this.#splitLM.setMinSizes(minSize, 0);
+    if (this.#splitLM.getPrimarySize() < 1) {
+      this.#splitLM.setPrimarySize(initialSize);
     }
+    this.#splitLM.setSplitterVisible(true);
     return this.#leftPanelWrapper;
   }
 
@@ -289,24 +378,14 @@ export class PluginLayoutManager {
    * @private
    */
   #ensureRightPanel(options = {}) {
-    if (!this.#rightPanelWrapper) {
-      const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
-      
-      this.#rightPanelWrapper = document.createElement('div');
-      this.#rightPanelWrapper.className = 'jsr-layout-right-panel';
-      this.#rightPanelWrapper.style.display = 'flex';
-      this.#rightPanelWrapper.style.flexDirection = 'column';
-      this.#rightPanelWrapper.style.width = `${initialSize}px`;
-      this.#rightPanelWrapper.style.flexShrink = '0'; // Fixed width
-      this.#rightPanelWrapper.style.height = '100%';
-      this.#rightPanelWrapper.style.minHeight = '0';
-      this.#rightPanelWrapper.style.background = '#1e1e1e';
-      this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
-      this.#rightPanelWrapper.style.overflow = 'hidden';
-
-      // Append after center column
-      this.#container.appendChild(this.#rightPanelWrapper);
+    const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
+    const minSize = typeof options.minSize === 'number' ? options.minSize : 200;
+    this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
+    this.#splitMR.setMinSizes(0, minSize);
+    if (this.#splitMR.getPrimarySize() < 1) {
+      this.#splitMR.setPrimarySize(initialSize);
     }
+    this.#splitMR.setSplitterVisible(true);
     return this.#rightPanelWrapper;
   }
 
@@ -319,36 +398,70 @@ export class PluginLayoutManager {
    * @param {boolean} [visibility.top] - Show top panel
    */
   setPanelVisibility(visibility) {
-    if (this.#leftPanelWrapper !== null && visibility.left !== undefined) {
-      this.#leftPanelWrapper.style.display = visibility.left ? 'flex' : 'none';
+    if (visibility.left !== undefined) {
+      if (visibility.left) {
+        this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
+        this.#splitLM.setSplitterVisible(true);
+        if (this.#splitLM.getPrimarySize() < 1) this.#splitLM.setPrimarySize(300);
+      } else {
+        this.#splitLM.setPrimarySize(0);
+        this.#splitLM.setSplitterVisible(false);
+        this.#leftPanelWrapper.style.borderRight = 'none';
+      }
     }
-    if (this.#rightPanelWrapper !== null && visibility.right !== undefined) {
-      this.#rightPanelWrapper.style.display = visibility.right ? 'flex' : 'none';
+
+    if (visibility.right !== undefined) {
+      if (visibility.right) {
+        this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
+        this.#splitMR.setSplitterVisible(true);
+        if (this.#splitMR.getPrimarySize() < 1) this.#splitMR.setPrimarySize(300);
+      } else {
+        this.#splitMR.setPrimarySize(0);
+        this.#splitMR.setSplitterVisible(false);
+        this.#rightPanelWrapper.style.borderLeft = 'none';
+      }
     }
-    if (this.#topRegion !== null && visibility.top !== undefined) {
+
+    if (visibility.top !== undefined) {
       // Never hide the top region if it contains content (like menubar)
       // This prevents accidentally hiding the menubar which would make it impossible to restore
       const hasContent = this.#topRegion.children.length > 0;
       if (visibility.top === false && hasContent) {
         // Top region has content, don't hide it - just skip this update
         // Ensure it stays visible
-        if (this.#topRegion.style.display === 'none') {
-          this.#topRegion.style.display = 'flex';
-        }
+        this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+        this.#splitTC.setSplitterVisible(true);
+        if (this.#splitTC.getPrimarySize() < 1) this.#splitTC.setPrimarySize(44);
+      } else if (visibility.top) {
+        this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+        this.#splitTC.setSplitterVisible(true);
+        if (this.#splitTC.getPrimarySize() < 1) this.#splitTC.setPrimarySize(44);
       } else {
-        this.#topRegion.style.display = visibility.top ? 'flex' : 'none';
+        this.#splitTC.setPrimarySize(0);
+        this.#splitTC.setSplitterVisible(false);
+        this.#topRegion.style.borderBottom = 'none';
       }
     }
 
-    if (this.#bottomRegion !== null && visibility.bottom !== undefined) {
-      this.#bottomRegion.style.display = visibility.bottom ? 'flex' : 'none';
+    if (visibility.bottom !== undefined) {
+      if (visibility.bottom) {
+        this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
+        this.#splitCB.setSplitterVisible(true);
+        if (this.#splitCB.getPrimarySize() < 1) this.#splitCB.setPrimarySize(180);
+      } else {
+        this.#splitCB.setPrimarySize(0);
+        this.#splitCB.setSplitterVisible(false);
+        this.#bottomRegion.style.borderTop = 'none';
+      }
     }
     
     // Always ensure top region is visible if it has content, regardless of visibility settings
     // This is a safety check to prevent the menubar from disappearing
-    if (this.#topRegion !== null && this.#topRegion.children.length > 0) {
-      if (this.#topRegion.style.display === 'none') {
-        this.#topRegion.style.display = 'flex';
+    if (this.#topRegion.children.length > 0) {
+      if (this.#splitTC.getPrimarySize() < 1) {
+        this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+        this.#splitTC.setSplitterVisible(true);
+        this.#splitTC.setPrimarySize(44);
       }
     }
   }

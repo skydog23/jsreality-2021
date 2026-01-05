@@ -102,7 +102,11 @@ function containerFactory(descriptor, context) {
   const direction = descriptor.direction === 'row' ? 'row' : 'column';
   container.style.flexDirection = direction;
   container.style.gap = '8px';
-  container.style.alignItems = direction === 'row' ? 'stretch' : 'center';
+  // IMPORTANT: Column containers should stretch children horizontally.
+  // If we center them, nested `.sg-prop-row` elements can become shrink-to-fit,
+  // and the `.sg-prop-value` flex cell can collapse to ~0px (making inputs
+  // appear blank / not retain typed text).
+  container.style.alignItems = 'stretch';
   if (direction === 'row') {
     container.style.width = '100%';
     const justify =
@@ -173,7 +177,9 @@ function numericInputFactory(inputType, overrides = {}) {
   return (descriptor) => {
     const wrapper = createRow(descriptor);
     const input = document.createElement('input');
-    input.type = 'text';
+    // Respect the requested input type (WidgetCatalog registers INT/FLOAT with 'number').
+    // This also makes min/max/step work as expected.
+    input.type = inputType || 'text';
     input.inputMode = 'decimal';
     input.className = 'inspector-input inspector-input--number';
     const fractionDigits = overrides.fractionDigits ?? 4;

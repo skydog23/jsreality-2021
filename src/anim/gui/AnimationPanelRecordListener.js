@@ -10,6 +10,13 @@
 import { EventType } from './AnimationPanelEvent.js';
 import { RecordingPreferences } from './RecordingPreferences.js';
 import { BrowserRecorderBackend } from './recording/BrowserRecorderBackend.js';
+import { getLogger, Category } from '../../core/util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.anim.gui.AnimationPanelRecordListener');
+
+// Rate-limit noisy logs: always log first few frames, then every N frames.
+// Visibility/verbosity is controlled by LoggingSystem module level (e.g. set this module to FINE).
+const LOG_EVERY_N_FRAMES = 60;
 
 /**
  * State-only port of `charlesgunn.anim.gui.AnimationPanelRecordListener`.
@@ -40,6 +47,12 @@ export class AnimationPanelRecordListener {
   /** @type {boolean} */
   #testVideo = true;
 
+  /** @type {number} */
+  #debugLastTickLogged = -1;
+
+  /** @type {boolean} */
+  #debugWarnedNoOffscreen = false;
+
   /**
    * Recorder backend (environment-specific). Defaults to a simple browser backend.
    * @type {import('./recording/RecorderBackend.js').RecorderBackend}
@@ -51,6 +64,37 @@ export class AnimationPanelRecordListener {
     this.#name = String(name ?? 'recorder');
     // Default to browser backend; Node backend can be injected by caller at runtime.
     this.recorderBackend = new BrowserRecorderBackend();
+  }
+
+  #resolveOffscreenViewer() {
+    const v = this.#viewer;
+    if (v && typeof v.renderOffscreen === 'function') {
+      return { viewer: v, via: 'viewer.renderOffscreen' };
+    }
+    // Common case: app passes JSRViewer (application wrapper). Its ViewerSwitch is returned by getViewer().
+    if (v && typeof v.getViewer === 'function') {
+      const vs = v.getViewer?.();
+      if (vs && typeof vs.renderOffscreen === 'function') {
+        return { viewer: vs, via: 'viewer.getViewer().renderOffscreen' };
+      }
+      if (vs && typeof vs.getCurrentViewer === 'function') {
+        const cv = vs.getCurrentViewer?.();
+        if (cv && typeof cv.renderOffscreen === 'function') {
+          return { viewer: cv, via: 'viewer.getViewer().getCurrentViewer().renderOffscreen' };
+        }
+        return { viewer: cv ?? null, via: 'viewer.getViewer().getCurrentViewer()' };
+      }
+      return { viewer: vs ?? null, via: 'viewer.getViewer()' };
+    }
+    // Common case: app passes ViewerSwitch, whose current viewer holds renderOffscreen().
+    if (v && typeof v.getCurrentViewer === 'function') {
+      const cv = v.getCurrentViewer?.();
+      if (cv && typeof cv.renderOffscreen === 'function') {
+        return { viewer: cv, via: 'viewer.getCurrentViewer().renderOffscreen' };
+      }
+      return { viewer: cv ?? null, via: 'viewer.getCurrentViewer()' };
+    }
+    return { viewer: null, via: 'none' };
   }
 
   // ---------------------------------------------------------------------------
@@ -100,9 +144,28 @@ export class AnimationPanelRecordListener {
           this.#recording = true;
           const prefs = this.#getPrefsFromSource(src);
           this.#currentDim = prefs.getDimension();
+
+          const { viewer, via } = this.#resolveOffscreenViewer();
+          logger.fine(Category.ALL, 'PLAYBACK_STARTED (recording enabled)', {
+            via,
+            viewerType: viewer?.constructor?.name ?? null,
+            hasRenderOffscreen: Boolean(viewer && typeof viewer.renderOffscreen === 'function'),
+            backendType: this.recorderBackend?.constructor?.name ?? null,
+            prefs: {
+              dim: this.#currentDim,
+              aa: prefs.getAntialiasing?.(),
+              suffix: prefs.getFileFormatSuffix?.(),
+              dir: prefs.getCurrentDirectoryPath?.(),
+              stem: prefs.getStemName?.(),
+              startCount: prefs.getStartCount?.(),
+              startTime: prefs.getStartTime?.(),
+              endTime: prefs.getEndTime?.()
+            }
+          });
+
           // Stereo doubling is a viewer/camera concern; only apply if viewer exposes it.
           try {
-            const cam = this.#viewer?.getCamera?.() ?? null;
+            const cam = viewer?.getCamera?.() ?? this.#viewer?.getCamera?.() ?? null;
             const isStereo = Boolean(cam?.isStereo?.());
             if (isStereo && this.#currentDim) {
               this.#currentDim = { width: this.#currentDim.width * 2, height: this.#currentDim.height };
@@ -130,9 +193,35 @@ export class AnimationPanelRecordListener {
         const aa = prefs.getAntialiasing();
         const dim = this.#currentDim ?? prefs.getDimension();
 
+        const every = LOG_EVERY_N_FRAMES;
+        if (tick !== this.#debugLastTickLogged && (tick % every === 0 || tick < 3)) {
+          this.#debugLastTickLogged = tick;
+          const { viewer, via } = this.#resolveOffscreenViewer();
+          logger.finer(Category.ALL, 'SET_VALUE_AT_TIME', {
+            tick,
+            time,
+            via,
+            viewerType: viewer?.constructor?.name ?? null,
+            hasRenderOffscreen: Boolean(viewer && typeof viewer.renderOffscreen === 'function'),
+            dim,
+            aa,
+            filename,
+            backendType: this.recorderBackend?.constructor?.name ?? null
+          });
+        }
+
         /** @param {any} canvas */
         const emit = (canvas) => {
           try {
+            if (tick % every === 0 || tick < 3) {
+              logger.finest(Category.ALL, 'saveFrame()', {
+                tick,
+                hasCanvas: Boolean(canvas),
+                canvasType: canvas?.constructor?.name ?? null,
+                hasToBlob: Boolean(canvas && typeof canvas.toBlob === 'function'),
+                filename
+              });
+            }
             this.recorderBackend?.saveFrame?.({ frame: tick, time, filename, prefs, canvas, viewer: this.#viewer });
           } catch {
             // ignore backend errors
@@ -141,15 +230,48 @@ export class AnimationPanelRecordListener {
 
         try {
           // Standardize on renderOffscreen() (browser-safe). Screenshot variants are intentionally ignored.
-          if (this.#viewer?.renderOffscreen) {
-            const maybe = this.#viewer.renderOffscreen(dim.width, dim.height, { antialias: aa });
+          const { viewer, via } = this.#resolveOffscreenViewer();
+          if (viewer?.renderOffscreen) {
+            const maybe = viewer.renderOffscreen(dim.width, dim.height, { antialias: aa });
             // Support async renderOffscreen() (WebGL2DViewer.renderOffscreen is async).
             if (maybe && typeof maybe.then === 'function') {
-              maybe.then((canvas) => emit(canvas)).catch(() => emit(undefined));
+              maybe
+                .then((canvas) => {
+                  if (tick % every === 0 || tick < 3) {
+                    logger.finest(Category.ALL, 'renderOffscreen resolved', {
+                      tick,
+                      via,
+                      canvasType: canvas?.constructor?.name ?? null,
+                      canvasSize: canvas ? { w: canvas.width, h: canvas.height } : null,
+                      hasToBlob: Boolean(canvas && typeof canvas.toBlob === 'function')
+                    });
+                  }
+                  emit(canvas);
+                })
+                .catch((err) => {
+                  if (tick % every === 0 || tick < 3) {
+                    logger.warn(Category.ALL, 'renderOffscreen rejected', {
+                      tick,
+                      via,
+                      err: err?.message ?? String(err)
+                    });
+                  }
+                  emit(undefined);
+                });
             } else {
               emit(maybe);
             }
-          } else emit(undefined);
+          } else {
+            if (!this.#debugWarnedNoOffscreen) {
+              this.#debugWarnedNoOffscreen = true;
+              logger.warn(Category.ALL, 'No renderOffscreen() available on viewer; recorder will not produce files', {
+                via,
+                viewerType: viewer?.constructor?.name ?? null,
+                wrapperViewerType: this.#viewer?.constructor?.name ?? null
+              });
+            }
+            emit(undefined);
+          }
         } catch {
           emit(undefined);
         }
@@ -162,6 +284,10 @@ export class AnimationPanelRecordListener {
           const stem = prefs.getStemName();
           const outputFile = `${stem}-ffmpeg.mp4`;
           try {
+            logger.fine(Category.ALL, 'PLAYBACK_COMPLETED finalize()', {
+              backendType: this.recorderBackend?.constructor?.name ?? null,
+              suggestedOutputFile: outputFile
+            });
             this.recorderBackend?.finalize?.({ prefs, suggestedOutputFile: outputFile });
           } catch {
             // ignore backend errors

@@ -11,24 +11,29 @@
 // WebGL implementation of the Viewer interface
 // Provides 2D rendering using WebGL/WebGL2 for hardware acceleration
 
-import { Abstract2DViewer } from './Abstract2DViewer.js';
-import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { Dimension } from '../scene/Viewer.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
-import { INHERITED } from '../scene/Appearance.js';
 import { Color } from '../util/Color.js';
-import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
+import { getLogger, Category } from '../util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.core.viewers.WebGL2DViewer');
 
 /** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
 /** @typedef {import('../scene/Camera.js').Camera} Camera */
+
+// Log GL size/capability diagnostics only once per page load to avoid spamming
+// during offscreen rendering (recording creates a temporary WebGL viewer per frame).
+let didLogWebGLCaps = false;
 
 /**
  * A 2D WebGL-based viewer implementation for jReality scene graphs.
  * Renders geometry using WebGL/WebGL2 for hardware-accelerated rendering.
  */
 export class WebGL2DViewer extends Abstract2DViewer {
-
   /** @type {HTMLCanvasElement} */
   #canvas;
 
@@ -322,7 +327,7 @@ export class WebGL2DViewer extends Abstract2DViewer {
           actualDBH !== actualCanvasH;
 
         if (large || mismatch) {
-          console.log('[WebGL2D offscreen] size diagnostics', {
+          logger.info(Category.ALL, '[WebGL2D offscreen] size diagnostics', {
             requestedCSS: { w: info.exportWidth, h: info.exportHeight },
             antialias: info.aa,
             pixelRatio: info.pixelRatio,
@@ -337,10 +342,14 @@ export class WebGL2DViewer extends Abstract2DViewer {
 
         // Hard warning when Chrome/driver clamps drawing buffer smaller than canvas.
         if (actualDBW !== actualCanvasW || actualDBH !== actualCanvasH) {
-          console.warn('[WebGL2D offscreen] drawingBuffer smaller than canvas backing store; export will be limited/clamped by GPU allocation', {
+          logger.warn(
+            Category.ALL,
+            '[WebGL2D offscreen] drawingBuffer smaller than canvas backing store; export will be limited/clamped by GPU allocation',
+            {
             canvasBackingStore: { w: actualCanvasW, h: actualCanvasH },
             drawingBuffer: { w: actualDBW, h: actualDBH }
-          });
+            }
+          );
         }
       }
     );
@@ -677,15 +686,18 @@ class WebGL2DRenderer extends Abstract2DRenderer {
 
     // Log once at startup for easier debugging of size limits.
     try {
-      console.log('[WebGL2D] Capabilities / size limits', {
-        isWebGL2: (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext,
-        MAX_TEXTURE_SIZE: caps.MAX_TEXTURE_SIZE,
-        MAX_RENDERBUFFER_SIZE: caps.MAX_RENDERBUFFER_SIZE,
-        MAX_VIEWPORT_DIMS: caps.MAX_VIEWPORT_DIMS,
-        MAX_SAMPLES: caps.MAX_SAMPLES ?? '(n/a)',
-        ALIASED_POINT_SIZE_RANGE: gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE),
-        ALIASED_LINE_WIDTH_RANGE: gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)
-      });
+      if (!didLogWebGLCaps) {
+        didLogWebGLCaps = true;
+        logger.fine(Category.ALL, '[WebGL2D] Capabilities / size limits', {
+          isWebGL2: (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext,
+          MAX_TEXTURE_SIZE: caps.MAX_TEXTURE_SIZE,
+          MAX_RENDERBUFFER_SIZE: caps.MAX_RENDERBUFFER_SIZE,
+          MAX_VIEWPORT_DIMS: caps.MAX_VIEWPORT_DIMS,
+          MAX_SAMPLES: caps.MAX_SAMPLES ?? '(n/a)',
+          ALIASED_POINT_SIZE_RANGE: gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE),
+          ALIASED_LINE_WIDTH_RANGE: gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)
+        });
+      }
     } catch (e) {
       // Logging should never break rendering.
     }
