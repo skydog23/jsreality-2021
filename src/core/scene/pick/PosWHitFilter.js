@@ -16,7 +16,7 @@ import { HitFilter } from './HitFilter.js';
 import { PickResult } from './PickResult.js';
 import { getLogger, setModuleLevel, Level, Category } from '../../util/LoggingSystem.js';
 const logger = getLogger('jsreality.core.scene.pick.PosWHitFilter');
-setModuleLevel('PosWHitFilter', Level.FINE);
+setModuleLevel('PosWHitFilter', Level.INFO);
 /**
  * Hit filter that accepts only hits with positive W coordinate in NDC space.
  * 

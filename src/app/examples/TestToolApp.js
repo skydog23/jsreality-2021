@@ -21,8 +21,8 @@ import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { ToolUtility } from '../../core/scene/tool/ToolUtility.js';
 import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
-const logger = getLogger('TestToolApp');
-setModuleLevel('TestToolApp', Level.INFO);
+const logger = getLogger('jsreality.app.examples.TestToolApp');
+setModuleLevel('jsreality.app.examples.TestToolApp', Level.FINER);
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.
@@ -72,7 +72,12 @@ export class TestToolApp extends JSRApp {
               const objMousePosition = ToolUtility.worldToLocal(tc, this._mousePosition);
             logger.fine(Category.ALL, 'objMousePosition:', objMousePosition);
               ptSGC.setGeometry(Primitives.point(objMousePosition));
-              tc.getViewer().render();   // <-- use the context’s viewer
+              tc.getViewer().renderAsync();   // <-- use the context’s viewer
+            }
+            deactivate(tc) {
+              this.perform(tc);
+              super.deactivate(tc);
+             
             }
           }
         const tool = new MyTestTool();

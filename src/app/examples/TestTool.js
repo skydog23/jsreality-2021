@@ -20,7 +20,7 @@ const logger = getLogger('jsreality.app.examples.TestTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel('jsreality.app.examples.TestTool', Level.INFO);
+setModuleLevel('jsreality.app.examples.TestTool', Level.FINER);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -71,6 +71,7 @@ export class TestTool extends AbstractTool {
     } else {
       logger.finer(Category.ALL, 'POINTER_TRANSFORMATION matrix is null');
     }
+    tc.getViewer().renderAsync();
   }
 
   /**
@@ -81,6 +82,7 @@ export class TestTool extends AbstractTool {
     // Remove POINTER_TRANSFORMATION from current slots
     this.removeCurrentSlot(InputSlot.POINTER_TRANSFORMATION);
     logger.fine(Category.ALL, `deactivate() called: ${this.getName()}, tc: ${tc.toString()}`);
+    tc.getViewer().renderAsync();
   }
 
   /**

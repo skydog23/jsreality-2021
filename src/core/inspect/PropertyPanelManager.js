@@ -55,6 +55,30 @@ export class PropertyPanelManager {
   #descriptorRenderer;
 
   /**
+   * The node currently shown in the property panel (for live updates).
+   * @type {*|null}
+   */
+  #selectedNode = null;
+
+  /**
+   * Cleanup function for the currently attached live-listener.
+   * @type {null|(() => void)}
+   */
+  #selectedNodeListenerCleanup = null;
+
+  /**
+   * Pending requestAnimationFrame id for live property refresh.
+   * @type {number|null}
+   */
+  #liveRefreshRafId = null;
+
+  /**
+   * Whether a live refresh has been scheduled.
+   * @type {boolean}
+   */
+  #liveRefreshPending = false;
+
+  /**
    * Preferred rotation axis per Transformation.
    *
    * Axis-angle is underdetermined at the identity rotation (angle = 0),
@@ -87,6 +111,136 @@ export class PropertyPanelManager {
     this.#onPropertyChange = onPropertyChange;
     this.#onRefreshPropertyPanel = onRefreshPropertyPanel;
     this.#descriptorRenderer = new DescriptorRenderer(propertyPanel);
+  }
+
+  /**
+   * Dispose and detach any live listeners.
+   */
+  dispose() {
+    this.#detachSelectedNodeListener();
+    if (this.#liveRefreshRafId !== null) {
+      cancelAnimationFrame(this.#liveRefreshRafId);
+      this.#liveRefreshRafId = null;
+    }
+    this.#liveRefreshPending = false;
+    this.#selectedNode = null;
+    this.#descriptorRenderer?.dispose?.();
+  }
+
+  #detachSelectedNodeListener() {
+    if (this.#selectedNodeListenerCleanup) {
+      try {
+        this.#selectedNodeListenerCleanup();
+      } catch (e) {
+        // ignore cleanup errors
+      }
+      this.#selectedNodeListenerCleanup = null;
+    }
+  }
+
+  /**
+   * Ensure we are listening for changes on the currently selected node (if needed).
+   * Currently this is used to live-refresh Transformations during animation.
+   * @param {*|null} node
+   */
+  #setSelectedNode(node) {
+    if (this.#selectedNode === node) return;
+
+    this.#detachSelectedNodeListener();
+    this.#selectedNode = node;
+
+    if (!node) return;
+
+    // Live update: if a Transformation is changing (e.g. animation), refresh the panel.
+    if (node instanceof Transformation) {
+      /** @type {EventListener} */
+      const onChanged = () => {
+        // Only refresh if this node is still selected.
+        if (this.#selectedNode !== node) return;
+        this.#scheduleLiveRefresh();
+      };
+
+      // Prefer the explicit API if available.
+      if (typeof node.addTransformationListener === 'function' && typeof node.removeTransformationListener === 'function') {
+        node.addTransformationListener(onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeTransformationListener(onChanged);
+      } else if (typeof node.addEventListener === 'function' && typeof node.removeEventListener === 'function') {
+        node.addEventListener('transformationChanged', onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeEventListener('transformationChanged', onChanged);
+      }
+      return;
+    }
+
+    // Live update: Appearance attribute changes.
+    if (node instanceof Appearance) {
+      /** @type {EventListener} */
+      const onChanged = () => {
+        if (this.#selectedNode !== node) return;
+        this.#scheduleLiveRefresh();
+      };
+      if (typeof node.addAppearanceListener === 'function' && typeof node.removeAppearanceListener === 'function') {
+        node.addAppearanceListener(onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeAppearanceListener(onChanged);
+      } else if (typeof node.addEventListener === 'function' && typeof node.removeEventListener === 'function') {
+        node.addEventListener('appearanceChanged', onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeEventListener('appearanceChanged', onChanged);
+      }
+      return;
+    }
+
+    // Live update: Camera parameter changes.
+    if (node instanceof Camera) {
+      /** @type {EventListener} */
+      const onChanged = () => {
+        if (this.#selectedNode !== node) return;
+        this.#scheduleLiveRefresh();
+      };
+      if (typeof node.addCameraListener === 'function' && typeof node.removeCameraListener === 'function') {
+        node.addCameraListener(onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeCameraListener(onChanged);
+      } else if (typeof node.addEventListener === 'function' && typeof node.removeEventListener === 'function') {
+        node.addEventListener('cameraChanged', onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeEventListener('cameraChanged', onChanged);
+      }
+      return;
+    }
+
+    // Live update: Geometry data/attribute changes.
+    if (node instanceof Geometry) {
+      /** @type {EventListener} */
+      const onChanged = () => {
+        if (this.#selectedNode !== node) return;
+        this.#scheduleLiveRefresh();
+      };
+      if (typeof node.addGeometryListener === 'function' && typeof node.removeGeometryListener === 'function') {
+        node.addGeometryListener(onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeGeometryListener(onChanged);
+      } else if (typeof node.addEventListener === 'function' && typeof node.removeEventListener === 'function') {
+        node.addEventListener('geometryChanged', onChanged);
+        this.#selectedNodeListenerCleanup = () => node.removeEventListener('geometryChanged', onChanged);
+      }
+      return;
+    }
+  }
+
+  #scheduleLiveRefresh() {
+    if (this.#liveRefreshPending) return;
+    this.#liveRefreshPending = true;
+
+    const raf = (typeof requestAnimationFrame === 'function')
+      ? requestAnimationFrame
+      : (cb) => setTimeout(() => cb(performance?.now?.() ?? Date.now()), 0);
+
+    this.#liveRefreshRafId = raf(() => {
+      this.#liveRefreshPending = false;
+      this.#liveRefreshRafId = null;
+
+      // Re-render only the property panel for the selected node (no tree rebuild).
+      const node = this.#selectedNode;
+      if (node) {
+        this.#renderNode(node);
+      }
+    });
   }
 
   /**
@@ -155,6 +309,15 @@ export class PropertyPanelManager {
    * @param {*} node - The selected node
    */
   updatePropertyPanel(node) {
+    this.#setSelectedNode(node);
+    this.#renderNode(node);
+  }
+
+  /**
+   * Render the property panel for a node, without changing selection/listeners.
+   * @param {*} node
+   */
+  #renderNode(node) {
     if (!node) {
       this.#renderDescriptorGroups([
         {

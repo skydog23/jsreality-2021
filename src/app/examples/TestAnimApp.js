@@ -60,15 +60,6 @@ export class TestAnimApp extends JSRApp {
     // set up animation keyframes
   }
 
-  setValueAtTime(t) {
-    // console.log('TestAnimApp setValueAtTime', t);
-    // const mat = MatrixBuilder.euclidean().translate(t,0,0).getArray(); //rotateZ(Math.PI/2 * t).getArray();
-    // console.log('TestAnimApp setValueAtTime matrix', mat);
-    // this._worldSGC.getTransformation().setMatrix(mat);
-    // console.log('TestAnimApp setValueAtTime matrix', this._worldSGC.getTransformation().getMatrix());
-    // this.getJSRViewer().render();
-  }
-
   /**
    * Build an inspector panel for the app with a single "Play" button.
    * @returns {Array<import('../../core/inspect/descriptors/DescriptorTypes.js').InspectorDescriptor>}

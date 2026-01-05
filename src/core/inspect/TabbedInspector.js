@@ -302,10 +302,7 @@ export class TabbedInspector {
       this.#loggingInspector.dispose();
     }
     if (this.#sceneGraphInspector) {
-      // SceneGraphInspector doesn't have a destroy method, but we can clear the container
-      if (this.#sceneGraphContent) {
-        this.#sceneGraphContent.innerHTML = '';
-      }
+      this.#sceneGraphInspector.dispose?.();
     }
     this.#stylesheetManager.release();
   }

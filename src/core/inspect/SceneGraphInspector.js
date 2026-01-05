@@ -254,6 +254,38 @@ export class SceneGraphInspector {
       this.#propertyPanelManager.updatePropertyPanel(selectedNode);
     }
   }
+
+  /**
+   * Dispose the inspector and detach listeners.
+   *
+   * Important: the property panel may register listeners on scene graph nodes
+   * (e.g. Transformation change events for live updates). We must detach these
+   * to avoid leaking detached DOM and scene graph objects.
+   */
+  dispose() {
+    // Clear any pending refresh
+    if (this.#refreshTimeoutId !== null) {
+      clearTimeout(this.#refreshTimeoutId);
+      this.#refreshTimeoutId = null;
+    }
+    this.#refreshPending = false;
+
+    try {
+      this.#propertyPanelManager?.dispose?.();
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      this.#uiManager?.dispose?.();
+    } catch (e) {
+      // ignore
+    }
+
+    if (this.#container) {
+      this.#container.innerHTML = '';
+    }
+  }
 }
 
 // Export ShaderTreeNode for use by other modules
