@@ -83,8 +83,13 @@ export class MenubarPlugin extends JSRPlugin {
 
     // Create/request container if not provided
     if (!this.#container) {
-      if (typeof context?.requestRegion === 'function') {
-        this.#container = context.requestRegion('top', { id: info.id });
+      const controller = context?.getController?.();
+      if (controller && typeof controller.requestTopPanel === 'function') {
+        // Option A: use the global menubar region (not the 'top' panel region).
+        this.#container = context.requestRegion('menubar', { id: info.id, padding: '0' });
+      } else if (typeof context?.requestRegion === 'function') {
+        // Fallback: direct layout request (older contexts).
+        this.#container = context.requestRegion('menubar', { id: info.id, padding: '0' });
       } else {
         throw new Error('MenubarPlugin requires a layout region but PluginContext.requestRegion is unavailable');
       }

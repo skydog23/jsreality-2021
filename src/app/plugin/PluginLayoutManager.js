@@ -14,6 +14,12 @@ export class PluginLayoutManager {
   #container;
 
   /** @type {HTMLElement} */
+  #menubarRegion;
+
+  /** @type {HTMLElement} */
+  #mainRow;
+
+  /** @type {HTMLElement} */
   #topRegion;
 
   /** @type {HTMLElement} */
@@ -43,6 +49,26 @@ export class PluginLayoutManager {
   /** @type {SplitPane} */
   #splitCB;
 
+  // Track requested min sizes so we can temporarily drop them to allow full hiding.
+  #minLeft = 180;
+  #minRight = 200;
+  #minTop = 24;
+  #minBottom = 80;
+
+  // Track requested visibility + preferred sizes so we can re-apply after first layout.
+  #requested = {
+    left: { visible: false, size: 300, min: 180 },
+    right: { visible: false, size: 300, min: 200 },
+    top: { visible: false, size: 44, min: 24 },
+    bottom: { visible: false, size: 180, min: 80 }
+  };
+
+  /** @type {number|null} */
+  #relayoutRaf = null;
+
+  /** @type {ResizeObserver|null} */
+  #resizeObserver = null;
+
   /** @type {Map<string, HTMLElement>} */
   #regionSlots = new Map();
 
@@ -55,6 +81,16 @@ export class PluginLayoutManager {
     }
     this.#container = container;
     this.#setupBaseLayout();
+
+    // In some embedding contexts (notably the gallery runner), initial layout can report
+    // transient 0 sizes while the DOM is still settling. Observe the container and
+    // re-apply requested sizes on the next frame whenever it changes.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.#resizeObserver = new ResizeObserver(() => {
+        this.#scheduleRelayout();
+      });
+      this.#resizeObserver.observe(this.#container);
+    }
   }
 
   /**
@@ -86,6 +122,9 @@ export class PluginLayoutManager {
 
     let slot;
     switch (regionName) {
+      case 'menubar':
+        slot = this.#createMenubarSlot(options);
+        break;
       case 'top':
         slot = this.#createTopSlot(options);
         break;
@@ -115,13 +154,37 @@ export class PluginLayoutManager {
   #setupBaseLayout() {
     this.#container.innerHTML = '';
     this.#container.style.display = 'flex';
-    // Layout: Left | Center | Right, where Center contains Top / Viewer / Bottom.
-    // All boundaries are draggable via nested SplitPane instances.
-    this.#container.style.flexDirection = 'row';
+    // Option A: Global menubar row above the whole split layout.
+    // Layout:
+    //   [menubar]  (fixed height, always visible)
+    //   [mainRow]  (flex: 1) containing the 5-panel split layout
+    this.#container.style.flexDirection = 'column';
     this.#container.style.width = '100%';
     this.#container.style.height = '100%';
     this.#container.style.minHeight = '0';
     this.#container.style.minWidth = '0';
+
+    // Global menubar region (always present; plugins can add items/menus here).
+    this.#menubarRegion = document.createElement('div');
+    this.#menubarRegion.className = 'jsr-layout-menubar';
+    this.#menubarRegion.style.display = 'flex';
+    this.#menubarRegion.style.flexDirection = 'row';
+    this.#menubarRegion.style.flex = '0 0 auto';
+    this.#menubarRegion.style.width = '100%';
+    this.#menubarRegion.style.minWidth = '0';
+    this.#menubarRegion.style.background = '#2d2d2d';
+    this.#menubarRegion.style.borderBottom = '1px solid #3e3e3e';
+    this.#menubarRegion.style.overflow = 'visible';
+
+    // Main row that holds the split panes.
+    this.#mainRow = document.createElement('div');
+    this.#mainRow.className = 'jsr-layout-main-row';
+    this.#mainRow.style.display = 'flex';
+    this.#mainRow.style.flexDirection = 'row';
+    this.#mainRow.style.flex = '1 1 auto';
+    this.#mainRow.style.minWidth = '0';
+    this.#mainRow.style.minHeight = '0';
+    this.#mainRow.style.overflow = 'hidden';
 
     // Left panel wrapper (exists always; starts collapsed)
     this.#leftPanelWrapper = document.createElement('div');
@@ -202,7 +265,8 @@ export class PluginLayoutManager {
       initialSize: 0,
       minSizeFirst: 0,
       minSizeSecond: 0,
-      splitterVisible: false
+      splitterVisible: true,
+      collapseThreshold: 24
     });
 
     this.#splitTC = new SplitPane(this.#centerColumn, {
@@ -213,7 +277,8 @@ export class PluginLayoutManager {
       initialSize: 0,
       minSizeFirst: 0,
       minSizeSecond: 0,
-      splitterVisible: true
+      splitterVisible: true,
+      collapseThreshold: 16
     });
 
     const centerRightContainer = document.createElement('div');
@@ -230,10 +295,12 @@ export class PluginLayoutManager {
       initialSize: 0,
       minSizeFirst: 0,
       minSizeSecond: 0,
-      splitterVisible: true
+      splitterVisible: true,
+      collapseThreshold: 24
     });
 
-    this.#splitLM = new SplitPane(this.#container, {
+    // L | (Center|Right) lives inside mainRow, not the global container.
+    this.#splitLM = new SplitPane(this.#mainRow, {
       leftPanel: this.#leftPanelWrapper,
       rightPanel: centerRightContainer,
       orientation: 'horizontal',
@@ -241,7 +308,8 @@ export class PluginLayoutManager {
       initialSize: 0,
       minSizeFirst: 0,
       minSizeSecond: 0,
-      splitterVisible: true
+      splitterVisible: true,
+      collapseThreshold: 24
     });
 
     // Startup defaults: keep splitters visible and allow dragging panels open even before
@@ -250,6 +318,32 @@ export class PluginLayoutManager {
     this.#splitLM.setMinSizes(0, 0);
     this.#splitMR.setMinSizes(0, 0);
     this.#splitTC.setMinSizes(0, 0);
+    this.#splitCB.setMinSizes(0, 0);
+
+    // Initial pass after base layout creation.
+    this.#scheduleRelayout();
+
+    // Mount rows into container.
+    this.#container.appendChild(this.#menubarRegion);
+    this.#container.appendChild(this.#mainRow);
+  }
+
+  /**
+   * Global menubar strip (always visible) slot.
+   * @private
+   */
+  #createMenubarSlot(options) {
+    const slot = document.createElement('div');
+    slot.className = 'jsr-layout-menubar-slot';
+    slot.style.display = 'flex';
+    slot.style.flexDirection = 'row';
+    slot.style.alignItems = 'stretch';
+    slot.style.flex = '1 1 auto';
+    slot.style.minWidth = '0';
+    slot.style.padding = options.padding ?? '0';
+    slot.style.boxSizing = 'border-box';
+    this.#menubarRegion.appendChild(slot);
+    return slot;
   }
 
   /**
@@ -338,6 +432,10 @@ export class PluginLayoutManager {
   #activateTopRegion(options = {}) {
     const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 44;
     const minSize = typeof options.minSize === 'number' ? options.minSize : 24;
+    this.#minTop = minSize;
+    this.#requested.top.visible = true;
+    this.#requested.top.size = initialSize;
+    this.#requested.top.min = minSize;
     this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
     this.#splitTC.setMinSizes(minSize, 0);
     this.#splitTC.setPrimarySize(initialSize);
@@ -351,6 +449,10 @@ export class PluginLayoutManager {
   #activateBottomRegion(options = {}) {
     const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 180;
     const minSize = typeof options.minSize === 'number' ? options.minSize : 80;
+    this.#minBottom = minSize;
+    this.#requested.bottom.visible = true;
+    this.#requested.bottom.size = initialSize;
+    this.#requested.bottom.min = minSize;
     this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
     this.#splitCB.setMinSizes(0, minSize);
     this.#splitCB.setPrimarySize(initialSize);
@@ -364,6 +466,10 @@ export class PluginLayoutManager {
   #ensureLeftPanel(options = {}) {
     const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
     const minSize = typeof options.minSize === 'number' ? options.minSize : 180;
+    this.#minLeft = minSize;
+    this.#requested.left.visible = true;
+    this.#requested.left.size = initialSize;
+    this.#requested.left.min = minSize;
     this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
     this.#splitLM.setMinSizes(minSize, 0);
     if (this.#splitLM.getPrimarySize() < 1) {
@@ -380,6 +486,10 @@ export class PluginLayoutManager {
   #ensureRightPanel(options = {}) {
     const initialSize = typeof options.initialSize === 'number' ? options.initialSize : 300;
     const minSize = typeof options.minSize === 'number' ? options.minSize : 200;
+    this.#minRight = minSize;
+    this.#requested.right.visible = true;
+    this.#requested.right.size = initialSize;
+    this.#requested.right.min = minSize;
     this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
     this.#splitMR.setMinSizes(0, minSize);
     if (this.#splitMR.getPrimarySize() < 1) {
@@ -387,6 +497,48 @@ export class PluginLayoutManager {
     }
     this.#splitMR.setSplitterVisible(true);
     return this.#rightPanelWrapper;
+  }
+
+  #scheduleRelayout() {
+    if (this.#relayoutRaf !== null) return;
+    this.#relayoutRaf = requestAnimationFrame(() => {
+      this.#relayoutRaf = null;
+      this.#applyRequestedLayout();
+    });
+  }
+
+  #applyRequestedLayout() {
+    // LEFT
+    if (this.#requested.left.visible) {
+      this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
+      this.#splitLM.setSplitterVisible(true);
+      this.#splitLM.setMinSizes(this.#requested.left.min, 0);
+      this.#splitLM.setPrimarySize(this.#requested.left.size);
+    }
+
+    // RIGHT
+    if (this.#requested.right.visible) {
+      this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
+      this.#splitMR.setSplitterVisible(true);
+      this.#splitMR.setMinSizes(0, this.#requested.right.min);
+      this.#splitMR.setPrimarySize(this.#requested.right.size);
+    }
+
+    // TOP
+    if (this.#requested.top.visible) {
+      this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
+      this.#splitTC.setSplitterVisible(true);
+      this.#splitTC.setMinSizes(this.#requested.top.min, 0);
+      this.#splitTC.setPrimarySize(this.#requested.top.size);
+    }
+
+    // BOTTOM
+    if (this.#requested.bottom.visible) {
+      this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
+      this.#splitCB.setSplitterVisible(true);
+      this.#splitCB.setMinSizes(0, this.#requested.bottom.min);
+      this.#splitCB.setPrimarySize(this.#requested.bottom.size);
+    }
   }
 
   /**
@@ -400,10 +552,15 @@ export class PluginLayoutManager {
   setPanelVisibility(visibility) {
     if (visibility.left !== undefined) {
       if (visibility.left) {
+        this.#requested.left.visible = true;
         this.#leftPanelWrapper.style.borderRight = '1px solid #3e3e3e';
         this.#splitLM.setSplitterVisible(true);
-        if (this.#splitLM.getPrimarySize() < 1) this.#splitLM.setPrimarySize(300);
+        this.#splitLM.setMinSizes(this.#minLeft, 0);
+        this.#requested.left.size = this.#requested.left.size || 300;
+        this.#splitLM.setPrimarySize(this.#requested.left.size);
       } else {
+        this.#requested.left.visible = false;
+        this.#splitLM.setMinSizes(0, 0);
         this.#splitLM.setPrimarySize(0);
         this.#splitLM.setSplitterVisible(false);
         this.#leftPanelWrapper.style.borderRight = 'none';
@@ -412,10 +569,15 @@ export class PluginLayoutManager {
 
     if (visibility.right !== undefined) {
       if (visibility.right) {
+        this.#requested.right.visible = true;
         this.#rightPanelWrapper.style.borderLeft = '1px solid #3e3e3e';
         this.#splitMR.setSplitterVisible(true);
-        if (this.#splitMR.getPrimarySize() < 1) this.#splitMR.setPrimarySize(300);
+        this.#splitMR.setMinSizes(0, this.#minRight);
+        this.#requested.right.size = this.#requested.right.size || 300;
+        this.#splitMR.setPrimarySize(this.#requested.right.size);
       } else {
+        this.#requested.right.visible = false;
+        this.#splitMR.setMinSizes(0, 0);
         this.#splitMR.setPrimarySize(0);
         this.#splitMR.setSplitterVisible(false);
         this.#rightPanelWrapper.style.borderLeft = 'none';
@@ -429,14 +591,22 @@ export class PluginLayoutManager {
       if (visibility.top === false && hasContent) {
         // Top region has content, don't hide it - just skip this update
         // Ensure it stays visible
+        this.#requested.top.visible = true;
         this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
         this.#splitTC.setSplitterVisible(true);
-        if (this.#splitTC.getPrimarySize() < 1) this.#splitTC.setPrimarySize(44);
+        this.#splitTC.setMinSizes(this.#minTop, 0);
+        this.#requested.top.size = this.#requested.top.size || 44;
+        this.#splitTC.setPrimarySize(this.#requested.top.size);
       } else if (visibility.top) {
+        this.#requested.top.visible = true;
         this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
         this.#splitTC.setSplitterVisible(true);
-        if (this.#splitTC.getPrimarySize() < 1) this.#splitTC.setPrimarySize(44);
+        this.#splitTC.setMinSizes(this.#minTop, 0);
+        this.#requested.top.size = this.#requested.top.size || 44;
+        this.#splitTC.setPrimarySize(this.#requested.top.size);
       } else {
+        this.#requested.top.visible = false;
+        this.#splitTC.setMinSizes(0, 0);
         this.#splitTC.setPrimarySize(0);
         this.#splitTC.setSplitterVisible(false);
         this.#topRegion.style.borderBottom = 'none';
@@ -445,10 +615,15 @@ export class PluginLayoutManager {
 
     if (visibility.bottom !== undefined) {
       if (visibility.bottom) {
+        this.#requested.bottom.visible = true;
         this.#bottomRegion.style.borderTop = '1px solid #3e3e3e';
         this.#splitCB.setSplitterVisible(true);
-        if (this.#splitCB.getPrimarySize() < 1) this.#splitCB.setPrimarySize(180);
+        this.#splitCB.setMinSizes(0, this.#minBottom);
+        this.#requested.bottom.size = this.#requested.bottom.size || 180;
+        this.#splitCB.setPrimarySize(this.#requested.bottom.size);
       } else {
+        this.#requested.bottom.visible = false;
+        this.#splitCB.setMinSizes(0, 0);
         this.#splitCB.setPrimarySize(0);
         this.#splitCB.setSplitterVisible(false);
         this.#bottomRegion.style.borderTop = 'none';
@@ -459,10 +634,15 @@ export class PluginLayoutManager {
     // This is a safety check to prevent the menubar from disappearing
     if (this.#topRegion.children.length > 0) {
       if (this.#splitTC.getPrimarySize() < 1) {
+        this.#requested.top.visible = true;
         this.#topRegion.style.borderBottom = '1px solid #3e3e3e';
         this.#splitTC.setSplitterVisible(true);
-        this.#splitTC.setPrimarySize(44);
+        this.#requested.top.size = this.#requested.top.size || 44;
+        this.#splitTC.setPrimarySize(this.#requested.top.size);
       }
     }
+
+    // One more pass after layout, to handle startup ordering in environments like the gallery runner.
+    this.#scheduleRelayout();
   }
 }

@@ -25,6 +25,9 @@ export class PanelShowMenuPlugin extends JSRPlugin {
   /** @type {import('../plugin/PluginContext.js').PluginContext|null} */
   #context = null;
 
+  /** @type {Function|null} */
+  #unsubscribeVisibility = null;
+
   /**
    * Get plugin metadata.
    * @returns {import('../plugin/JSRPlugin.js').PluginInfo}
@@ -56,6 +59,16 @@ export class PanelShowMenuPlugin extends JSRPlugin {
       return;
     }
 
+    // Keep menu checkmarks in sync with programmatic visibility changes (e.g. JSRApp startup).
+    this.#unsubscribeVisibility = this.on('panels:visibility', (data) => {
+      const visibility = data?.visibility ?? {};
+      for (const pos of ['left', 'right', 'top', 'bottom']) {
+        if (this.#hasPanel(pos)) {
+          this.#updateMenuCheckmark(pos, Boolean(visibility[pos]));
+        }
+      }
+    });
+
     logger.info('PanelShowMenuPlugin installed');
   }
 
@@ -81,8 +94,7 @@ export class PanelShowMenuPlugin extends JSRPlugin {
     const panelSlots = this.#controller.getPanelSlotsVisibility();
     const hasLeft = this.#hasPanel('left');
     const hasRight = this.#hasPanel('right');
-    // Don't include top panel - it contains the menubar and should always be visible
-    // const hasTop = this.#hasPanel('top');
+    const hasTop = this.#hasPanel('top');
     const hasBottom = this.#hasPanel('bottom');
 
     let priority = 41;
@@ -111,8 +123,17 @@ export class PanelShowMenuPlugin extends JSRPlugin {
       });
     }
 
-    // Don't add checkbox for top panel - it contains the menubar and should always be visible
-    // Users shouldn't be able to hide it via the menu
+    // Add checkbox for top panel if it exists
+    if (hasTop) {
+      menuItems.push({
+        menu: 'View',
+        label: 'Top Panel',
+        type: 'checkbox',
+        checked: panelSlots.top ?? false,
+        action: () => this.#togglePanel('top'),
+        priority: priority++
+      });
+    }
 
     // Add checkbox for bottom panel if it exists
     if (hasBottom) {
@@ -188,6 +209,14 @@ export class PanelShowMenuPlugin extends JSRPlugin {
         element._checkmark.style.display = visible ? 'inline-block' : 'none';
       }
     });
+  }
+
+  async uninstall() {
+    if (this.#unsubscribeVisibility) {
+      this.#unsubscribeVisibility();
+      this.#unsubscribeVisibility = null;
+    }
+    await super.uninstall();
   }
 }
 

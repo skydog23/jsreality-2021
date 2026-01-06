@@ -48,7 +48,10 @@ export class TestJSRApp extends JSRApp {
     return this._world;
   }
 
-  
+  getShowPanels() {
+    return [true, true, true, true];
+  }
+
   getInspectorDescriptors() {
     return [
       {

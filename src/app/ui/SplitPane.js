@@ -50,6 +50,9 @@ export class SplitPane {
   /** @type {boolean} */
   #splitterVisible = true;
 
+  /** @type {number} */
+  #collapseThreshold = 0;
+
   /**
    * @param {HTMLElement} container
    * @param {{
@@ -76,7 +79,8 @@ export class SplitPane {
       minSizeFirst = undefined,
       minSizeSecond = undefined,
       splitterWidth = 4,
-      splitterVisible = true
+      splitterVisible = true,
+      collapseThreshold = 0
     } = options ?? {};
 
     if (!container || !leftPanel || !rightPanel) {
@@ -91,6 +95,7 @@ export class SplitPane {
     this.#minSizeFirst = typeof minSizeFirst === 'number' ? Math.max(0, minSizeFirst) : Math.max(0, minSize);
     this.#minSizeSecond = typeof minSizeSecond === 'number' ? Math.max(0, minSizeSecond) : Math.max(0, minSize);
     this.#splitterWidth = Math.max(1, splitterWidth | 0);
+    this.#collapseThreshold = Math.max(0, Number(collapseThreshold) || 0);
 
     this.#setupLayout();
     this.#createSplitter();
@@ -205,11 +210,21 @@ export class SplitPane {
 
     if (this.#primary === 'first') {
       const max = containerSize - this.#splitterWidth - this.#minSizeSecond;
-      const next = Math.max(this.#minSizeFirst, Math.min(this.#startFirst + delta, max));
+      const raw = this.#startFirst + delta;
+      if (this.#collapseThreshold > 0 && raw <= this.#collapseThreshold) {
+        this.#applyPrimarySize(0);
+        return;
+      }
+      const next = Math.max(this.#minSizeFirst, Math.min(raw, max));
       this.#applyPrimarySize(next);
     } else {
       const max = containerSize - this.#splitterWidth - this.#minSizeFirst;
-      const next = Math.max(this.#minSizeSecond, Math.min(this.#startSecond - delta, max));
+      const raw = this.#startSecond - delta;
+      if (this.#collapseThreshold > 0 && raw <= this.#collapseThreshold) {
+        this.#applyPrimarySize(0);
+        return;
+      }
+      const next = Math.max(this.#minSizeSecond, Math.min(raw, max));
       this.#applyPrimarySize(next);
     }
   }
@@ -235,6 +250,10 @@ export class SplitPane {
   setMinSizes(minFirst, minSecond) {
     if (Number.isFinite(minFirst)) this.#minSizeFirst = Math.max(0, minFirst);
     if (Number.isFinite(minSecond)) this.#minSizeSecond = Math.max(0, minSecond);
+  }
+
+  setCollapseThreshold(px) {
+    this.#collapseThreshold = Math.max(0, Number(px) || 0);
   }
 
   setSplitterVisible(visible) {

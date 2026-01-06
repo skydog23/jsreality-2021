@@ -280,6 +280,10 @@ export class PluginController {
     // Actually hide/show panels via PluginLayoutManager
     // Only pass the explicitly provided values, not the entire visibility object
     this.#layoutManager.setPanelVisibility(visibility);
+
+    // Notify UI (e.g. PanelShowMenuPlugin) so it can refresh checkmarks when visibility
+    // changes due to startup configuration or programmatic calls.
+    this.emit('panels:visibility', { visibility: this.getPanelSlotsVisibility() });
     
     logger.fine(`Panel visibility updated: ${JSON.stringify(visibility)}`);
   }
@@ -310,16 +314,16 @@ export class PluginController {
    * @returns {boolean}
    */
   hasPanel(position) {
-    // Check if panel has been requested by checking if it's in the panel slots map
-    // or if visibility has been explicitly set
+    // Check if panel has been requested by checking if it's in the panel slots map.
+    // (Do not treat mere visibility defaults as "panel exists" — that causes menus to
+    // show options that don't actually have a UI surface.)
     const prefix = `${position}:`;
     for (const key of this.#panelSlots.keys()) {
       if (key.startsWith(prefix)) {
         return true;
       }
     }
-    // Also check if visibility has been set (panels set visibility when created)
-    return this.#panelVisibility[position] !== undefined;
+    return false;
   }
 
   // ========================================================================
