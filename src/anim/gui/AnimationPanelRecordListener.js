@@ -233,7 +233,7 @@ export class AnimationPanelRecordListener {
           const { viewer, via } = this.#resolveOffscreenViewer();
           if (viewer?.renderOffscreen) {
             const maybe = viewer.renderOffscreen(dim.width, dim.height, { antialias: aa });
-            // Support async renderOffscreen() (WebGL2DViewer.renderOffscreen is async).
+            // Support async renderOffscreen() (WebGL2Viewer.renderOffscreen is async).
             if (maybe && typeof maybe.then === 'function') {
               maybe
                 .then((canvas) => {

@@ -10,7 +10,7 @@
 
 import * as Pn from './Pn.js';
 import * as Rn from './Rn.js';
-import { Decimal } from '../node_modules/decimal.js/decimal.mjs';
+import { Decimal } from './Decimal.js';
 
 // Configure Decimal for high precision
 Decimal.set({ precision: 40 });  // Adjust precision as needed

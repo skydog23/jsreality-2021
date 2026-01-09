@@ -259,7 +259,7 @@ export class IndexedFaceSetUtility {
   static calculateAndSetFaceNormalsWithMetric(ifs, metric) {
     if (ifs.getNumFaces() === 0) return;
     const fn = IndexedFaceSetUtility.calculateFaceNormals(ifs, metric);
-    ifs.setFaceAttribute(GeometryAttribute.NORMALS, null);
+    //ifs.setFaceAttribute(GeometryAttribute.NORMALS, null);
     const normalDataList = toDataList(fn);
     ifs.setFaceAttribute(GeometryAttribute.NORMALS, normalDataList);
   }

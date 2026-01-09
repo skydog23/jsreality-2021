@@ -153,8 +153,8 @@ export class SphereUtility {
         SphereUtility.#tessellatedIcosahedra[i].getVertexAttribute(GeometryAttribute.COORDINATES)
       );
       
-      // IndexedFaceSetUtility.calculateAndSetFaceNormals(SphereUtility.#tessellatedIcosahedra[i]);
-      // IndexedFaceSetUtility.calculateAndSetEdgesFromFaces(SphereUtility.#tessellatedIcosahedra[i]);
+      IndexedFaceSetUtility.calculateAndSetFaceNormals(SphereUtility.#tessellatedIcosahedra[i]);
+      IndexedFaceSetUtility.calculateAndSetEdgesFromFaces(SphereUtility.#tessellatedIcosahedra[i]);
     }
     
     if (sharedInstance) {

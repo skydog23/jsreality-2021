@@ -99,7 +99,7 @@ export const DefaultRenderingHintsShader = {
   
   /**
    * Default metric (EUCLIDEAN = 0)
-   * @type {number}
+   * @type {integer}
    */
   METRIC_DEFAULT: EUCLIDEAN,
   

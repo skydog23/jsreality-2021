@@ -28,7 +28,7 @@ import { MatrixBuilder } from '../core/math/MatrixBuilder.js';
 import { getLogger } from '../core/util/LoggingSystem.js';
 import { ContentManager } from './ContentManager.js';
 import { SVGViewer } from '../core/viewers/SVGViewer.js';
-import { WebGL2DViewer } from '../core/viewers/WebGL2DViewer.js';
+import { WebGL2Viewer } from '../core/viewers/WebGL2Viewer.js';
 import { EventBus } from './plugin/EventBus.js';
 import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
@@ -43,11 +43,11 @@ import '../core/shader/index.js';
  */
 export const ViewerTypes = {
   CANVAS2D: 'Canvas2D',
-  WEBGL2D: 'WebGL2D',
+  WEBGL2D: 'WebGL2',
   SVG: 'SVG'
 };
 
-const logger = getLogger('JSRViewer');
+const logger = getLogger('jsreality.app.JSRViewer');
 
 /**
  * JSRViewer provides application-level viewer functionality similar to JRViewer,
@@ -127,7 +127,7 @@ export class JSRViewer {
    * Create a new JSRViewer instance.
    * @param {Object} options - Configuration options
    * @param {HTMLElement} options.container - Container element for the viewer
-   * @param {string[]} [options.viewerTypes] - Array of viewer type names ('Canvas2D', 'WebGL2D', 'SVG')
+   * @param {string[]} [options.viewerTypes] - Array of viewer type names ('Canvas2D', 'WebGL2', 'SVG')
    * @param {Viewer[]} [options.viewers] - Array of pre-instantiated viewer instances (alternative to viewerTypes)
    * @param {string[]} [options.viewerNames] - Names for pre-instantiated viewers (required if viewers provided)
    * @param {SceneGraphComponent} [options.sceneRoot] - Existing scene root (creates default if not provided)
@@ -179,7 +179,7 @@ export class JSRViewer {
    * Creates viewers based on viewerTypes array, or uses pre-instantiated viewers.
    * 
    * @param {HTMLElement} container - Host element for viewer DOM nodes
-   * @param {string[]|null} viewerTypes - Array of viewer type names ('Canvas2D', 'WebGL2D', 'SVG')
+   * @param {string[]|null} viewerTypes - Array of viewer type names ('Canvas2D', 'WebGL2', 'SVG')
    * @param {Viewer[]|null} viewers - Optional array of pre-instantiated viewers
    * @param {string[]|null} viewerNames - Optional viewer names (for pre-instantiated viewers)
    * @private
@@ -242,7 +242,7 @@ export class JSRViewer {
           canvas.style.width = '100%';
           canvas.style.height = '100%';
           container.appendChild(canvas);
-          viewers.push(new WebGL2DViewer(canvas));
+          viewers.push(new WebGL2Viewer(canvas));
           names.push(ViewerTypes.WEBGL2D);
           break;
         }
@@ -697,7 +697,7 @@ export class JSRViewer {
    * Get render statistics from the currently selected viewer backend.
    *
    * Used by the inspector statistics panel. Concrete viewer implementations
-   * (Canvas2D/WebGL2D/SVG) inherit this API from Abstract2DViewer.
+   * (Canvas2D/WebGL2/SVG) inherit this API from Abstract2DViewer.
    *
    * @returns {{renderCallCount: number, pointsRendered: number, edgesRendered: number, facesRendered: number}}
    */
@@ -945,7 +945,7 @@ export class JSRViewer {
       canvas.height = height;
       tempContainer.appendChild(canvas);
 
-      const webglViewer = new WebGL2DViewer(canvas, { autoResize: false });
+      const webglViewer = new WebGL2Viewer(canvas, { autoResize: false });
       webglViewer.setSceneRoot(this.#sceneRoot);
       webglViewer.setCameraPath(this.#cameraPath);
       webglViewer.render();

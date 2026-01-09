@@ -273,7 +273,7 @@
         import { TestJSRApp } from '../src/core/examples/TestJSRApp.js';
         import { InspectorPlugin } from '../src/app/plugins/InspectorPlugin.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
-        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
+        import { WebGL2Viewer } from '../src/core/viewers/WebGL2Viewer.js';
         
         // Setup resizable divider between canvas and inspector
         function setupMainDivider() {
@@ -447,7 +447,7 @@
                     document.body.appendChild(webglCanvas);
                     
                     try {
-                        const webglViewer = new WebGL2DViewer(webglCanvas, {
+                        const webglViewer = new WebGL2Viewer(webglCanvas, {
                             preserveDrawingBuffer: true,
                             autoResize: false,
                             pixelRatio: renderScaleFactor

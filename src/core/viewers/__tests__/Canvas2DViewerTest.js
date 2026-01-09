@@ -19,7 +19,7 @@ import * as CommonAttributes from '../../shader/CommonAttributes.js';
 import { Color } from '../../util/Color.js';
 import { SceneGraphUtility } from '../../util/SceneGraphUtility.js';
 import { Canvas2DViewer } from '../Canvas2DViewer.js';
-import { WebGL2DViewer } from '../WebGL2DViewer.js';
+import { WebGL2Viewer } from '../WebGL2Viewer.js';
 import { MatrixBuilder } from '../../math/MatrixBuilder.js';
 import { Appearance } from '../../scene/Appearance.js';
 import { GeometryAttribute } from '../../scene/GeometryAttribute.js';

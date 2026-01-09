@@ -1,0 +1,360 @@
+/**
+ * WebGL2 shader/program creation helpers.
+ *
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ *
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
+/**
+ * Compile a WebGL shader.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @param {number} type - gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+ * @param {string} source
+ * @param {string} [label]
+ * @returns {WebGLShader|null}
+ */
+export function compileShader(gl, type, source, label = '') {
+  const shader = gl.createShader(type);
+  if (!shader) return null;
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    console.error('WebGL shader compile error', label ? `(${label})` : '', info);
+    gl.deleteShader(shader);
+    return null;
+  }
+  return shader;
+}
+
+/**
+ * Link a WebGL program from compiled shaders.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @param {WebGLShader} vertexShader
+ * @param {WebGLShader} fragmentShader
+ * @param {string} [label]
+ * @returns {WebGLProgram|null}
+ */
+export function linkProgram(gl, vertexShader, fragmentShader, label = '') {
+  const program = gl.createProgram();
+  if (!program) return null;
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program);
+    console.error('WebGL program link error', label ? `(${label})` : '', info);
+    gl.deleteProgram(program);
+    return null;
+  }
+  return program;
+}
+
+/**
+ * Compile+link a program from sources.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @param {{ vertexSource: string, fragmentSource: string, label?: string }} spec
+ * @returns {WebGLProgram|null}
+ */
+export function createProgram(gl, { vertexSource, fragmentSource, label = '' }) {
+  const vs = compileShader(gl, gl.VERTEX_SHADER, vertexSource, `${label}:vs`);
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource, `${label}:fs`);
+  if (!vs || !fs) return null;
+  return linkProgram(gl, vs, fs, label);
+}
+
+/**
+ * Query WebGL capabilities/limits relevant to the WebGL2 renderer.
+ *
+ * If a logger is provided, logs size/capabilities only once (per page load),
+ * which is useful during offscreen rendering where many temporary viewers are created.
+ *
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @param {{ logger?: any, Category?: any, logOnceRef?: { didLog: boolean } }} [options]
+ * @returns {object}
+ */
+export function queryWebGLCapabilities(gl, options = {}) {
+  const caps = {
+    TRIANGLES: (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004,
+    LINE_STRIP: (gl.LINE_STRIP !== undefined && gl.LINE_STRIP !== null) ? gl.LINE_STRIP : 0x0003,
+    POINTS: (gl.POINTS !== undefined && gl.POINTS !== null) ? gl.POINTS : 0x0000,
+
+    maxLineWidth: 1.0,
+    supportsWideLines: false,
+
+    maxPointSize: 1.0,
+    minPointSize: 1.0,
+
+    UNSIGNED_SHORT: gl.UNSIGNED_SHORT,
+    UNSIGNED_INT: gl.UNSIGNED_INT,
+    supportsUint32Indices: false
+  };
+
+  try { caps.MAX_TEXTURE_SIZE = gl.getParameter(gl.MAX_TEXTURE_SIZE); } catch { caps.MAX_TEXTURE_SIZE = null; }
+  try { caps.MAX_RENDERBUFFER_SIZE = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE); } catch { caps.MAX_RENDERBUFFER_SIZE = null; }
+  try { caps.MAX_VIEWPORT_DIMS = gl.getParameter(gl.MAX_VIEWPORT_DIMS); } catch { caps.MAX_VIEWPORT_DIMS = null; }
+  if (gl.MAX_SAMPLES !== undefined) {
+    try { caps.MAX_SAMPLES = gl.getParameter(gl.MAX_SAMPLES); } catch { caps.MAX_SAMPLES = null; }
+  }
+
+  const { logger, Category, logOnceRef } = options || {};
+  try {
+    if (logger && Category && logOnceRef && !logOnceRef.didLog) {
+      logOnceRef.didLog = true;
+      logger.fine(Category.ALL, '[WebGL2] Capabilities / size limits', {
+        isWebGL2: (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext,
+        MAX_TEXTURE_SIZE: caps.MAX_TEXTURE_SIZE,
+        MAX_RENDERBUFFER_SIZE: caps.MAX_RENDERBUFFER_SIZE,
+        MAX_VIEWPORT_DIMS: caps.MAX_VIEWPORT_DIMS,
+        MAX_SAMPLES: caps.MAX_SAMPLES ?? '(n/a)',
+        ALIASED_POINT_SIZE_RANGE: gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE),
+        ALIASED_LINE_WIDTH_RANGE: gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)
+      });
+    }
+  } catch {
+    // ignore
+  }
+
+  const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+  if (pointSizeRange && pointSizeRange.length >= 2) {
+    caps.minPointSize = pointSizeRange[0];
+    caps.maxPointSize = pointSizeRange[1];
+  }
+
+  const maxLineWidthRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
+  if (maxLineWidthRange && maxLineWidthRange.length >= 2) {
+    caps.maxLineWidth = maxLineWidthRange[1];
+    caps.supportsWideLines = maxLineWidthRange[1] > 1.0;
+  } else {
+    try {
+      const maxWidth = gl.getParameter(gl.MAX_LINE_WIDTH);
+      if (maxWidth !== null && maxWidth !== undefined) {
+        caps.maxLineWidth = maxWidth;
+        caps.supportsWideLines = maxWidth > 1.0;
+      }
+    } catch {
+      caps.maxLineWidth = 1.0;
+      caps.supportsWideLines = false;
+    }
+  }
+
+  return caps;
+}
+
+/**
+ * Create the main (WebGL1-compatible) program used for most geometry.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @returns {WebGLProgram|null}
+ */
+export function createMainProgram(gl) {
+  const vertexSource = `
+      attribute vec4 a_position;
+      attribute vec4 a_color;
+      attribute vec3 a_normal;
+      attribute float a_distance;
+
+      uniform mat4 u_transform;
+      uniform mat4 u_modelView;
+      uniform mat3 u_normalMatrix;
+      uniform float u_lightingEnabled;
+      uniform float u_flipNormals;
+      uniform float u_pointSize;
+
+      varying vec4 v_color;
+      varying float v_distance;
+      varying float v_lit;
+
+      void main() {
+        vec4 position = a_position;
+        if (position.w == 0.0) {
+          position.w = 1.0;
+        }
+        position = u_transform * position;
+        gl_Position = position;
+        gl_PointSize = u_pointSize;
+        v_color = a_color;
+        v_distance = a_distance;
+
+        if (u_lightingEnabled < 0.5) {
+          v_lit = 1.0;
+        } else {
+          vec4 pv = u_modelView * vec4(a_position.xyz, 1.0);
+          vec3 N = normalize(u_normalMatrix * a_normal);
+          if (u_flipNormals > 0.5) {
+            N = -N;
+          }
+          vec3 L = normalize(-pv.xyz);
+          v_lit = max(dot(N, L), 0.0);
+        }
+      }
+    `;
+
+  const fragmentSource = `
+      precision mediump float;
+
+      varying vec4 v_color;
+      varying float v_distance;
+      varying float v_lit;
+
+      uniform float u_lineHalfWidth;
+      uniform float u_ambient;
+      uniform float u_diffuse;
+
+      void main() {
+        float dist = abs(v_distance);
+        float alpha = 1.0;
+        if (u_lineHalfWidth > 0.0) {
+          float edgeFade = 0.1;
+          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
+          alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
+        }
+        float lit = u_ambient + u_diffuse * v_lit;
+        gl_FragColor = vec4(v_color.rgb * lit, v_color.a * alpha);
+      }
+    `;
+
+  return createProgram(gl, { vertexSource, fragmentSource, label: 'WebGL2(main)' });
+}
+
+/**
+ * WebGL2-only: instanced program for point quads.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @returns {WebGLProgram|null}
+ */
+export function createInstancedPointProgram(gl) {
+  if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+    return null;
+  }
+
+  const vertexSource = `#version 300 es
+      precision mediump float;
+      in vec2 a_corner;
+      in vec4 a_center;
+      in vec4 a_color;
+
+      uniform mat4 u_transform;
+      uniform float u_pointRadius;
+
+      out vec4 v_color;
+
+      void main() {
+        vec4 center = a_center;
+        if (center.w == 0.0) center.w = 1.0;
+        vec4 p = center + vec4(a_corner * u_pointRadius, 0.0, 0.0);
+        gl_Position = u_transform * p;
+        v_color = a_color;
+      }`;
+
+  const fragmentSource = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+  return createProgram(gl, { vertexSource, fragmentSource, label: 'WebGL2(instancedPoints)' });
+}
+
+/**
+ * WebGL2-only: instanced program for 3D spheres.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @returns {WebGLProgram|null}
+ */
+export function createInstancedSphereProgram(gl) {
+  if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+    return null;
+  }
+
+  const vertexSource = `#version 300 es
+      precision mediump float;
+
+      in vec3 a_pos;
+      in vec3 a_center;
+      in vec4 a_color;
+
+      uniform mat4 u_transform;
+      uniform float u_radius;
+
+      out vec4 v_color;
+
+      void main() {
+        vec3 p = a_center + a_pos * u_radius;
+        gl_Position = u_transform * vec4(p, 1.0);
+        v_color = a_color;
+      }`;
+
+  const fragmentSource = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+  return createProgram(gl, { vertexSource, fragmentSource, label: 'WebGL2(instancedSpheres)' });
+}
+
+/**
+ * WebGL2-only: instanced program for tube segments.
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @returns {WebGLProgram|null}
+ */
+export function createInstancedTubeProgram(gl) {
+  if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+    return null;
+  }
+
+  const vertexSource = `#version 300 es
+      precision mediump float;
+
+      in vec3 a_circleT;
+      in vec3 a_p0;
+      in vec3 a_p1;
+      in vec4 a_color;
+
+      uniform mat4 u_transform;
+      uniform float u_radius;
+
+      out vec4 v_color;
+
+      void makeBasis(in vec3 dir, out vec3 bx, out vec3 by) {
+        vec3 up = (abs(dir.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+        bx = normalize(cross(dir, up));
+        by = cross(bx, dir);
+      }
+
+      void main() {
+        vec3 p0 = a_p0;
+        vec3 p1 = a_p1;
+        vec3 d = p1 - p0;
+        float len = length(d);
+        vec3 dir = (len > 0.0) ? (d / len) : vec3(0.0, 0.0, 1.0);
+
+        vec3 bx, by;
+        makeBasis(dir, bx, by);
+
+        float t = a_circleT.z;
+        vec2 c = a_circleT.xy;
+        vec3 center = mix(p0, p1, t);
+        vec3 offset = (bx * c.x + by * c.y) * u_radius;
+        vec4 worldPos = vec4(center + offset, 1.0);
+        gl_Position = u_transform * worldPos;
+        v_color = a_color;
+      }`;
+
+  const fragmentSource = `#version 300 es
+      precision mediump float;
+      in vec4 v_color;
+      out vec4 outColor;
+      void main() {
+        outColor = v_color;
+      }`;
+
+  return createProgram(gl, { vertexSource, fragmentSource, label: 'WebGL2(instancedTubes)' });
+}

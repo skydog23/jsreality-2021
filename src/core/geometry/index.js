@@ -22,3 +22,6 @@ export { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';
 export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 
+
+export { Snake } from './Snake.js';
+export { PointCollector } from './projective/PointCollector.js';

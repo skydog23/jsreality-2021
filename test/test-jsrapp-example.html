@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSRApp Example</title>
     <link rel="icon" type="image/png" href="fav_icon.png">
+    <!-- Load MathJS as a classic script into globalThis.math -->
+    <script src="./vendor/mathjs/math.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "mathjs": "/test/vendor/mathjs/mathjs-bridge.js"
+          }
+        }
+        </script>
     <style>
         :root {
             --canvas-padding: 0px; /* Change this to adjust padding around canvas */

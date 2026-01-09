@@ -15,4 +15,4 @@ export { JSRApp } from './JSRApp.js';
 export { ViewerSwitch } from './ViewerSwitch.js';
 export { Abstract2DViewer } from './Abstract2DViewer.js';
 export { SVGViewer } from './SVGViewer.js';
-export { WebGL2DViewer } from './WebGL2DViewer.js';
+export { WebGL2Viewer } from './WebGL2Viewer.js';

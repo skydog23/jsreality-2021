@@ -114,7 +114,7 @@ class EventDispatcher {
 /**
  * ViewerSwitch manages multiple viewer backends and provides a stable viewing component.
  * 
- * This allows switching between different viewer implementations (Canvas2D, WebGL2D, SVG, etc.)
+ * This allows switching between different viewer implementations (Canvas2D, WebGL2, SVG, etc.)
  * without needing to re-attach event listeners or reconfigure the ToolSystem.
  */
 export class ViewerSwitch extends Viewer {

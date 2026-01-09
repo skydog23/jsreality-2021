@@ -60,6 +60,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   /** @type {number[]} Combined world-to-NDC transformation matrix */
   #world2ndc;
 
+  /** @type {number[]} Combined world-to-camera (view) transformation matrix */
+  #world2cam;
+
+  /** @type {number[][]} Stack of object-to-world matrices for hierarchical transformations */
+  #object2worldStack = [];
+
   /** @type {boolean} Whether to render vertices as points */
   #showPoints = true;
 
@@ -113,6 +119,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     this.#viewer = viewer;
     this.#camera = CameraUtility.getCamera(viewer);
     this.#world2ndc = new Array(16);
+    this.#world2cam = new Array(16);
     // Initialize with an empty root EffectiveAppearance
     this.#effectiveAppearance = EffectiveAppearance.create();
   }
@@ -475,6 +482,25 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
   }
 
   /**
+   * Get the world-to-camera transformation matrix (view matrix).
+   * Useful for backends that need model/view separation (e.g. lighting).
+   * @protected
+   * @returns {number[]}
+   */
+  _getWorld2Cam() {
+    return this.#world2cam;
+  }
+
+  /**
+   * Get the current object-to-world matrix.
+   * @protected
+   * @returns {number[]}
+   */
+  _getCurrentObject2World() {
+    return this.#object2worldStack[this.#object2worldStack.length - 1];
+  }
+
+  /**
    * Get the current EffectiveAppearance (for subclass use)
    * @protected
    * @returns {EffectiveAppearance}
@@ -519,11 +545,14 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       return false;
     }
 
-    // Compute world-to-NDC transformation
+    // Compute world-to-camera (view) and world-to-NDC transformation
     const world2Cam = cameraPath.getInverseMatrix();
+    for (let i = 0; i < 16; i++) this.#world2cam[i] = world2Cam[i];
     const cam2ndc = CameraUtility.getCameraToNDC(this.#viewer);
     Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
     this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
+    // Object-to-world stack starts at identity each frame.
+    this.#object2worldStack = [Rn.setIdentityMatrix(new Array(16))];
 
     // Device-specific setup (context, clear, background)
     this._beginRender();
@@ -674,6 +703,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
       if (hasTransformation) {
         this._popTransformState(); // Device-specific
         this.#transformationStack.pop(); // Keep our stack in sync
+        this.#object2worldStack.pop(); // Keep object2world stack in sync
       }
       
       // Pop the component from the path
@@ -692,11 +722,16 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // Apply the transformation (device-specific)
     this._applyTransform(transformMatrix);
     
-    // Keep our own stack for compatibility (but device may handle accumulation differently)
+    // Keep our own stacks for compatibility (but device may handle accumulation differently)
     const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
     const newMatrix = new Array(16);
     Rn.timesMatrix(newMatrix, currentMatrix, transformMatrix);
     this.#transformationStack.push(newMatrix);
+
+    const currentO2W = this.#object2worldStack[this.#object2worldStack.length - 1];
+    const newO2W = new Array(16);
+    Rn.timesMatrix(newO2W, currentO2W, transformMatrix);
+    this.#object2worldStack.push(newO2W);
   }
 
   /**

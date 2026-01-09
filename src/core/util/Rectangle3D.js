@@ -142,8 +142,10 @@ export class Rectangle3D {
             tcube[i] = Rn.matrixTimesVector(null, transform, cube[i]);
         }
         
-        // Dehomogenize if necessary and calculate bounds
-        const dehomogCube = tcube.map(v => v.length === 4 ? Pn.dehomogenize(null, v) : v);
+        // Dehomogenize if necessary and calculate bounds.
+        // NOTE: Pn.dehomogenize defaults to returning an array the same length as src
+        // unless dst is provided. For bounding boxes we want 3D points.
+        const dehomogCube = tcube.map(v => v.length === 4 ? Pn.dehomogenize(new Array(3), v) : v);
         Rn.calculateBounds(target.bounds, dehomogCube);
         target.update();
         return target;

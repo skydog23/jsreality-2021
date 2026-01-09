@@ -52,14 +52,26 @@ export class NumberWidget {
    * @param {string} label - Label text (e.g., "X", "Y", "Z")
    * @param {number} initialValue - Initial numeric value
    * @param {Function} onChange - Callback when value changes: (newValue: number) => void
+   * @param {{ integer?: boolean, fractionDigits?: number }} [options] - Formatting/parsing options
    */
-  constructor(label, initialValue, onChange) {
+  constructor(label, initialValue, onChange, options = {}) {
     this.#label = label;
     this.#currentValue = initialValue;
     this.#onChange = onChange;
+    this.#integer = Boolean(options.integer);
+    this.#fractionDigits =
+      typeof options.fractionDigits === 'number'
+        ? Math.max(0, Math.floor(options.fractionDigits))
+        : (this.#integer ? 0 : 4);
     NumberWidget.#injectStyles();
     this.#element = this.#createElement();
   }
+
+  /** @type {boolean} */
+  #integer = false;
+
+  /** @type {number} */
+  #fractionDigits = 4;
 
   /**
    * Inject CSS styles for NumberWidget (only once)
@@ -194,7 +206,7 @@ export class NumberWidget {
   #handleChange() {
     const inputValue = this.#input.value.trim();
     const normalizedValue = inputValue.replace(',', '.');
-    const newValue = parseFloat(normalizedValue);
+    const newValue = this.#integer ? parseInt(normalizedValue, 10) : parseFloat(normalizedValue);
 
     if (!isNaN(newValue)) {
       this.#currentValue = newValue;
@@ -213,7 +225,7 @@ export class NumberWidget {
    * @private
    */
   #formatNumber(value) {
-    return value.toFixed(4);
+    return Number(value).toFixed(this.#fractionDigits);
   }
 }
 

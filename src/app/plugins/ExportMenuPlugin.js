@@ -11,7 +11,7 @@
 
 import { JSRPlugin } from '../plugin/JSRPlugin.js';
 import { SVGViewer } from '../../core/viewers/SVGViewer.js';
-import { WebGL2DViewer } from '../../core/viewers/WebGL2DViewer.js';
+import { WebGL2Viewer } from '../../core/viewers/WebGL2Viewer.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import { DescriptorUtility } from '../../core/inspect/descriptors/DescriptorUtility.js';
@@ -418,7 +418,7 @@ export class ExportMenuPlugin extends JSRPlugin {
 
     try {
       // Create WebGL viewer with high pixel ratio for supersampling
-      const webglViewer = new WebGL2DViewer(webglCanvas, {
+      const webglViewer = new WebGL2Viewer(webglCanvas, {
         preserveDrawingBuffer: true,
         autoResize: false,
         pixelRatio: renderScaleFactor

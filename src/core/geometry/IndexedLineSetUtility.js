@@ -17,6 +17,10 @@ import { fromDataList, toDataList } from '../scene/data/DataUtility.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import { EUCLIDEAN } from '../math/Pn.js';
+import { getLogger, setModuleLevel, Level } from '../util/LoggingSystem.js'; 
+
+const logger = getLogger('jsreality.core.geometry.IndexedLineSetUtility');
+setModuleLevel(logger.getModuleName(), Level.FINE);
 
 /**
  * Static methods for constructing, extracting, and modifying 
@@ -515,50 +519,66 @@ export class IndexedLineSetUtility {
    * Remove segments that are too long (infinity segments)
    * @param {IndexedLineSet} ils - Line set to modify
    * @param {number} distance - Maximum allowed distance
+   * @param {number} tolerance - How close to get to the line at infinity (smaller is closer)
    */
-  static removeInfinity(ils, distance) {
+  static removeInfinity(ils, distance = 1.0, tolerance = 1.01) {
+    logger.fine(-1, 'distance = ', distance);
     // Convert the edge index list into a list of segments, skipping over all segments 
     // where a w-coordinate sign change is detected.
     const vertsData = ils.getVertexAttribute(GeometryAttribute.COORDINATES);
     const vertsHomogeneous = fromDataList(vertsData);
     // Dehomogenize vertices (modify in place)
-    const verts = vertsHomogeneous.map(v => {
-      if (v.length === 4) {
-        return Pn.dehomogenize(null, v);
-      }
-      return v;
-    });
-    
+    const verts = vertsHomogeneous.map(v => (v.length === 4) ? Pn.dehomogenize(null, v) : v);
     const eindData = ils.getEdgeAttribute(GeometryAttribute.INDICES);
     const eind = fromDataList(eindData);
     
     // First go through and find where the switches take place
-    const goods = [];
+    const fins = [], infs = [];
     for (let i = 0; i < eind.length; ++i) {
       for (let j = 1; j < eind[i].length; ++j) {
-        const i1 = eind[i][j - 1];
-        const i2 = eind[i][j];
-        const v1 = verts[i1];
-        const v2 = verts[i2];
-        const d = Pn.distanceBetween(v1, v2, EUCLIDEAN);
-        
-        if (d <= distance) {
-          goods.push([i1, i2]);
+        let pt0 = verts[eind[i][j - 1]], pt1 = verts[eind[i][j]];
+        const d = Pn.distanceBetween(pt0, pt1, EUCLIDEAN);
+        if (d <= distance || IndexedLineSetUtility.sameSide(pt0, pt1)) {
+          fins.push([eind[i][j - 1], eind[i][j]]);
+        } else {
+          logger.fine(-1, 'inf d = ', `${d.toFixed(6)}`);
+          infs.push([eind[i][j - 1], eind[i][j]]);
         }
       }
     }
     
-    const ninds = Array(goods.length);
+    const ninds = new Array(fins.length+infs.length*2);
     let count = 0;
-    for (const item of goods) {
+    for (const item of fins) {
       ninds[count] = item;
       count++;
     }
-    
-    const indicesDataList = toDataList(ninds, null, 'int32');
-    const edgeAttrs = new Map();
-    edgeAttrs.set(GeometryAttribute.INDICES, indicesDataList);
-    ils.setEdgeCountAndAttributes(edgeAttrs);
+    for (const item of infs) {
+      let np0 = vertsHomogeneous[item[0]], np1 = vertsHomogeneous[item[1]];
+      let V0 =Rn.dehomogenize(null,Rn.add(null,Rn.times(null, -(1+tolerance),np0),np1)), 
+      V1 = Rn.dehomogenize(null,Rn.add(null,np0,Rn.times(null, -(1+tolerance),np1)));
+      vertsHomogeneous.push(V0);
+      vertsHomogeneous.push(V1);
+      logger.finer(-1, 'P0 = ', np0, 'V0 = ', V0, 'V1 = ', V1, 'P1 = ', np1);
+      ninds[count++] = [item[0], vertsHomogeneous.length - 2];
+      ninds[count++] = [vertsHomogeneous.length - 1, item[1]];
+   }
+    const ilsf = new IndexedLineSetFactory();
+    ilsf.setVertexCount(vertsHomogeneous.length);
+    ilsf.setVertexCoordinates(vertsHomogeneous);
+    ilsf.setEdgeCount(ninds.length);
+    ilsf.setEdgeIndices(ninds);
+    ilsf.update();
+    return ilsf.getIndexedLineSet(null);
   }
+
+  //
+  // @param {number[]} pt0 - First point
+  // @param {number[]} pt1 - Second point
+  // @returns {boolean} - True if the points are on the same side of the line at infinity
+  static sameSide(pt0, pt1) {
+    return Rn.innerProductN(pt0, pt1, 3) * pt0[3]*pt1[3] > 0;
+  }
+
 }
 

@@ -265,7 +265,7 @@
                 <div class="menu-option menu-radio-option" data-viewer-index="1">
                     <label>
                         <input type="radio" name="viewer-select" value="1">
-                        <span>WebGL2D</span>
+                        <span>WebGL2</span>
                     </label>
                 </div>
                 <div class="menu-option menu-radio-option" data-viewer-index="2">
@@ -304,7 +304,7 @@
         import { runCanvas2DTest, createTestScene, getDoAnimation, setDoAnimation } from '../src/core/viewers/__tests__/Canvas2DViewerTest.js';
         import { SceneGraphInspector } from '../src/core/inspect/SceneGraphInspector.js';
         import { SVGViewer } from '../src/core/viewers/SVGViewer.js';
-        import { WebGL2DViewer } from '../src/core/viewers/WebGL2DViewer.js';
+        import { WebGL2Viewer } from '../src/core/viewers/WebGL2Viewer.js';
         import { Canvas2DViewer } from '../src/core/viewers/Canvas2DViewer.js';
         import { MatrixBuilder } from '../src/core/math/MatrixBuilder.js';
         import { toDataList, fromDataList } from '../src/core/scene/data/DataUtility.js';
@@ -486,7 +486,7 @@
                     
                     // Create a temporary canvas for WebGL rendering at 4x resolution
                     const webglCanvas = document.createElement('canvas');
-                    // Set CSS dimensions to original size (WebGL2DViewer will multiply by pixelRatio)
+                    // Set CSS dimensions to original size (WebGL2Viewer will multiply by pixelRatio)
                     webglCanvas.style.width = width + 'px';
                     webglCanvas.style.height = height + 'px';
                     // Temporarily add to DOM so clientWidth/clientHeight are available
@@ -495,9 +495,9 @@
                     document.body.appendChild(webglCanvas);
                     
                     try {
-                        // Create WebGL2DViewer with pixelRatio=4 to render at 4x resolution
+                        // Create WebGL2Viewer with pixelRatio=4 to render at 4x resolution
                         // CSS size is 1x, pixelRatio is 4x, so canvas.width = width * 4 = renderWidth
-                        const webglViewer = new WebGL2DViewer(webglCanvas, {
+                        const webglViewer = new WebGL2Viewer(webglCanvas, {
                             preserveDrawingBuffer: true,
                             autoResize: false, // Don't auto-resize since we're setting dimensions manually
                             pixelRatio: renderScaleFactor // Use 4x pixel ratio for supersampling
@@ -617,7 +617,7 @@
             canvasViewer.setCameraPath(cameraPath);
             canvasViewer.render();
             
-            const webglViewer = new WebGL2DViewer(webglCanvas);
+            const webglViewer = new WebGL2Viewer(webglCanvas);
             webglViewer.setSceneRoot(sceneRoot);
             webglViewer.setCameraPath(cameraPath);
             webglViewer.render();
@@ -631,7 +631,7 @@
             
             // Create viewers array and set current viewer
             const viewers = [canvasViewer, webglViewer, svgViewer];
-            const viewerNames = ['Canvas2D', 'WebGL2D', 'SVG'];
+            const viewerNames = ['Canvas2D', 'WebGL2', 'SVG'];
             let currentViewerIndex = 0;
             let currentViewer = viewers[currentViewerIndex];
             

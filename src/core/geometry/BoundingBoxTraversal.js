@@ -167,7 +167,9 @@ export class BoundingBoxTraversal extends SceneGraphVisitor {
     if (Rn.isNan(matrix)) {
       return;
     }
-    Rn.times(this.#currentTrafo, this.#currentTrafo, matrix);
+    // Java uses `Rn.times(dst, a, b)` for matrix multiplication.
+    // In the JS port, matrix multiplication is `Rn.timesMatrix`.
+    Rn.timesMatrix(this.#currentTrafo, this.#currentTrafo, matrix);
   }
   
   /**
@@ -232,7 +234,10 @@ export class BoundingBoxTraversal extends SceneGraphVisitor {
       if (data == null || data.length === 0) return;
       
       // Calculate z bounds from data
-      const zbnds = [[], []];
+      // Java version uses `new double[2][1]` here, because height field coordinates are
+      // expected to be 1D (z-values) over a 2D domain. Our Rn.calculateBounds requires
+      // bounds[0].length >= fiber length, so initialize with 1D vectors.
+      const zbnds = [[0], [0]];
       Rn.calculateBounds(zbnds, data);
       
       // Combine xyz bounds
@@ -279,7 +284,9 @@ export class BoundingBoxTraversal extends SceneGraphVisitor {
     const data = fromDataList(dl);
     if (data == null || data.length === 0) return;
     
-    const tmpVec = [[], []];
+    // Java version uses `new double[2][3]` here.
+    // Our Rn.calculateBounds requires bounds[0].length >= vector length.
+    const tmpVec = [[0, 0, 0], [0, 0, 0]];
     const length = data.length;
     if (length === 0) return;
     

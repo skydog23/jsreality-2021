@@ -13,11 +13,56 @@
 import { ColorPickerWidget, VectorWidget, NumberWidget } from './widgets/index.js';
 import { Color } from '../util/Color.js';
 import { formatValue } from './PropertyFormatters.js';
+import { EUCLIDEAN, HYPERBOLIC, ELLIPTIC, PROJECTIVE } from '../math/Pn.js';
 
 /**
  * Factory for creating UI widgets for editing property values
  */
 export class WidgetFactory {
+  /**
+   * Create a metric dropdown widget (Pn metric constants).
+   * @param {number} value
+   * @param {(newValue: number) => void} onChange
+   * @returns {HTMLElement}
+   * @private
+   */
+  #createMetricDropdown(value, onChange) {
+    const select = document.createElement('select');
+    select.className = 'inspector-input inspector-input--select';
+
+    /** @type {Array<{label: string, value: number}>} */
+    const options = [
+      { label: 'Euclidean', value: EUCLIDEAN },
+      { label: 'Hyperbolic', value: HYPERBOLIC },
+      { label: 'Elliptic', value: ELLIPTIC },
+      { label: 'Projective', value: PROJECTIVE }
+    ];
+
+    for (const opt of options) {
+      const el = document.createElement('option');
+      el.value = String(opt.value);
+      el.textContent = opt.label;
+      if (Number(value) === opt.value) el.selected = true;
+      select.appendChild(el);
+    }
+
+    // If the current value isn't one of the known constants, show it explicitly.
+    if (!options.some((o) => o.value === Number(value))) {
+      const el = document.createElement('option');
+      el.value = String(Number(value));
+      el.textContent = `Custom (${Number(value)})`;
+      el.selected = true;
+      select.appendChild(el);
+    }
+
+    select.addEventListener('change', () => {
+      const raw = parseInt(select.value, 10);
+      if (!Number.isNaN(raw)) onChange(raw);
+    });
+
+    return select;
+  }
+
   /**
    * Create appropriate widget for a value based on its type
    * @param {string} key - Attribute key
@@ -43,6 +88,13 @@ export class WidgetFactory {
     
     // Check for number
     if (typeof value === 'number') {
+      // Rendering hints `metric` should be an enum dropdown, not a float input.
+      // The shader property panel does not use the descriptor system; it selects widgets
+      // based on runtime values, so we special-case this key.
+      const isMetric = key === 'metric' || key.endsWith('.metric');
+      if (isMetric) {
+        return this.#createMetricDropdown(value, onChange);
+      }
       const widget = new NumberWidget('', value, onChange);
       return widget.getElement();
     }
@@ -96,12 +148,16 @@ export class WidgetFactory {
     // Check for number
     if (typeof value === 'number') {
       // Use empty label since the property group already displays the label in the left column
+      const isMetric = label === 'metric' || label.endsWith('.metric');
+      if (isMetric) {
+        return {
+          label,
+          value: this.#createMetricDropdown(value, onChange),
+          editable: true
+        };
+      }
       const widget = new NumberWidget('', value, onChange);
-      return {
-        label,
-        value: widget.getElement(),
-        editable: true
-      };
+      return { label, value: widget.getElement(), editable: true };
     }
     
     // Check for string

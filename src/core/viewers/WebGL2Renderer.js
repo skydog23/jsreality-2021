@@ -1,366 +1,46 @@
 /**
- * WebGL implementation of the Viewer interface.
- * 
+ * WebGL2 rendering visitor that traverses the scene graph and renders geometry.
+ *
  * Copyright (c) 2024, jsReality Contributors
  * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
  * Schmies, Steffen Weissmann.
- * 
+ *
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// WebGL implementation of the Viewer interface
-// Provides 2D rendering using WebGL/WebGL2 for hardware acceleration
-
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import { Dimension } from '../scene/Viewer.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { Color } from '../util/Color.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
-import { Abstract2DViewer } from './Abstract2DViewer.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
+import * as Rn from '../math/Rn.js';
+import {
+  compileShader as compileShaderUtil,
+  queryWebGLCapabilities,
+  createMainProgram,
+  createInstancedPointProgram,
+  createInstancedSphereProgram,
+  createInstancedTubeProgram
+} from './webgl/WebGL2Programs.js';
+import {
+  buildIcoSphere,
+  getOrCreateSphereMesh,
+  buildTubeBaseMesh
+} from './webgl/WebGL2Meshes.js';
+import {
+  verticesToFloat32Array as verticesToFloat32ArrayUtil,
+  colorsToFloat32Array as colorsToFloat32ArrayUtil,
+  triangulatePolygonSequential as triangulatePolygonSequentialUtil,
+  addPolylineToBatch as addPolylineToBatchUtil
+} from './webgl/WebGL2Batching.js';
 
-const logger = getLogger('jsreality.core.viewers.WebGL2DViewer');
-
-/** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
-/** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
-/** @typedef {import('../scene/Camera.js').Camera} Camera */
+const logger = getLogger('jsreality.core.viewers.WebGL2Renderer');
 
 // Log GL size/capability diagnostics only once per page load to avoid spamming
 // during offscreen rendering (recording creates a temporary WebGL viewer per frame).
-let didLogWebGLCaps = false;
+const webglCapsLogOnce = { didLog: false };
 
-/**
- * A 2D WebGL-based viewer implementation for jReality scene graphs.
- * Renders geometry using WebGL/WebGL2 for hardware-accelerated rendering.
- */
-export class WebGL2DViewer extends Abstract2DViewer {
-  /** @type {HTMLCanvasElement} */
-  #canvas;
-
-  /** @type {WebGLRenderingContext|WebGL2RenderingContext} */
-  #gl;
-
-  /** @type {boolean} */
-  #autoResize = true;
-
-  /** @type {ResizeObserver|null} */
-  #resizeObserver = null;
-
-  /** @type {number} */
-  _pixelRatio = 1;
-
-  /** @type {WebGL2DRenderer|null} */
-  #renderer = null;
-
-  /**
-   * Create a new WebGL2D viewer
-   * @param {HTMLCanvasElement} canvas - The canvas element to render to
-   * @param {Object} [options] - Configuration options
-   * @param {boolean} [options.autoResize=true] - Whether to auto-resize canvas
-   * @param {number} [options.pixelRatio] - Device pixel ratio (auto-detected if not provided)
-   * @param {boolean} [options.webgl2=true] - Whether to prefer WebGL2 over WebGL1
-   * @param {boolean} [options.alpha=true] - Whether the drawing buffer has an alpha channel
-   * @param {boolean} [options.antialias=true] - Whether the default framebuffer is multisampled (MSAA)
-   * @param {boolean} [options.preserveDrawingBuffer=true] - Keep drawing buffer after presenting
-   * @param {boolean} [options.depth=true] - Whether to request a depth buffer
-   * @param {boolean} [options.stencil=false] - Whether to request a stencil buffer
-   * @param {boolean|{ enabled?: boolean, everyNFrames?: number, logFn?: Function }} [options.debugPerf=false]
-   */
-  constructor(canvas, options = {}) {
-    super();
-    
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new Error('WebGL2DViewer requires an HTMLCanvasElement');
-    }
-
-    this.#canvas = canvas;
-    
-    // Try to get WebGL2 context first, fall back to WebGL1
-    const preferWebGL2 = options.webgl2 !== false;
-    let gl = null;
-    const contextAttributes = {
-      alpha: options.alpha !== false,
-      antialias: options.antialias !== false,
-      depth: options.depth !== false,
-      stencil: options.stencil === true,
-      preserveDrawingBuffer: options.preserveDrawingBuffer !== false
-    };
-    
-    if (preferWebGL2) {
-      gl = canvas.getContext('webgl2', {
-        ...contextAttributes
-      });
-    }
-    
-    if (!gl) {
-      gl = canvas.getContext('webgl', {
-        ...contextAttributes
-      });
-    }
-    
-    if (!gl) {
-      throw new Error('Failed to get WebGL context from canvas. WebGL may not be supported.');
-    }
-
-    this.#gl = gl;
-    this.#autoResize = options.autoResize !== false;
-    this._pixelRatio = options.pixelRatio || window.devicePixelRatio || 1;
-
-    // Optional perf debug logging (counts cache hits, GL uploads/draws, etc.)
-    if (options.debugPerf) {
-      this.setDebugPerf(options.debugPerf);
-    }
-    
-    // Setup resize handling first - it will trigger setupCanvas when canvas has dimensions
-    if (this.#autoResize) {
-      this.#setupResizeHandling();
-    } else {
-      // Only setup canvas immediately if not auto-resizing
-      // (auto-resize will be triggered by ResizeObserver when canvas has size)
-      this.#setupCanvas();
-    }
-  }
-
-  /**
-   * Setup canvas with proper pixel ratio handling
-   * @private
-   */
-  #setupCanvas() {
-    const canvas = this.#canvas;
-    const ratio = this._pixelRatio;
-
-    // Get display size from CSS
-    let displayWidth = canvas.clientWidth;
-    let displayHeight = canvas.clientHeight;
-    
-    if (displayWidth === 0)   displayWidth = 800;  // If canvas has no size yet, set a default width (ResizeObserver will call us again)
-    if (displayHeight === 0)  displayHeight = 600;  // If canvas has no size yet, set a default height (ResizeObserver will call us again)
-   
-    // if (displayWidth === 0 || displayHeight === 0) {
-    //   return;
-    // }
-
-    // Set actual canvas buffer size (scaled up for retina)
-    canvas.width = displayWidth * ratio;
-    canvas.height = displayHeight * ratio;
-    
-    // Set viewport to match canvas buffer size
-    this.#gl.viewport(0, 0, canvas.width, canvas.height);
-    
-    // Note: We don't set canvas.style.width/height here to allow CSS to control sizing.
-    // The canvas element should have its dimensions set via CSS (either inline or stylesheet).
-    // Setting inline styles here would override CSS and break responsive layouts.
-  }
-
-  /**
-   * Setup automatic canvas resizing
-   * @private
-   */
-  #setupResizeHandling() {
-    this.#resizeObserver = new ResizeObserver(() => {
-      this.#setupCanvas();
-      // Note: We don't call render() here. The ResizeObserver fires during initialization
-      // before the viewer is selected, and we don't want to render inactive viewers.
-      // The caller is responsible for triggering render() when needed.
-    });
-
-    this.#resizeObserver.observe(this.#canvas);
-  }
-
-  /**
-   * Get the WebGL context
-   * @returns {WebGLRenderingContext|WebGL2RenderingContext}
-   */
-  getGL() {
-    return this.#gl;
-  }
-
-  /**
-   * Check if WebGL2 is available
-   * @returns {boolean}
-   */
-  isWebGL2() {
-    return this.#gl instanceof WebGL2RenderingContext;
-  }
-
-  /**
-   * Get the viewing component (canvas)
-   * @returns {HTMLCanvasElement}
-   */
-  getViewingComponent() {
-    return this.#canvas;
-  }
-
-  /**
-   * Get the viewing component size
-   * @returns {Dimension}
-   */
-  getViewingComponentSize() {
-    return {
-      width: this.#canvas.clientWidth,
-      height: this.#canvas.clientHeight
-    };
-  }
-
-  /**
-   * Render the scene using WebGL
-   */
-  render() {
-    this.#setupCanvas();
-    if (!this.#renderer) {
-      this.#renderer = new WebGL2DRenderer(this);
-    }
-    this.#renderer.render();
-  }
-
-
-  /**
-   * Export canvas as image
-   * @param {string} [format='image/png'] - Image format
-   * @param {number} [quality] - Image quality (0-1 for lossy formats)
-   * @returns {string} Data URL of the image
-   */
-  exportImage(format = 'image/png', quality) {
-    return this.#canvas.toDataURL(format, quality);
-  }
-
-  /**
-   * Dispose viewer resources (ResizeObserver, GPU context).
-   * Called by ViewerSwitch on teardown.
-   */
-  dispose() {
-    if (this.#resizeObserver) {
-      try {
-        this.#resizeObserver.disconnect();
-      } finally {
-        this.#resizeObserver = null;
-      }
-    }
-
-    // Drop renderer reference (releases JS-side caches).
-    this.#renderer = null;
-
-    // Attempt to release GPU resources aggressively.
-    // Safe to ignore if extension is unavailable.
-    try {
-      const loseExt = this.#gl?.getExtension?.('WEBGL_lose_context');
-      loseExt?.loseContext?.();
-    } catch {
-      // ignore
-    }
-  }
-
-  /**
-   * Render the current WebGL2D view into an offscreen canvas at the given size.
-   *
-   * This implementation does not modify the on-screen canvas. It creates a
-   * temporary off-screen WebGL2DViewer whose viewing component is sized to the
-   * requested export dimensions so that camera/projection are computed for the
-   * correct aspect ratio, then rasterizes that into the returned 2D canvas.
-   * Callers are responsible for any download/export logic.
-   *
-   * NOTE ON MAX EXPORT SIZE:
-   * Even if WebGL reports generous size limits (e.g. MAX_TEXTURE_SIZE and
-   * MAX_RENDERBUFFER_SIZE are often 16384), Chrome/driver may clamp the
-   * *default framebuffer* (gl.drawingBufferWidth/Height) to a smaller size
-   * due to GPU memory/tiling constraints. In our tests on one machine, asking
-   * for an 8192x8192 export produced a canvas backing store of 8192x8192, but
-   * the WebGL drawing buffer was clamped to ~5725x5794, causing truncation.
-   *
-   * Mitigations tried:
-   * - Disabling MSAA (context antialias=false) and requesting no depth/stencil
-   *   did not change the clamp on that machine.
-   * - Avoiding devicePixelRatio multiplication in export helped mitigate the
-   *   issue (smaller backing-store request).
-   *
-   * Next steps (not implemented):
-   * - Render to an offscreen framebuffer/texture (FBO) instead of relying on
-   *   the default framebuffer, then read back/blit to a 2D canvas.
-   * - Tiled rendering (split the requested export into tiles) to stay below
-   *   the per-drawing-buffer allocation ceiling.
-   *
-   * @param {number} width
-   * @param {number} height
-   * @param {{ antialias?: number, includeAlpha?: boolean }} [options]
-   * @returns {Promise<HTMLCanvasElement>}
-   */
-  async renderOffscreen(width, height, options = {}) {
-    const { includeAlpha = true } = options;
-    return await this._renderOffscreen(
-      'webGL',
-      WebGL2DViewer,
-      width,
-      height,
-      options,
-      {
-        webgl2: this.isWebGL2(),
-        // For large exports, MSAA on the default framebuffer can drastically
-        // increase memory usage and reduce the maximum allocatable size.
-        // Supersampling (our antialias factor) already provides anti-aliasing.
-        antialias: false,
-        // If the caller doesn't need alpha, request an opaque drawing buffer to
-        // reduce memory footprint.
-        alpha: includeAlpha,
-        preserveDrawingBuffer: true,
-        depth: true,
-        stencil: false
-      },
-      (tempViewer, tempCanvas, info) => {
-        const gl = tempViewer?.getGL?.();
-        if (!gl) return;
-
-        const targetW = Math.floor(info.exportWidth * info.pixelRatio * info.aa);
-        const targetH = Math.floor(info.exportHeight * info.pixelRatio * info.aa);
-
-        const actualCanvasW = tempCanvas.width;
-        const actualCanvasH = tempCanvas.height;
-        const actualDBW = gl.drawingBufferWidth;
-        const actualDBH = gl.drawingBufferHeight;
-
-        // Only log when something looks suspicious (clamping/truncation),
-        // or when exporting very large images where limits are likely.
-        const large = info.exportWidth >= 4096 || info.exportHeight >= 4096;
-        const mismatch =
-          actualCanvasW !== targetW ||
-          actualCanvasH !== targetH ||
-          actualDBW !== actualCanvasW ||
-          actualDBH !== actualCanvasH;
-
-        if (large || mismatch) {
-          logger.info(Category.ALL, '[WebGL2D offscreen] size diagnostics', {
-            requestedCSS: { w: info.exportWidth, h: info.exportHeight },
-            antialias: info.aa,
-            pixelRatio: info.pixelRatio,
-            targetBackingStore: { w: targetW, h: targetH },
-            canvasBackingStore: { w: actualCanvasW, h: actualCanvasH },
-            drawingBuffer: { w: actualDBW, h: actualDBH },
-            MAX_TEXTURE_SIZE: gl.getParameter(gl.MAX_TEXTURE_SIZE),
-            MAX_RENDERBUFFER_SIZE: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
-            MAX_VIEWPORT_DIMS: gl.getParameter(gl.MAX_VIEWPORT_DIMS)
-          });
-        }
-
-        // Hard warning when Chrome/driver clamps drawing buffer smaller than canvas.
-        if (actualDBW !== actualCanvasW || actualDBH !== actualCanvasH) {
-          logger.warn(
-            Category.ALL,
-            '[WebGL2D offscreen] drawingBuffer smaller than canvas backing store; export will be limited/clamped by GPU allocation',
-            {
-            canvasBackingStore: { w: actualCanvasW, h: actualCanvasH },
-            drawingBuffer: { w: actualDBW, h: actualDBH }
-            }
-          );
-        }
-      }
-    );
-  }
-}
-
-/**
- * WebGL2D rendering visitor that traverses the scene graph and renders geometry
- * Extends Abstract2DRenderer with WebGL-specific drawing operations
- */
-class WebGL2DRenderer extends Abstract2DRenderer {
+export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {WebGLRenderingContext|WebGL2RenderingContext} */
   #gl;
@@ -432,6 +112,9 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   #colorBuffer = null;
 
   /** @type {WebGLBuffer|null} */
+  #normalBuffer = null;
+
+  /** @type {WebGLBuffer|null} */
   #indexBuffer = null;
 
   /** @type {WebGLBuffer|null} */
@@ -477,8 +160,8 @@ class WebGL2DRenderer extends Abstract2DRenderer {
   #batchedDistances = [];
 
   /**
-   * Create a new WebGL2D renderer
-   * @param {WebGL2DViewer} viewer - The viewer
+   * Create a new WebGL2 renderer
+   * @param {WebGL2Viewer} viewer - The viewer
    */
   constructor(viewer) {
     super(viewer);
@@ -523,6 +206,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Create buffers
     this.#vertexBuffer = gl.createBuffer();
     this.#colorBuffer = gl.createBuffer();
+    this.#normalBuffer = gl.createBuffer();
     this.#indexBuffer = gl.createBuffer();
     this.#distanceBuffer = gl.createBuffer();
 
@@ -566,46 +250,20 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       this.#tubeP1Buffer = gl.createBuffer();
       this.#tubeColorInstBuffer = gl.createBuffer();
 
-      // Base tube mesh: a unit-radius cylinder along the segment from p0->p1, represented as:
-      // - circle basis (cx, cy) in local cross-section plane
-      // - t in [0,1] along the segment
-      //
-      // The shader expands this into world-space using p0/p1 and u_radius.
-      const SEG = 12; // cross-section resolution (12-gon). Tune for quality/perf.
-      const base = new Float32Array(SEG * 2 * 3); // (cx,cy,t) * (2 rings)
-      let o = 0;
-      for (let i = 0; i < SEG; i++) {
-        const a = (i / SEG) * Math.PI * 2;
-        const cx = Math.cos(a);
-        const cy = Math.sin(a);
-        // ring at t=0
-        base[o++] = cx; base[o++] = cy; base[o++] = 0.0;
-        // ring at t=1
-        base[o++] = cx; base[o++] = cy; base[o++] = 1.0;
-      }
-      const idx = new Uint16Array(SEG * 6);
-      let io = 0;
-      for (let i = 0; i < SEG; i++) {
-        const i0 = 2 * i;
-        const i1 = i0 + 1;
-        const j0 = 2 * ((i + 1) % SEG);
-        const j1 = j0 + 1;
-        // two triangles for quad between segment i and i+1
-        idx[io++] = i0; idx[io++] = i1; idx[io++] = j0;
-        idx[io++] = i1; idx[io++] = j1; idx[io++] = j0;
-      }
-      this.#tubeIndexCount = idx.length;
+      // Base tube mesh (unit radius). Shader expands into world-space using p0/p1 and u_radius.
+      const base = buildTubeBaseMesh(12);
+      this.#tubeIndexCount = base.indices.length;
       if (this.#tubeVertexBuffer) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, base, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, base.vertices, gl.STATIC_DRAW);
       }
       if (this.#tubeIndexBuffer) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, base.indices, gl.STATIC_DRAW);
       }
     }
     
-    if (!this.#vertexBuffer || !this.#colorBuffer || !this.#indexBuffer || !this.#distanceBuffer) {
+    if (!this.#vertexBuffer || !this.#colorBuffer || !this.#normalBuffer || !this.#indexBuffer || !this.#distanceBuffer) {
       throw new Error('Failed to create WebGL buffers');
     }
     
@@ -635,101 +293,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {Object} Cached capabilities object
    */
   #queryWebGLCapabilities(gl) {
-    const caps = {
-      // Drawing mode constants
-      TRIANGLES: (gl.TRIANGLES !== undefined && gl.TRIANGLES !== null) ? gl.TRIANGLES : 0x0004,
-      LINE_STRIP: (gl.LINE_STRIP !== undefined && gl.LINE_STRIP !== null) ? gl.LINE_STRIP : 0x0003,
-      POINTS: (gl.POINTS !== undefined && gl.POINTS !== null) ? gl.POINTS : 0x0000,
-      
-      // Line width capabilities
-      maxLineWidth: 1.0,
-      supportsWideLines: false,
-      
-      // Point size capabilities
-      maxPointSize: 1.0,
-      minPointSize: 1.0,
-      
-      // Index type constants
-      UNSIGNED_SHORT: gl.UNSIGNED_SHORT,
-      UNSIGNED_INT: gl.UNSIGNED_INT,
-      supportsUint32Indices: false
-    };
-
-    // -------------------------------------------------------------------------
-    // Memory / size-related limits (useful for diagnosing export failures).
-    // Note: WebGL doesn't expose direct "GPU memory" numbers, but these limits
-    // strongly constrain maximum renderable image sizes.
-    // -------------------------------------------------------------------------
-    try {
-      caps.MAX_TEXTURE_SIZE = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    } catch (e) {
-      caps.MAX_TEXTURE_SIZE = null;
-    }
-    try {
-      caps.MAX_RENDERBUFFER_SIZE = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
-    } catch (e) {
-      caps.MAX_RENDERBUFFER_SIZE = null;
-    }
-    try {
-      caps.MAX_VIEWPORT_DIMS = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
-    } catch (e) {
-      caps.MAX_VIEWPORT_DIMS = null;
-    }
-    // WebGL2 only
-    if (gl.MAX_SAMPLES !== undefined) {
-      try {
-        caps.MAX_SAMPLES = gl.getParameter(gl.MAX_SAMPLES);
-      } catch (e) {
-        caps.MAX_SAMPLES = null;
-      }
-    }
-
-    // Log once at startup for easier debugging of size limits.
-    try {
-      if (!didLogWebGLCaps) {
-        didLogWebGLCaps = true;
-        logger.fine(Category.ALL, '[WebGL2D] Capabilities / size limits', {
-          isWebGL2: (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext,
-          MAX_TEXTURE_SIZE: caps.MAX_TEXTURE_SIZE,
-          MAX_RENDERBUFFER_SIZE: caps.MAX_RENDERBUFFER_SIZE,
-          MAX_VIEWPORT_DIMS: caps.MAX_VIEWPORT_DIMS,
-          MAX_SAMPLES: caps.MAX_SAMPLES ?? '(n/a)',
-          ALIASED_POINT_SIZE_RANGE: gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE),
-          ALIASED_LINE_WIDTH_RANGE: gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)
-        });
-      }
-    } catch (e) {
-      // Logging should never break rendering.
-    }
-    
-    // Query point size range
-    const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
-    if (pointSizeRange && pointSizeRange.length >= 2) {
-      caps.minPointSize = pointSizeRange[0];
-      caps.maxPointSize = pointSizeRange[1];
-    }
-    
-    // Query maximum line width (many implementations only support 1.0)
-    const maxLineWidthRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
-    if (maxLineWidthRange && maxLineWidthRange.length >= 2) {
-      caps.maxLineWidth = maxLineWidthRange[1]; // Maximum supported width
-      caps.supportsWideLines = maxLineWidthRange[1] > 1.0;
-    } else {
-      // Fallback: try to query directly (some implementations)
-      try {
-        const maxWidth = gl.getParameter(gl.MAX_LINE_WIDTH);
-        if (maxWidth !== null && maxWidth !== undefined) {
-          caps.maxLineWidth = maxWidth;
-          caps.supportsWideLines = maxWidth > 1.0;
-        }
-      } catch (e) {
-        // If query fails, assume only 1.0 is supported
-        caps.maxLineWidth = 1.0;
-        caps.supportsWideLines = false;
-      }
-    }
-    
-    return caps;
+    return queryWebGLCapabilities(gl, { logger, Category, logOnceRef: webglCapsLogOnce });
   }
 
   /**
@@ -738,104 +302,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {WebGLProgram|null}
    */
   #createShaderProgram() {
-    const gl = this.#gl;
-    
-    // Vertex shader source
-    const vertexShaderSource = `
-      attribute vec4 a_position;
-      attribute vec4 a_color;
-      // Distance from centerline (for line edge smoothing)
-      attribute float a_distance;
-      
-      uniform mat4 u_transform;
-      uniform float u_pointSize;
-      
-      varying vec4 v_color;
-      // Pass distance to fragment shader
-      varying float v_distance;
-      
-      void main() {
-        // a_position is vec4, can be 2D, 3D, or 4D depending on gl.vertexAttribPointer size
-        // For 2D: a_position.xy is used, z defaults to 0.0, w defaults to 0.0
-        // For 3D: a_position.xyz is used, w defaults to 0.0
-        // For 4D: a_position.xyzw is used
-        vec4 position = a_position;
-        // Ensure w is 1.0 if not provided (for 2D/3D points where w=0.0 indicates padding)
-        // This handles homogeneous coordinates correctly
-        if (position.w == 0.0) {
-          position.w = 1.0;
-        }
-        // u_transform already includes world2ndc transformation
-        position = u_transform * position;
-        gl_Position = position;
-        gl_PointSize = u_pointSize;
-        v_color = a_color;
-        // Pass through distance for edge smoothing
-        v_distance = a_distance;
-      }
-    `;
-    
-    // Fragment shader source
-    const fragmentShaderSource = `
-      precision mediump float;
-      
-      varying vec4 v_color;
-      // NOTE: Edge smoothing disabled - uncomment to re-enable
-      varying float v_distance;
-      
-      // NOTE: Edge smoothing disabled - uncomment to re-enable
-      uniform float u_lineHalfWidth; // Half width of the line (for edge smoothing)
-      
-      void main() {
-        // ========================================================================
-        // EDGE SMOOTHING (ANTI-ALIASING) - DISABLED
-        // ========================================================================
-        // To re-enable edge smoothing for lines:
-        // 1. Uncomment the a_distance attribute in vertex shader
-        // 2. Uncomment v_distance varying in both shaders
-        // 3. Uncomment u_lineHalfWidth uniform in fragment shader
-        // 4. Uncomment the edge smoothing code below
-        // 5. Update #drawPolylineAsQuads to generate distance values
-        // 6. Update #drawGeometry to bind distance buffer
-        // 7. Update #updateUniforms to set u_lineHalfWidth uniform
-        //
-        // Edge smoothing code (uncomment to enable):
-        float dist = abs(v_distance);
-        float alpha = 1.0;
-        if (u_lineHalfWidth > 0.0) {
-          float edgeFade = 0.1; // Fade over 10% of line width
-          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
-          alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
-        }
-        gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
-        
-        // Current code (edge smoothing disabled):
-        // For point rendering, gl_PointCoord is available but we use solid color for now
-        // gl_FragColor = v_color;
-      }
-    `;
-    
-    // Create and compile shaders
-    const vertexShader = this.#compileShader(gl.VERTEX_SHADER, vertexShaderSource);
-    const fragmentShader = this.#compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
-    
-    if (!vertexShader || !fragmentShader) {
-      return null;
-    }
-    
-    // Create program and link
-    const program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('WebGL program link error:', gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-      return null;
-    }
-    
-    return program;
+    return createMainProgram(this.#gl);
   }
 
   /**
@@ -844,52 +311,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {WebGLProgram|null}
    */
   #createInstancedPointProgram() {
-    const gl = this.#gl;
-    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
-      return null;
-    }
-
-    const vs = `#version 300 es
-      precision mediump float;
-      in vec2 a_corner;      // base quad corner in [-1,1]^2
-      in vec4 a_center;      // per-instance center (x,y,z,w)
-      in vec4 a_color;       // per-instance color
-
-      uniform mat4 u_transform;
-      uniform float u_pointRadius;
-
-      out vec4 v_color;
-
-      void main() {
-        vec4 center = a_center;
-        if (center.w == 0.0) center.w = 1.0;
-        vec4 p = center + vec4(a_corner * u_pointRadius, 0.0, 0.0);
-        gl_Position = u_transform * p;
-        v_color = a_color;
-      }`;
-
-    const fs = `#version 300 es
-      precision mediump float;
-      in vec4 v_color;
-      out vec4 outColor;
-      void main() {
-        outColor = v_color;
-      }`;
-
-    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
-    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
-    if (!vsh || !fsh) return null;
-
-    const program = gl.createProgram();
-    gl.attachShader(program, vsh);
-    gl.attachShader(program, fsh);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('WebGL instanced point program link error:', gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-      return null;
-    }
-    return program;
+    return createInstancedPointProgram(this.#gl);
   }
 
   /**
@@ -899,51 +321,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {WebGLProgram|null}
    */
   #createInstancedSphereProgram() {
-    const gl = this.#gl;
-    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
-      return null;
-    }
-
-    const vs = `#version 300 es
-      precision mediump float;
-
-      in vec3 a_pos;       // unit sphere position
-      in vec3 a_center;    // per-instance center
-      in vec4 a_color;     // per-instance color
-
-      uniform mat4 u_transform;
-      uniform float u_radius;
-
-      out vec4 v_color;
-
-      void main() {
-        vec3 p = a_center + a_pos * u_radius;
-        gl_Position = u_transform * vec4(p, 1.0);
-        v_color = a_color;
-      }`;
-
-    const fs = `#version 300 es
-      precision mediump float;
-      in vec4 v_color;
-      out vec4 outColor;
-      void main() {
-        outColor = v_color;
-      }`;
-
-    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
-    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
-    if (!vsh || !fsh) return null;
-
-    const program = gl.createProgram();
-    gl.attachShader(program, vsh);
-    gl.attachShader(program, fsh);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('WebGL instanced sphere program link error:', gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-      return null;
-    }
-    return program;
+    return createInstancedSphereProgram(this.#gl);
   }
 
   /**
@@ -953,29 +331,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {{ vbo: WebGLBuffer, ibo: WebGLBuffer, indexCount: number } | null}
    */
   #getOrCreateSphereMesh(level) {
-    const gl = this.#gl;
-    const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
-    if (!isWebGL2) return null;
-
-    const lvl = Math.max(0, Math.min(4, level | 0));
-    const cached = this.#sphereMeshCache.get(lvl);
-    if (cached) return cached;
-
-    const mesh = this.#buildIcoSphere(lvl);
-    if (!mesh) return null;
-
-    const vbo = gl.createBuffer();
-    const ibo = gl.createBuffer();
-    if (!vbo || !ibo) return null;
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, mesh.positions, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
-
-    const entry = { vbo, ibo, indexCount: mesh.indices.length };
-    this.#sphereMeshCache.set(lvl, entry);
-    return entry;
+    return getOrCreateSphereMesh(this.#gl, this.#sphereMeshCache, level);
   }
 
   /**
@@ -986,81 +342,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {{ positions: Float32Array, indices: Uint16Array } | null}
    */
   #buildIcoSphere(level) {
-    const t = (1 + Math.sqrt(5)) / 2;
-    let verts = [
-      [-1,  t,  0], [ 1,  t,  0], [-1, -t,  0], [ 1, -t,  0],
-      [ 0, -1,  t], [ 0,  1,  t], [ 0, -1, -t], [ 0,  1, -t],
-      [ t,  0, -1], [ t,  0,  1], [-t,  0, -1], [-t,  0,  1]
-    ];
-    // normalize to unit sphere
-    for (let i = 0; i < verts.length; i++) {
-      const x = verts[i][0], y = verts[i][1], z = verts[i][2];
-      const len = Math.sqrt(x * x + y * y + z * z) || 1;
-      verts[i] = [x / len, y / len, z / len];
-    }
-
-    let faces = [
-      [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
-      [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
-      [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
-      [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
-    ];
-
-    const midpointCache = new Map(); // "a,b" -> index
-    const midpoint = (a, b) => {
-      const i0 = Math.min(a, b);
-      const i1 = Math.max(a, b);
-      const key = `${i0},${i1}`;
-      const hit = midpointCache.get(key);
-      if (hit !== undefined) return hit;
-      const v0 = verts[a];
-      const v1 = verts[b];
-      const mx = (v0[0] + v1[0]) * 0.5;
-      const my = (v0[1] + v1[1]) * 0.5;
-      const mz = (v0[2] + v1[2]) * 0.5;
-      const len = Math.sqrt(mx * mx + my * my + mz * mz) || 1;
-      const idx = verts.length;
-      verts.push([mx / len, my / len, mz / len]);
-      midpointCache.set(key, idx);
-      return idx;
-    };
-
-    const lvl = Math.max(0, level | 0);
-    for (let s = 0; s < lvl; s++) {
-      midpointCache.clear();
-      const next = [];
-      for (const f of faces) {
-        const a = f[0], b = f[1], c = f[2];
-        const ab = midpoint(a, b);
-        const bc = midpoint(b, c);
-        const ca = midpoint(c, a);
-        next.push([a, ab, ca]);
-        next.push([b, bc, ab]);
-        next.push([c, ca, bc]);
-        next.push([ab, bc, ca]);
-      }
-      faces = next;
-    }
-
-    if (verts.length > 65535) {
-      // Keep WebGL2 mesh indices in Uint16 for now (levels 0..4 are safe).
-      return null;
-    }
-
-    const positions = new Float32Array(verts.length * 3);
-    for (let i = 0; i < verts.length; i++) {
-      positions[i * 3 + 0] = verts[i][0];
-      positions[i * 3 + 1] = verts[i][1];
-      positions[i * 3 + 2] = verts[i][2];
-    }
-    const indices = new Uint16Array(faces.length * 3);
-    let o = 0;
-    for (const f of faces) {
-      indices[o++] = f[0];
-      indices[o++] = f[1];
-      indices[o++] = f[2];
-    }
-    return { positions, indices };
+    return buildIcoSphere(level);
   }
 
   /**
@@ -1074,79 +356,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {WebGLProgram|null}
    */
   #createInstancedTubeProgram() {
-    const gl = this.#gl;
-    if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
-      return null;
-    }
-
-    const vs = `#version 300 es
-      precision mediump float;
-
-      // Base mesh vertex: (circleX, circleY, t)
-      in vec3 a_circleT;
-
-      // Per-instance segment endpoints (world/object space)
-      in vec3 a_p0;
-      in vec3 a_p1;
-
-      // Per-instance color
-      in vec4 a_color;
-
-      uniform mat4 u_transform;
-      uniform float u_radius;
-
-      out vec4 v_color;
-
-      // Build a stable basis from a direction vector.
-      void makeBasis(in vec3 dir, out vec3 bx, out vec3 by) {
-        // Choose an "up" that isn't parallel to dir.
-        vec3 up = (abs(dir.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
-        bx = normalize(cross(dir, up));
-        by = cross(bx, dir);
-      }
-
-      void main() {
-        vec3 p0 = a_p0;
-        vec3 p1 = a_p1;
-        vec3 d = p1 - p0;
-        float len = length(d);
-        // Avoid NaNs for degenerate segments.
-        vec3 dir = (len > 0.0) ? (d / len) : vec3(0.0, 0.0, 1.0);
-
-        vec3 bx, by;
-        makeBasis(dir, bx, by);
-
-        float t = a_circleT.z;
-        vec2 c = a_circleT.xy;
-        vec3 center = mix(p0, p1, t);
-        vec3 offset = (bx * c.x + by * c.y) * u_radius;
-        vec4 worldPos = vec4(center + offset, 1.0);
-        gl_Position = u_transform * worldPos;
-        v_color = a_color;
-      }`;
-
-    const fs = `#version 300 es
-      precision mediump float;
-      in vec4 v_color;
-      out vec4 outColor;
-      void main() {
-        outColor = v_color;
-      }`;
-
-    const vsh = this.#compileShader(gl.VERTEX_SHADER, vs);
-    const fsh = this.#compileShader(gl.FRAGMENT_SHADER, fs);
-    if (!vsh || !fsh) return null;
-
-    const program = gl.createProgram();
-    gl.attachShader(program, vsh);
-    gl.attachShader(program, fsh);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('WebGL instanced tube program link error:', gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-      return null;
-    }
-    return program;
+    return createInstancedTubeProgram(this.#gl);
   }
 
   /**
@@ -1636,7 +846,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     }
 
     // Use existing geometry path with POINTS.
-    this.#drawGeometry(vertexArray, colorArray, null, this.#capabilities.POINTS, null, 0, positionSize);
+    this.#drawGeometry(vertexArray, colorArray, null, null, this.#capabilities.POINTS, null, 0, positionSize);
     this._getViewer()?._incrementPointsRendered?.(numPoints);
     this._endPrimitiveGroup();
   }
@@ -1649,18 +859,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {WebGLShader|null}
    */
   #compileShader(type, source) {
-    const gl = this.#gl;
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.error('WebGL shader compile error:', gl.getShaderInfoLog(shader));
-      gl.deleteShader(shader);
-      return null;
-    }
-    
-    return shader;
+    return compileShaderUtil(this.#gl, type, source, 'WebGL2Renderer');
   }
 
   /**
@@ -1726,7 +925,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         const cpu = this._debugPerfGetCpuCounters?.();
         const glc = this.#debugGL;
 
-        dbg.logFn('[WebGL2D debugPerf]', {
+        dbg.logFn('[WebGL2 debugPerf]', {
           frame: this.#debugFrame,
           renderMs: r?.renderDurationMs,
           avgRenderMs: r?.avgRenderDurationMs,
@@ -1795,6 +994,17 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const faceColorsShape = faceColorsDL?.shape;
     const faceColorChannels = Array.isArray(faceColorsShape) && faceColorsShape.length >= 2 ? faceColorsShape[faceColorsShape.length - 1] : 0;
 
+    // Normals (optional): prefer face normals for flat shading, else use vertex normals.
+    const faceNormalsDL = geometry?.getFaceAttribute?.(GeometryAttribute.NORMALS) || null;
+    const faceNormalsFlat = faceNormalsDL && typeof faceNormalsDL.getFlatData === 'function' ? faceNormalsDL.getFlatData() : null;
+    const faceNormalsShape = faceNormalsDL?.shape;
+    const faceNormalFiber = Array.isArray(faceNormalsShape) && faceNormalsShape.length >= 2 ? faceNormalsShape[faceNormalsShape.length - 1] : 0;
+
+    const vertexNormalsDL = geometry?.getVertexAttribute?.(GeometryAttribute.NORMALS) || null;
+    const vertexNormalsFlat = vertexNormalsDL && typeof vertexNormalsDL.getFlatData === 'function' ? vertexNormalsDL.getFlatData() : null;
+    const vertexNormalsShape = vertexNormalsDL?.shape;
+    const vertexNormalFiber = Array.isArray(vertexNormalsShape) && vertexNormalsShape.length >= 2 ? vertexNormalsShape[vertexNormalsShape.length - 1] : 0;
+
     // Helper to read face color i -> normalized RGBA
     const defaultColor = this.#currentColor; // already normalized 0..1
     const getFaceColor = (i) => {
@@ -1844,10 +1054,14 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       const vertexArray = new Float32Array(batchVerts * positionSize);
       const colorArray = new Float32Array(batchVerts * 4);
       const indexArray = supportsUint32 ? new Uint32Array(batchTris * 3) : new Uint16Array(batchTris * 3);
+      const normalArray = (faceNormalsFlat && faceNormalFiber >= 3) || (vertexNormalsFlat && vertexNormalFiber >= 3)
+        ? new Float32Array(batchVerts * 3)
+        : null;
 
       let vOut = 0; // vertex index within this batch
       let vFloat = 0;
       let cFloat = 0;
+      let nFloat = 0;
       let iOut = 0;
 
       // Second pass: fill
@@ -1857,6 +1071,10 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         if (len < 3) continue;
 
         const faceColor = getFaceColor(f);
+        const faceNormalBase = (faceNormalsFlat && faceNormalFiber >= 3) ? (f * faceNormalFiber) : -1;
+        const fnx = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 0] ?? 0) : 0;
+        const fny = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 1] ?? 0) : 0;
+        const fnz = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 2] ?? 1) : 1;
         const startVertex = vOut;
 
         for (let j = 0; j < len; j++) {
@@ -1880,6 +1098,24 @@ class WebGL2DRenderer extends Abstract2DRenderer {
           colorArray[cFloat++] = faceColor[2];
           colorArray[cFloat++] = faceColor[3];
 
+          if (normalArray) {
+            if (faceNormalsFlat && faceNormalFiber >= 3) {
+              normalArray[nFloat++] = fnx;
+              normalArray[nFloat++] = fny;
+              normalArray[nFloat++] = fnz;
+            } else if (vertexNormalsFlat && vertexNormalFiber >= 3) {
+              const nb = vid * vertexNormalFiber;
+              normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 0] ?? 0);
+              normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 1] ?? 0);
+              normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 2] ?? 1);
+            } else {
+              // Shouldn't happen, but keep array consistent.
+              normalArray[nFloat++] = 0;
+              normalArray[nFloat++] = 0;
+              normalArray[nFloat++] = 1;
+            }
+          }
+
           vOut++;
         }
 
@@ -1890,7 +1126,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
         }
       }
 
-      this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
+      this.#drawGeometry(vertexArray, colorArray, normalArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
       f0 = f1;
     }
     this._endPrimitiveGroup();
@@ -1977,7 +1213,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing in world space (0 for non-lines)
    * @param {number} [pointSize=1.0] - Size of points in pixels (1.0 for non-points)
    */
-  #updateUniforms(lineHalfWidth = 0, pointSize = 1.0) {
+  #updateUniforms(lineHalfWidth = 0, pointSize = 1.0, lightingEnabled = false, flipNormals = false) {
     const gl = this.#gl;
     const program = this.#program;
     
@@ -1990,6 +1226,50 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // WebGL expects column-major matrices, but JavaScript arrays are row-major
     // Set transpose to true so WebGL transposes the matrices for us
     gl.uniformMatrix4fv(transformLoc, true, currentTransform);
+
+    // ModelView + normal matrix for lighting (camera light at origin in view space).
+    const modelViewLoc = gl.getUniformLocation(program, 'u_modelView');
+    const normalMatLoc = gl.getUniformLocation(program, 'u_normalMatrix');
+    const lightingLoc = gl.getUniformLocation(program, 'u_lightingEnabled');
+    const flipNormalsLoc = gl.getUniformLocation(program, 'u_flipNormals');
+    const ambientLoc = gl.getUniformLocation(program, 'u_ambient');
+    const diffuseLoc = gl.getUniformLocation(program, 'u_diffuse');
+
+    // Compute modelView = world2cam * object2world only when lighting is enabled.
+    // Matrices are row-major arrays; we upload with transpose=true.
+    if (lightingEnabled && modelViewLoc !== null && normalMatLoc !== null) {
+      const o2w = this._getCurrentObject2World?.();
+      const w2c = this._getWorld2Cam?.();
+      if (o2w && w2c) {
+        const mv = new Array(16);
+        // world2cam * object2world
+        Rn.timesMatrix(mv, w2c, o2w);
+        gl.uniformMatrix4fv(modelViewLoc, true, mv);
+
+        // Normal matrix: inverse-transpose of upper-left 3x3 of modelView.
+        const m3 = [
+          mv[0], mv[1], mv[2],
+          mv[4], mv[5], mv[6],
+          mv[8], mv[9], mv[10]
+        ];
+        const inv3 = Rn.inverse(null, m3);
+        const n3 = Rn.transpose(null, inv3);
+        gl.uniformMatrix3fv(normalMatLoc, true, new Float32Array(n3));
+      }
+    }
+
+    if (lightingLoc !== null) {
+      gl.uniform1f(lightingLoc, lightingEnabled ? 1.0 : 0.0);
+    }
+    if (flipNormalsLoc !== null) {
+      gl.uniform1f(flipNormalsLoc, flipNormals ? 1.0 : 0.0);
+    }
+    if (ambientLoc !== null) {
+      gl.uniform1f(ambientLoc, 0.2);
+    }
+    if (diffuseLoc !== null) {
+      gl.uniform1f(diffuseLoc, 0.8);
+    }
     
     // Set point size uniform
     const pointSizeLoc = gl.getUniformLocation(program, 'u_pointSize');
@@ -2039,7 +1319,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Detect point dimension from array length
     const pointDim = extractedPoint.length;
     if (pointDim < 2) {
-      console.warn('WebGL2DRenderer: Point must have at least 2 coordinates');
+      console.warn('WebGL2Renderer: Point must have at least 2 coordinates');
       return;
     }
     
@@ -2091,7 +1371,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       // Draw using standard triangle rendering
       this.#updateUniforms(0, 1.0); // pointSize not used for quad rendering
-      this.#drawGeometry(vertices, colors, indices, this.#capabilities.TRIANGLES);
+      this.#drawGeometry(vertices, colors, null, indices, this.#capabilities.TRIANGLES);
     } else {
       // Draw as native GL point using pointSize (pixel space, no NDC conversion)
       const pointSize = this.getAppearanceAttribute(
@@ -2127,7 +1407,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       const positionLoc = gl.getAttribLocation(this.#program, 'a_position');
       if (positionLoc === -1) {
-        console.error('WebGL2DRenderer: a_position attribute not found in shader');
+        console.error('WebGL2Renderer: a_position attribute not found in shader');
         return;
       }
       gl.enableVertexAttribArray(positionLoc);
@@ -2140,7 +1420,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       
       const colorLoc = gl.getAttribLocation(this.#program, 'a_color');
       if (colorLoc === -1) {
-        console.error('WebGL2DRenderer: a_color attribute not found in shader');
+        console.error('WebGL2Renderer: a_color attribute not found in shader');
         return;
       }
       gl.enableVertexAttribArray(colorLoc);
@@ -2207,73 +1487,33 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Each quad uses 4 vertices, so we can batch up to ~16383 quads before overflow
     // Flush when we're close to the limit (leave some headroom)
     const MAX_VERTICES = 60000; // Leave some headroom before 65535 limit
-    
-    // Draw each line segment as a quad
+
+    const extractPoint = (v) => this._extractPoint(v);
+
+    // Draw each line segment as a quad; flush before overflow.
     for (let i = 0; i < indices.length - 1; i++) {
-      // Check if adding this quad would exceed the limit
       if (this.#batchedVertexOffset + 4 > MAX_VERTICES) {
-        // Flush current batch before overflow
         // Preserve color/width so we can continue batching after flush
         this.#flushBatchedLines(true);
       }
-      
-      const idx0 = indices[i];
-      const idx1 = indices[i + 1];
-      
-      const v0 = vertices[idx0];
-      const v1 = vertices[idx1];
-      const p0 = this._extractPoint(v0);
-      const p1 = this._extractPoint(v1);
-      
-      // Calculate direction vector and perpendicular
-      const dx = p1[0] - p0[0];
-      const dy = p1[1] - p0[1];
-      const len = Math.sqrt(dx * dx + dy * dy);
-      
-      if (len === 0) continue; // Skip zero-length segments
-      
-      // Normalize and get perpendicular (rotate 90 degrees)
-      const nx = -dy / len;
-      const ny = dx / len;
 
-      // Preserve depth: carry through the original Z coordinate (if present) for p0/p1.
-      // Note: we still compute the quad offset in XY for now (2D-style thickening),
-      // but the resulting quad vertices are 3D so depth testing works correctly.
-      const z0 = Number(p0[2] ?? 0.0) || 0.0;
-      const z1 = Number(p1[2] ?? 0.0) || 0.0;
-
-      // Create quad vertices (4 corners of the rectangle), as (x,y,z) triplets
-      const quadVertices = [
-        p0[0] + nx * halfWidth, p0[1] + ny * halfWidth, z0,  // 0: left of p0
-        p0[0] - nx * halfWidth, p0[1] - ny * halfWidth, z0,  // 1: right of p0
-        p1[0] + nx * halfWidth, p1[1] + ny * halfWidth, z1,  // 2: left of p1
-        p1[0] - nx * halfWidth, p1[1] - ny * halfWidth, z1   // 3: right of p1
-      ];
-      
-      // Add vertices
-      this.#batchedVertices.push(...quadVertices);
-      
-      // Add colors (same color for all 4 vertices of the quad)
-      this.#batchedColors.push(...edgeColor, ...edgeColor, ...edgeColor, ...edgeColor);
-
-      // Distance from centerline: -halfWidth for left side, +halfWidth for right side
-      const quadDistances = [
-        -halfWidth,  // 0: left of p0
-        halfWidth,   // 1: right of p0
-        -halfWidth,  // 2: left of p1
-        halfWidth    // 3: right of p1
-      ];
-      this.#batchedDistances.push(...quadDistances);
-      
-      // Add indices for 2 triangles forming the quad
-      this.#batchedIndices.push(
-        this.#batchedVertexOffset + 0, this.#batchedVertexOffset + 1, this.#batchedVertexOffset + 2,  // Triangle 1
-        this.#batchedVertexOffset + 1, this.#batchedVertexOffset + 3, this.#batchedVertexOffset + 2   // Triangle 2
+      const res = addPolylineToBatchUtil(
+        extractPoint,
+        vertices,
+        [indices[i], indices[i + 1]],
+        edgeColor,
+        halfWidth,
+        {
+          batchedVertices: this.#batchedVertices,
+          batchedColors: this.#batchedColors,
+          batchedDistances: this.#batchedDistances,
+          batchedIndices: this.#batchedIndices,
+          vertexOffset: this.#batchedVertexOffset
+        }
       );
-      
-      this.#batchedVertexOffset += 4;
+      this.#batchedVertexOffset = res.vertexOffset;
     }
-    
+
     return true;
   }
   
@@ -2297,6 +1537,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     this.#drawGeometry(
       vertexArray,
       colorArray,
+      null,
       indexArray,
       this.#capabilities.TRIANGLES,
       distanceArray,
@@ -2345,7 +1586,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     // Draw using LINE_STRIP mode (use cached constant)
     // Note: We need sequential indices since vertexArray is compacted
     const sequentialIndices = this.#getSequentialIndices(indices.length);
-    this.#drawGeometry(vertexArray, colorArray, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
+    this.#drawGeometry(vertexArray, colorArray, null, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
   }
 
   /**
@@ -2457,6 +1698,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       this.#drawGeometry(
         vertexArray,
         colorArray,
+        null,
         indexArray,
         this.#capabilities.TRIANGLES,
         distanceArray,
@@ -2476,7 +1718,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    */
   _drawPolygon(vertices, color, indices, fill) {
     const gl = this.#gl;
-    // console.error('🔵 WebGL2DRenderer._drawPolygon CALLED - color:', color);
+    // console.error('🔵 WebGL2Renderer._drawPolygon CALLED - color:', color);
     // Convert vertices to Float32Array (creates compacted array, preserve dimension)
     const { array: vertexArray, size: positionSize } = this.#verticesToFloat32Array(vertices, indices);
     // colors is a single color per face (or null) - replicate it for all vertices
@@ -2490,7 +1732,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     const indexArray = this.#triangulatePolygonSequential(numVertices);
     
     // Use cached TRIANGLES constant
-    this.#drawGeometry(vertexArray, colorArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
+    this.#drawGeometry(vertexArray, colorArray, null, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
   }
 
   /**
@@ -2504,19 +1746,19 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing (0 for non-lines)
    * @param {number} [positionSize=2] - Number of components per vertex position (2, 3, or 4)
    */
-  #drawGeometry(vertices, colors, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
+  #drawGeometry(vertices, colors, normals, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
     const gl = this.#gl;
     const program = this.#program;
     
     // Validate inputs
     if (!vertices || vertices.length === 0) {
-      console.warn('WebGL2DRenderer: No vertices to draw');
+      console.warn('WebGL2Renderer: No vertices to draw');
       return;
     }
 
     // Validate that the vertex array length is compatible with the component count
     if (positionSize <= 0 || positionSize > 4 || vertices.length % positionSize !== 0) {
-      console.warn('WebGL2DRenderer: Invalid vertex array length or positionSize', {
+      console.warn('WebGL2Renderer: Invalid vertex array length or positionSize', {
         length: vertices.length,
         positionSize
       });
@@ -2527,7 +1769,10 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     gl.useProgram(program);
     
     // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
-    this.#updateUniforms(lineHalfWidth, 1.0);
+    // Lighting is enabled only when normals are provided and we're drawing triangles.
+    const lightingEnabled = Boolean(normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES);
+    const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+    this.#updateUniforms(lineHalfWidth, 1.0, lightingEnabled, flipNormals);
 
     // -----------------------------------------------------------------------
     // Vertex buffer
@@ -2538,7 +1783,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     const positionLoc = gl.getAttribLocation(program, 'a_position');
     if (positionLoc === -1) {
-      console.error('WebGL2DRenderer: a_position attribute not found in shader');
+      console.error('WebGL2Renderer: a_position attribute not found in shader');
       return;
     }
     gl.enableVertexAttribArray(positionLoc);
@@ -2560,13 +1805,37 @@ class WebGL2DRenderer extends Abstract2DRenderer {
     
     const colorLoc = gl.getAttribLocation(program, 'a_color');
     if (colorLoc === -1) {
-      console.error('WebGL2DRenderer: a_color attribute not found in shader');
+      console.error('WebGL2Renderer: a_color attribute not found in shader');
       return;
     }
     gl.enableVertexAttribArray(colorLoc);
     gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
     if (typeof gl.vertexAttribDivisor === 'function') {
       gl.vertexAttribDivisor(colorLoc, 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // Normal buffer (optional; lighting enabled only when provided)
+    // -----------------------------------------------------------------------
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+    if (normalLoc !== -1) {
+      if (normals && normals.length > 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, normals, gl.DYNAMIC_DRAW);
+        if (this.#debugGL) this.#debugGL.bufferDataArray++;
+        gl.enableVertexAttribArray(normalLoc);
+        gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
+        if (typeof gl.vertexAttribDivisor === 'function') {
+          gl.vertexAttribDivisor(normalLoc, 0);
+        }
+      } else {
+        // Disable and set a safe default normal (facing camera).
+        gl.disableVertexAttribArray(normalLoc);
+        gl.vertexAttrib3f(normalLoc, 0.0, 0.0, 1.0);
+        if (typeof gl.vertexAttribDivisor === 'function') {
+          gl.vertexAttribDivisor(normalLoc, 0);
+        }
+      }
     }
     
     // Handle distance attribute for edge smoothing (optional)
@@ -2603,7 +1872,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
       let indexType = this.#capabilities.UNSIGNED_SHORT;
       if (indices instanceof Uint32Array) {
         if (!this.#capabilities?.supportsUint32Indices || this.#capabilities.UNSIGNED_INT === undefined) {
-          console.error('WebGL2DRenderer: Uint32 indices requested but UNSIGNED_INT indices are not supported by this context');
+          console.error('WebGL2Renderer: Uint32 indices requested but UNSIGNED_INT indices are not supported by this context');
           return;
         }
         indexType = this.#capabilities.UNSIGNED_INT;
@@ -2670,27 +1939,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {{ array: Float32Array, size: number }} vertices array and component count per vertex
    */
   #verticesToFloat32Array(vertices, indices) {
-    if (!indices || indices.length === 0) {
-      return { array: new Float32Array(0), size: 3 };
-    }
-
-    // Determine component count from first vertex (clamped to [2, 4])
-    const firstVertex = this._extractPoint(vertices[indices[0]]);
-    const size = Math.min(Math.max(firstVertex.length || 3, 3), 4);
-
-    const array = new Float32Array(indices.length * size);
-    let out = 0;
-    for (const index of indices) {
-      const vertex = vertices[index];
-      const point = this._extractPoint(vertex);
-      for (let i = 0; i < size; i++) {
-        // If the vertex has fewer components than size, pad with sensible defaults
-        const value = (point && i < point.length) ? point[i] : (i === 3 ? 1.0 : 0.0);
-        array[out++] = Number(value) || 0.0;
-      }
-    }
-
-    return { array, size };
+    return verticesToFloat32ArrayUtil((v) => this._extractPoint(v), vertices, indices);
   }
 
   /**
@@ -2702,40 +1951,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {Float32Array}
    */
   #colorsToFloat32Array(colors, indices, defaultColor) {
-    const result = [];
-    
-    // Check if colors is a single color value (not an array indexed by vertex indices)
-    // Single color: Color object, CSS string, or single array [r,g,b,a]
-    // Per-vertex colors: Array where colors[index] exists for each index
-    const isSingleColor = colors && (
-      typeof colors === 'string' || // CSS string
-      (colors.getRed && typeof colors.getRed === 'function') || // Color object
-      (Array.isArray(colors) && colors.length <= 4 && typeof colors[0] === 'number') // [r,g,b] or [r,g,b,a]
-    );
-    
-    if (isSingleColor) {
-      // Single color for entire face/line - apply to all vertices
-      const color = this.#toWebGLColor(colors);
-      for (let i = 0; i < indices.length; i++) {
-        result.push(...color);
-      }
-    } else if (colors && Array.isArray(colors)) {
-      // Per-vertex colors array - use colors[index] for each vertex
-      for (const index of indices) {
-        let color = defaultColor;
-        if (colors[index] !== undefined && colors[index] !== null) {
-          color = this.#toWebGLColor(colors[index]);
-        }
-        result.push(...color);
-      }
-    } else {
-      // No colors provided - use default for all vertices
-      for (let i = 0; i < indices.length; i++) {
-        result.push(...defaultColor);
-      }
-    }
-    
-    return new Float32Array(result);
+    return colorsToFloat32ArrayUtil((c) => this.#toWebGLColor(c), colors, indices, defaultColor);
   }
 
   /**
@@ -2745,18 +1961,7 @@ class WebGL2DRenderer extends Abstract2DRenderer {
    * @returns {Uint16Array}
    */
   #triangulatePolygonSequential(numVertices) {
-    const n = Math.max(0, numVertices | 0);
-    if (n < 3) return new Uint16Array(0);
-
-    // Fan triangulation: triangle fan from vertex 0
-    const arr = new Uint16Array((n - 2) * 3);
-    let out = 0;
-    for (let i = 1; i < n - 1; i++) {
-      arr[out++] = 0;
-      arr[out++] = i;
-      arr[out++] = i + 1;
-    }
-    return arr;
+    return triangulatePolygonSequentialUtil(numVertices);
   }
 
   /**
