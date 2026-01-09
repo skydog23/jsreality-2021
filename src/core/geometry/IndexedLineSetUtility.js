@@ -517,35 +517,26 @@ export class IndexedLineSetUtility {
   
   /**
    * Remove segments that are too long (infinity segments)
-   * @param {IndexedLineSet} ils - Line set to modify
+   * @param {IndexedLineSet} pts4 - Array of homogeneous points
    * @param {number} distance - Maximum allowed distance
    * @param {number} tolerance - How close to get to the line at infinity (smaller is closer)
    */
-  static removeInfinity(ils, distance = 1.0, tolerance = 1.01) {
+  static removeInfinity(pts4, distance = 1.0, tolerance = 0.01) {
     logger.fine(-1, 'distance = ', distance);
-    // Convert the edge index list into a list of segments, skipping over all segments 
-    // where a w-coordinate sign change is detected.
-    const vertsData = ils.getVertexAttribute(GeometryAttribute.COORDINATES);
-    const vertsHomogeneous = fromDataList(vertsData);
     // Dehomogenize vertices (modify in place)
-    const verts = vertsHomogeneous.map(v => (v.length === 4) ? Pn.dehomogenize(null, v) : v);
-    const eindData = ils.getEdgeAttribute(GeometryAttribute.INDICES);
-    const eind = fromDataList(eindData);
-    
+    const verts = pts4.map(v => (v.length === 4) ? Pn.dehomogenize(null, v) : v);
     // First go through and find where the switches take place
     const fins = [], infs = [];
-    for (let i = 0; i < eind.length; ++i) {
-      for (let j = 1; j < eind[i].length; ++j) {
-        let pt0 = verts[eind[i][j - 1]], pt1 = verts[eind[i][j]];
+    for (let i = 0; i < verts.length-1; ++i) {
+        let pt0 = verts[i], pt1 = verts[i+1];
         const d = Pn.distanceBetween(pt0, pt1, EUCLIDEAN);
         if (d <= distance || IndexedLineSetUtility.sameSide(pt0, pt1)) {
-          fins.push([eind[i][j - 1], eind[i][j]]);
+          fins.push([i,i+1]);
         } else {
           logger.fine(-1, 'inf d = ', `${d.toFixed(6)}`);
-          infs.push([eind[i][j - 1], eind[i][j]]);
+          infs.push([i, i+1]);
         }
       }
-    }
     
     const ninds = new Array(fins.length+infs.length*2);
     let count = 0;
@@ -554,18 +545,18 @@ export class IndexedLineSetUtility {
       count++;
     }
     for (const item of infs) {
-      let np0 = vertsHomogeneous[item[0]], np1 = vertsHomogeneous[item[1]];
+      let np0 = verts[item[0]], np1 = verts[item[1]];
       let V0 =Rn.dehomogenize(null,Rn.add(null,Rn.times(null, -(1+tolerance),np0),np1)), 
       V1 = Rn.dehomogenize(null,Rn.add(null,np0,Rn.times(null, -(1+tolerance),np1)));
-      vertsHomogeneous.push(V0);
-      vertsHomogeneous.push(V1);
+      verts.push(V0);
+      verts.push(V1);
       logger.finer(-1, 'P0 = ', np0, 'V0 = ', V0, 'V1 = ', V1, 'P1 = ', np1);
-      ninds[count++] = [item[0], vertsHomogeneous.length - 2];
-      ninds[count++] = [vertsHomogeneous.length - 1, item[1]];
+      ninds[count++] = [item[0], verts.length - 2];
+      ninds[count++] = [verts.length - 1, item[1]];
    }
     const ilsf = new IndexedLineSetFactory();
-    ilsf.setVertexCount(vertsHomogeneous.length);
-    ilsf.setVertexCoordinates(vertsHomogeneous);
+    ilsf.setVertexCount(verts.length);
+    ilsf.setVertexCoordinates(verts);
     ilsf.setEdgeCount(ninds.length);
     ilsf.setEdgeIndices(ninds);
     ilsf.update();

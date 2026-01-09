@@ -55,8 +55,7 @@ export class TestJSRApp extends JSRApp {
   getInspectorDescriptors() {
     return [
       {
-        key: 'sphere-level',
-        type: DescriptorType.TEXT_SLIDER,
+         type: DescriptorType.TEXT_SLIDER,
         valueType: 'int',
         label: 'Sphere Level',
         getValue: () => this._sphereLevel,
@@ -69,8 +68,7 @@ export class TestJSRApp extends JSRApp {
         step: 1
       },
       {
-        key: 'saturate',
-        type: DescriptorType.TEXT_SLIDER,
+         type: DescriptorType.TEXT_SLIDER,
         valueType: 'float',
         label: 'Saturate',
         getValue: () => this._saturate,

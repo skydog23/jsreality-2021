@@ -11,15 +11,26 @@ setModuleLevel(logger.getModuleName(), Level.FINE);
 
 export class ConicSection {
    curve = null;
+   conicSGC = null;
+   pointSGC = null;
+   centerPoint = [0,0,1];
+   pointOnConic = [0,0,1];
+   drawRadials = false;
+   numPoints = 500;
+   pointCollector = null;
+   coefficients = null;
+   svdResult = null;
+   rank = 0;
+   singularValues = null;
+   linePair = null;
+   Q = null;
+   dQ = null;
+   dcoefficients = null;
 
     constructor(coefficients = {a:1, h:0, b:1, g:0, f:0, c:-1}) {
         this.coefficients = coefficients;
-        this.numPoints = 500;
-        this.centerPoint = [0,0,1];
-        this.pointOnConic =[0,0,1];
-        this.drawRadials = false;
+        this.updateMatrixFromCoefficients();
         this.pointCollector = new PointCollector(this.numPoints, 4);
-         this.updateMatrixFromCoefficients();
         this.update();
     }
 
@@ -65,7 +76,7 @@ export class ConicSection {
         logger.fine(-1, 'Q = '+this.Q);
         // Compute adjugate and dual parameters (needed for drawing)
         this.dQ = Rn.adjugate(null, this.Q);
-        this.dparams = { 
+        this.dcoefficients = { 
             A: this.dQ[0],
             H: 2*this.dQ[1],
             B: this.dQ[4],
@@ -92,22 +103,14 @@ export class ConicSection {
         const tolerance = 1e-7;
         const rank = singularValues.filter(s => s > tolerance).length;
         
-        this.isDegenerate = rank < 3;
         this.rank = rank;
-        this.isLinePair = rank === 2;
-        this.isDoubleLine = rank === 1;
-        this.singularValues = singularValues;
         
         logger.fine(-1,'SVD analysis:', {
             rank: rank, 
-            singularValues: singularValues,
-            isDegenerate: this.isDegenerate,
-            isLinePair: this.isLinePair,
-            isDoubleLine: this.isDoubleLine
+            singularValues: singularValues.map(s => s.toFixed(7))
         });
         
-        if (this.isLinePair) {
-            // this.linePair = ConicUtils.factorPair(this.coefficients);
+        if (rank === 2) {
             this.linePair = ConicUtils.factorPair(this, this.svdResult);
             logger.fine(-1, 'coefficients = ', this.coefficients);
             logger.fine(-1, 'line pair = ', this.linePair);
@@ -141,10 +144,9 @@ export class ConicSection {
             return;
         }
 
-        const { A,B,C,H,G,F } = this.dparams;
-        logger.fine(-1, 'Conic coefficients:', { A,B,C,H,G,F});
-        
-        // the polar point of the line at infinity is the center point of a conic
+        const { A,B,C,H,G,F } = this.dcoefficients;
+     
+        // the polar point of the line at iisDegeneratenfinity is the center point of a conic
         this.centerPoint = Rn.dehomogenize(null,[G/2,F/2,C]);
         logger.fine(-1, 'conic Q', this.Q.matrix);
         logger.fine(-1, 'Conic center:', this.centerPoint);
@@ -153,7 +155,8 @@ export class ConicSection {
         this.findPointOnConic();
 
         // Now rotate a line around this point and find intersections
-        const pointCollector = new PointCollector(this.numPoints+1, 4); // needs to close up
+        // const pointCollector = new PointCollector(this.numPoints+1, 4); // needs to close up
+        const pts4 = new Array(this.numPoints+1).fill(null).map(() => [0,0,0,0]);
         let firstPoint = null;
         for (let i = 0; i < this.numPoints; i++) {
             const angle = ( Math.PI * i) / this.numPoints;
@@ -168,15 +171,15 @@ export class ConicSection {
                 const t = -b/a;  // Other solution is t=0 
                 const currentPoint = Rn.add(null,this.pointOnConic, Rn.times(null,t,V));
                 logger.finer(-1, 'currentPoint = ', currentPoint);
-                pointCollector.addPoint(Rn.convert3To4(null, currentPoint));
+                pts4[i] = Rn.convert3To4(null, currentPoint);
                 if (i === 0) {
                     firstPoint = currentPoint;
                 }
             }
         }
         // close up the curve by adding the first point again
-        pointCollector.addPoint(Rn.convert3To4(null, firstPoint));
-         this.curve = IndexedLineSetUtility.removeInfinity(pointCollector.getCurve(), 1.0);
+        pts4[this.numPoints] = pts4[0];
+        this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);
     }
 
     getIndexedLineSet() {

@@ -152,6 +152,7 @@ export function normalizeDescriptor(descriptor) {
     throw new Error('normalizeDescriptor requires a descriptor object');
   }
   if (!descriptor.type) {
+    console.error('Descriptor is missing type', descriptor);
     throw new Error(`Descriptor is missing type`);
   }
   

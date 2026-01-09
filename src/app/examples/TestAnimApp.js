@@ -87,18 +87,17 @@ export class TestAnimApp extends JSRApp {
           {
             key: "row-controls",
             type: DescriptorType.CONTAINER,
-            direction: "row",
+            direction: "column",
             justify: "space-between",
             border: true,
             containerLabel: "Row Controls",
             items: [
               {
-                key: "alpha",
-                label: "Alpha",
-                type: DescriptorType.FLOAT,
+                 label: "Alpha",
+                type: DescriptorType.TEXT_SLIDER,
+                valueType: 'float',
                 min: 0,
                 max: 1,
-                step: 0.01,
                 getValue: () => this.#state.alpha,
                 setValue: (v) => {
                   this.#state.alpha = Number(v);
@@ -106,12 +105,11 @@ export class TestAnimApp extends JSRApp {
                 }
               },
               {
-                key: "beta",
                 label: "Beta",
-                type: DescriptorType.INT,
+                type: DescriptorType.TEXT_SLIDER,
+                valueType: 'int',
                 min: 0,
                 max: 10,
-                step: 1,
                 getValue: () => this.#state.beta,
                 setValue: (v) => {
                   this.#state.beta = Number(v) | 0;
@@ -121,8 +119,7 @@ export class TestAnimApp extends JSRApp {
             ]
           },
           {
-            key: "enabled",
-            label: "Enabled",
+             label: "Enabled",
             type: DescriptorType.TOGGLE,
             getValue: () => this.#state.enabled,
             setValue: (v) => {
@@ -131,8 +128,7 @@ export class TestAnimApp extends JSRApp {
             }
           },
           {
-            key: "name",
-            label: "Name",
+             label: "Name",
             type: DescriptorType.TEXT,
             getValue: () => this.#state.name,
             setValue: (v) => {
