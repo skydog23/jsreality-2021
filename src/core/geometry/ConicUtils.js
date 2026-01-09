@@ -25,26 +25,16 @@ function fromDecimal(d) {
 }
 
 export class ConicUtils {
-    constructor() {
-        this.debugEnabled = true;
-        this.debugName = 'ConicUtils';  // Class identifier for debug messages
-        this.debugCategories = {
-            SVD: true,
-            MATRIX: true,
-            EIGENVALUE: true
-        };
-    }
+    
 
-    // Method to control debug output
-    setDebugCategory(category, enabled) {
-        if (category in this.debugCategories) {
-            this.debugCategories[category] = enabled;
-        }
-    }
-
-    // Override toString for debug output
-    toString() {
-        return this.debugName;
+    /*
+     Transform the conic by a projective transformation
+     @param {number[][]} Q - The conic matrix
+     @param {number[][]} transform - The projective transformation matrix
+     @returns {number[][]} The transformed conic matrix
+     */
+     static transform(Q, transform) {
+        return Rn.conjugateByMatrix(null, Q, transform);
     }
 
     // Static methods
@@ -885,7 +875,8 @@ export function createConic(whichMode) {
             [Math.random()*2-1, Math.random()*2-1, 1],
             [Math.random()*2-1, Math.random()*2-1,  1],
             [Math.random()*2-1, Math.random()*2-1, 1],
-            [0,0, 1]
+            [Math.random()*2-1, Math.random()*2-1, 1]
+            // [0,0, 1]
         ];
         logger.fine(-1, 'Using four random points and origin');
         //fivePoints[4] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
@@ -907,7 +898,7 @@ export function updateConicFromPoints(conic, fivePoints, solverMethod='svd') {
         logger.fine(-1, 'Computed coefficients (SVD):', coefficients);
         // Reuse existing instance instead of creating new one
         if (!conic) {
-           conic = new ConicSection('five-points', { coefficients });
+           conic = new ConicSection(coefficients);
         } else {
             conic.setCoefficients(coefficients);
         }

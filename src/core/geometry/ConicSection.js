@@ -17,8 +17,8 @@ export class ConicSection {
    pointOnConic = [0,0,1];
    drawRadials = false;
    numPoints = 500;
-   pointCollector = null;
-   coefficients = null;
+   tolerance = 1e-6;
+   coefficients = {a:1, h:0, b:1, g:0, f:0, c:-1};
    svdResult = null;
    rank = 0;
    singularValues = null;
@@ -42,35 +42,19 @@ export class ConicSection {
 
     // Update a single coefficient and recalculate dependent matrices
     setCoefficient(name, value) {
-        if (!this.coefficients) {
-            this.coefficients = {};
-        }
         this.coefficients[name] = value;
         this.updateMatrixFromCoefficients();
     }
 
     // Private method to update Q matrix and dependent fields from coefficients
     updateMatrixFromCoefficients() {
-        if (!this.coefficients) {
-            this.coefficients = {
-                a: 1,
-                h: 0,
-                b: 1,
-                g: 0,
-                f: 0,
-                c: -1
-            };
-        }
         
         const { a, h, b, g, f, c } = this.coefficients;
-        
-        // Update Q matrix
-        this.Q = [
+         this.Q = [
             a, h/2, g/2,
             h/2, b, f/2,
             g/2, f/2, c
         ];
-        
         const mx = Rn.maxNorm(this.Q);
         this.Q = Rn.times(null, 1/mx, this.Q);
         logger.fine(-1, 'Q = '+this.Q);
@@ -84,9 +68,7 @@ export class ConicSection {
             F: 2*this.dQ[5],
             C: this.dQ[8]
         };
-        
-        // Convert Q matrix to 2D array for SVD
-        const Q2D = [
+          const Q2D = [
             [a, h/2, g/2],
             [h/2, b, f/2],
             [g/2, f/2, c]
@@ -100,8 +82,7 @@ export class ConicSection {
         
         const singularValues = this.svdResult.S;
         
-        const tolerance = 1e-7;
-        const rank = singularValues.filter(s => s > tolerance).length;
+         const rank = singularValues.filter(s => s > this.tolerance).length;
         
         this.rank = rank;
         
@@ -109,7 +90,6 @@ export class ConicSection {
             rank: rank, 
             singularValues: singularValues.map(s => s.toFixed(7))
         });
-        
         if (rank === 2) {
             this.linePair = ConicUtils.factorPair(this, this.svdResult);
             logger.fine(-1, 'coefficients = ', this.coefficients);
@@ -117,33 +97,9 @@ export class ConicSection {
             //     this.decomposeLinePairFromSVD(svd);
         }
     }
-    
-    // Transform the conic by a projective transformation
-    transform(transform) {
-       
-       const result1D = Rn.conjugateByMatrix(null, this.Q, transform);
-
-        // Extract the new coefficients
-        const newCoefficients = {
-            a: result1D[0],
-            h: 2 * result1D[1],
-            b: result1D[4],
-            g: 2 * result1D[2],
-            f: 2 * result1D[5],
-            c: result1D[8]
-        };
-
-        return new ConicSection('coefficients', { coefficients: newCoefficients });
-    }
-
   
     // Get points for general conic in projective space
     update() {
-         if (!this.coefficients) {
-            logger.error(-1, 'No coefficients available');
-            return;
-        }
-
         const { A,B,C,H,G,F } = this.dcoefficients;
      
         // the polar point of the line at iisDegeneratenfinity is the center point of a conic
