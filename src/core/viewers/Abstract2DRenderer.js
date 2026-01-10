@@ -879,12 +879,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     }
     
     // IndexedFaceSet renders all three primitive types based on draw flags:
-    // 1. Vertices as points (if VERTEX_DRAW)
-    // 2. Faces as filled polygons (if FACE_DRAW) - render first so edges appear on top
-    // 3. Edges as lines (if EDGE_DRAW) - render last so they're visible over faces
-    this._renderVerticesAsPoints(geometryToRender);
+    // 1. Faces as filled polygons (if FACE_DRAW) - render first so edges/points can appear on top
+    // 2. Edges as lines (if EDGE_DRAW) - render after faces so they're visible over faces
+    // 3. Vertices as points (if VERTEX_DRAW) - render last (in WebGL, point-spheres can write depth)
     this._renderFaces(geometryToRender);
     this._renderEdgesAsLines(geometryToRender);
+    this._renderVerticesAsPoints(geometryToRender);
   }
 
   /**

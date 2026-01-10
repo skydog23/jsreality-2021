@@ -137,6 +137,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {null|{ bufferDataArray: number, bufferDataElement: number, drawElements: number, drawArrays: number }} */
   #debugGL = null;
+  /** @type {boolean} */
+  #debugDidLogPolygonDiffuseThisFrame = false;
 
   /** @type {number[]} Batched vertices for lines (to combine multiple edges into single draw call) */
   #batchedVertices = [];
@@ -882,6 +884,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     } else {
       this.#debugGL = null;
     }
+    this.#debugDidLogPolygonDiffuseThisFrame = false;
     
     // Set viewport first (before clearing)
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -1005,6 +1008,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const vertexNormalsShape = vertexNormalsDL?.shape;
     const vertexNormalFiber = Array.isArray(vertexNormalsShape) && vertexNormalsShape.length >= 2 ? vertexNormalsShape[vertexNormalsShape.length - 1] : 0;
 
+    // Important: begin the polygon primitive group *before* capturing defaultColor.
+    // Otherwise, the fallback defaultColor can accidentally come from the previous primitive
+    // group (e.g., green point color), which makes faces render with the wrong color when
+    // face colors are missing.
+    this._beginPrimitiveGroup(CommonAttributes.POLYGON);
+
     // Helper to read face color i -> normalized RGBA
     const defaultColor = this.#currentColor; // already normalized 0..1
     const getFaceColor = (i) => {
@@ -1026,7 +1035,6 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const supportsUint32 = Boolean(this.#capabilities?.supportsUint32Indices);
     const MAX_UINT16_VERTS = 65535;
 
-    this._beginPrimitiveGroup(CommonAttributes.POLYGON);
     let f0 = 0;
     while (f0 < faceRows.length) {
       // Determine batch end (first pass: count verts/tris)
@@ -1143,13 +1151,36 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const gl = this.#gl;
     
     // Get color from appearance
+    // Use CommonAttributes defaults so EffectiveAppearance always yields a consistent value
+    // even if no Appearance explicitly sets the attribute.
+    const defaultDiffuseColor =
+      type === CommonAttributes.POINT ? CommonAttributes.POINT_DIFFUSE_COLOR_DEFAULT :
+      type === CommonAttributes.LINE ? CommonAttributes.LINE_DIFFUSE_COLOR_DEFAULT :
+      CommonAttributes.DIFFUSE_COLOR_DEFAULT;
     const color = this.getAppearanceAttribute(
       type === CommonAttributes.POINT ? CommonAttributes.POINT_SHADER :
       type === CommonAttributes.LINE ? CommonAttributes.LINE_SHADER :
       CommonAttributes.POLYGON_SHADER,
       CommonAttributes.DIFFUSE_COLOR,
-      [1.0, 1.0, 1.0, 1.0]
+      defaultDiffuseColor
     );
+
+    // Debug: report resolved polygon diffuseColor (helps diagnose unexpected fallback colors).
+    // We only log when debugPerf is enabled (and at most once per frame).
+    try {
+      const dbg = this._getViewer?.()?.getDebugPerfOptions?.();
+      if (dbg?.enabled && typeof dbg.logFn === 'function' && type === CommonAttributes.POLYGON && !this.#debugDidLogPolygonDiffuseThisFrame) {
+        this.#debugDidLogPolygonDiffuseThisFrame = true;
+        dbg.logFn('[WebGL2 debug] polygonShader.diffuseColor resolved', {
+          raw: color,
+          webgl: this.#toWebGLColor(color),
+          key: `${CommonAttributes.POLYGON_SHADER}.${CommonAttributes.DIFFUSE_COLOR}`,
+          fallback: defaultDiffuseColor
+        });
+      }
+    } catch {
+      // ignore logging failures
+    }
     
     // Convert color to WebGL format [0-1]
     this.#currentColor = this.#toWebGLColor(color);
@@ -1232,8 +1263,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const normalMatLoc = gl.getUniformLocation(program, 'u_normalMatrix');
     const lightingLoc = gl.getUniformLocation(program, 'u_lightingEnabled');
     const flipNormalsLoc = gl.getUniformLocation(program, 'u_flipNormals');
-    const ambientLoc = gl.getUniformLocation(program, 'u_ambient');
-    const diffuseLoc = gl.getUniformLocation(program, 'u_diffuse');
+    const ambientCoeffLoc = gl.getUniformLocation(program, 'u_ambientCoefficient');
+    const diffuseCoeffLoc = gl.getUniformLocation(program, 'u_diffuseCoefficient');
+    const ambientColorLoc = gl.getUniformLocation(program, 'u_ambientColor');
 
     // Compute modelView = world2cam * object2world only when lighting is enabled.
     // Matrices are row-major arrays; we upload with transpose=true.
@@ -1254,6 +1286,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         ];
         const inv3 = Rn.inverse(null, m3);
         const n3 = Rn.transpose(null, inv3);
+        logger.fine(Category.ALL, 'n3:', n3);
         gl.uniformMatrix3fv(normalMatLoc, true, new Float32Array(n3));
       }
     }
@@ -1264,11 +1297,34 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (flipNormalsLoc !== null) {
       gl.uniform1f(flipNormalsLoc, flipNormals ? 1.0 : 0.0);
     }
-    if (ambientLoc !== null) {
-      gl.uniform1f(ambientLoc, 0.2);
+    // Polygon shader lighting parameters (jReality-style): Cs = Ka*ambientColor + Kd*(N·L)*diffuseColor.
+    // Here diffuseColor is already provided via v_color (from face/vertex colors or polygonShader.diffuseColor),
+    // so we only upload Ka, Kd and ambientColor.
+    const ambientCoeff = Number(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.AMBIENT_COEFFICIENT,
+      CommonAttributes.AMBIENT_COEFFICIENT_DEFAULT
+    ));
+    const diffuseCoeff = Number(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.DIFFUSE_COEFFICIENT,
+      CommonAttributes.DIFFUSE_COEFFICIENT_DEFAULT
+    ));
+    const ambientColorValue = this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.AMBIENT_COLOR,
+      CommonAttributes.AMBIENT_COLOR_DEFAULT
+    );
+    const ambientRGBA = this.#toWebGLColor(ambientColorValue);
+
+    if (ambientCoeffLoc !== null) {
+      gl.uniform1f(ambientCoeffLoc, ambientCoeff);
     }
-    if (diffuseLoc !== null) {
-      gl.uniform1f(diffuseLoc, 0.8);
+    if (diffuseCoeffLoc !== null) {
+      gl.uniform1f(diffuseCoeffLoc, diffuseCoeff);
+    }
+    if (ambientColorLoc !== null) {
+      gl.uniform3f(ambientColorLoc, ambientRGBA[0], ambientRGBA[1], ambientRGBA[2]);
     }
     
     // Set point size uniform
@@ -1769,8 +1825,15 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     gl.useProgram(program);
     
     // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
-    // Lighting is enabled only when normals are provided and we're drawing triangles.
-    const lightingEnabled = Boolean(normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES);
+    // Lighting is controlled by DefaultRenderingHintsShader.lightingEnabled, but we also require
+    // normals and TRIANGLES mode.
+    const lightingHint = this.getBooleanAttribute?.(
+      CommonAttributes.LIGHTING_ENABLED,
+      CommonAttributes.LIGHTING_ENABLED_DEFAULT
+    );
+    const lightingEnabled = Boolean(
+      lightingHint && normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES
+    );
     const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
     this.#updateUniforms(lineHalfWidth, 1.0, lightingEnabled, flipNormals);
 

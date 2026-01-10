@@ -8,13 +8,8 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// Import the required modules
-require('../P3.js');
-require('../Rn.js');
-
-// Use globalThis for accessing the modules
-const P3 = globalThis.P3;
-const { matrixTimesVector, subtract, normalize, crossProduct } = globalThis.Rn;
+import * as P3 from '../P3.js';
+import * as Rn from '../Rn.js';
 
 describe('Line coordinates', () => {
     test('lineFromPoints creates Plücker coordinates', () => {
@@ -54,7 +49,7 @@ describe('Perspective transformations', () => {
         
         // Test a point at (0,0,-near)
         const point = [0, 0, -near, 1];
-        const transformed = matrixTimesVector(null, proj, point);
+        const transformed = Rn.matrixTimesVector(null, proj, point);
         // Point should project to (0,0,-1) in clip space
         expect(transformed[2]/transformed[3]).toBeCloseTo(-1);
     });
@@ -68,7 +63,7 @@ describe('Perspective transformations', () => {
         
         // Test point at center should map to (0,0,-5)
         const point = [0, 0, 0, 1];
-        const transformed = matrixTimesVector(null, view, point);
+        const transformed = Rn.matrixTimesVector(null, view, point);
         expect(transformed[2]).toBeCloseTo(-5);
     });
 });
@@ -82,7 +77,7 @@ describe('Rotation', () => {
         
         // Test rotating point on x-axis
         const point = [1, 0, 0, 1];
-        const transformed = matrixTimesVector(null, rot, point);
+        const transformed = Rn.matrixTimesVector(null, rot, point);
         // Should rotate to y-axis
         expect(transformed[0]).toBeCloseTo(0);
         expect(transformed[1]).toBeCloseTo(1);

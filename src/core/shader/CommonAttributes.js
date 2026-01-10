@@ -89,6 +89,9 @@ export const SEPARATE_SPECULAR_COLOR = "separateSpecularColor";
 export const COMPONENT_DISPLAY_LISTS = "componentDisplayLists";
 export const USE_GLSL = "useGLSL";
 
+// Backwards-compatible aliases (older code may use these names)
+export const FLIP_NORMALS = FLIP_NORMALS_ENABLED;
+
 // Default geometry shader
 export const FACE_DRAW = "showFaces";
 export const FACE_DRAW_DEFAULT = true;

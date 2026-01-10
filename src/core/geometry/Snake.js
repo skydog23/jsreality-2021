@@ -62,8 +62,8 @@ export class Snake  {
 
     this.ifsf.setVertexCount(p.length);
     this.ifsf.setEdgeCount(1);
-    this.indices = new Array(1).fill(0).map(() => new Array(length))
-     this.points = p;
+    this.indices = new Array(1).fill(0).map(() => new Array(p.length));
+    this.points = p;
 
     this.info = new Array(3);
     this.info[0] = 0;

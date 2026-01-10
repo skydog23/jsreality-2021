@@ -202,8 +202,9 @@ export function createMainProgram(gl) {
       varying float v_lit;
 
       uniform float u_lineHalfWidth;
-      uniform float u_ambient;
-      uniform float u_diffuse;
+      uniform float u_ambientCoefficient;
+      uniform float u_diffuseCoefficient;
+      uniform vec3 u_ambientColor;
 
       void main() {
         float dist = abs(v_distance);
@@ -213,8 +214,9 @@ export function createMainProgram(gl) {
           float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
           alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
         }
-        float lit = u_ambient + u_diffuse * v_lit;
-        gl_FragColor = vec4(v_color.rgb * lit, v_color.a * alpha);
+        vec3 ambient = u_ambientCoefficient * u_ambientColor;
+        vec3 diffuse = u_diffuseCoefficient * v_lit * v_color.rgb;
+        gl_FragColor = vec4(ambient + diffuse, v_color.a * alpha);
       }
     `;
 

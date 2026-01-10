@@ -38,7 +38,10 @@ export class TestJSRApp extends JSRApp {
   
 
     const ap = this._world.getAppearance();
+    ap.setAttribute(CommonAttributes.LINE_LIGHTING_ENABLED, true);
+    ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
+    ap.setAttribute("polygonShader." + CommonAttributes.DIFFUSE_COLOR, new Color(128,0,255));
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,128,255));
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
@@ -91,7 +94,7 @@ export class TestJSRApp extends JSRApp {
 
   updateSphere() {
     this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
-    this.updateSaturate();
+    // this.updateSaturate();
     this._world.setGeometry(this._ifs);
     //MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
 
@@ -145,7 +148,7 @@ export class TestJSRApp extends JSRApp {
       : [viewerSwitch];
     for (const v of viewers) {
       if (v && typeof v.setDebugPerf === 'function') {
-        v.setDebugPerf({ enabled: true, everyNFrames: 30 });
+        v.setDebugPerf({ enabled: true, everyNFrames: 1 });
       }
     }
 
