@@ -200,7 +200,7 @@ export class DeviceMouse extends AbstractDeviceMouse {
       this.setCenter(false);
       const queue = this.getQueue();
       if (queue !== null) {
-        const lookSwitch = InputSlot.getDevice('LookSwitch');
+        const lookSwitch = InputSlot.LOOK_SWITCH;
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.PRESSED));
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.ORIGIN));
       }
@@ -220,7 +220,7 @@ export class DeviceMouse extends AbstractDeviceMouse {
       this.setCenter(!this.isCenter());
       const queue = this.getQueue();
       if (queue !== null) {
-        const lookSwitch = InputSlot.getDevice('LookSwitch');
+        const lookSwitch = InputSlot.LOOK_SWITCH;
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.PRESSED));
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.ORIGIN));
       }

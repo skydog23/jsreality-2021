@@ -1,0 +1,10 @@
+{
+  "virtualMappings": [
+    {
+      "sourceSlot": "PrimarySelection",
+      "targetSlot": "PrimaryMenu"
+    }
+  ]
+}
+
+

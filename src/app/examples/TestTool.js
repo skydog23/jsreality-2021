@@ -54,14 +54,11 @@ export class TestTool extends AbstractTool {
    * @param {ToolContext} tc - The tool context
    */
   perform(tc) {
-    logger.finer(Category.ALL, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
+    // logger.finer(Category.ALL, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
     // Get mouse position from POINTER_TRANSFORMATION slot
     const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
     
     if (pointerTrafo !== null) {
-      // Extract NDC coordinates from transformation matrix
-      // Matrix is column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
-      // Position is in entries (0,3) = index 3 and (1,3) = index 7
       const xndc = pointerTrafo[3];  // Entry (0,3) - X coordinate in NDC space [-1, 1]
       const yndc = pointerTrafo[7];  // Entry (1,3) - Y coordinate in NDC space [-1, 1]
       this._mousePosition[0] = xndc;

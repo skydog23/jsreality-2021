@@ -13,7 +13,7 @@ import { ToolEventQueue, ToolEventReceiver } from './ToolEventQueue.js';
 import { ToolManager } from './ToolManager.js';
 import { SlotManager } from './SlotManager.js';
 import { DeviceManager } from './DeviceManager.js';
-import { ToolSystemConfiguration, RawDeviceConfig, RawMapping, VirtualMapping } from './ToolSystemConfiguration.js';
+import { ToolSystemConfiguration, RawDeviceConfig, RawMapping, VirtualMapping, VirtualDeviceConfig } from './ToolSystemConfiguration.js';
 import { InputSlot } from './InputSlot.js';
 import { AxisState } from './AxisState.js';
 import { SceneGraphPath } from '../SceneGraphPath.js';
@@ -438,26 +438,51 @@ export class ToolSystem extends ToolEventReceiver {
         new RawMapping('Mouse', 'right', InputSlot.RIGHT_BUTTON),
       // Raw mouse axes provide pointer position in NDC; mapped to PointerNDC.
       // A virtual device then converts (NDCToWorld, PointerNDC) -> POINTER_TRANSFORMATION.
-      new RawMapping('Mouse', 'axes', InputSlot.getDevice('PointerNDC')),
-        new RawMapping('Mouse', 'axesEvolution', InputSlot.getDevice('PointerEvolution')),
-        new RawMapping('Mouse', 'wheel_up', InputSlot.getDevice('WheelUp')),
-        new RawMapping('Mouse', 'wheel_down', InputSlot.getDevice('WheelDown')),
+      new RawMapping('Mouse', 'axes', InputSlot.POINTER_NDC),
+        new RawMapping('Mouse', 'axesEvolution', InputSlot.POINTER_EVOLUTION),
+        new RawMapping('Mouse', 'wheel_up', InputSlot.WHEEL_UP),
+        new RawMapping('Mouse', 'wheel_down', InputSlot.WHEEL_DOWN),
         // Keyboard mappings (common keys)
-        new RawMapping('Keyboard', 'VK_W', InputSlot.getDevice('VK_W')),
-        new RawMapping('Keyboard', 'VK_A', InputSlot.getDevice('VK_A')),
-        new RawMapping('Keyboard', 'VK_S', InputSlot.getDevice('VK_S')),
-        new RawMapping('Keyboard', 'VK_D', InputSlot.getDevice('VK_D')),
+        new RawMapping('Keyboard', 'VK_W', InputSlot.VK_W),
+        new RawMapping('Keyboard', 'VK_A', InputSlot.VK_A),
+        new RawMapping('Keyboard', 'VK_S', InputSlot.VK_S),
+        new RawMapping('Keyboard', 'VK_D', InputSlot.VK_D),
         new RawMapping('Keyboard', 'VK_SHIFT', InputSlot.SHIFT_LEFT_BUTTON),
-        new RawMapping('Keyboard', 'VK_CONTROL', InputSlot.getDevice('VK_CONTROL')),
-        new RawMapping('Keyboard', 'VK_ALT', InputSlot.getDevice('VK_ALT')),
+        new RawMapping('Keyboard', 'VK_CONTROL', InputSlot.VK_CONTROL),
+        new RawMapping('Keyboard', 'VK_ALT', InputSlot.VK_ALT),
         // System timer mapping
         new RawMapping('Timer', 'tick', InputSlot.SYSTEM_TIME)
       ],
       virtualMappings: [
         // Map pointer transformation to pointer hit
-        new VirtualMapping(InputSlot.POINTER_TRANSFORMATION, InputSlot.getDevice('PointerHit')),
+        new VirtualMapping(InputSlot.POINTER_TRANSFORMATION, InputSlot.POINTER_HIT),
         // Map primary action to pointer hit
-        new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.getDevice('PointerHit'))
+        new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.POINTER_HIT),
+        // jReality-style activation naming
+        new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.ROTATE_ACTIVATION)
+      ],
+      virtualConfigs: [
+        // jReality: VirtualRotation(PointerNDC, CameraToWorld) -> TrackballTransformation
+        new VirtualDeviceConfig(
+          'VirtualRotation',
+          InputSlot.TRACKBALL_TRANSFORMATION,
+          [InputSlot.POINTER_NDC, InputSlot.CAMERA_TO_WORLD],
+          { gain: 1.57 }
+        ),
+        // jReality: VirtualExtractTranslationTrafo(PointerTransformation) -> PointerTranslation
+        new VirtualDeviceConfig(
+          'VirtualExtractTranslationTrafo',
+          InputSlot.POINTER_TRANSLATION,
+          [InputSlot.POINTER_TRANSFORMATION],
+          {}
+        ),
+        // jReality: VirtualEvolutionOperator(PointerTranslation) -> DeltaTranslation
+        new VirtualDeviceConfig(
+          'VirtualEvolutionOperator',
+          InputSlot.DELTA_TRANSLATION,
+          [InputSlot.POINTER_TRANSLATION],
+          {}
+        )
       ]
     });
   }
@@ -1158,7 +1183,7 @@ export class ToolSystem extends ToolEventReceiver {
     const activePaths = this.#getActivePathsForTool(tool);
     for (const activePath of activePaths) {
       if (activePath.isEqual(path)) {
-        const te = ToolEvent.createFull(this, -1, InputSlot.getDevice("remove"), null, null);
+        const te = ToolEvent.createFull(this, -1, InputSlot.REMOVE, null, null);
         this.#toolContext.setCurrentTool(tool);
         this.#toolContext.setRootToLocal(path);
         this.#toolContext.setEvent(te);

@@ -18,7 +18,8 @@ import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
-
+import { RotateTool } from '../../core/tools/RotateTool.js';
+import { TranslateTool } from '../../core/tools/TranslateTool.js';
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.
@@ -26,7 +27,7 @@ import * as CameraUtility from '../../core/util/CameraUtility.js';
  * @abstract
  */
 export class TestJSRApp extends JSRApp {
-  _sphereLevel = 3;
+  _sphereLevel = 1;
   _saturate = 1.0;
   _ifs = null;
   _origFaceColors = null;
@@ -44,7 +45,12 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
-
+    const rotTool = new RotateTool();
+    rotTool.setName("rotateTool");
+    this._world.addTool(rotTool);
+    const transTool = new TranslateTool();
+    transTool.setName("translateTool");
+    this._world.addTool(transTool);
     return this._world;
   }
 

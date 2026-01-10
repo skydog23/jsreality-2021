@@ -36,7 +36,7 @@ export class ToolUtility {
    * @returns {Matrix|number[]} Avatar-space matrix or vector
    */
   static worldToAvatar(tc, world) {
-    const avatarTrafo = tc.getTransformationMatrix(InputSlot.getDevice('AvatarTransformation'));
+    const avatarTrafo = tc.getTransformationMatrix(InputSlot.AVATAR_TRANSFORMATION);
     if (!avatarTrafo) {
       throw new Error('AvatarTransformation matrix not available in ToolContext');
     }
@@ -67,7 +67,7 @@ export class ToolUtility {
    * @returns {Matrix|number[]} World-space matrix or vector
    */
   static avatarToWorld(tc, local) {
-    const avatarTrafo = tc.getTransformationMatrix(InputSlot.getDevice('AvatarTransformation'));
+    const avatarTrafo = tc.getTransformationMatrix(InputSlot.AVATAR_TRANSFORMATION);
     if (!avatarTrafo) {
       throw new Error('AvatarTransformation matrix not available in ToolContext');
     }

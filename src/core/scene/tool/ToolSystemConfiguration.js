@@ -499,6 +499,32 @@ export class ToolSystemConfiguration {
   }
 
   /**
+   * Load configuration from a URL returning JSON.
+   * Intended for browser usage where the tool system mapping should be configurable
+   * via a file that is fetched on every app start.
+   *
+   * Usage:
+   *   const cfg = await ToolSystemConfiguration.loadFromURL('/toolsystem.config.json');
+   *
+   * @param {string} url
+   * @param {Object} [options]
+   * @param {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} [options.fetchImpl]
+   * @returns {Promise<ToolSystemConfiguration>}
+   */
+  static async loadFromURL(url, options = {}) {
+    const fetchImpl = options.fetchImpl || globalThis.fetch;
+    if (typeof fetchImpl !== 'function') {
+      throw new Error('ToolSystemConfiguration.loadFromURL requires fetch() (browser environment)');
+    }
+    const res = await fetchImpl(url, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`Failed to load ToolSystemConfiguration from ${url} (${res.status} ${res.statusText})`);
+    }
+    const json = await res.json();
+    return ToolSystemConfiguration.loadFromJSON(json);
+  }
+
+  /**
    * Convert configuration to JSON object.
    * @returns {Object} JSON representation
    */

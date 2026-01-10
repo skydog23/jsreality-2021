@@ -30,6 +30,116 @@ export const zaxis = [0, 0, -1];
 export const hzaxis = [0, 0, 1, 1];
 
 /**
+ * Extract a matrix from `src` such that it fixes the input position `point`.
+ * Port of `de.jreality.math.P3.extractOrientationMatrix`.
+ *
+ * In practice this removes the translation component with respect to `point`
+ * by conjugating with the translation taking `point` to its image.
+ *
+ * @param {Matrix|null} dst
+ * @param {Matrix} src
+ * @param {Vec} point
+ * @param {number} metric
+ * @returns {Matrix}
+ */
+export function extractOrientationMatrix(dst, src, point, metric) {
+  if (!dst) dst = new Array(16);
+  const image = Rn.matrixTimesVector(null, src, point);
+  const translate = makeTranslationMatrix(null, image, metric);
+  const invTranslate = Rn.inverse(null, translate);
+  Rn.timesMatrix(dst, invTranslate, src);
+  return dst;
+}
+
+/**
+ * Port of `de.jreality.math.P3.getTransformedAbsolute`.
+ * Computes \(Q - m^T Q m\) for the metric's quadratic form Q.
+ *
+ * @param {Matrix} m
+ * @param {number} metric
+ * @returns {Matrix}
+ */
+export function getTransformedAbsolute(m, metric) {
+  const Q = Q_LIST[metric + 1];
+  const Qtm = Rn.timesMatrix(null, Q, m);
+  const mt = Rn.transpose(null, m);
+  const mtQm = Rn.timesMatrix(null, mt, Qtm);
+  return Rn.subtract(null, Q, mtQm);
+}
+
+/**
+ * Attempt to convert a matrix into an isometry with respect to `metric`.
+ * Port of `de.jreality.math.P3.orthonormalizeMatrix`.
+ *
+ * @param {Matrix|null} dst
+ * @param {Matrix} m
+ * @param {number} tolerance
+ * @param {number} metric
+ * @returns {Matrix}
+ */
+export function orthonormalizeMatrix(dst, m, tolerance, metric) {
+  if (!dst) dst = new Array(16);
+
+  if (metric === Pn.EUCLIDEAN) {
+    // Java version punts for Euclidean: normalize first three columns (ideal points).
+    for (let i = 0; i < 3; ++i) {
+      const v = [m[i], m[i + 4], m[i + 8]];
+      Rn.normalize(v, v);
+      m[i] = v[0];
+      m[i + 4] = v[1];
+      m[i + 8] = v[2];
+      m[i + 12] = 0;
+    }
+    if (dst === m) return dst;
+    for (let i = 0; i < 16; ++i) dst[i] = m[i];
+    return dst;
+  }
+
+  const lastentry = m[15];
+  let diagnosis = getTransformedAbsolute(m, metric);
+
+  /** @type {number[][]} */
+  const basis = Array.from({ length: 4 }, () => new Array(4).fill(0));
+  const Q = Q_LIST[metric + 1];
+
+  // Columns of m are basis vectors (images of canonical basis under the isometry).
+  for (let i = 0; i < 4; ++i) {
+    for (let j = 0; j < 4; ++j) {
+      basis[i][j] = m[j * 4 + i];
+    }
+  }
+
+  // First orthogonalize.
+  for (let i = 0; i < 3; ++i) {
+    for (let j = i + 1; j < 4; ++j) {
+      if (Q[5 * j] === 0.0) continue;
+      if (Math.abs(diagnosis[4 * i + j]) > tolerance) {
+        Pn.projectOntoComplement(basis[j], basis[i], basis[j], metric);
+      }
+    }
+  }
+
+  // Then normalize.
+  for (let i = 0; i < 4; ++i) {
+    if (Q[5 * i] !== 0.0) {
+      Pn.normalizePlane(basis[i], basis[i], metric);
+    }
+    for (let j = 0; j < 4; ++j) {
+      dst[j * 4 + i] = basis[i][j];
+    }
+  }
+
+  // Match Java: if sign flipped in last entry, flip the whole matrix.
+  diagnosis = Rn.subtract(
+    null,
+    Q,
+    Rn.timesMatrix(null, Rn.transpose(null, dst), Rn.timesMatrix(null, Q_LIST[metric + 1], dst))
+  );
+  if (dst[15] * lastentry < 0) Rn.times(dst, -1, dst);
+  return dst;
+}
+
+/**
  * Calculate a translation matrix which carries the origin (0,0,0,1) to 
  * the point to.
  * @param {number[]} mat - Destination array for matrix

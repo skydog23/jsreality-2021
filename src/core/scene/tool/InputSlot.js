@@ -108,8 +108,53 @@ export class InputSlot {
   /** Pointer transformation slot (4x4 matrix) */
   static POINTER_TRANSFORMATION = InputSlot.getDevice("PointerTransformation");
   
+  /** Pointer position in NDC (4x4 matrix whose translation encodes x/y in NDC) */
+  static POINTER_NDC = InputSlot.getDevice("PointerNDC");
+
+  /** Pointer delta/evolution in NDC (4x4 matrix whose translation encodes dx/dy in NDC) */
+  static POINTER_EVOLUTION = InputSlot.getDevice("PointerEvolution");
+
   /** System time slot */
   static SYSTEM_TIME = InputSlot.getDevice("SystemTime");
+
+  /** Mouse wheel up "clicks" */
+  static WHEEL_UP = InputSlot.getDevice("WheelUp");
+
+  /** Mouse wheel down "clicks" */
+  static WHEEL_DOWN = InputSlot.getDevice("WheelDown");
+
+  /** Toggle look/grab mode (used by mouse device) */
+  static LOOK_SWITCH = InputSlot.getDevice("LookSwitch");
+
+  /** Internal slot used by ToolSystem to force a deactivation on tool removal */
+  static REMOVE = InputSlot.getDevice("remove");
+
+  /** Implicit/derived slots used by DeviceManager */
+  static AVATAR_TRANSFORMATION = InputSlot.getDevice("AvatarTransformation");
+  static WORLD_TO_CAMERA = InputSlot.getDevice("WorldToCamera");
+  static CAMERA_TO_WORLD = InputSlot.getDevice("CameraToWorld");
+  static CAMERA_TO_NDC = InputSlot.getDevice("CameraToNDC");
+  static NDC_TO_WORLD = InputSlot.getDevice("NDCToWorld");
+
+  /** Virtual tool-activation slots (jReality-compatible naming) */
+  static ROTATE_ACTIVATION = InputSlot.getDevice("RotateActivation");
+
+  /** Virtual transformation slots (jReality-compatible naming) */
+  static TRACKBALL_TRANSFORMATION = InputSlot.getDevice("TrackballTransformation");
+
+  /** Virtual translation-only pointer transform (jReality-compatible naming) */
+  static POINTER_TRANSLATION = InputSlot.getDevice("PointerTranslation");
+
+  /** Delta translation transform between successive PointerTranslation events */
+  static DELTA_TRANSLATION = InputSlot.getDevice("DeltaTranslation");
+
+  /** Common keyboard slots (mapped by default configuration) */
+  static VK_W = InputSlot.getDevice("VK_W");
+  static VK_A = InputSlot.getDevice("VK_A");
+  static VK_S = InputSlot.getDevice("VK_S");
+  static VK_D = InputSlot.getDevice("VK_D");
+  static VK_CONTROL = InputSlot.getDevice("VK_CONTROL");
+  static VK_ALT = InputSlot.getDevice("VK_ALT");
   
   // Built-in button slots: only first three are guaranteed to exist
   /** Left button (PrimaryAction) */

@@ -202,7 +202,7 @@ export class EffectiveAppearance {
     let ea = eap;
     
     // Walk backwards through the path
-    const pathArray = path.toArray();
+    const pathArray = path.toList();
     for (let i = pathArray.length - 1; i >= 0; i--) {
       const node = pathArray[i];
       if (node instanceof SceneGraphComponent) {

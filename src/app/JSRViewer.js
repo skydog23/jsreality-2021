@@ -55,6 +55,24 @@ const logger = getLogger('jsreality.app.JSRViewer');
  */
 export class JSRViewer {
 
+  /**
+   * Async factory that optionally loads a ToolSystemConfiguration from a URL.
+   * This is a convenient way to have a configuration file evaluated every time
+   * the app is run (browser fetch).
+   *
+   * @param {Object} options - Same options as the constructor
+   * @param {string|null} [options.toolSystemConfigUrl] - Optional URL to JSON config
+   * @returns {Promise<JSRViewer>}
+   */
+  static async create(options) {
+    const { toolSystemConfigUrl = null, ...rest } = options || {};
+    if (toolSystemConfigUrl) {
+      const cfg = await ToolSystemConfiguration.loadFromURL(toolSystemConfigUrl);
+      return new JSRViewer({ ...rest, toolSystemConfig: cfg });
+    }
+    return new JSRViewer(options);
+  }
+
   // Core systems
   /** @type {ViewerSwitch|null} */
   #viewerSwitch = null;
