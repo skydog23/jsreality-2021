@@ -18,6 +18,7 @@ import {
   compileShader as compileShaderUtil,
   queryWebGLCapabilities,
   createMainProgram,
+  createUnifiedLitProgram,
   createInstancedPointProgram,
   createInstancedSphereProgram,
   createInstancedTubeProgram
@@ -50,6 +51,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {WebGLProgram|null} */
   #program = null;
+
+  /** @type {WebGLProgram|null} WebGL2-only unified lit program (polygons + instanced spheres/tubes) */
+  #unifiedProgram = null;
 
   /** @type {WebGLProgram|null} Program for instanced point-quads (WebGL2) */
   #pointProgram = null;
@@ -204,6 +208,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (!this.#program) {
       throw new Error('Failed to create WebGL shader program');
     }
+
+    // WebGL2-only: unified lit program for polygons + instanced spheres/tubes.
+    // We keep #program as a WebGL1-compatible fallback.
+    this.#unifiedProgram = this.#createUnifiedLitProgram();
     
     // Create buffers
     this.#vertexBuffer = gl.createBuffer();
@@ -308,6 +316,23 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   }
 
   /**
+   * WebGL2-only: unified program that supports polygons + instanced spheres/tubes with consistent lighting.
+   * @private
+   * @returns {WebGLProgram|null}
+   */
+  #createUnifiedLitProgram() {
+    return createUnifiedLitProgram(this.#gl);
+  }
+
+  /**
+   * @private
+   * @returns {WebGLProgram|null}
+   */
+  #getMainProgramForDraw() {
+    return this.#unifiedProgram || this.#program;
+  }
+
+  /**
    * WebGL2-only: program for instanced point quads.
    * @private
    * @returns {WebGLProgram|null}
@@ -400,9 +425,129 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
       const gl = this.#gl;
       const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+      const canUnifiedLitTubes = Boolean(isWebGL2 && this.#unifiedProgram && this.#tubeVertexBuffer && this.#tubeIndexBuffer && this.#tubeP0Buffer && this.#tubeP1Buffer && this.#tubeColorInstBuffer && this.#tubeIndexCount > 0);
       const canInstanceTubes = Boolean(isWebGL2 && this.#tubeProgram && this.#tubeVertexBuffer && this.#tubeIndexBuffer && this.#tubeP0Buffer && this.#tubeP1Buffer && this.#tubeColorInstBuffer && this.#tubeIndexCount > 0);
 
-      if (canInstanceTubes) {
+      if (canUnifiedLitTubes) {
+        // Instanced true-3D tube segments using the unified lit shader: one instance per polyline segment.
+        // Build instance arrays of p0/p1/color for all segments and draw once.
+        let segCount = 0;
+        for (let i = 0; i < indices.length; i++) {
+          const poly = indices[i];
+          if (poly && poly.length >= 2) segCount += (poly.length - 1);
+        }
+        if (segCount > 0) {
+          const p0s = new Float32Array(segCount * 3);
+          const p1s = new Float32Array(segCount * 3);
+          const cols = new Float32Array(segCount * 4);
+
+          let s = 0;
+          for (let i = 0; i < indices.length; i++) {
+            const poly = indices[i];
+            if (!poly || poly.length < 2) continue;
+            const c = edgeColors ? edgeColors[i] : null;
+            const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+            for (let j = 0; j < poly.length - 1; j++) {
+              const idx0 = poly[j];
+              const idx1 = poly[j + 1];
+              const v0 = vertices[idx0];
+              const v1 = vertices[idx1];
+              const p0 = this._extractPoint(v0);
+              const p1 = this._extractPoint(v1);
+              const o0 = s * 3;
+              const oc = s * 4;
+              p0s[o0 + 0] = Number(p0[0] ?? 0) || 0;
+              p0s[o0 + 1] = Number(p0[1] ?? 0) || 0;
+              p0s[o0 + 2] = Number(p0[2] ?? 0) || 0;
+              p1s[o0 + 0] = Number(p1[0] ?? 0) || 0;
+              p1s[o0 + 1] = Number(p1[1] ?? 0) || 0;
+              p1s[o0 + 2] = Number(p1[2] ?? 0) || 0;
+              cols[oc + 0] = edgeColor[0];
+              cols[oc + 1] = edgeColor[1];
+              cols[oc + 2] = edgeColor[2];
+              cols[oc + 3] = edgeColor[3];
+              s++;
+            }
+          }
+
+          const program = this.#unifiedProgram;
+          gl.useProgram(program);
+
+          const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+          const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+          this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+
+          const modeLoc = gl.getUniformLocation(program, 'u_mode');
+          if (modeLoc !== null) gl.uniform1i(modeLoc, 2);
+          const tubeRadiusLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+          if (tubeRadiusLoc !== null) gl.uniform1f(tubeRadiusLoc, tubeRadius);
+          const pointRadiusLoc = gl.getUniformLocation(program, 'u_pointRadius');
+          if (pointRadiusLoc !== null) gl.uniform1f(pointRadiusLoc, 0.0);
+
+          const posLoc = gl.getAttribLocation(program, 'a_position');
+          const colorLoc = gl.getAttribLocation(program, 'a_color');
+          const p0Loc = gl.getAttribLocation(program, 'a_p0');
+          const p1Loc = gl.getAttribLocation(program, 'a_p1');
+          const centerLoc = gl.getAttribLocation(program, 'a_center');
+          const normalLoc = gl.getAttribLocation(program, 'a_normal');
+          const distLoc = gl.getAttribLocation(program, 'a_distance');
+
+          // Base tube mesh positions (cx, cy, t) -> a_position.xyz, divisor 0
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeVertexBuffer);
+          gl.enableVertexAttribArray(posLoc);
+          gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(posLoc, 0);
+
+          // Disable unused per-vertex attributes
+          if (normalLoc !== -1) {
+            gl.disableVertexAttribArray(normalLoc);
+            gl.vertexAttrib3f(normalLoc, 0.0, 0.0, 1.0);
+            gl.vertexAttribDivisor(normalLoc, 0);
+          }
+          if (distLoc !== -1) {
+            gl.disableVertexAttribArray(distLoc);
+            gl.vertexAttrib1f(distLoc, 0.0);
+            gl.vertexAttribDivisor(distLoc, 0);
+          }
+          if (centerLoc !== -1) {
+            gl.disableVertexAttribArray(centerLoc);
+            gl.vertexAttrib3f(centerLoc, 0.0, 0.0, 0.0);
+            gl.vertexAttribDivisor(centerLoc, 0);
+          }
+
+          // Per-instance p0
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP0Buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, p0s, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(p0Loc);
+          gl.vertexAttribPointer(p0Loc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(p0Loc, 1);
+
+          // Per-instance p1
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP1Buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, p1s, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(p1Loc);
+          gl.vertexAttribPointer(p1Loc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(p1Loc, 1);
+
+          // Per-instance color (a_color)
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeColorInstBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, cols, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(colorLoc);
+          gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(colorLoc, 1);
+
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
+          gl.drawElementsInstanced(gl.TRIANGLES, this.#tubeIndexCount, gl.UNSIGNED_SHORT, 0, segCount);
+          if (this.#debugGL) this.#debugGL.drawElements++;
+
+          this._getViewer()?._incrementEdgesRendered?.(indices.length);
+          this._endPrimitiveGroup();
+          return;
+        }
+      } else if (canInstanceTubes) {
         // Instanced true-3D tube segments: one instance per polyline segment.
         // Build instance arrays of p0/p1/color for all segments and draw once.
         let segCount = 0;
@@ -557,8 +702,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const gl = this.#gl;
     const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
 
-    // WebGL2 + spheresDraw: draw instanced real 3D spheres (icospheres).
-    if (spheresDraw && isWebGL2 && this.#sphereProgram && this.#sphereCenterBuffer && this.#sphereColorInstBuffer) {
+    // WebGL2 + spheresDraw: draw instanced real 3D spheres (icospheres), preferably using the unified lit shader.
+    if (spheresDraw && isWebGL2 && this.#sphereCenterBuffer && this.#sphereColorInstBuffer) {
       const pointRadius = this.getAppearanceAttribute(
         CommonAttributes.POINT_SHADER,
         CommonAttributes.POINT_RADIUS,
@@ -634,6 +779,74 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         }
 
         const inst = this.#sphereInstanceCache.get(geometry);
+        // Unified-lit instanced spheres (preferred)
+        if (this.#unifiedProgram) {
+          const program = this.#unifiedProgram;
+          gl.useProgram(program);
+
+          const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+          const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+          this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+
+          const modeLoc = gl.getUniformLocation(program, 'u_mode');
+          if (modeLoc !== null) gl.uniform1i(modeLoc, 1);
+          const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+          if (prLoc !== null) gl.uniform1f(prLoc, pointRadius);
+          const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+          if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+
+          const posLoc = gl.getAttribLocation(program, 'a_position');
+          const normLoc = gl.getAttribLocation(program, 'a_normal');
+          const centerLoc = gl.getAttribLocation(program, 'a_center');
+          const colorLoc = gl.getAttribLocation(program, 'a_color');
+          const p0Loc = gl.getAttribLocation(program, 'a_p0');
+          const p1Loc = gl.getAttribLocation(program, 'a_p1');
+          const distLoc = gl.getAttribLocation(program, 'a_distance');
+
+          // Base sphere positions; normals are identical for a unit sphere, so bind the same VBO.
+          gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.vbo);
+          gl.enableVertexAttribArray(posLoc);
+          gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(posLoc, 0);
+          if (normLoc !== -1) {
+            gl.enableVertexAttribArray(normLoc);
+            gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(normLoc, 0);
+          }
+
+          // Disable unused attributes for this mode.
+          if (p0Loc !== -1) { gl.disableVertexAttribArray(p0Loc); gl.vertexAttrib3f(p0Loc, 0, 0, 0); gl.vertexAttribDivisor(p0Loc, 0); }
+          if (p1Loc !== -1) { gl.disableVertexAttribArray(p1Loc); gl.vertexAttrib3f(p1Loc, 0, 0, 0); gl.vertexAttribDivisor(p1Loc, 0); }
+          if (distLoc !== -1) { gl.disableVertexAttribArray(distLoc); gl.vertexAttrib1f(distLoc, 0.0); gl.vertexAttribDivisor(distLoc, 0); }
+
+          // Per-instance center
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereCenterBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, inst.centers, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(centerLoc);
+          gl.vertexAttribPointer(centerLoc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(centerLoc, 1);
+
+          // Per-instance color
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
+          if (this.#debugGL) this.#debugGL.bufferDataArray++;
+          gl.enableVertexAttribArray(colorLoc);
+          gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(colorLoc, 1);
+
+          // Draw instanced sphere
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
+          gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, numPoints);
+          if (this.#debugGL) this.#debugGL.drawElements++;
+
+          this._getViewer()?._incrementPointsRendered?.(numPoints);
+          this._endPrimitiveGroup();
+          return;
+        }
+
+        // Legacy instanced spheres program (flat color; kept as fallback)
+        if (this.#sphereProgram) {
         gl.useProgram(this.#sphereProgram);
 
         // uniforms
@@ -677,6 +890,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         this._getViewer()?._incrementPointsRendered?.(numPoints);
         this._endPrimitiveGroup();
         return;
+        }
       }
     }
 
@@ -908,8 +1122,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
     gl.clear(this.#hasDepthBuffer ? (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) : gl.COLOR_BUFFER_BIT);
     
-    // Use our shader program
-    gl.useProgram(this.#program);
+    // Use our main shader program (unified WebGL2 program if available, else WebGL1-compatible main).
+    gl.useProgram(this.#getMainProgramForDraw());
   }
 
   /**
@@ -1008,6 +1222,16 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const vertexNormalsShape = vertexNormalsDL?.shape;
     const vertexNormalFiber = Array.isArray(vertexNormalsShape) && vertexNormalsShape.length >= 2 ? vertexNormalsShape[vertexNormalsShape.length - 1] : 0;
 
+    // Respect DefaultPolygonShader.smoothShading: choose vertex normals for smooth shading,
+    // otherwise prefer face normals for flat shading.
+    const smoothShadingEnabled = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.SMOOTH_SHADING,
+      CommonAttributes.SMOOTH_SHADING_DEFAULT
+    ));
+    const hasFaceNormals = Boolean(faceNormalsFlat && faceNormalFiber >= 3);
+    const hasVertexNormals = Boolean(vertexNormalsFlat && vertexNormalFiber >= 3);
+
     // Important: begin the polygon primitive group *before* capturing defaultColor.
     // Otherwise, the fallback defaultColor can accidentally come from the previous primitive
     // group (e.g., green point color), which makes faces render with the wrong color when
@@ -1062,7 +1286,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const vertexArray = new Float32Array(batchVerts * positionSize);
       const colorArray = new Float32Array(batchVerts * 4);
       const indexArray = supportsUint32 ? new Uint32Array(batchTris * 3) : new Uint16Array(batchTris * 3);
-      const normalArray = (faceNormalsFlat && faceNormalFiber >= 3) || (vertexNormalsFlat && vertexNormalFiber >= 3)
+      const normalArray = hasFaceNormals || hasVertexNormals
         ? new Float32Array(batchVerts * 3)
         : null;
 
@@ -1079,7 +1303,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         if (len < 3) continue;
 
         const faceColor = getFaceColor(f);
-        const faceNormalBase = (faceNormalsFlat && faceNormalFiber >= 3) ? (f * faceNormalFiber) : -1;
+        const faceNormalBase = hasFaceNormals ? (f * faceNormalFiber) : -1;
         const fnx = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 0] ?? 0) : 0;
         const fny = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 1] ?? 0) : 0;
         const fnz = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 2] ?? 1) : 1;
@@ -1107,20 +1331,38 @@ export class WebGL2Renderer extends Abstract2DRenderer {
           colorArray[cFloat++] = faceColor[3];
 
           if (normalArray) {
-            if (faceNormalsFlat && faceNormalFiber >= 3) {
+            if (smoothShadingEnabled) {
+              if (hasVertexNormals) {
+                const nb = vid * vertexNormalFiber;
+                normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 0] ?? 0);
+                normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 1] ?? 0);
+                normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 2] ?? 1);
+              } else if (hasFaceNormals) {
               normalArray[nFloat++] = fnx;
               normalArray[nFloat++] = fny;
               normalArray[nFloat++] = fnz;
-            } else if (vertexNormalsFlat && vertexNormalFiber >= 3) {
+              } else {
+                // Keep array consistent.
+                normalArray[nFloat++] = 0;
+                normalArray[nFloat++] = 0;
+                normalArray[nFloat++] = 1;
+              }
+            } else {
+              // Flat shading: prefer face normals.
+              if (hasFaceNormals) {
+                normalArray[nFloat++] = fnx;
+                normalArray[nFloat++] = fny;
+                normalArray[nFloat++] = fnz;
+              } else if (hasVertexNormals) {
               const nb = vid * vertexNormalFiber;
               normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 0] ?? 0);
               normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 1] ?? 0);
               normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 2] ?? 1);
             } else {
-              // Shouldn't happen, but keep array consistent.
               normalArray[nFloat++] = 0;
               normalArray[nFloat++] = 0;
               normalArray[nFloat++] = 1;
+              }
             }
           }
 
@@ -1244,9 +1486,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing in world space (0 for non-lines)
    * @param {number} [pointSize=1.0] - Size of points in pixels (1.0 for non-points)
    */
-  #updateUniforms(lineHalfWidth = 0, pointSize = 1.0, lightingEnabled = false, flipNormals = false) {
+  #updateUniforms(program, lineHalfWidth = 0, pointSize = 1.0, lightingEnabled = false, flipNormals = false) {
     const gl = this.#gl;
-    const program = this.#program;
     
     // Get uniform location for transformation matrix
     const transformLoc = gl.getUniformLocation(program, 'u_transform');
@@ -1426,7 +1667,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       ]);
       
       // Draw using standard triangle rendering
-      this.#updateUniforms(0, 1.0); // pointSize not used for quad rendering
+      this.#updateUniforms(this.#getMainProgramForDraw(), 0, 1.0); // pointSize not used for quad rendering
       this.#drawGeometry(vertices, colors, null, indices, this.#capabilities.TRIANGLES);
     } else {
       // Draw as native GL point using pointSize (pixel space, no NDC conversion)
@@ -1455,7 +1696,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       
       // Use native WebGL point rendering
       // Update uniforms with point size (direct pixel value, no conversion)
-      this.#updateUniforms(0, pointSize);
+      this.#updateUniforms(this.#getMainProgramForDraw(), 0, pointSize);
       
       // Bind buffers
       gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
@@ -1804,7 +2045,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    */
   #drawGeometry(vertices, colors, normals, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
     const gl = this.#gl;
-    const program = this.#program;
+    const program = this.#getMainProgramForDraw();
     
     // Validate inputs
     if (!vertices || vertices.length === 0) {
@@ -1823,6 +2064,17 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     
     // Ensure program is active
     gl.useProgram(program);
+
+    // Unified WebGL2 program: default to polygon mode for non-instanced draws.
+    // Instanced sphere/tube paths set u_mode explicitly.
+    if (program === this.#unifiedProgram) {
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+      const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+      if (prLoc !== null) gl.uniform1f(prLoc, 0.0);
+      const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+      if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+    }
     
     // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
     // Lighting is controlled by DefaultRenderingHintsShader.lightingEnabled, but we also require
@@ -1835,7 +2087,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       lightingHint && normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES
     );
     const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
-    this.#updateUniforms(lineHalfWidth, 1.0, lightingEnabled, flipNormals);
+    this.#updateUniforms(program, lineHalfWidth, 1.0, lightingEnabled, flipNormals);
 
     // -----------------------------------------------------------------------
     // Vertex buffer
@@ -1920,6 +2172,29 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         if (typeof gl.vertexAttribDivisor === 'function') {
           gl.vertexAttribDivisor(distanceLoc, 0);
         }
+      }
+    }
+
+    // Unified program extra attributes: ensure they don't leak divisors/state from instanced draws.
+    if (program === this.#unifiedProgram) {
+      const centerLoc = gl.getAttribLocation(program, 'a_center');
+      const p0Loc = gl.getAttribLocation(program, 'a_p0');
+      const p1Loc = gl.getAttribLocation(program, 'a_p1');
+
+      if (centerLoc !== -1) {
+        gl.disableVertexAttribArray(centerLoc);
+        gl.vertexAttrib3f(centerLoc, 0.0, 0.0, 0.0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(centerLoc, 0);
+      }
+      if (p0Loc !== -1) {
+        gl.disableVertexAttribArray(p0Loc);
+        gl.vertexAttrib3f(p0Loc, 0.0, 0.0, 0.0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(p0Loc, 0);
+      }
+      if (p1Loc !== -1) {
+        gl.disableVertexAttribArray(p1Loc);
+        gl.vertexAttrib3f(p1Loc, 0.0, 0.0, 0.0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(p1Loc, 0);
       }
     }
     

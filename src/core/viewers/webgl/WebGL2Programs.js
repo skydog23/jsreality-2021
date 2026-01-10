@@ -224,6 +224,135 @@ export function createMainProgram(gl) {
 }
 
 /**
+ * WebGL2-only: unified lit program that can render:
+ * - regular (non-instanced) polygon meshes
+ * - instanced spheres (points-as-spheres)
+ * - instanced tubes (lines-as-tubes)
+ *
+ * This keeps the lighting/material math consistent across all polygonal primitives.
+ *
+ * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
+ * @returns {WebGLProgram|null}
+ */
+export function createUnifiedLitProgram(gl) {
+  if (!(typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext)) {
+    return null;
+  }
+
+  const vertexSource = `#version 300 es
+      precision mediump float;
+
+      in vec4 a_position;
+      in vec4 a_color;
+      in vec3 a_normal;
+      in float a_distance;
+
+      // Instancing attributes (used for sphere/tube modes; set to 0 for polygon mode)
+      in vec3 a_center; // sphere center (object space)
+      in vec3 a_p0;     // tube endpoint 0 (object space)
+      in vec3 a_p1;     // tube endpoint 1 (object space)
+
+      uniform mat4 u_transform;
+      uniform mat4 u_modelView;
+      uniform mat3 u_normalMatrix;
+      uniform float u_lightingEnabled;
+      uniform float u_flipNormals;
+      uniform float u_pointSize;
+
+      // 0 = polygon mesh, 1 = instanced sphere, 2 = instanced tube
+      uniform int u_mode;
+      uniform float u_pointRadius;
+      uniform float u_tubeRadius;
+
+      out vec4 v_color;
+      out float v_distance;
+      out float v_lit;
+
+      void main() {
+        vec4 position = a_position;
+        vec3 Nobj = a_normal;
+
+        if (u_mode == 1) {
+          // Sphere: a_position is unit sphere vertex, a_center is per-instance center.
+          position = vec4(a_center + u_pointRadius * a_position.xyz, 1.0);
+          Nobj = normalize(a_position.xyz);
+        } else if (u_mode == 2) {
+          // Tube: a_position = (cx, cy, t) where (cx,cy) is unit circle, t in [0,1].
+          // a_p0/a_p1 are segment endpoints in object space.
+          vec3 p0 = a_p0;
+          vec3 p1 = a_p1;
+          float t = clamp(a_position.z, 0.0, 1.0);
+          vec3 axis = normalize(p1 - p0);
+          // Pick a stable "up" vector for the frame.
+          vec3 up = (abs(axis.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+          vec3 u = normalize(cross(up, axis));
+          vec3 v = cross(axis, u);
+
+          vec2 c = a_position.xy;
+          vec3 radial = u * c.x + v * c.y;
+          vec3 along = mix(p0, p1, t);
+          position = vec4(along + u_tubeRadius * radial, 1.0);
+          Nobj = normalize(radial);
+        } else {
+          // Polygon mesh: preserve legacy behavior (w==0 treated as 1).
+          if (position.w == 0.0) {
+            position.w = 1.0;
+          }
+        }
+
+        gl_Position = u_transform * position;
+        gl_PointSize = u_pointSize;
+
+        v_color = a_color;
+        v_distance = a_distance;
+
+        if (u_lightingEnabled < 0.5) {
+          v_lit = 1.0;
+        } else {
+          vec4 pv = u_modelView * vec4(position.xyz, 1.0);
+          vec3 N = normalize(u_normalMatrix * Nobj);
+          if (u_flipNormals > 0.5) {
+            N = -N;
+          }
+          vec3 L = normalize(-pv.xyz);
+          v_lit = max(dot(N, L), 0.0);
+        }
+      }
+    `;
+
+  const fragmentSource = `#version 300 es
+      precision mediump float;
+
+      in vec4 v_color;
+      in float v_distance;
+      in float v_lit;
+
+      uniform float u_lineHalfWidth;
+      uniform float u_ambientCoefficient;
+      uniform float u_diffuseCoefficient;
+      uniform vec3 u_ambientColor;
+
+      out vec4 outColor;
+
+      void main() {
+        float dist = abs(v_distance);
+        float alpha = 1.0;
+        if (u_lineHalfWidth > 0.0) {
+          float edgeFade = 0.1;
+          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
+          alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
+        }
+
+        vec3 ambient = u_ambientCoefficient * u_ambientColor;
+        vec3 diffuse = u_diffuseCoefficient * v_lit * v_color.rgb;
+        outColor = vec4(ambient + diffuse, v_color.a * alpha);
+      }
+    `;
+
+  return createProgram(gl, { vertexSource, fragmentSource, label: 'WebGL2(unifiedLit)' });
+}
+
+/**
  * WebGL2-only: instanced program for point quads.
  * @param {WebGLRenderingContext|WebGL2RenderingContext} gl
  * @returns {WebGLProgram|null}
