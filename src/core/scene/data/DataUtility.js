@@ -342,62 +342,65 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
     // 3D+ array - always fixed shape, use DataList (fall through)
   }
   
-    // Special handling for Color object arrays: convert Color objects to numeric arrays
-    const isColorArray = !isNested && data.length > 0 && 
-    typeof data[0] === 'object' && data[0] !== null && 
-    ('r' in data[0] || data[0] instanceof Color);   
-  
+  // Special handling for Color object arrays:
+  // Convert eagerly into a packed Float32Array of RGBA in [0,1] with shape [n,4].
+  //
+  // Rationale:
+  // - Rendering (WebGL/WebGPU) wants float RGBA.
+  // - Normalizing here prevents downstream code from needing to guess 0..255 vs 0..1,
+  //   and avoids accidentally storing object arrays (Color instances) inside DataList.
+  const isColorArray =
+    !isNested &&
+    data.length > 0 &&
+    typeof data[0] === 'object' &&
+    data[0] !== null &&
+    ('r' in data[0] || data[0] instanceof Color);
+
   if (isColorArray) {
-    // Convert Color objects to arrays [r, g, b, a] or [r, g, b]
-    // Auto-detect number of channels from Color objects (ignore fiberLength parameter)
-    // Check if colors have alpha channel
-    const firstColor = data[0];
-    const hasAlpha = 'a' in firstColor || (firstColor instanceof Color && firstColor.a !== undefined);
-    const channels = hasAlpha ? 4 : 3;
-    
-    // Color objects store integer values 0-255, so use int32 unless explicitly overridden
-    // This is more memory-efficient than float64 (4 bytes vs 8 bytes per component)
-    // 
-    // NOTE: The 0-255 range (8 bits per channel) may not be sufficient for all applications:
-    // - High dynamic range (HDR) rendering requires extended color ranges
-    // - Color grading/post-processing may need higher precision
-    // - Scientific visualization may require extended or normalized color spaces
-    // 
-    // For higher precision, pass numeric arrays directly with dataType='float32' or 'float64':
-    //   toDataList([[1.0, 0.5, 0.0], ...], null, 'float64')  // Normalized 0.0-1.0 range
-    //   toDataList([[1000.0, 500.0, 0.0], ...], null, 'float32')  // Extended HDR range
-    const colorDataType = dataType === 'float64' ? 'int32' : dataType;
-    
-    // Convert Color objects to numeric arrays
-    const convertedData = data.map(color => {
-      if (color instanceof Color) {
-        if (channels === 4) {
-          return [color.r, color.g, color.b, color.a];
+    const n = data.length;
+    const channels = 4;
+    const out = new Float32Array(n * channels);
+
+    for (let i = 0; i < n; i++) {
+      const c = data[i];
+
+      // Default alpha to fully opaque.
+      let r = 0, g = 0, b = 0, a = 1;
+
+      if (c instanceof Color) {
+        // Color stores 0..255 integers.
+        r = c.r / 255;
+        g = c.g / 255;
+        b = c.b / 255;
+        a = (c.a ?? 255) / 255;
+      } else if (c && typeof c === 'object') {
+        // Plain object with r,g,b,(a). Accept either 0..255 or already-normalized 0..1.
+        const rr = Number(c.r ?? 0);
+        const gg = Number(c.g ?? 0);
+        const bb = Number(c.b ?? 0);
+        const aa = Number(c.a ?? 1);
+        const max = Math.max(rr, gg, bb, aa);
+        if (max > 1.0) {
+          r = rr / 255;
+          g = gg / 255;
+          b = bb / 255;
+          a = aa / 255;
         } else {
-          return [color.r, color.g, color.b];
+          r = rr;
+          g = gg;
+          b = bb;
+          a = aa;
         }
-      } 
-      else {
-       // Plain object with r, g, b, a properties
-       if (channels === 4) {
-        return [color.r, color.g, color.b, color.a ?? 255];
-      } else {
-        return [color.r, color.g, color.b];
       }
+
+      const o = i * channels;
+      out[o + 0] = r;
+      out[o + 1] = g;
+      out[o + 2] = b;
+      out[o + 3] = a;
     }
-    });
-    
-    // Flatten the converted 2D array
-    const flatData = flattenArray(convertedData);
-    
-    // Validate that data length is divisible by fiber length
-    if (flatData.length % channels !== 0) {
-      throw new Error(`Data length ${flatData.length} is not divisible by fiber length ${channels}`);
-    }
-    
-    // Create RegularDataList with shape [numColors, channels]
-    const numColors = flatData.length / channels;
-    return new RegularDataList(flatData, [numColors, channels], colorDataType);
+
+    return new RegularDataList(out, [n, channels], 'float32');
   }
   
   // Special handling for string arrays: strings are atomic, so we preserve their natural shape

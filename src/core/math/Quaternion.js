@@ -465,7 +465,14 @@ export function convert44To33(d) {
  * @returns {Quaternion}
  */
 export function rotationMatrixToQuaternion(q, mat) {
-  const n = Rn.mysqrt(mat.length);
+  // jReality used an internal helper to compute the matrix dimension.
+  // In jsReality, avoid relying on non-existent `Rn.mysqrt`.
+  const len = mat?.length ?? 0;
+  let n = Math.round(Math.sqrt(len));
+  if (n * n !== len) {
+    // Fallback: if we can’t infer a square dimension, assume 3x3 rotation.
+    n = 3;
+  }
   
   const d = Rn.determinant(mat);
   let m = null;

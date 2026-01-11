@@ -34,13 +34,19 @@ export class TestGeometryApp extends JSRApp {
     const worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
   
     const ap = worldSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.BLUE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.02);
+    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 5);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(255, 165, 0));
-    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
+    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, false);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 5.0);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.04);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_SPRITE, true);
+    ap.setAttribute("pointShader." + CommonAttributes.EDGE_FADE, 0.1);
 
    
     const mat = MatrixBuilder.euclidean().rotateZ(Math.PI/4).scale(.5,.5,1).getArray();

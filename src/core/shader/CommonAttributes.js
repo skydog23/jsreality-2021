@@ -140,6 +140,12 @@ export const SMOOTH_LINE_SHADING = "smoothLineShading";
 export const SMOOTH_LINE_SHADING_DEFAULT = false;
 export const LINE_WIDTH = "lineWidth";
 export const LINE_WIDTH_DEFAULT = 1.0;
+// Screen-space line smoothing (used by WebGL quad-lines and similar techniques)
+export const EDGE_FADE = "edgeFade";
+export const EDGE_FADE_DEFAULT = 0.1;
+// Backwards-compatible aliases (some code used these names)
+export const LINE_EDGE_FADE = EDGE_FADE;
+export const LINE_EDGE_FADE_DEFAULT = EDGE_FADE_DEFAULT;
 export const NORMAL_SCALE = "normalScale";
 export const LINE_STIPPLE = "lineStipple";
 export const LINE_STIPPLE_FACTOR = "lineStippleFactor";

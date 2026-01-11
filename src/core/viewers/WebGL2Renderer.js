@@ -202,16 +202,16 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       this.#capabilities.supportsUint32Indices = false;
     }
     
-    // Create shader program
+    // Create shader programs:
+    // - #program: WebGL1-compatible fallback
+    // - #unifiedProgram: WebGL2-only unified program (preferred when available)
     this.#program = this.#createShaderProgram();
-    
-    if (!this.#program) {
-      throw new Error('Failed to create WebGL shader program');
-    }
-
-    // WebGL2-only: unified lit program for polygons + instanced spheres/tubes.
-    // We keep #program as a WebGL1-compatible fallback.
     this.#unifiedProgram = this.#createUnifiedLitProgram();
+
+    // Only fail if we have *no* usable program.
+    if (!this.#program && !this.#unifiedProgram) {
+      throw new Error('Failed to create any WebGL shader program (main + unified both failed to compile/link). See console for shader logs.');
+    }
     
     // Create buffers
     this.#vertexBuffer = gl.createBuffer();
@@ -439,14 +439,16 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         if (segCount > 0) {
           const p0s = new Float32Array(segCount * 3);
           const p1s = new Float32Array(segCount * 3);
-          const cols = new Float32Array(segCount * 4);
+          const hasEdgeColors = Boolean(edgeColors);
+          const cols = hasEdgeColors ? new Float32Array(segCount * 4) : null;
 
           let s = 0;
           for (let i = 0; i < indices.length; i++) {
             const poly = indices[i];
             if (!poly || poly.length < 2) continue;
             const c = edgeColors ? edgeColors[i] : null;
-            const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+            // Edge colors coming from geometry attributes should already be float RGBA in [0,1].
+            const edgeColor = c ?? edgeColorDefault;
             for (let j = 0; j < poly.length - 1; j++) {
               const idx0 = poly[j];
               const idx1 = poly[j + 1];
@@ -462,10 +464,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
               p1s[o0 + 0] = Number(p1[0] ?? 0) || 0;
               p1s[o0 + 1] = Number(p1[1] ?? 0) || 0;
               p1s[o0 + 2] = Number(p1[2] ?? 0) || 0;
-              cols[oc + 0] = edgeColor[0];
-              cols[oc + 1] = edgeColor[1];
-              cols[oc + 2] = edgeColor[2];
-              cols[oc + 3] = edgeColor[3];
+              if (cols) {
+                cols[oc + 0] = edgeColor[0];
+                cols[oc + 1] = edgeColor[1];
+                cols[oc + 2] = edgeColor[2];
+                cols[oc + 3] = edgeColor[3];
+              }
               s++;
             }
           }
@@ -531,13 +535,19 @@ export class WebGL2Renderer extends Abstract2DRenderer {
           gl.vertexAttribPointer(p1Loc, 3, gl.FLOAT, false, 0, 0);
           gl.vertexAttribDivisor(p1Loc, 1);
 
-          // Per-instance color (a_color)
-          gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeColorInstBuffer);
-          gl.bufferData(gl.ARRAY_BUFFER, cols, gl.DYNAMIC_DRAW);
-          if (this.#debugGL) this.#debugGL.bufferDataArray++;
-          gl.enableVertexAttribArray(colorLoc);
-          gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
-          gl.vertexAttribDivisor(colorLoc, 1);
+          // Color: per-edge if provided, otherwise constant from lineShader.diffuseColor (#currentColor).
+          if (!cols) {
+            gl.disableVertexAttribArray(colorLoc);
+            gl.vertexAttrib4f(colorLoc, edgeColorDefault[0], edgeColorDefault[1], edgeColorDefault[2], edgeColorDefault[3]);
+            gl.vertexAttribDivisor(colorLoc, 0);
+          } else {
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeColorInstBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, cols, gl.DYNAMIC_DRAW);
+            if (this.#debugGL) this.#debugGL.bufferDataArray++;
+            gl.enableVertexAttribArray(colorLoc);
+            gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(colorLoc, 1);
+          }
 
           gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
           gl.drawElementsInstanced(gl.TRIANGLES, this.#tubeIndexCount, gl.UNSIGNED_SHORT, 0, segCount);
@@ -565,7 +575,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             const poly = indices[i];
             if (!poly || poly.length < 2) continue;
             const c = edgeColors ? edgeColors[i] : null;
-            const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+            // Edge colors coming from geometry attributes should already be float RGBA in [0,1].
+            const edgeColor = c ?? edgeColorDefault;
             for (let j = 0; j < poly.length - 1; j++) {
               const idx0 = poly[j];
               const idx1 = poly[j + 1];
@@ -645,7 +656,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       for (let i = 0; i < indices.length; i++) {
         const poly = indices[i];
         const c = edgeColors ? edgeColors[i] : null;
-        const edgeColor = c ? this.#toWebGLColor(c) : edgeColorDefault;
+        // Edge colors coming from geometry attributes should already be float RGBA in [0,1].
+        const edgeColor = c ?? edgeColorDefault;
         this.#addPolylineToBatch(vertices, poly, edgeColor, halfWidth);
       }
       // Flush happens in _endPrimitiveGroup()
@@ -656,8 +668,22 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         CommonAttributes.LINE_WIDTH,
         CommonAttributes.LINE_WIDTH_DEFAULT
       );
+      const edgeFade = Number(this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER,
+        CommonAttributes.EDGE_FADE,
+        CommonAttributes.EDGE_FADE_DEFAULT
+      ));
       for (let i = 0; i < indices.length; i++) {
-        this.#drawPolylineAsLineStrip(vertices, edgeColors ? edgeColors[i] : null, indices[i], lineWidth);
+        const c = edgeColors ? edgeColors[i] : null;
+        // Edge colors coming from geometry attributes should already be float RGBA in [0,1].
+        const edgeColor = c ?? this.#currentColor;
+        // If the platform doesn't support wide hardware lines (very common), render screen-space quads
+        // so `lineWidth` behaves as pixel width. Also use quads when edgeFade is requested.
+        if (!this.#capabilities?.supportsWideLines || lineWidth > 1.0 || edgeFade > 0.0) {
+          this.#drawPolylineAsScreenSpaceQuads(vertices, edgeColor, indices[i], lineWidth);
+        } else {
+          this.#drawPolylineAsLineStrip(vertices, c, indices[i], lineWidth);
+        }
       }
     }
 
@@ -738,31 +764,37 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             centers[dst + 2] = Number(vertsFlat[src + 2] ?? 0);
           }
 
-          // Colors: per-vertex if present, else current color
+          // Colors:
+          // With the updated DataList contract, color DataLists should already be packed float RGBA in [0,1].
+          // We keep a tiny legacy fallback for [n,3] normalized RGB by padding alpha=1.
           const defaultColor = this.#currentColor;
           if (colorsDL && typeof colorsDL.getFlatData === 'function') {
             const cFlat = colorsDL.getFlatData();
             const cShape = colorsDL.shape;
             const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
             const cf = cFiber || 4;
+
+            if (cf === 4 && cFlat && cFlat.length >= numPoints * 4) {
+              // Fast path: packed RGBA.
+              colors.set(cFlat.subarray(0, numPoints * 4));
+            } else if (cf === 3 && cFlat && cFlat.length >= numPoints * 3) {
+              // Legacy normalized RGB: pad alpha=1.
             for (let i = 0; i < numPoints; i++) {
-              const src = i * cf;
+                const src = i * 3;
               const dst = i * 4;
-              const r0 = cFlat[src + 0] ?? 255;
-              const g0 = cFlat[src + 1] ?? 255;
-              const b0 = cFlat[src + 2] ?? 255;
-              const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
-              const max = Math.max(r0, g0, b0, a0);
-              if (max > 1.0) {
-                colors[dst + 0] = r0 / 255;
-                colors[dst + 1] = g0 / 255;
-                colors[dst + 2] = b0 / 255;
-                colors[dst + 3] = a0 / 255;
+                colors[dst + 0] = Number(cFlat[src + 0] ?? 0);
+                colors[dst + 1] = Number(cFlat[src + 1] ?? 0);
+                colors[dst + 2] = Number(cFlat[src + 2] ?? 0);
+                colors[dst + 3] = 1.0;
+              }
               } else {
-                colors[dst + 0] = r0;
-                colors[dst + 1] = g0;
-                colors[dst + 2] = b0;
-                colors[dst + 3] = a0;
+              // Unexpected layout: fall back to the shader diffuse color.
+              for (let i = 0; i < numPoints; i++) {
+                const dst = i * 4;
+                colors[dst + 0] = defaultColor[0];
+                colors[dst + 1] = defaultColor[1];
+                colors[dst + 2] = defaultColor[2];
+                colors[dst + 3] = defaultColor[3];
               }
             }
           } else {
@@ -827,13 +859,22 @@ export class WebGL2Renderer extends Abstract2DRenderer {
           gl.vertexAttribPointer(centerLoc, 3, gl.FLOAT, false, 0, 0);
           gl.vertexAttribDivisor(centerLoc, 1);
 
-          // Per-instance color
-          gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
-          gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
-          if (this.#debugGL) this.#debugGL.bufferDataArray++;
-          gl.enableVertexAttribArray(colorLoc);
-          gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
-          gl.vertexAttribDivisor(colorLoc, 1);
+          // Color:
+          // - if vertex colors exist on the geometry, use per-instance color buffer
+          // - otherwise, use a constant attribute from pointShader.diffuseColor (#currentColor)
+          const hasVertexColors = Boolean(colorsDL && typeof colorsDL.getFlatData === 'function');
+          if (!hasVertexColors) {
+            gl.disableVertexAttribArray(colorLoc);
+            gl.vertexAttrib4f(colorLoc, this.#currentColor[0], this.#currentColor[1], this.#currentColor[2], this.#currentColor[3]);
+            gl.vertexAttribDivisor(colorLoc, 0);
+          } else {
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
+            if (this.#debugGL) this.#debugGL.bufferDataArray++;
+            gl.enableVertexAttribArray(colorLoc);
+            gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(colorLoc, 1);
+          }
 
           // Draw instanced sphere
           gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
@@ -874,13 +915,19 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         gl.vertexAttribPointer(centerLoc, 3, gl.FLOAT, false, 0, 0);
         gl.vertexAttribDivisor(centerLoc, 1);
 
-        // per-instance color
+          const hasVertexColors = Boolean(colorsDL && typeof colorsDL.getFlatData === 'function');
+          if (!hasVertexColors) {
+            gl.disableVertexAttribArray(colorLoc);
+            gl.vertexAttrib4f(colorLoc, this.#currentColor[0], this.#currentColor[1], this.#currentColor[2], this.#currentColor[3]);
+            gl.vertexAttribDivisor(colorLoc, 0);
+          } else {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, inst.colors, gl.DYNAMIC_DRAW);
         if (this.#debugGL) this.#debugGL.bufferDataArray++;
         gl.enableVertexAttribArray(colorLoc);
         gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
         gl.vertexAttribDivisor(colorLoc, 1);
+          }
 
         // draw instanced sphere
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
@@ -920,31 +967,34 @@ export class WebGL2Renderer extends Abstract2DRenderer {
           centers[dst + 3] = Number(positionFiber >= 4 ? (vertsFlat[src + 3] ?? 1) : 1);
         }
 
-        // Colors: per-vertex if present, else current color
+        // Colors:
+        // With the updated DataList contract, color DataLists should already be packed float RGBA in [0,1].
+        // We keep a tiny legacy fallback for [n,3] normalized RGB by padding alpha=1.
         const defaultColor = this.#currentColor;
         if (colorsDL && typeof colorsDL.getFlatData === 'function') {
           const cFlat = colorsDL.getFlatData();
           const cShape = colorsDL.shape;
           const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
           const cf = cFiber || 4;
+
+          if (cf === 4 && cFlat && cFlat.length >= numPoints * 4) {
+            colors.set(cFlat.subarray(0, numPoints * 4));
+          } else if (cf === 3 && cFlat && cFlat.length >= numPoints * 3) {
           for (let i = 0; i < numPoints; i++) {
-            const src = i * cf;
+              const src = i * 3;
             const dst = i * 4;
-            const r0 = cFlat[src + 0] ?? 255;
-            const g0 = cFlat[src + 1] ?? 255;
-            const b0 = cFlat[src + 2] ?? 255;
-            const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
-            const max = Math.max(r0, g0, b0, a0);
-            if (max > 1.0) {
-              colors[dst + 0] = r0 / 255;
-              colors[dst + 1] = g0 / 255;
-              colors[dst + 2] = b0 / 255;
-              colors[dst + 3] = a0 / 255;
+              colors[dst + 0] = Number(cFlat[src + 0] ?? 0);
+              colors[dst + 1] = Number(cFlat[src + 1] ?? 0);
+              colors[dst + 2] = Number(cFlat[src + 2] ?? 0);
+              colors[dst + 3] = 1.0;
+            }
             } else {
-              colors[dst + 0] = r0;
-              colors[dst + 1] = g0;
-              colors[dst + 2] = b0;
-              colors[dst + 3] = a0;
+            for (let i = 0; i < numPoints; i++) {
+              const dst = i * 4;
+              colors[dst + 0] = defaultColor[0];
+              colors[dst + 1] = defaultColor[1];
+              colors[dst + 2] = defaultColor[2];
+              colors[dst + 3] = defaultColor[3];
             }
           }
         } else {
@@ -1030,24 +1080,26 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const cShape = colorsDL.shape;
       const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
       const cf = cFiber || 4;
+
+      if (cf === 4 && cFlat && cFlat.length >= numPoints * 4) {
+        colorArray.set(cFlat.subarray(0, numPoints * 4));
+      } else if (cf === 3 && cFlat && cFlat.length >= numPoints * 3) {
       for (let i = 0; i < numPoints; i++) {
-        const src = i * cf;
+          const src = i * 3;
         const dst = i * 4;
-        const r0 = cFlat[src + 0] ?? 255;
-        const g0 = cFlat[src + 1] ?? 255;
-        const b0 = cFlat[src + 2] ?? 255;
-        const a0 = cf >= 4 ? (cFlat[src + 3] ?? 255) : 255;
-        const max = Math.max(r0, g0, b0, a0);
-        if (max > 1.0) {
-          colorArray[dst + 0] = r0 / 255;
-          colorArray[dst + 1] = g0 / 255;
-          colorArray[dst + 2] = b0 / 255;
-          colorArray[dst + 3] = a0 / 255;
+          colorArray[dst + 0] = Number(cFlat[src + 0] ?? 0);
+          colorArray[dst + 1] = Number(cFlat[src + 1] ?? 0);
+          colorArray[dst + 2] = Number(cFlat[src + 2] ?? 0);
+          colorArray[dst + 3] = 1.0;
+        }
         } else {
-          colorArray[dst + 0] = r0;
-          colorArray[dst + 1] = g0;
-          colorArray[dst + 2] = b0;
-          colorArray[dst + 3] = a0;
+        const c = this.#currentColor;
+        for (let i = 0; i < numPoints; i++) {
+          const dst = i * 4;
+          colorArray[dst + 0] = c[0];
+          colorArray[dst + 1] = c[1];
+          colorArray[dst + 2] = c[2];
+          colorArray[dst + 3] = c[3];
         }
       }
     } else {
@@ -1238,20 +1290,16 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // face colors are missing.
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
 
-    // Helper to read face color i -> normalized RGBA
+    // Helper to read face color i -> normalized RGBA (DataList contract: float RGBA in [0,1])
     const defaultColor = this.#currentColor; // already normalized 0..1
     const getFaceColor = (i) => {
       if (!faceColorsFlat || !faceColorChannels) return defaultColor;
       const base = i * faceColorChannels;
-      const r0 = faceColorsFlat[base + 0] ?? 255;
-      const g0 = faceColorsFlat[base + 1] ?? 255;
-      const b0 = faceColorsFlat[base + 2] ?? 255;
-      const a0 = faceColorChannels >= 4 ? (faceColorsFlat[base + 3] ?? 255) : 255;
-      const max = Math.max(r0, g0, b0, a0);
-      if (max > 1.0) {
-        return [r0 / 255, g0 / 255, b0 / 255, a0 / 255];
-      }
-      return [r0, g0, b0, a0];
+      const r = Number(faceColorsFlat[base + 0] ?? defaultColor[0]);
+      const g = Number(faceColorsFlat[base + 1] ?? defaultColor[1]);
+      const b = Number(faceColorsFlat[base + 2] ?? defaultColor[2]);
+      const a = faceColorChannels >= 4 ? Number(faceColorsFlat[base + 3] ?? defaultColor[3]) : 1.0;
+      return [r, g, b, a];
     };
 
     // Batch faces. If we can use 32-bit indices, we can draw the whole expanded mesh in one go.
@@ -1573,17 +1621,38 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (pointSizeLoc !== null) {
       gl.uniform1f(pointSizeLoc, pointSize);
     }
+
+    // Point sprite (round points) controls: use pointShader.pointSprite and pointShader.edgeFade.
+    // These only affect GL_POINTS draws (SPHERES_DRAW=false path).
+    const pointSpriteLoc = gl.getUniformLocation(program, 'u_pointSprite');
+    if (pointSpriteLoc !== null) {
+      const pointSprite = Boolean(this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.POINT_SPRITE,
+        false
+      ));
+      gl.uniform1f(pointSpriteLoc, pointSprite ? 1.0 : 0.0);
+    }
+    const pointEdgeFadeLoc = gl.getUniformLocation(program, 'u_pointEdgeFade');
+    if (pointEdgeFadeLoc !== null) {
+      const pointEdgeFade = Number(this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER,
+        CommonAttributes.EDGE_FADE,
+        0.1
+      ));
+      gl.uniform1f(pointEdgeFadeLoc, pointEdgeFade);
+    }
     
-    // Set edge fade uniform
+    // Set edge fade uniform (for screen-space line quads and similar AA)
     const edgeFade = this.getAppearanceAttribute(
       CommonAttributes.LINE_SHADER,
       CommonAttributes.LINE_EDGE_FADE,
       CommonAttributes.LINE_EDGE_FADE_DEFAULT
     );
-     const edgeFadeLoc = gl.getUniformLocation(program, 'u_edgeFade');
-     if (edgeFadeLoc !== null) {
-       gl.uniform1f(edgeFadeLoc, edgeFade);
-     }
+    const edgeFadeLoc = gl.getUniformLocation(program, 'u_edgeFade');
+    if (edgeFadeLoc !== null) {
+      gl.uniform1f(edgeFadeLoc, edgeFade);
+    }
   
     // Set line half width for edge smoothing (0 disables smoothing for non-lines)
     // Note: Both distance attribute and halfWidth are intended to be in the same
@@ -1660,8 +1729,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         1, 3, 2   // Triangle 2: bottom-right, top-right, top-left
       ]);
       
-      // Get color
-      const pointColor = color ? this.#toWebGLColor(color) : this.#currentColor;
+      // Get color (geometry colors are float RGBA arrays; appearance colors are Color objects)
+      const pointColor = color ? this.#toRGBA(color) : this.#currentColor;
       const colors = new Float32Array([
         ...pointColor, ...pointColor, ...pointColor, ...pointColor
       ]);
@@ -1690,19 +1759,30 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       // Create vertex array
       const vertices = new Float32Array(coords);
       
-      // Get color
-      const pointColor = color ? this.#toWebGLColor(color) : this.#currentColor;
+      // Get color (geometry colors are float RGBA arrays; appearance colors are Color objects)
+      const pointColor = color ? this.#toRGBA(color) : this.#currentColor;
       const colors = new Float32Array(pointColor);
       
       // Use native WebGL point rendering
       // Update uniforms with point size (direct pixel value, no conversion)
-      this.#updateUniforms(this.#getMainProgramForDraw(), 0, pointSize);
+      const program = this.#getMainProgramForDraw();
+      gl.useProgram(program);
+      // Ensure unified program is in polygon mode for this draw.
+      if (program === this.#unifiedProgram) {
+        const modeLoc = gl.getUniformLocation(program, 'u_mode');
+        if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+        const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+        if (prLoc !== null) gl.uniform1f(prLoc, 0.0);
+        const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+        if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+      }
+      this.#updateUniforms(program, 0, pointSize);
       
       // Bind buffers
       gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
       
-      const positionLoc = gl.getAttribLocation(this.#program, 'a_position');
+      const positionLoc = gl.getAttribLocation(program, 'a_position');
       if (positionLoc === -1) {
         console.error('WebGL2Renderer: a_position attribute not found in shader');
         return;
@@ -1715,7 +1795,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
       
-      const colorLoc = gl.getAttribLocation(this.#program, 'a_color');
+      const colorLoc = gl.getAttribLocation(program, 'a_color');
       if (colorLoc === -1) {
         console.error('WebGL2Renderer: a_color attribute not found in shader');
         return;
@@ -1887,6 +1967,193 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   }
 
   /**
+   * Draw a polyline as screen-space quads (triangles) so `lineWidth` is in pixels even on
+   * WebGL implementations where `gl.lineWidth()` is effectively clamped to 1.
+   *
+   * This is intended for the `TUBES_DRAW=false` case (screen-space lines, e.g. 2D drawings).
+   *
+   * @private
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[]|null} edgeColorRGBA - WebGL RGBA in [0,1] (single color for the polyline)
+   * @param {number[]} indices - Array of vertex indices for the polyline
+   * @param {number} lineWidthPx - Desired line width in pixels
+   */
+  #drawPolylineAsScreenSpaceQuads(vertices, edgeColorRGBA, indices, lineWidthPx) {
+    const gl = this.#gl;
+    const program = this.#getMainProgramForDraw();
+
+    if (!indices || indices.length < 2) return;
+    const wPx = this.#canvas?.width ?? 0;
+    const hPx = this.#canvas?.height ?? 0;
+    if (!(wPx > 0 && hPx > 0)) return;
+
+    const halfWidthPx = Math.max(0.5, Number(lineWidthPx) * 0.5);
+
+    // Guard: keep index sizes <= 65535 per draw.
+    const segCount = indices.length - 1;
+    const vertCount = segCount * 4;
+    if (vertCount > 65535) {
+      // Fall back to thin lines if a single polyline is enormous.
+      this.#drawPolylineAsLineStrip(vertices, edgeColorRGBA, indices, 1.0);
+      return;
+    }
+
+    const pos = new Float32Array(vertCount * 4);   // clip-space (x,y,z,w=1)
+    const col = new Float32Array(vertCount * 4);
+    const dist = new Float32Array(vertCount);      // pixel-space distance from centerline
+    const idx = new Uint16Array(segCount * 6);
+
+    const T = this.getCurrentTransformation(); // object->clip (row-major)
+    const edgeColor = edgeColorRGBA ?? this.#currentColor;
+
+    let v = 0;
+    let ii = 0;
+    for (let s = 0; s < segCount; s++) {
+      const i0 = indices[s] | 0;
+      const i1 = indices[s + 1] | 0;
+      const p0 = this._extractPoint(vertices[i0]);
+      const p1 = this._extractPoint(vertices[i1]);
+
+      // Clip coords
+      const c0 = Rn.matrixTimesVector(null, T, [p0[0] ?? 0, p0[1] ?? 0, p0[2] ?? 0, p0[3] ?? 1]);
+      const c1 = Rn.matrixTimesVector(null, T, [p1[0] ?? 0, p1[1] ?? 0, p1[2] ?? 0, p1[3] ?? 1]);
+      const w0 = (c0[3] === 0 ? 1.0 : c0[3]);
+      const w1 = (c1[3] === 0 ? 1.0 : c1[3]);
+      const ndc0x = c0[0] / w0, ndc0y = c0[1] / w0, ndc0z = c0[2] / w0;
+      const ndc1x = c1[0] / w1, ndc1y = c1[1] / w1, ndc1z = c1[2] / w1;
+
+      // Pixel coords
+      const sx0 = (ndc0x * 0.5 + 0.5) * wPx;
+      const sy0 = (ndc0y * 0.5 + 0.5) * hPx;
+      const sx1 = (ndc1x * 0.5 + 0.5) * wPx;
+      const sy1 = (ndc1y * 0.5 + 0.5) * hPx;
+
+      const dx = sx1 - sx0;
+      const dy = sy1 - sy0;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) continue;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      // Offset in pixels
+      const p0Lx = sx0 + nx * halfWidthPx, p0Ly = sy0 + ny * halfWidthPx;
+      const p0Rx = sx0 - nx * halfWidthPx, p0Ry = sy0 - ny * halfWidthPx;
+      const p1Lx = sx1 + nx * halfWidthPx, p1Ly = sy1 + ny * halfWidthPx;
+      const p1Rx = sx1 - nx * halfWidthPx, p1Ry = sy1 - ny * halfWidthPx;
+
+      // Back to NDC
+      const toNdcX = (sx) => (sx / wPx) * 2.0 - 1.0;
+      const toNdcY = (sy) => (sy / hPx) * 2.0 - 1.0;
+
+      const base = v * 4;
+      // v0: p0L
+      pos[base + 0] = toNdcX(p0Lx); pos[base + 1] = toNdcY(p0Ly); pos[base + 2] = ndc0z; pos[base + 3] = 1.0;
+      // v1: p0R
+      pos[base + 4] = toNdcX(p0Rx); pos[base + 5] = toNdcY(p0Ry); pos[base + 6] = ndc0z; pos[base + 7] = 1.0;
+      // v2: p1L
+      pos[base + 8] = toNdcX(p1Lx); pos[base + 9] = toNdcY(p1Ly); pos[base + 10] = ndc1z; pos[base + 11] = 1.0;
+      // v3: p1R
+      pos[base + 12] = toNdcX(p1Rx); pos[base + 13] = toNdcY(p1Ry); pos[base + 14] = ndc1z; pos[base + 15] = 1.0;
+
+      // Colors
+      for (let k = 0; k < 4; k++) {
+        const cbase = (v + k) * 4;
+        col[cbase + 0] = edgeColor[0];
+        col[cbase + 1] = edgeColor[1];
+        col[cbase + 2] = edgeColor[2];
+        col[cbase + 3] = edgeColor[3];
+      }
+
+      // Distance from centerline in *pixels* (for edge fade)
+      dist[v + 0] = -halfWidthPx;
+      dist[v + 1] = halfWidthPx;
+      dist[v + 2] = -halfWidthPx;
+      dist[v + 3] = halfWidthPx;
+
+      // Indices (two triangles)
+      idx[ii++] = v + 0; idx[ii++] = v + 1; idx[ii++] = v + 2;
+      idx[ii++] = v + 1; idx[ii++] = v + 3; idx[ii++] = v + 2;
+      v += 4;
+    }
+
+    if (v === 0) return;
+
+    // If we skipped degenerate segments, shrink views (still backed by same buffers).
+    const posView = pos.subarray(0, v * 4);
+    const colView = col.subarray(0, v * 4);
+    const distView = dist.subarray(0, v);
+    const idxView = idx.subarray(0, ii);
+
+    gl.useProgram(program);
+
+    // Set uniforms: we will draw in clip-space, so set u_transform = identity.
+    const lightingEnabled = false; // screen-space lines are typically unlit
+    const flipNormals = false;
+    this.#updateUniforms(program, halfWidthPx, 1.0, lightingEnabled, flipNormals);
+    const transformLoc = gl.getUniformLocation(program, 'u_transform');
+    if (transformLoc !== null) {
+      gl.uniformMatrix4fv(transformLoc, true, Rn.identityMatrix(4));
+    }
+
+    // Unified program defaults
+    if (program === this.#unifiedProgram) {
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+      const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+      if (prLoc !== null) gl.uniform1f(prLoc, 0.0);
+      const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+      if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+    }
+
+    // Buffers + attributes
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, posView, gl.DYNAMIC_DRAW);
+    const posLoc = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 4, gl.FLOAT, false, 0, 0);
+    if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(posLoc, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, colView, gl.DYNAMIC_DRAW);
+    const colorLoc = gl.getAttribLocation(program, 'a_color');
+    gl.enableVertexAttribArray(colorLoc);
+    gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+    if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(colorLoc, 0);
+
+    // Distance (for edge fade)
+    const distLoc = gl.getAttribLocation(program, 'a_distance');
+    if (distLoc !== -1) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, distView, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(distLoc);
+      gl.vertexAttribPointer(distLoc, 1, gl.FLOAT, false, 0, 0);
+      if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(distLoc, 0);
+    }
+
+    // Disable normals
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+    if (normalLoc !== -1) {
+      gl.disableVertexAttribArray(normalLoc);
+      gl.vertexAttrib3f(normalLoc, 0.0, 0.0, 1.0);
+      if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(normalLoc, 0);
+    }
+
+    // Unified extra attrs off
+    if (program === this.#unifiedProgram) {
+      const centerLoc = gl.getAttribLocation(program, 'a_center');
+      const p0Loc = gl.getAttribLocation(program, 'a_p0');
+      const p1Loc = gl.getAttribLocation(program, 'a_p1');
+      if (centerLoc !== -1) { gl.disableVertexAttribArray(centerLoc); gl.vertexAttrib3f(centerLoc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(centerLoc, 0); }
+      if (p0Loc !== -1) { gl.disableVertexAttribArray(p0Loc); gl.vertexAttrib3f(p0Loc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(p0Loc, 0); }
+      if (p1Loc !== -1) { gl.disableVertexAttribArray(p1Loc); gl.vertexAttrib3f(p1Loc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(p1Loc, 0); }
+    }
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxView, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, idxView.length, gl.UNSIGNED_SHORT, 0);
+  }
+
+  /**
    * Get a cached Uint16Array [0..n-1] view.
    * Grows the cache as needed and reuses it across draws to reduce allocations.
    * @private
@@ -1918,7 +2185,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     }
 
     // Get the color for this edge (or use current color)
-    const edgeColor = colors ? this.#toWebGLColor(colors) : this.#currentColor;
+    const edgeColor = colors ? this.#toRGBA(colors) : this.#currentColor;
     
     const allQuadVertices = [];
     const allQuadColors = [];
@@ -2064,7 +2331,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     
     // Ensure program is active
     gl.useProgram(program);
-
+    
     // Unified WebGL2 program: default to polygon mode for non-instanced draws.
     // Instanced sphere/tube paths set u_mode explicitly.
     if (program === this.#unifiedProgram) {
@@ -2076,7 +2343,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
     }
     
-    // Update uniforms with current transformation and line width (point size = 1.0 for non-points)
+    // Update uniforms with current transformation and line width.
+    // IMPORTANT: for gl.POINTS, we must upload the requested point size; otherwise points can appear "missing"
+    // (often rendered at size=1 regardless of Appearance.pointShader.pointSize).
     // Lighting is controlled by DefaultRenderingHintsShader.lightingEnabled, but we also require
     // normals and TRIANGLES mode.
     const lightingHint = this.getBooleanAttribute?.(
@@ -2087,7 +2356,15 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       lightingHint && normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES
     );
     const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
-    this.#updateUniforms(program, lineHalfWidth, 1.0, lightingEnabled, flipNormals);
+    const pointSize =
+      (mode === this.#capabilities.POINTS)
+        ? Number(this.getAppearanceAttribute(
+            CommonAttributes.POINT_SHADER,
+            CommonAttributes.POINT_SIZE,
+            CommonAttributes.POINT_SIZE_DEFAULT
+          ))
+        : 1.0;
+    this.#updateUniforms(program, lineHalfWidth, pointSize, lightingEnabled, flipNormals);
 
     // -----------------------------------------------------------------------
     // Vertex buffer
@@ -2289,7 +2566,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @returns {Float32Array}
    */
   #colorsToFloat32Array(colors, indices, defaultColor) {
-    return colorsToFloat32ArrayUtil((c) => this.#toWebGLColor(c), colors, indices, defaultColor);
+    return colorsToFloat32ArrayUtil((c) => this.#toRGBA(c), colors, indices, defaultColor);
   }
 
   /**
@@ -2303,31 +2580,44 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   }
 
   /**
-   * Convert color to WebGL format [r, g, b, a] in range [0, 1]
+   * Convert an *appearance* color to WebGL format [r, g, b, a] in range [0, 1].
+   * Strict by design: this method only accepts `Color` instances.
+   *
+   * Geometry colors (from DataLists) are expected to already be normalized float arrays;
+   * those should go through `#toRGBA()` instead.
+   *
    * @private
-   * @param {*} color - Color (Color object, array, or CSS string)
+   * @param {*} color
    * @returns {number[]}
    */
   #toWebGLColor(color) {
-    if (color instanceof Color) {
+    if (!(color instanceof Color)) {
+      throw new Error(`WebGL2Renderer.#toWebGLColor: expected Color, got ${Object.prototype.toString.call(color)}`);
+    }
       return color.toFloatArray();
-    } else if (Array.isArray(color)) {
-      // Coarse normalization: if values look like 0..255 bytes, convert to 0..1.
-      // This keeps caching stable and avoids per-call `map(c=>c/255)` allocations.
-      let max = 0;
-      for (let i = 0; i < Math.min(color.length, 4); i++) {
-        const v = Number(color[i]);
-        if (Number.isFinite(v)) max = Math.max(max, v);
-      }
-      if (max > 1.0) {
-        const r = (color[0] ?? 255) / 255;
-        const g = (color[1] ?? 255) / 255;
-        const b = (color[2] ?? 255) / 255;
-        const a = (color.length >= 4 ? (color[3] ?? 255) : 255) / 255;
-        return [r, g, b, a];
-      }
-      return color.length === 4 ? color : [color[0] ?? 1.0, color[1] ?? 1.0, color[2] ?? 1.0, color[3] ?? 1.0];
-    } else return [1.0, 1.0, 1.0, 1.0];
+  }
+
+  /**
+   * Convert a geometry color into float RGBA in [0,1].
+   *
+   * Contract:
+   * - Geometry color attributes (from `fromDataList(...)`) must already be normalized floats.
+   * - Appearance colors should always be `Color` objects and must go through `#toWebGLColor(...)`.
+   *
+   * Accepts:
+   * - float[4] (RGBA) → returned as-is
+   * - float[3] (RGB)  → alpha padded to 1.0
+   *
+   * @private
+   * @param {*} color
+   * @returns {number[]}
+   */
+  #toRGBA(color) {
+    if (Array.isArray(color)) {
+      if (color.length === 4) return color;
+      if (color.length === 3) return [color[0], color[1], color[2], 1.0];
+    }
+    throw new Error(`WebGL2Renderer.#toRGBA: expected float[3|4] array (geometry color), got ${Object.prototype.toString.call(color)}`);
   }
 }
 

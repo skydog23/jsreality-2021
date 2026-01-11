@@ -153,6 +153,8 @@ export function queryWebGLCapabilities(gl, options = {}) {
  */
 export function createMainProgram(gl) {
   const vertexSource = `
+      precision mediump float;
+
       attribute vec4 a_position;
       attribute vec4 a_color;
       attribute vec3 a_normal;
@@ -205,14 +207,32 @@ export function createMainProgram(gl) {
       uniform float u_ambientCoefficient;
       uniform float u_diffuseCoefficient;
       uniform vec3 u_ambientColor;
+      uniform float u_edgeFade;
+
+      // Point sprite (round/AA points) controls
+      uniform float u_pointSprite;
+      uniform float u_pointEdgeFade;
+      uniform float u_pointSize;
 
       void main() {
         float dist = abs(v_distance);
         float alpha = 1.0;
         if (u_lineHalfWidth > 0.0) {
-          float edgeFade = 0.1;
-          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
+          float fadeStart = u_lineHalfWidth * (1.0 - u_edgeFade);
           alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
+        }
+
+        // Optional: draw GL_POINTS as anti-aliased circles using gl_PointCoord.
+        // This is only meaningful for point primitives; for triangles/lines u_pointSize is typically 1.
+        if (u_pointSprite > 0.5 && u_pointSize > 1.5 && u_lineHalfWidth <= 0.0) {
+          vec2 pc = gl_PointCoord - vec2(0.5);
+          float r = length(pc);          // 0..~0.707
+          float radius = 0.5;            // circle inscribed in the square point
+          float aa = max(1.0 / max(u_pointSize, 1.0), 0.001);
+          float edge = mix(aa, radius, clamp(u_pointEdgeFade, 0.0, 1.0));
+          float mask = 1.0 - smoothstep(radius - edge, radius, r);
+          alpha *= mask;
+          if (alpha <= 0.0) discard;
         }
         vec3 ambient = u_ambientCoefficient * u_ambientColor;
         vec3 diffuse = u_diffuseCoefficient * v_lit * v_color.rgb;
@@ -331,6 +351,12 @@ export function createUnifiedLitProgram(gl) {
       uniform float u_ambientCoefficient;
       uniform float u_diffuseCoefficient;
       uniform vec3 u_ambientColor;
+      uniform float u_edgeFade;
+
+      // Point sprite (round/AA points) controls
+      uniform float u_pointSprite;
+      uniform float u_pointEdgeFade;
+      uniform float u_pointSize;
 
       out vec4 outColor;
 
@@ -338,9 +364,20 @@ export function createUnifiedLitProgram(gl) {
         float dist = abs(v_distance);
         float alpha = 1.0;
         if (u_lineHalfWidth > 0.0) {
-          float edgeFade = 0.1;
-          float fadeStart = u_lineHalfWidth * (1.0 - edgeFade);
+          float fadeStart = u_lineHalfWidth * (1.0 - u_edgeFade);
           alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
+        }
+
+        // Optional: draw GL_POINTS as anti-aliased circles using gl_PointCoord.
+        if (u_pointSprite > 0.5 && u_pointSize > 1.5 && u_lineHalfWidth <= 0.0) {
+          vec2 pc = gl_PointCoord - vec2(0.5);
+          float r = length(pc);
+          float radius = 0.5;
+          float aa = max(1.0 / max(u_pointSize, 1.0), 0.001);
+          float edge = mix(aa, radius, clamp(u_pointEdgeFade, 0.0, 1.0));
+          float mask = 1.0 - smoothstep(radius - edge, radius, r);
+          alpha *= mask;
+          if (alpha <= 0.0) discard;
         }
 
         vec3 ambient = u_ambientCoefficient * u_ambientColor;

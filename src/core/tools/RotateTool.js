@@ -16,6 +16,7 @@ import { MatrixBuilder } from '../math/MatrixBuilder.js';
 import * as P3 from '../math/P3.js';
 import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
+import { Quaternion, convert44To33, rotationMatrixToQuaternion, quaternionToRotationMatrix, linearInterpolation } from '../math/Quaternion.js';
 import { Transformation } from '../scene/Transformation.js';
 import { AbstractTool } from '../scene/tool/AbstractTool.js';
 import { InputSlot } from '../scene/tool/InputSlot.js';
@@ -47,6 +48,20 @@ export class RotateTool extends AbstractTool {
   /** @type {boolean} */
   updateCenter = false;
 
+  /**
+   * Enable simple damping / smoothing of the input rotation delta.
+   * Implemented as exponential smoothing (half-life in ms) in quaternion space.
+   * @type {boolean}
+   */
+  smoothingEnabled = true;
+
+  /**
+   * Smoothing half-life in milliseconds.
+   * Smaller = snappier; larger = smoother.
+   * @type {number}
+   */
+  smoothingHalfLifeMs = 30;
+
   /** @type {number} */
   animTimeMin = 250;
 
@@ -77,9 +92,38 @@ export class RotateTool extends AbstractTool {
   /** @type {boolean} */
   success = false;
 
+  /** @type {number} */
+  #lastPerformTimeMs = 0;
+
+  /** @type {boolean} */
+  #hasSmoothedDelta = false;
+
+  /** @type {Quaternion} */
+  #smoothedDeltaQ = new Quaternion(1, 0, 0, 0);
+
+  /** @type {Quaternion} */
+  #tmpDeltaQ = new Quaternion(1, 0, 0, 0);
+
+  /** @type {number[]} */
+  #tmpRot16 = new Array(16);
+
   constructor() {
     super(RotateTool.activationSlot);
     this.addCurrentSlot(RotateTool.evolutionSlot);
+  }
+
+  /**
+   * @private
+   * @param {number} dtMs
+   * @returns {number} alpha in [0,1]
+   */
+  #alphaFromHalfLife(dtMs) {
+    const halfLife = Number(this.smoothingHalfLifeMs);
+    if (!Number.isFinite(halfLife) || halfLife <= 0) return 1.0;
+    const dt = Math.max(0, Number(dtMs) || 0);
+    // alpha = 1 - 2^(-dt/halfLife)
+    const a = 1.0 - Math.pow(0.5, dt / halfLife);
+    return Math.max(0.0, Math.min(1.0, a));
   }
 
   /**
@@ -87,6 +131,9 @@ export class RotateTool extends AbstractTool {
    */
   activate(tc) {
      this.startTime = tc.getTime();
+    this.#lastPerformTimeMs = this.startTime;
+    this.#hasSmoothedDelta = false;
+    this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
 
     const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     this.comp = path?.getLastComponent?.() || null;
@@ -140,6 +187,33 @@ export class RotateTool extends AbstractTool {
     this.evolution.assignFrom(evoArr);
     this.evolution.conjugateBy(object2avatar);
 
+    // Optional damping/smoothing: filter the delta rotation in quaternion space.
+    // This avoids jerky motion from uneven event timing and prevents matrix-averaging artifacts.
+    if (this.smoothingEnabled) {
+      const now = tc.getTime();
+      const dt = now - this.#lastPerformTimeMs;
+      this.#lastPerformTimeMs = now;
+
+      const alpha = this.#alphaFromHalfLife(dt);
+
+      // Extract 3x3 rotation (row-major) from the 4x4 delta matrix.
+      const rot3 = convert44To33(this.evolution.getArray());
+      rotationMatrixToQuaternion(this.#tmpDeltaQ, rot3);
+
+      if (!this.#hasSmoothedDelta) {
+        // First sample: snap to it.
+        this.#smoothedDeltaQ.setValue(this.#tmpDeltaQ.re, this.#tmpDeltaQ.x, this.#tmpDeltaQ.y, this.#tmpDeltaQ.z);
+        this.#hasSmoothedDelta = true;
+      } else {
+        // NLERP toward the new delta (robust + fast; Quaternion.linearInterpolation handles sign).
+        linearInterpolation(this.#smoothedDeltaQ, this.#smoothedDeltaQ, this.#tmpDeltaQ, alpha);
+      }
+
+      // Convert filtered quaternion back to a pure rotation 4x4 and replace evolution.
+      quaternionToRotationMatrix(this.#tmpRot16, this.#smoothedDeltaQ);
+      this.evolution.assignFrom(this.#tmpRot16);
+    }
+
     if (!this.fixOrigin && this.updateCenter) {
       const currentPick = tc.getCurrentPick();
       if (this.rotateOnPick && currentPick !== null) {
@@ -174,6 +248,9 @@ export class RotateTool extends AbstractTool {
   deactivate(tc) {
     // Intentionally left blank for now.
     // Java version optionally schedules an inertial animation here.
+    this.#lastPerformTimeMs = 0;
+    this.#hasSmoothedDelta = false;
+    this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
   }
 
   /**

@@ -142,15 +142,15 @@ export class TestJSRApp extends JSRApp {
     const camera = CameraUtility.getCamera(this.getViewer());
     camera.setFieldOfView(30);
 
-    const viewerSwitch = this.getViewer();
-    const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')
-      ? viewerSwitch.getViewers()
-      : [viewerSwitch];
-    for (const v of viewers) {
-      if (v && typeof v.setDebugPerf === 'function') {
-        v.setDebugPerf({ enabled: true, everyNFrames: 1 });
-      }
-    }
+    // const viewerSwitch = this.getViewer();
+    // const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')
+    //   ? viewerSwitch.getViewers()
+    //   : [viewerSwitch];
+    // for (const v of viewers) {
+    //   if (v && typeof v.setDebugPerf === 'function') {
+    //     v.setDebugPerf({ enabled: true, everyNFrames: 1 });
+    //   }
+    // }
 
     this._animationPlugin.setAnimateSceneGraph(true);
     this._animationPlugin.setAnimateCamera(false);
