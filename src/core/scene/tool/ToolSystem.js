@@ -467,7 +467,7 @@ export class ToolSystem extends ToolEventReceiver {
           'VirtualRotation',
           InputSlot.TRACKBALL_TRANSFORMATION,
           [InputSlot.POINTER_NDC, InputSlot.CAMERA_TO_WORLD],
-          { gain: 1.57 }
+          { gain: .75 }
         ),
         // jReality: VirtualExtractTranslationTrafo(PointerTransformation) -> PointerTranslation
         new VirtualDeviceConfig(

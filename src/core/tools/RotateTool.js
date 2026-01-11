@@ -53,14 +53,14 @@ export class RotateTool extends AbstractTool {
    * Implemented as exponential smoothing (half-life in ms) in quaternion space.
    * @type {boolean}
    */
-  smoothingEnabled = true;
+  smoothingEnabled = false;
 
   /**
    * Smoothing half-life in milliseconds.
    * Smaller = snappier; larger = smoother.
    * @type {number}
    */
-  smoothingHalfLifeMs = 30;
+  smoothingHalfLifeMs = 600;
 
   /** @type {number} */
   animTimeMin = 250;
@@ -95,6 +95,9 @@ export class RotateTool extends AbstractTool {
   /** @type {number} */
   #lastPerformTimeMs = 0;
 
+  /** @type {number} */
+  #lastPerformDtMs = 0;
+
   /** @type {boolean} */
   #hasSmoothedDelta = false;
 
@@ -104,8 +107,50 @@ export class RotateTool extends AbstractTool {
   /** @type {Quaternion} */
   #tmpDeltaQ = new Quaternion(1, 0, 0, 0);
 
+  /** @type {Quaternion} Last applied delta rotation (object space) */
+  #lastAppliedDeltaQ = new Quaternion(1, 0, 0, 0);
+
+  /** @type {number} Last applied delta angle in radians */
+  #lastAppliedDeltaAngle = 0;
+
+  /** @type {number[]} Last applied delta axis (length 3) */
+  #lastAppliedDeltaAxis = [0, 0, 1];
+
+  /** @type {number|null} */
+  #inertiaRafId = null;
+
+  /** @type {boolean} */
+  #inertiaRunning = false;
+
+  /** @type {number} */
+  #inertiaLastTimeMs = 0;
+
+  /** @type {number} Angular velocity (rad/ms) */
+  #inertiaOmega = 0;
+
+  /** @type {number[]} */
+  #inertiaAxis = [0, 0, 1];
+
   /** @type {number[]} */
   #tmpRot16 = new Array(16);
+
+  /**
+   * Inertia decay half-life in ms. Larger = longer spin.
+   * @type {number}
+   */
+  inertiaHalfLifeMs = 40000;
+
+  /**
+   * Scale factor applied to the captured flick speed (matches Java's 0.05 heuristic).
+   * @type {number}
+   */
+  inertiaGain = 0.2;
+
+  /**
+   * Stop inertia when angular velocity drops below this threshold (rad/ms).
+   * @type {number}
+   */
+  inertiaStopThreshold = 1e-4;
 
   constructor() {
     super(RotateTool.activationSlot);
@@ -127,13 +172,65 @@ export class RotateTool extends AbstractTool {
   }
 
   /**
+   * @private
+   * @param {number} dtMs
+   * @param {number} halfLifeMs
+   * @returns {number} decay multiplier in (0,1]
+   */
+  #decayFromHalfLife(dtMs, halfLifeMs) {
+    const hl = Number(halfLifeMs);
+    if (!Number.isFinite(hl) || hl <= 0) return 1.0;
+    const dt = Math.max(0, Number(dtMs) || 0);
+    return Math.pow(0.5, dt / hl);
+  }
+
+  /**
+   * @private
+   * @param {Quaternion} qIn
+   * @returns {{ axis: number[], angle: number }}
+   */
+  #quatToAxisAngle(qIn) {
+    // Ensure shortest-arc representation.
+    let w = qIn.re, x = qIn.x, y = qIn.y, z = qIn.z;
+    if (w < 0) { w = -w; x = -x; y = -y; z = -z; }
+
+    const ww = Math.max(-1.0, Math.min(1.0, w));
+    const angle = 2.0 * Math.acos(ww); // [0, pi]
+    const s = Math.sqrt(Math.max(0.0, 1.0 - ww * ww));
+
+    if (s < 1e-8 || angle < 1e-8) {
+      return { axis: [0, 0, 1], angle: 0.0 };
+    }
+    return { axis: [x / s, y / s, z / s], angle };
+  }
+
+  /**
+   * @private
+   */
+  #stopInertia() {
+    if (this.#inertiaRafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.#inertiaRafId);
+    }
+    this.#inertiaRafId = null;
+    this.#inertiaRunning = false;
+    this.#inertiaOmega = 0;
+  }
+
+  /**
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
    */
   activate(tc) {
-     this.startTime = tc.getTime();
+    // User grabbed again -> stop inertial rotation immediately.
+    this.#stopInertia();
+
+    this.startTime = tc.getTime();
     this.#lastPerformTimeMs = this.startTime;
+    this.#lastPerformDtMs = 0;
     this.#hasSmoothedDelta = false;
     this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
+    this.#lastAppliedDeltaQ.setValue(1, 0, 0, 0);
+    this.#lastAppliedDeltaAngle = 0;
+    this.#lastAppliedDeltaAxis = [0, 0, 1];
 
     const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     this.comp = path?.getLastComponent?.() || null;
@@ -187,13 +284,15 @@ export class RotateTool extends AbstractTool {
     this.evolution.assignFrom(evoArr);
     this.evolution.conjugateBy(object2avatar);
 
+    // Track dt for inertia and smoothing.
+    const now = tc.getTime();
+    const dt = now - this.#lastPerformTimeMs;
+    this.#lastPerformTimeMs = now;
+    this.#lastPerformDtMs = dt;
+
     // Optional damping/smoothing: filter the delta rotation in quaternion space.
     // This avoids jerky motion from uneven event timing and prevents matrix-averaging artifacts.
     if (this.smoothingEnabled) {
-      const now = tc.getTime();
-      const dt = now - this.#lastPerformTimeMs;
-      this.#lastPerformTimeMs = now;
-
       const alpha = this.#alphaFromHalfLife(dt);
 
       // Extract 3x3 rotation (row-major) from the 4x4 delta matrix.
@@ -213,6 +312,14 @@ export class RotateTool extends AbstractTool {
       quaternionToRotationMatrix(this.#tmpRot16, this.#smoothedDeltaQ);
       this.evolution.assignFrom(this.#tmpRot16);
     }
+
+    // Capture last applied delta as axis-angle for inertial animation.
+    // Use the actual evolution matrix being applied (after smoothing).
+    const rot3Now = convert44To33(this.evolution.getArray());
+    rotationMatrixToQuaternion(this.#lastAppliedDeltaQ, rot3Now);
+    const aa = this.#quatToAxisAngle(this.#lastAppliedDeltaQ);
+    this.#lastAppliedDeltaAxis = aa.axis;
+    this.#lastAppliedDeltaAngle = aa.angle;
 
     if (!this.fixOrigin && this.updateCenter) {
       const currentPick = tc.getCurrentPick();
@@ -246,11 +353,79 @@ export class RotateTool extends AbstractTool {
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
    */
   deactivate(tc) {
-    // Intentionally left blank for now.
-    // Java version optionally schedules an inertial animation here.
+    const t = tc.getTime() - this.startTime;
+
+    // Reset smoothing state (so next grab snaps cleanly).
     this.#lastPerformTimeMs = 0;
+    this.#lastPerformDtMs = 0;
     this.#hasSmoothedDelta = false;
     this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
+
+    if (!this.animationEnabled) return;
+    if (!this.comp) return;
+    if (!this.success) return;
+    if (!(t > this.animTimeMin && t < this.animTimeMax)) return;
+
+    const dtMs = Math.max(1, Number(this.#lastPerformDtMs) || 0);
+    const angle = Number(this.#lastAppliedDeltaAngle) || 0;
+    if (!(angle > 1e-6)) return;
+
+    const axis = this.#lastAppliedDeltaAxis;
+    const omega0 = (angle / dtMs) * Number(this.inertiaGain);
+    if (!(omega0 > this.inertiaStopThreshold)) return;
+
+    this.#inertiaAxis = [axis[0], axis[1], axis[2]];
+    this.#inertiaOmega = omega0;
+    this.#inertiaRunning = true;
+    this.#inertiaLastTimeMs = globalThis?.performance?.now ? globalThis.performance.now() : Date.now();
+
+    const step = () => {
+      if (!this.#inertiaRunning || !this.comp) return;
+
+      const nowMs = globalThis?.performance?.now ? globalThis.performance.now() : Date.now();
+      const dtAnim = Math.min(50, Math.max(0, nowMs - this.#inertiaLastTimeMs)); // clamp to avoid huge jumps
+      this.#inertiaLastTimeMs = nowMs;
+
+      // Exponential decay of angular velocity.
+      const decay = this.#decayFromHalfLife(dtAnim, this.inertiaHalfLifeMs);
+      this.#inertiaOmega *= decay;
+      if (!(this.#inertiaOmega > this.inertiaStopThreshold)) {
+        this.#stopInertia();
+        return;
+      }
+
+      const dAngle = this.#inertiaOmega * dtAnim;
+      if (!(dAngle > 0)) {
+        this.#inertiaRafId = requestAnimationFrame(step);
+        return;
+      }
+
+      // Optionally update center as in Java.
+      if (!this.fixOrigin && this.updateCenter) {
+        this.center = this.#getCenter(this.comp);
+      }
+
+      const currentTrafo = this.comp.getTransformation();
+      if (!currentTrafo) {
+        this.#stopInertia();
+        return;
+      }
+
+      // Apply incremental rotation around the captured axis.
+      // result = current * [center] * rot(dAngle) * [center^-1]
+      this.result.assignFrom(currentTrafo.getMatrix(null));
+      if (!this.fixOrigin) this.result.multiplyOnRight(this.center);
+      MatrixBuilder.euclidean(this.result).rotateArray(dAngle, this.#inertiaAxis);
+      if (!this.fixOrigin) this.result.multiplyOnRight(this.center.getInverse());
+      if (!Rn.isNan(this.result.getArray())) {
+        currentTrafo.setMatrix(this.result.getArray());
+      }
+
+      tc.getViewer().renderAsync();
+      this.#inertiaRafId = requestAnimationFrame(step);
+    };
+
+    this.#inertiaRafId = requestAnimationFrame(step);
   }
 
   /**

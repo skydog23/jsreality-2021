@@ -94,7 +94,7 @@ export class TestJSRApp extends JSRApp {
 
   updateSphere() {
     this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
-    // this.updateSaturate();
+    this.updateSaturate();
     this._world.setGeometry(this._ifs);
     //MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
 
@@ -106,25 +106,25 @@ export class TestJSRApp extends JSRApp {
     if (this._origFaceColors == null || this._origFaceColors.length != n) {
       this._origFaceColors = new Array(n);
       for (let i = 0; i < n; i++) {
-        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random()];
+        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random(), 1];
       }
     }
   
     const satColors = new Array(n);
-     const white = [1,1,1];
+     const white = [1,1,1,1];
     for (let i = 0; i < n; i++) {
       let c = this._origFaceColors[i];
       let max = Math.max(c[0], c[1], c[2]);
       let min = Math.min(c[0], c[1], c[2]);
       min = 0;
+      let cs = null;
       if (max == min) {
-        c = white;
+        cs = white;
       } else {
       let t = (max-min)/max;
-      c = c.map(x => (1-this._saturate)*x + this._saturate*(x-min)/(max-min));
+      cs = c.map(x => (1-this._saturate)*x + this._saturate*(x-min)/(max-min));
       }
-      Rn.times(c, 255, c);
-      satColors[i] = new Color(...c);
+      satColors[i] = cs;
     }
     const data = toDataList(satColors, null, 'float32');
     this._ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
