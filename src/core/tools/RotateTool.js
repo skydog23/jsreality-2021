@@ -53,14 +53,14 @@ export class RotateTool extends AbstractTool {
    * Implemented as exponential smoothing (half-life in ms) in quaternion space.
    * @type {boolean}
    */
-  smoothingEnabled = false;
+  smoothingEnabled = true;
 
   /**
    * Smoothing half-life in milliseconds.
    * Smaller = snappier; larger = smoother.
    * @type {number}
    */
-  smoothingHalfLifeMs = 600;
+  smoothingHalfLifeMs = 30;
 
   /** @type {number} */
   animTimeMin = 250;
@@ -138,7 +138,7 @@ export class RotateTool extends AbstractTool {
    * Inertia decay half-life in ms. Larger = longer spin.
    * @type {number}
    */
-  inertiaHalfLifeMs = 40000;
+  inertiaHalfLifeMs = 0;
 
   /**
    * Scale factor applied to the captured flick speed (matches Java's 0.05 heuristic).
@@ -222,15 +222,7 @@ export class RotateTool extends AbstractTool {
   activate(tc) {
     // User grabbed again -> stop inertial rotation immediately.
     this.#stopInertia();
-
-    this.startTime = tc.getTime();
-    this.#lastPerformTimeMs = this.startTime;
-    this.#lastPerformDtMs = 0;
-    this.#hasSmoothedDelta = false;
-    this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
-    this.#lastAppliedDeltaQ.setValue(1, 0, 0, 0);
-    this.#lastAppliedDeltaAngle = 0;
-    this.#lastAppliedDeltaAxis = [0, 0, 1];
+    this.initializeInertia(tc);
 
     const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     this.comp = path?.getLastComponent?.() || null;
@@ -254,6 +246,17 @@ export class RotateTool extends AbstractTool {
     }
     this.metric = this.eap ? this.eap.getAttribute('metric', Pn.EUCLIDEAN) : Pn.EUCLIDEAN;
   }
+
+    initializeInertia(tc) {
+        this.startTime = tc.getTime();
+        this.#lastPerformTimeMs = this.startTime;
+        this.#lastPerformDtMs = 0;
+        this.#hasSmoothedDelta = false;
+        this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
+        this.#lastAppliedDeltaQ.setValue(1, 0, 0, 0);
+        this.#lastAppliedDeltaAngle = 0;
+        this.#lastAppliedDeltaAxis = [0, 0, 1];
+    }
 
   /**
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
@@ -353,6 +356,9 @@ export class RotateTool extends AbstractTool {
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
    */
   deactivate(tc) {
+    super.deactivate(tc);
+    if (this.inertiaHalfLifeMs <= 0) return;
+
     const t = tc.getTime() - this.startTime;
 
     // Reset smoothing state (so next grab snaps cleanly).
