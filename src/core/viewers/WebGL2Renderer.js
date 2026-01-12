@@ -1599,12 +1599,28 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       CommonAttributes.DIFFUSE_COEFFICIENT,
       CommonAttributes.DIFFUSE_COEFFICIENT_DEFAULT
     ));
+    const specularCoeff = Number(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.SPECULAR_COEFFICIENT,
+      CommonAttributes.SPECULAR_COEFFICIENT_DEFAULT
+    ));
+    const specularExponent = Number(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.SPECULAR_EXPONENT,
+      CommonAttributes.SPECULAR_EXPONENT_DEFAULT
+    ));
     const ambientColorValue = this.getAppearanceAttribute(
       CommonAttributes.POLYGON_SHADER,
       CommonAttributes.AMBIENT_COLOR,
       CommonAttributes.AMBIENT_COLOR_DEFAULT
     );
+    const specularColorValue = this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER,
+      CommonAttributes.SPECULAR_COLOR,
+      CommonAttributes.SPECULAR_COLOR_DEFAULT
+    );
     const ambientRGBA = this.#toWebGLColor(ambientColorValue);
+    const specularRGBA = this.#toWebGLColor(specularColorValue);
 
     if (ambientCoeffLoc !== null) {
       gl.uniform1f(ambientCoeffLoc, ambientCoeff);
@@ -1614,6 +1630,19 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     }
     if (ambientColorLoc !== null) {
       gl.uniform3f(ambientColorLoc, ambientRGBA[0], ambientRGBA[1], ambientRGBA[2]);
+    }
+
+    const specularCoeffLoc = gl.getUniformLocation(program, 'u_specularCoefficient');
+    if (specularCoeffLoc !== null) {
+      gl.uniform1f(specularCoeffLoc, specularCoeff);
+    }
+    const specularExpLoc = gl.getUniformLocation(program, 'u_specularExponent');
+    if (specularExpLoc !== null) {
+      gl.uniform1f(specularExpLoc, specularExponent);
+    }
+    const specularColorLoc = gl.getUniformLocation(program, 'u_specularColor');
+    if (specularColorLoc !== null) {
+      gl.uniform3f(specularColorLoc, specularRGBA[0], specularRGBA[1], specularRGBA[2]);
     }
     
     // Set point size uniform

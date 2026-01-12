@@ -169,7 +169,8 @@ export function createMainProgram(gl) {
 
       varying vec4 v_color;
       varying float v_distance;
-      varying float v_lit;
+      varying vec3 v_viewPos;
+      varying vec3 v_viewNormal;
 
       void main() {
         vec4 position = a_position;
@@ -182,17 +183,11 @@ export function createMainProgram(gl) {
         v_color = a_color;
         v_distance = a_distance;
 
-        if (u_lightingEnabled < 0.5) {
-          v_lit = 1.0;
-        } else {
-          vec4 pv = u_modelView * vec4(a_position.xyz, 1.0);
-          vec3 N = normalize(u_normalMatrix * a_normal);
-          if (u_flipNormals > 0.5) {
-            N = -N;
-          }
-          vec3 L = normalize(-pv.xyz);
-          v_lit = max(dot(N, L), 0.0);
-        }
+        // Phong shading: pass view-space position + normal to fragment shader.
+        // Lighting itself is computed per-fragment for accuracy.
+        vec4 pv = u_modelView * vec4(a_position.xyz, 1.0);
+        v_viewPos = pv.xyz;
+        v_viewNormal = u_normalMatrix * a_normal;
       }
     `;
 
@@ -201,12 +196,18 @@ export function createMainProgram(gl) {
 
       varying vec4 v_color;
       varying float v_distance;
-      varying float v_lit;
+      varying vec3 v_viewPos;
+      varying vec3 v_viewNormal;
 
+      uniform float u_lightingEnabled;
+      uniform float u_flipNormals;
       uniform float u_lineHalfWidth;
       uniform float u_ambientCoefficient;
       uniform float u_diffuseCoefficient;
+      uniform float u_specularCoefficient;
+      uniform float u_specularExponent;
       uniform vec3 u_ambientColor;
+      uniform vec3 u_specularColor;
       uniform float u_edgeFade;
 
       // Point sprite (round/AA points) controls
@@ -234,9 +235,27 @@ export function createMainProgram(gl) {
           alpha *= mask;
           if (alpha <= 0.0) discard;
         }
+
+        float lit = 1.0;
+        float spec = 0.0;
+        if (u_lightingEnabled > 0.5) {
+          vec3 N = normalize(v_viewNormal);
+          if (u_flipNormals > 0.5) {
+            N = -N;
+          }
+          // Camera light at origin in view space: direction from point -> light is (-v_viewPos).
+          vec3 L = normalize(-v_viewPos);
+          lit = max(dot(N, L), 0.0);
+          if (lit > 0.0 && u_specularCoefficient > 0.0) {
+            vec3 V = normalize(-v_viewPos);
+            vec3 R = reflect(-L, N); // reflect incident (-L) about N
+            spec = u_specularCoefficient * pow(max(dot(R, V), 0.0), u_specularExponent);
+          }
+        }
         vec3 ambient = u_ambientCoefficient * u_ambientColor;
-        vec3 diffuse = u_diffuseCoefficient * v_lit * v_color.rgb;
-        gl_FragColor = vec4(ambient + diffuse, v_color.a * alpha);
+        vec3 diffuse = u_diffuseCoefficient * lit * v_color.rgb;
+        vec3 specular = spec * u_specularColor;
+        gl_FragColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
       }
     `;
 
@@ -286,7 +305,8 @@ export function createUnifiedLitProgram(gl) {
 
       out vec4 v_color;
       out float v_distance;
-      out float v_lit;
+      out vec3 v_viewPos;
+      out vec3 v_viewNormal;
 
       void main() {
         vec4 position = a_position;
@@ -326,17 +346,10 @@ export function createUnifiedLitProgram(gl) {
         v_color = a_color;
         v_distance = a_distance;
 
-        if (u_lightingEnabled < 0.5) {
-          v_lit = 1.0;
-        } else {
-          vec4 pv = u_modelView * vec4(position.xyz, 1.0);
-          vec3 N = normalize(u_normalMatrix * Nobj);
-          if (u_flipNormals > 0.5) {
-            N = -N;
-          }
-          vec3 L = normalize(-pv.xyz);
-          v_lit = max(dot(N, L), 0.0);
-        }
+        // Phong shading: pass view-space position + normal to fragment shader.
+        vec4 pv = u_modelView * vec4(position.xyz, 1.0);
+        v_viewPos = pv.xyz;
+        v_viewNormal = u_normalMatrix * Nobj;
       }
     `;
 
@@ -345,13 +358,19 @@ export function createUnifiedLitProgram(gl) {
 
       in vec4 v_color;
       in float v_distance;
-      in float v_lit;
+      in vec3 v_viewPos;
+      in vec3 v_viewNormal;
 
       uniform float u_lineHalfWidth;
       uniform float u_ambientCoefficient;
       uniform float u_diffuseCoefficient;
+      uniform float u_specularCoefficient;
+      uniform float u_specularExponent;
       uniform vec3 u_ambientColor;
+      uniform vec3 u_specularColor;
       uniform float u_edgeFade;
+      uniform float u_lightingEnabled;
+      uniform float u_flipNormals;
 
       // Point sprite (round/AA points) controls
       uniform float u_pointSprite;
@@ -380,9 +399,26 @@ export function createUnifiedLitProgram(gl) {
           if (alpha <= 0.0) discard;
         }
 
+        float lit = 1.0;
+        float spec = 0.0;
+        if (u_lightingEnabled > 0.5) {
+          vec3 N = normalize(v_viewNormal);
+          if (u_flipNormals > 0.5) {
+            N = -N;
+          }
+          vec3 L = normalize(-v_viewPos);
+          lit = max(dot(N, L), 0.0);
+          if (lit > 0.0 && u_specularCoefficient > 0.0) {
+            vec3 V = normalize(-v_viewPos);
+            vec3 R = reflect(-L, N);
+            spec = u_specularCoefficient * pow(max(dot(R, V), 0.0), u_specularExponent);
+          }
+        }
+
         vec3 ambient = u_ambientCoefficient * u_ambientColor;
-        vec3 diffuse = u_diffuseCoefficient * v_lit * v_color.rgb;
-        outColor = vec4(ambient + diffuse, v_color.a * alpha);
+        vec3 diffuse = u_diffuseCoefficient * lit * v_color.rgb;
+        vec3 specular = spec * u_specularColor;
+        outColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
       }
     `;
 

@@ -20,6 +20,7 @@ import { JSRApp } from '../JSRApp.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { RotateTool } from '../../core/tools/RotateTool.js';
 import { TranslateTool } from '../../core/tools/TranslateTool.js';
+import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.
@@ -38,8 +39,7 @@ export class TestJSRApp extends JSRApp {
   
 
     const ap = this._world.getAppearance();
-    ap.setAttribute(CommonAttributes.LINE_LIGHTING_ENABLED, true);
-    ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
+    ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("polygonShader." + CommonAttributes.DIFFUSE_COLOR, new Color(128,0,255));
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,128,255));
@@ -142,6 +142,11 @@ export class TestJSRApp extends JSRApp {
     // so whichever viewer is active will report stats.
     const camera = CameraUtility.getCamera(this.getViewer());
     camera.setFieldOfView(30);
+    camera.setPerspective(true);
+    camera.setNear(0.1);
+    camera.setFar(100);
+    CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
+      MatrixBuilder.euclidean().translate(0,0,4).getArray());
 
     // const viewerSwitch = this.getViewer();
     // const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')

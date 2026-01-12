@@ -38,7 +38,7 @@ export class TestAnimApp extends JSRApp {
     this.#tform = this._worldSGC.getTransformation();
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
-    squareSGC.setGeometry(SphereUtility.tessellatedIcosahedronSphere(4)); //Primitives.regularPolygon(4, 0));
+    squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
     const ap = squareSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);

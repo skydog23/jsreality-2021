@@ -33,8 +33,7 @@ export class ConicDemo extends JSRApp {
   _conicSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
-  _fivePoints = null;
-  _conic = null;
+   _conic = null;
   _whichMode = 1;
   _doSVD = true;
   _psf = null;
@@ -65,7 +64,10 @@ export class ConicDemo extends JSRApp {
     const tool = new MyTestTool();
     tool.setName("testTool");
     this._worldSGC.addTool(tool);
-       
+      
+    const ap = this._worldSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
+    ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
     this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC);
     return this._worldSGC;
   }
@@ -83,18 +85,18 @@ export class ConicDemo extends JSRApp {
     this._conic = new ConicSection();
     console.log('Creating initial conic');
 
-
+  let fivePoints = [];
   if (this._whichMode == 0) {
-      this._fivePoints = [];
+      fivePoints = [];
       for (let i = 0; i < 5; i++) {
           const angle = (2 * Math.PI * i) / 5;
           const x = Math.cos(angle);
           const y = Math.sin(angle);
-          this._fivePoints.push([x, y, 1]);
+          fivePoints.push([x, y, 1]);
       }
       logger.fine(-1, 'Using normal conic mode - 5 points on unit circle');
   } else  {
-      this._fivePoints = [
+      fivePoints = [
           [Math.random()*2-1, Math.random()*2-1,  1],
           [Math.random()*2-1, Math.random()*2-1, 1],
           [Math.random()*2-1, Math.random()*2-1,  1],
@@ -102,25 +104,25 @@ export class ConicDemo extends JSRApp {
           [Math.random()*2-1, Math.random()*2-1, 1]
       ];
       if (this._whichMode == 2) {
-        this._fivePoints[4] = Rn.add(null, Rn.times(null, .4, this._fivePoints[0]), Rn.times(null, .6, this._fivePoints[1]));
+        fivePoints[4] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
       }
   }
 
   this._psf = new PointSetFactory();
-  this._psf.setVertexCount(this._fivePoints.length);
-  this._psf.setVertexCoordinates(this._fivePoints);
+  this._psf.setVertexCount(fivePoints.length);
+  this._psf.setVertexCoordinates(fivePoints);
   this._psf.update();
   this._fivePointSGC.setGeometry(this._psf.getPointSet());
   let ap = this._fivePointSGC.getAppearance();
   ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
   ap.setAttribute("pointShader."+CommonAttributes.POINT_RADIUS, 0.02);
   ap.setAttribute("pointShader."+CommonAttributes.DIFFUSE_COLOR, Color.RED);
-  ap.setAttribute("pointShader."+CommonAttributes.SPHERES_DRAW, false);
+  ap.setAttribute("pointShader."+CommonAttributes.SPHERES_DRAW, true);
   
   if (this._doSVD) {
-      this._conic.setCoefficients(ConicUtils.solveConicFromPointsSVD(this._fivePoints));
+      this._conic.setCoefficients(ConicUtils.solveConicFromPointsSVD( fivePoints));
   } else {
-      this._conic.setCoefficients(ConicUtils.solveConicFromPoints(this._fivePoints));
+      this._conic.setCoefficients(ConicUtils.solveConicFromPoints(fivePoints));
   }
     this._conic.update();
     this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
@@ -130,7 +132,6 @@ export class ConicDemo extends JSRApp {
     ap.setAttribute("lineShader."+CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute("lineShader."+CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader."+CommonAttributes.TUBES_DRAW, true);
-    ap.setAttribute("lineShader."+CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
   }
    
