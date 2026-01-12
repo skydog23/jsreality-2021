@@ -962,9 +962,13 @@ export class ToolSystem extends ToolEventReceiver {
   #registerActivePathForTool(pickPath, tool) {
     const lastElement = pickPath.getLastElement();
     const path = (lastElement instanceof Geometry) ? pickPath.popNew() : pickPath;
-    const paths = this.#toolToPath.get(tool) || [];
-    paths.push(path);
-    this.#toolToPath.set(tool, paths);
+    // IMPORTANT:
+    // Active paths are per-interaction state. We must not accumulate them across repeated
+    // activate/deactivate cycles, otherwise tools will be deactivated multiple times
+    // (once per stale path), which looks like “deactivate called N times and growing”.
+    //
+    // jReality maintains a current active path; for now we model that as a single-element list.
+    this.#toolToPath.set(tool, [path]);
   }
 
   /**
@@ -1098,6 +1102,9 @@ export class ToolSystem extends ToolEventReceiver {
         this.#toolContext.setRootToLocal(path);
         tool.deactivate(this.#toolContext);
       }
+
+      // Clear per-interaction active paths after deactivation so they don't accumulate.
+      this.#toolToPath.delete(tool);
     }
   }
 

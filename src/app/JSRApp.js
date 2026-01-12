@@ -117,7 +117,7 @@ export class JSRApp extends JSRPlugin {
     
     const {
       container,
-      viewerTypes = [ViewerTypes.CANVAS2D, ViewerTypes.WEBGL2D, ViewerTypes.SVG],
+      viewerTypes = [ViewerTypes.WEBGL2D, ViewerTypes.CANVAS2D, ViewerTypes.SVG],
       inspector = {},
       shrinkPanel = {}
     } = options;

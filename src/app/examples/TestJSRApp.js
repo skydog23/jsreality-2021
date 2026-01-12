@@ -50,6 +50,7 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
     const rotTool = new RotateTool();
     rotTool.setName("rotateTool");
+    // rotTool.debugInertia = true;
     this._world.addTool(rotTool);
     const transTool = new TranslateTool();
     transTool.setName("translateTool");
