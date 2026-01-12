@@ -14,6 +14,7 @@ import { Color } from '../util/Color.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 import * as Rn from '../math/Rn.js';
+import { DefaultRenderingHintsShader } from '../shader/DefaultRenderingHintsShader.js';
 import {
   compileShader as compileShaderUtil,
   queryWebGLCapabilities,
@@ -143,6 +144,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   #debugGL = null;
   /** @type {boolean} */
   #debugDidLogPolygonDiffuseThisFrame = false;
+
+  /** @type {boolean|null} */
+  #blendEnabled = null;
+
+  /** @type {boolean|null} */
+  #blendAdditive = null;
 
   /** @type {number[]} Batched vertices for lines (to combine multiple edges into single draw call) */
   #batchedVertices = [];
@@ -277,8 +284,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       throw new Error('Failed to create WebGL buffers');
     }
     
-    // Enable blending for transparency
-    gl.enable(gl.BLEND);
+    // Blending is controlled by RenderingHintsShader.transparencyEnabled (see _applyAppearance()).
+    // We still set the default blend function here; it will be reconfigured when enabled.
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     // Depth is opt-in (the viewer can request a depth buffer via options.depth=true).
@@ -1173,6 +1180,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // Note: With alpha: true canvas, transparent backgrounds are supported
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
     gl.clear(this.#hasDepthBuffer ? (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) : gl.COLOR_BUFFER_BIT);
+
+    // Apply rendering-hints state for the current effective appearance (defaults apply if unset).
+    // This ensures transparency is consistently configured even before the first Appearance node is visited.
+    this._applyAppearance();
     
     // Use our main shader program (unified WebGL2 program if available, else WebGL1-compatible main).
     gl.useProgram(this.#getMainProgramForDraw());
@@ -1217,7 +1228,38 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @protected
    */
   _applyAppearance() {
-    // Appearance attributes are applied per-primitive in _beginPrimitiveGroup
+    // RenderingHintsShader flags can appear anywhere in the scene graph; they should
+    // take effect as the EffectiveAppearance changes during traversal.
+    const gl = this.#gl;
+
+    const transparencyEnabled = this.getBooleanAttribute?.(
+      CommonAttributes.TRANSPARENCY_ENABLED,
+      DefaultRenderingHintsShader.TRANSPARENCY_ENABLED_DEFAULT
+    );
+    const additiveBlendingEnabled = this.getBooleanAttribute?.(
+      CommonAttributes.ADDITIVE_BLENDING_ENABLED,
+      DefaultRenderingHintsShader.ADDITIVE_BLENDING_ENABLED_DEFAULT
+    );
+
+    // Only touch GL state when something changes (saves driver overhead).
+    if (transparencyEnabled !== this.#blendEnabled) {
+      this.#blendEnabled = transparencyEnabled;
+      if (transparencyEnabled) gl.enable(gl.BLEND);
+      else gl.disable(gl.BLEND);
+    }
+
+    if (additiveBlendingEnabled !== this.#blendAdditive) {
+      this.#blendAdditive = additiveBlendingEnabled;
+      // If additive blending is enabled, use a simple additive target:
+      //   dst = src*a + dst*1
+      // Otherwise, standard SRC-over:
+      //   dst = src*a + dst*(1-a)
+      if (additiveBlendingEnabled) {
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      } else {
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      }
+    }
   }
 
   /**
@@ -1474,6 +1516,36 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     
     // Convert color to WebGL format [0-1]
     this.#currentColor = this.#toWebGLColor(color);
+
+    // DefaultPolygonShader transparency convention: 0 = opaque, 1 = fully transparent.
+    // This only takes effect if RenderingHintsShader.transparencyEnabled is true.
+    //
+    // In OpenGL/WebGL terms, this sets the fragment alpha which is then used by
+    // glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA):
+    //   C_out = a*C_src + (1-a)*C_dst
+    //
+    // We apply this to polygon groups only; lines/points can still become transparent
+    // by setting an alpha < 1 on their diffuseColor.
+    try {
+      const transparencyEnabled = this.getBooleanAttribute?.(
+        CommonAttributes.TRANSPARENCY_ENABLED,
+        DefaultRenderingHintsShader.TRANSPARENCY_ENABLED_DEFAULT
+      );
+      if (transparencyEnabled && type === CommonAttributes.POLYGON) {
+        const t = Number(this.getAppearanceAttribute(
+          CommonAttributes.POLYGON_SHADER,
+          CommonAttributes.TRANSPARENCY,
+          CommonAttributes.TRANSPARENCY_DEFAULT
+        ));
+        if (Number.isFinite(t) && t > 0) {
+          const alpha = Math.max(0.0, Math.min(1.0, 1.0 - t));
+          // Multiply with any alpha already present on the Color object.
+          this.#currentColor[3] *= alpha;
+        }
+      }
+    } catch {
+      // ignore (keep default alpha)
+    }
     
     // Set primitive type
     this.#currentPrimitiveType = type;

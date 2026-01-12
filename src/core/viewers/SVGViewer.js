@@ -18,6 +18,7 @@ import { Abstract2DViewer } from './Abstract2DViewer.js';
 import * as P3 from '../math/P3.js';
 import { Rectangle2D } from '../util/Rectangle2D.js';
 import * as CameraUtility from '../util/CameraUtility.js';
+import { Color } from '../util/Color.js';
 
 /**
  * Global SVG numeric precision (number of decimal places).
@@ -476,6 +477,30 @@ class SVGRenderer extends Abstract2DRenderer {
     this.#svgElement = viewer._getSVGElement();
     this.#width = viewer._getWidth();
     this.#height = viewer._getHeight();
+  }
+
+  /**
+   * SVG rendering hot-path: geometry colors coming from DataLists are now normalized float[3|4] in [0,1].
+   * Avoid the generic conversion logic when we know we have normalized floats.
+   *
+   * @param {*} colorValue
+   * @returns {string}
+   */
+  toCSSColor(colorValue) {
+    if (Array.isArray(colorValue)) {
+      const n = colorValue.length;
+      if (n === 3 || n === 4) {
+        const r = Number(colorValue[0]);
+        const g = Number(colorValue[1]);
+        const b = Number(colorValue[2]);
+        const a = n === 4 ? Number(colorValue[3]) : 1.0;
+        const max = Math.max(r, g, b, a);
+        if (Number.isFinite(max) && max <= 1.0) {
+          return Color.floatArrayToCSSColor(colorValue);
+        }
+      }
+    }
+    return super.toCSSColor(colorValue);
   }
 
   // render() inherited from Abstract2DRenderer

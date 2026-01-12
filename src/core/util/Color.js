@@ -136,18 +136,59 @@ export class Color {
     }
 
     /**
+     * An optimized version of toCSSColor for float arrays normalized to [0,1]
+     * @param {} floatArray 
+     * @returns 
+     */
+    static floatArrayToCSSColor(floatArray) {
+         const n = floatArray.length;
+         if (n !== 3 && n !== 4) return String(floatArray);
+         const r = Math.round(Number(floatArray[0]) * 255);
+         const g = Math.round(Number(floatArray[1]) * 255);
+         const b = Math.round(Number(floatArray[2]) * 255);
+         // CSS alpha expects 0..1 (do NOT scale by 255).
+         const a = n === 4 ? Number(floatArray[3]) : 1.0;
+         return n === 3 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+    /**
      * Static utility to convert any color value to CSS string
      * Handles Color objects, strings, arrays, etc.
      * @param {*} colorValue - Color object, string, or other value
      * @returns {string} CSS color string
      */
     static toCSSColor(colorValue) {
-        if (colorValue instanceof Array) { 
+        // Accept numeric arrays:
+        // - [r,g,b] or [r,g,b,a]
+        // - either byte RGB (0..255) or normalized float RGB (0..1)
+        // - alpha may be 0..1 (preferred for CSS) or 0..255 (legacy)
+        //
+        // This is important because geometry colors coming from DataLists are now
+        // normalized float[4] in [0,1] (see DataUtility.toDataList Color normalization).
+        if (Array.isArray(colorValue)) {
             const n = colorValue.length;
-            if (n === 3) {
-                return `rgb(${colorValue[0]}, ${colorValue[1]}, ${colorValue[2]})`;
-            } else if (n === 4) {
-                return `rgba(${colorValue[0]}, ${colorValue[1]}, ${colorValue[2]}, ${colorValue[3]})`;
+            if (n === 3 || n === 4) {
+                const r0 = Number(colorValue[0]);
+                const g0 = Number(colorValue[1]);
+                const b0 = Number(colorValue[2]);
+                const a0 = n === 4 ? Number(colorValue[3]) : 1.0;
+
+                // Heuristic: if all channels are <= 1, treat as normalized.
+                const max = Math.max(r0, g0, b0, a0);
+                const isNormalized = Number.isFinite(max) && max <= 1.0;
+
+                const r = isNormalized ? Math.round(r0 * 255) : Math.round(r0);
+                const g = isNormalized ? Math.round(g0 * 255) : Math.round(g0);
+                const b = isNormalized ? Math.round(b0 * 255) : Math.round(b0);
+
+                // CSS alpha is 0..1. If input looks like 0..255 bytes, normalize it.
+                const a = (n === 4)
+                    ? (isNormalized ? a0 : (a0 > 1.0 ? (a0 / 255) : a0))
+                    : 1.0;
+
+                if (n === 3) {
+                    return `rgb(${r}, ${g}, ${b})`;
+                }
+                return `rgba(${r}, ${g}, ${b}, ${a})`;
             }
         } else if (colorValue && typeof colorValue.toCSSString === 'function') {
             return colorValue.toCSSString();

@@ -40,15 +40,16 @@ export class TestJSRApp extends JSRApp {
 
     const ap = this._world.getAppearance();
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, true);
+    ap.setAttribute(CommonAttributes.TRANSPARENCY_ENABLED, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("polygonShader." + CommonAttributes.DIFFUSE_COLOR, new Color(128,0,255));
+    ap.setAttribute("polygonShader." + CommonAttributes.SMOOTH_SHADING, false);
+    ap.setAttribute("polygonShader." + CommonAttributes.TRANSPARENCY, 0.5);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0,128,255));
-    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 255, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01);
-    const rotTool = new RotateTool();
+     const rotTool = new RotateTool();
     rotTool.setName("rotateTool");
     // rotTool.debugInertia = true;
     this._world.addTool(rotTool);
@@ -73,7 +74,7 @@ export class TestJSRApp extends JSRApp {
           this._sphereLevel = val;
           this.updateSphere();
         },
-        min: 1,
+        min: 0,
         max: 8,
         step: 1
       },
@@ -95,6 +96,10 @@ export class TestJSRApp extends JSRApp {
 
   updateSphere() {
     this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
+    const ap = this._world.getAppearance();
+    const factor = Math.pow(2, 4-this._sphereLevel )  ;
+    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005 * factor);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01 * factor);
     this.updateSaturate();
     this._world.setGeometry(this._ifs);
     //MatrixBuilder.euclidean().scale(this._scale).assignTo(this._world);
@@ -107,7 +112,7 @@ export class TestJSRApp extends JSRApp {
     if (this._origFaceColors == null || this._origFaceColors.length != n) {
       this._origFaceColors = new Array(n);
       for (let i = 0; i < n; i++) {
-        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random(), 1];
+        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random(), Math.random()];
       }
     }
   
@@ -137,26 +142,13 @@ export class TestJSRApp extends JSRApp {
    */
   display() {
     super.display();
-    // Enable debug/perf logging on viewers (logs every N frames).
-    // Note: JSRApp.getViewer() returns a ViewerSwitch; enable on all contained viewers
-    // so whichever viewer is active will report stats.
-    const camera = CameraUtility.getCamera(this.getViewer());
+     const camera = CameraUtility.getCamera(this.getViewer());
     camera.setFieldOfView(30);
     camera.setPerspective(true);
     camera.setNear(0.1);
     camera.setFar(100);
     CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
       MatrixBuilder.euclidean().translate(0,0,4).getArray());
-
-    // const viewerSwitch = this.getViewer();
-    // const viewers = (viewerSwitch && typeof viewerSwitch.getViewers === 'function')
-    //   ? viewerSwitch.getViewers()
-    //   : [viewerSwitch];
-    // for (const v of viewers) {
-    //   if (v && typeof v.setDebugPerf === 'function') {
-    //     v.setDebugPerf({ enabled: true, everyNFrames: 1 });
-    //   }
-    // }
 
     this._animationPlugin.setAnimateSceneGraph(true);
     this._animationPlugin.setAnimateCamera(false);

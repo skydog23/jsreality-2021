@@ -146,12 +146,6 @@ export class RotateTool extends AbstractTool {
   /** @type {number[]} */
   #tmpRot16 = new Array(16);
 
-  /**
-   * Debug inertial animation (prints key values each frame).
-   * @type {boolean}
-   */
-  debugInertia = false;
-
   // NOTE: we intentionally do not expose extra inertia knobs.
   // Java RotateTool uses a fixed factor (0.05) and runs until descheduled.
 
@@ -288,10 +282,6 @@ export class RotateTool extends AbstractTool {
       const rot3Raw = convert44To33(this.evolution.getArray());
       rotationMatrixToQuaternion(this.#tmpDeltaQ, rot3Raw);
       this.#lastRawDeltaQ.setValue(this.#tmpDeltaQ.re, this.#tmpDeltaQ.x, this.#tmpDeltaQ.y, this.#tmpDeltaQ.z);
-      if (this.debugInertia) {
-        const aaRaw = this.#quatToAxisAngle(this.#lastRawDeltaQ);
-        console.log('[RotateTool inertia] capture raw delta', { dt, angle: aaRaw.angle, axis: aaRaw.axis });
-      }
     }
 
     // Optional damping/smoothing: filter the delta rotation in quaternion space.
@@ -369,19 +359,15 @@ export class RotateTool extends AbstractTool {
 
     // Java: only schedule if gesture duration is within [animTimeMin, animTimeMax].
     if (!this.animationEnabled) {
-      if (this.debugInertia) console.log('[RotateTool inertia] skip: animationEnabled=false');
       return;
     }
     if (!(t > this.animTimeMin && t < this.animTimeMax)) {
-      if (this.debugInertia) console.log('[RotateTool inertia] skip: time window', { t, animTimeMin: this.animTimeMin, animTimeMax: this.animTimeMax });
       return;
     }
     if (!this.comp) {
-      if (this.debugInertia) console.log('[RotateTool inertia] skip: no comp');
       return;
     }
     if (!this.success) {
-      if (this.debugInertia) console.log('[RotateTool inertia] skip: success=false');
       return;
     }
 
@@ -391,7 +377,6 @@ export class RotateTool extends AbstractTool {
     const aa = this.#quatToAxisAngle(this.#lastAppliedDeltaQ);
     let rotAngle = aa.angle;
     if (rotAngle > Math.PI) rotAngle = -2 * Math.PI + rotAngle;
-    if (this.debugInertia) console.log('[RotateTool inertia] rotAngle', { rotAngle, axis: aa.axis });
  
     // Java: Matrix cen = new Matrix(center); SceneGraphComponent c = comp;
     this.#animCenter = new Matrix(this.center);
@@ -402,17 +387,7 @@ export class RotateTool extends AbstractTool {
 
     this.#animRunning = true;
     this.#animLastTimeMs = globalThis?.performance?.now ? globalThis.performance.now() : Date.now();
-    if (this.debugInertia) {
-      console.log('[RotateTool inertia] start', {
-        t,
-        animTimeMin: this.animTimeMin,
-        animTimeMax: this.animTimeMax,
-        rotAngle,
-        axis: aa.axis
-      });
-    }
     const step = () => {
-      if (this.debugInertia) console.log('[RotateTool inertia] step()');
       // if (!this.#animRunning || !this.#animComp || !this.#animViewer) return;
 
       const nowMs = globalThis?.performance?.now ? globalThis.performance.now() : Date.now();
@@ -421,14 +396,6 @@ export class RotateTool extends AbstractTool {
 
       // Java uses `0.05 * dt * rotAngle` with dt effectively in milliseconds.
       const dAngle = this.#animAngleFactor * dtMs * this.#animRotAngle;
-      if (this.debugInertia) {
-        console.log('[RotateTool inertia] frame', {
-          dtMs,
-          animRotAngle: this.#animRotAngle,
-          dAngle,
-          axis: this.#animAxis
-        });
-      }
 
       // Java: if (updateCenter) cen = getCenter(c);
       let cen = this.#animCenter;
@@ -459,15 +426,6 @@ export class RotateTool extends AbstractTool {
 
       if (!Rn.isNan(this.result.getArray())) {
         currentTrafo.setMatrix(this.result.getArray());
-      }
-
-      if (this.debugInertia) {
-        const after = currentTrafo.getMatrix(null);
-        console.log('[RotateTool inertia] matrix Δ', {
-          before0_7: before.slice(0, 8),
-          after0_7: after.slice(0, 8),
-          changed: before.some((v, i) => v !== after[i])
-        });
       }
 
       this.#animViewer.renderAsync();

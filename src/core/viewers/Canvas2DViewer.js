@@ -11,17 +11,14 @@
 // Canvas2D implementation of the Viewer interface
 // Provides 2D rendering using HTML5 Canvas 2D context
 
-import { Abstract2DViewer } from './Abstract2DViewer.js';
-import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { Dimension } from '../scene/Viewer.js';
-import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
-import * as Rn from '../math/Rn.js';
-import { DefaultPointShader } from '../shader/DefaultPointShader.js';
 import { DefaultLineShader } from '../shader/DefaultLineShader.js';
+import { DefaultPointShader } from '../shader/DefaultPointShader.js';
 import { DefaultPolygonShader } from '../shader/DefaultPolygonShader.js';
 import { getLogger } from '../util/LoggingSystem.js';
+import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { Abstract2DViewer } from './Abstract2DViewer.js';
 
 const logger = getLogger('jsreality.core.viewers.Canvas2DViewer');
 
