@@ -4,25 +4,12 @@ import * as P2 from '../math/P2.js';
 import * as P3 from '../math/P3.js';
 import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
-
-import { Decimal } from '../math/Decimal.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 
 import { ConicSection } from './ConicSection.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicUtils');
 setModuleLevel(logger.getModuleName(), Level.FINE);
-// Configure Decimal for high precision
-Decimal.set({ precision: 40 });
-
-// Helper functions for Decimal operations
-function toDecimal(x) {
-    return new Decimal(x);
-}
-
-function fromDecimal(d) {
-    return d.toNumber();
-}
 
 export class ConicUtils {
     
@@ -506,166 +493,14 @@ export class ConicUtils {
     }
 
     static svdDecompositionHP(matrix) {
-        const m = matrix.length;      // number of rows
-        const n = matrix[0].length;   // number of columns
-        
-        // Create copies to avoid modifying original
-        const U = matrix.map(row => row.map(x => toDecimal(x)));
-        const V = Array(n).fill().map(() => Array(n).fill(toDecimal(0)));
-        const S = Array(Math.min(m, n)).fill(toDecimal(0));
-        
-        // Initialize V as identity matrix
-        for (let i = 0; i < n; i++) {
-            V[i][i] = toDecimal(1);
-        }
-        
-        const householderBidiag = (U, V, S) => {
-            const eps = toDecimal('1e-40');  // Much higher precision threshold
-            const maxIter = 50;
-            
-            // Form A^T * A with high precision
-            const ATA = Array(n).fill().map(() => Array(n).fill(toDecimal(0)));
-            for (let i = 0; i < n; i++) {
-                for (let j = 0; j < n; j++) {
-                    for (let k = 0; k < m; k++) {
-                        ATA[i][j] = ATA[i][j].plus(U[k][i].times(U[k][j]));
-                    }
-                }
-            }
-            
-            const jacobi = (matrix) => {
-                const size = matrix.length;
-                const eigenVecs = Array(size).fill().map(() => Array(size).fill(toDecimal(0)));
-                const eigenVals = Array(size).fill(toDecimal(0));
-                
-                // Initialize eigenvector matrix as identity
-                for (let i = 0; i < size; i++) {
-                    eigenVecs[i][i] = toDecimal(1);
-                }
-                
-                // Copy matrix
-                const A = matrix.map(row => [...row]);
-                
-                for (let iter = 0; iter < maxIter; iter++) {
-                    // Find largest off-diagonal element
-                    let maxVal = toDecimal(0);
-                    let p = 0, q = 1;
-                    
-                    for (let i = 0; i < size; i++) {
-                        for (let j = i + 1; j < size; j++) {
-                            const absVal = A[i][j].abs();
-                            if (absVal.gt(maxVal)) {
-                                maxVal = absVal;
-                                p = i;
-                                q = j;
-                            }
-                        }
-                    }
-                    
-                    if (maxVal.lt(eps)) break;
-                    
-                    // Calculate rotation angle with high precision
-                    const theta = Decimal.atan2(
-                        toDecimal(2).times(A[p][q]),
-                        A[q][q].minus(A[p][p])
-                    ).dividedBy(2);
-                    
-                    const c = Decimal.cos(theta);
-                    const s = Decimal.sin(theta);
-                    
-                    // Apply Jacobi rotation with high precision
-                    const App = A[p][p];
-                    const Aqq = A[q][q];
-                    const Apq = A[p][q];
-                    
-                    A[p][p] = c.times(c).times(App)
-                             .plus(s.times(s).times(Aqq))
-                             .minus(toDecimal(2).times(s).times(c).times(Apq));
-                             
-                    A[q][q] = s.times(s).times(App)
-                             .plus(c.times(c).times(Aqq))
-                             .plus(toDecimal(2).times(s).times(c).times(Apq));
-                             
-                    A[p][q] = A[q][p] = toDecimal(0);
-                    
-                    // Update other elements
-                    for (let i = 0; i < size; i++) {
-                        if (i !== p && i !== q) {
-                            const Aip = A[i][p];
-                            const Aiq = A[i][q];
-                            A[i][p] = A[p][i] = c.times(Aip).minus(s.times(Aiq));
-                            A[i][q] = A[q][i] = s.times(Aip).plus(c.times(Aiq));
-                        }
-                    }
-                    
-                    // Update eigenvectors
-                    for (let i = 0; i < size; i++) {
-                        const Vip = eigenVecs[i][p];
-                        const Viq = eigenVecs[i][q];
-                        eigenVecs[i][p] = c.times(Vip).minus(s.times(Viq));
-                        eigenVecs[i][q] = s.times(Vip).plus(c.times(Viq));
-                    }
-                }
-                
-                // Extract eigenvalues
-                for (let i = 0; i < size; i++) {
-                    eigenVals[i] = A[i][i];
-                }
-                
-                // Sort eigenvalues and eigenvectors in descending order
-                const indices = Array.from({length: size}, (_, i) => i);
-                indices.sort((a, b) => eigenVals[b].abs().minus(eigenVals[a].abs()).toNumber());
-                
-                const sortedVals = indices.map(i => eigenVals[i]);
-                const sortedVecs = indices.map(i => eigenVecs.map(row => row[i]));
-                
-                return { eigenValues: sortedVals, eigenVectors: sortedVecs };
-            };
-            
-            const result = jacobi(ATA);
-            
-            // Calculate singular values with high precision
-            for (let i = 0; i < result.eigenValues.length; i++) {
-                S[i] = Decimal.sqrt(Decimal.max(0, result.eigenValues[i]));
-            }
-            
-            // Copy eigenvectors to V
-            for (let i = 0; i < n; i++) {
-                for (let j = 0; j < n; j++) {
-                    V[j][i] = result.eigenVectors[i][j];
-                }
-            }
-            
-            // Compute U = A * V * S^(-1) for non-zero singular values
-            const UResult = Array(m).fill().map(() => Array(Math.min(m, n)).fill(toDecimal(0)));
-            for (let i = 0; i < m; i++) {
-                for (let j = 0; j < Math.min(m, n); j++) {
-                    if (S[j].gt(eps)) {
-                        for (let k = 0; k < n; k++) {
-                            UResult[i][j] = UResult[i][j].plus(
-                                U[i][k].times(V[k][j]).dividedBy(S[j])
-                            );
-                        }
-                    }
-                }
-            }
-            
-            // Copy back to U
-            for (let i = 0; i < m; i++) {
-                for (let j = 0; j < Math.min(m, n); j++) {
-                    U[i][j] = UResult[i][j];
-                }
-            }
-        };
-        
-        householderBidiag(U, V, S);
-        
-        // Convert back to numbers before returning
-        return {
-            U: U.map(row => row.map(x => fromDecimal(x))),
-            S: S.map(x => fromDecimal(x)),
-            V: V.map(row => row.map(x => fromDecimal(x)))
-        };
+        // NOTE:
+        // This method originally used `decimal.js` for high-precision Jacobi eigensolve.
+        // In the browser test runner (`test/test-jsrapp-example.html`) we can’t assume
+        // the dev server exposes `/node_modules/**`, which caused 404s for `decimal.mjs`.
+        //
+        // For interactive demos, the regular double-precision SVD is typically fine.
+        // If you later want HP again, we should load Decimal via an importmap/bundler.
+        return ConicUtils.svdDecomposition(matrix);
     }
 
     static factorPair(conic, svd) {
