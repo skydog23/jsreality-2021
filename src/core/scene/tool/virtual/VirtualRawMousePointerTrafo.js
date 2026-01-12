@@ -92,7 +92,7 @@ export class VirtualRawMousePointerTrafo extends VirtualDevice {
     m[14] = 1;
 
     // Compose pointerTrafo = ndcToWorld * pointerNdc
-    Rn.timesMatrix(this._pointerTrafo, this._ndcToWorld, m);
+    Rn.times(this._pointerTrafo, this._ndcToWorld, m);
     return this._pointerTrafo;
   }
 

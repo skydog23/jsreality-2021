@@ -284,7 +284,20 @@ export function subtract(dst, a, b) {
  * @param {Quaternion} src 
  * @returns {Quaternion}
  */
-export function times(dst, s, src) {
+export function times(dst, sOrA, srcOrB) {
+  // Java overloads:
+  // - times(Quaternion dst, double s, Quaternion src)
+  // - times(Quaternion dst, Quaternion a, Quaternion b)
+  // JS port rule: keep the Java name and dispatch at runtime.
+
+  // times(dst, a, b) (quaternion multiply)
+  if (sOrA instanceof Quaternion) {
+    return timesQuat(dst, sOrA, /** @type {Quaternion} */ (srcOrB));
+  }
+
+  // times(dst, s, src) (scalar multiply)
+  const s = /** @type {number} */ (sOrA);
+  const src = /** @type {Quaternion} */ (srcOrB);
   if (dst === null) dst = new Quaternion();
   dst.re = s * src.re;
   dst.x = s * src.x;
@@ -301,17 +314,19 @@ export function times(dst, s, src) {
  * @returns {Quaternion}
  */
 export function timesQuat(dst, a, b) {
+  // Java name is `times(dst, a, b)`. Keep this as a compatibility wrapper.
+  // @deprecated Use `times(dst, a, b)`.
   if (dst === null) dst = new Quaternion();
   if (a === null || b === null) {
     return dst;
   }
-  
+
   // Need temporary storage in case dst === a or dst === b
   const re = a.re * b.re - a.x * b.x - a.y * b.y - a.z * b.z;
   const x = a.re * b.x + b.re * a.x + a.y * b.z - a.z * b.y;
   const y = a.re * b.y - a.x * b.z + b.re * a.y + a.z * b.x;
   const z = a.re * b.z + a.x * b.y - a.y * b.x + b.re * a.z;
-  
+
   dst.re = re;
   dst.x = x;
   dst.y = y;
@@ -378,7 +393,7 @@ export function invert(dst, src) {
 export function divide(dst, a, b) {
   const tmp = new Quaternion();
   invert(tmp, b);
-  return timesQuat(dst, a, tmp);
+  return times(dst, a, tmp);
 }
 
 /**

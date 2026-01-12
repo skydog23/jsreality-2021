@@ -69,7 +69,7 @@ export class PosWHitFilter extends HitFilter {
     logger.fine(Category.ALL, `#update: world2cam: ${world2cam.toString()}`);
     const camToNDC = CameraUtility.getCameraToNDC(this.#viewer);
     logger.fine(Category.ALL, `#update: cam to ndc: ${camToNDC.toString()}`);
-    this.#world2ndc = Rn.timesMatrix(null, camToNDC, world2cam);
+    this.#world2ndc = Rn.times(null, camToNDC, world2cam);
     logger.fine(Category.ALL, `#update: world2ndc: ${this.#world2ndc.toString()}`);
   }
   

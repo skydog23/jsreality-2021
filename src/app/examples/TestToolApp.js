@@ -53,7 +53,7 @@ export class TestToolApp extends JSRApp {
         ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
         ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
         ap.setAttribute("polygonShader." + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 255));
-       MatrixBuilder.euclidean().scale(1, 1, 1).assignToSGC(squareSGC);
+       MatrixBuilder.euclidean().scale(1, 1, 1).assignTo(squareSGC);
         const ptSGC = SceneGraphUtility.createFullSceneGraphComponent("pt");
         ptSGC.setGeometry(Primitives.point([1,0, 0, 1]));
         ap = ptSGC.getAppearance();
@@ -63,7 +63,7 @@ export class TestToolApp extends JSRApp {
         ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.04);
  
         const worldSGC = SceneGraphUtility.createFullSceneGraphComponent("tool");
-        MatrixBuilder.euclidean().translate(0,0,-2).assignToSGC(worldSGC);
+        MatrixBuilder.euclidean().translate(0,0,-2).assignTo(worldSGC);
         
          // Define a local tool class that has closure access to ptSGC
          class MyTestTool extends TestTool {

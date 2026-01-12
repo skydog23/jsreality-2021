@@ -16,10 +16,6 @@
 import { getLogger, Category } from '../util/LoggingSystem.js';
 
 const logger = getLogger('jsreality.core.math.Rn');
-
-/** @typedef {number[]} Vec */
-/** @typedef {number[]} Matrix */
-
 export const TOLERANCE = 1e-8;
 
 // Helper: fast integer sqrt for small perfect squares (used for matrix size)
@@ -45,9 +41,9 @@ function mysqrt(sq) {
 /**
  * Dehomogenize a homogeneous vector by dividing by the last coordinate.
  * If the last coordinate is (near) zero, returns a copy scaled by 1 (no-op).
- * @param {Vec|null} dst
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function dehomogenize(dst, src) {
   const length = src.length;
@@ -63,9 +59,9 @@ export function dehomogenize(dst, src) {
 // Helper: fill array with value
 /**
  * Fill a vector with a scalar value.
- * @param {Vec} dst
+ * @param {number[]} dst
  * @param {number} val
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function setToValue(dst, val) {
   dst.fill(val);
@@ -75,10 +71,10 @@ export function setToValue(dst, val) {
 // Helper: set 2-vector
 /**
  * Set a 2D vector to specific components.
- * @param {Vec|null} dst
+ * @param {number[]|null} dst
  * @param {number} x
  * @param {number} y
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function setToValue2(dst, x, y) {
   if (!dst) dst = new Array(2);
@@ -90,11 +86,11 @@ export function setToValue2(dst, x, y) {
 // Helper: set 3-vector
 /**
  * Set a 3D vector to specific components.
- * @param {Vec|null} dst
+ * @param {number[]|null} dst
  * @param {number} x
  * @param {number} y
  * @param {number} z
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function setToValue3(dst, x, y, z) {
   if (!dst) dst = new Array(3);
@@ -106,12 +102,12 @@ export function setToValue3(dst, x, y, z) {
 // Helper: set 4-vector
 /**
  * Set a 4D vector to specific components.
- * @param {Vec|null} dst
+ * @param {number[]|null} dst
  * @param {number} x
  * @param {number} y
  * @param {number} z
  * @param {number} w
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function setToValue4(dst, x, y, z, w) {
   if (!dst) dst = new Array(4);
@@ -123,9 +119,9 @@ export function setToValue4(dst, x, y, z, w) {
 // abs: elementwise absolute value
 /**
  * Elementwise absolute value.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function abs(dst, src) {
   const n = src.length;
@@ -137,10 +133,10 @@ export function abs(dst, src) {
 // add: elementwise addition
 /**
  * Elementwise vector addition.
- * @param {Vec|null} dst
- * @param {Vec} src1
- * @param {Vec} src2
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
  */
 export function add(dst, src1, src2) {
   if (!dst) dst = new Array(Math.max(src1.length, src2.length));
@@ -172,9 +168,9 @@ export function add(dst, src1, src2) {
 // average: average of a list of vectors
 /**
  * Average of a list of vectors (componentwise mean).
- * @param {Vec|null} dst
- * @param {Vec[]} vlist
- * @returns {Vec|null}
+ * @param {number[]|null} dst
+ * @param {number[][]} vlist
+ * @returns {number[]|null}
  */
 export function average(dst, vlist) {
   if (!dst) dst = new Array(vlist[0].length);
@@ -188,9 +184,9 @@ export function average(dst, vlist) {
 // copy: copy src to dst
 /**
  * Copy source vector into destination.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function copy(dst, src) {
   if (!dst) dst = new Array(src.length);
@@ -201,10 +197,10 @@ export function copy(dst, src) {
 // crossProduct: 3D cross product
 /**
  * 3D cross product u x v.
- * @param {Vec|null} dst
- * @param {Vec} u
- * @param {Vec} v
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} u
+ * @param {number[]} v
+ * @returns {number[]}
  */
 export function crossProduct(dst, u, v) {
   if (u.length < 3 || v.length < 3) throw new Error('Vectors too short');
@@ -221,8 +217,8 @@ export function crossProduct(dst, u, v) {
 // euclideanDistance: sqrt of sum of squares of differences
 /**
  * Euclidean distance between vectors.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function euclideanDistance(u, v) {
@@ -232,8 +228,8 @@ export function euclideanDistance(u, v) {
 // euclideanDistanceSquared: sum of squares of differences
 /**
  * Squared Euclidean distance between vectors.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function euclideanDistanceSquared(u, v) {
@@ -245,7 +241,7 @@ export function euclideanDistanceSquared(u, v) {
 // euclideanNorm: sqrt of sum of squares
 /**
  * Euclidean norm (2-norm) of a vector.
- * @param {Vec} vec
+ * @param {number[]} vec
  * @returns {number}
  */
 export function euclideanNorm(vec) {
@@ -255,7 +251,7 @@ export function euclideanNorm(vec) {
 // euclideanNormSquared: sum of squares
 /**
  * Squared Euclidean norm (sum of squares).
- * @param {Vec} vec
+ * @param {number[]} vec
  * @returns {number}
  */
 export function euclideanNormSquared(vec) {
@@ -265,8 +261,8 @@ export function euclideanNormSquared(vec) {
 // innerProduct: dot product
 /**
  * Dot product (componentwise) of u and v; tolerates off-by-one length.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function innerProduct(u, v) {
@@ -282,8 +278,8 @@ export function innerProduct(u, v) {
 // innerProduct with n terms
 /**
  * Dot product of the first n entries of u and v.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @param {number} n
  * @returns {number}
  */
@@ -298,7 +294,7 @@ export function innerProductN(u, v, n) {
 // manhattanNorm: sum of absolute values
 /**
  * Manhattan (L1) norm of a vector.
- * @param {Vec} vec
+ * @param {number[]} vec
  * @returns {number}
  */
 export function manhattanNorm(vec) {
@@ -310,8 +306,8 @@ export function manhattanNorm(vec) {
 // manhattanNormDistance: manhattan norm of difference
 /**
  * Manhattan (L1) distance between vectors.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function manhattanNormDistance(u, v) {
@@ -323,10 +319,10 @@ export function manhattanNormDistance(u, v) {
 // max: elementwise maximum
 /**
  * Elementwise maximum of two vectors.
- * @param {Vec|null} dst
- * @param {Vec} src1
- * @param {Vec} src2
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
  */
 export function max(dst, src1, src2) {
   const n = Math.min(src1.length, src2.length);
@@ -340,7 +336,7 @@ export function max(dst, src1, src2) {
 // maxNorm: maximum absolute value
 /**
  * Max norm (L-infinity) of a vector.
- * @param {Vec} vec
+ * @param {number[]} vec
  * @returns {number}
  */
 export function maxNorm(vec) {
@@ -352,8 +348,8 @@ export function maxNorm(vec) {
 // maxNormDistance: max norm of difference
 /**
  * Max norm distance (L-infinity) between vectors.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function maxNormDistance(u, v) {
@@ -365,10 +361,10 @@ export function maxNormDistance(u, v) {
 // min: elementwise minimum
 /**
  * Elementwise minimum of two vectors.
- * @param {Vec|null} dst
- * @param {Vec} src1
- * @param {Vec} src2
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
  */
 export function min(dst, src1, src2) {
   const n = Math.min(src1.length, src2.length);
@@ -381,9 +377,9 @@ export function min(dst, src1, src2) {
 // negate: elementwise negation
 /**
  * Elementwise negation of a vector.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function negate(dst, src) {
   if (!dst) dst = new Array(src.length);
@@ -396,9 +392,9 @@ export function negate(dst, src) {
 // normalize: normalize to unit length
 /**
  * Normalize a vector to unit Euclidean length.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function normalize(dst, src) {
   return setEuclideanNorm(dst, 1.0, src);
@@ -407,9 +403,9 @@ export function normalize(dst, src) {
 // normalize array of vectors
 /**
  * Normalize an array of vectors to unit length.
- * @param {Vec[]|null} dst
- * @param {Vec[]} src
- * @returns {Vec[]}
+ * @param {number[][]|null} dst
+ * @param {number[][]} src
+ * @returns {number[][]}
  */
 export function normalizeArray(dst, src) {
   if (!dst) dst = new Array(src.length).fill(0).map(() => new Array(src[0].length));
@@ -422,10 +418,10 @@ export function normalizeArray(dst, src) {
 // setEuclideanNorm: scale to given length
 /**
  * Scale src to have given Euclidean length.
- * @param {Vec|null} dst
+ * @param {number[]|null} dst
  * @param {number} length
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function setEuclideanNorm(dst, length, src) {
   if (!dst) dst = new Array(src.length);
@@ -444,10 +440,10 @@ export function setEuclideanNorm(dst, length, src) {
 // subtract: elementwise subtraction
 /**
  * Elementwise subtraction src1 - src2.
- * @param {Vec|null} dst
- * @param {Vec} src1
- * @param {Vec} src2
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
  */
 export function subtract(dst, src1, src2) {
   if (!dst) dst = new Array(Math.max(src1.length, src2.length));
@@ -479,10 +475,10 @@ export function subtract(dst, src1, src2) {
 // subtract array of vectors
 /**
  * Elementwise subtraction of arrays of vectors.
- * @param {Vec[]|null} dst
- * @param {Vec[]} src1
- * @param {Vec[]} src2
- * @returns {Vec[]}
+ * @param {number[][]|null} dst
+ * @param {number[][]} src1
+ * @param {number[][]} src2
+ * @returns {number[][]}
  */
 export function subtractArray(dst, src1, src2) {
   if (!dst) dst = new Array(src1.length).fill(0).map(() => new Array(src1[0].length));
@@ -492,17 +488,37 @@ export function subtractArray(dst, src1, src2) {
   return dst;
 }
 
-// times: scalar multiplication
+// times: overloaded in Java (vector scale, matrix multiply, vectorized vector scale)
 /**
- * Multiply vector by scalar factor.
- * @param {Vec|null} dst
- * @param {number} factor
- * @param {Vec} src
- * @returns {Vec}
+ * Java overloads:
+ * - `times(double[] dst, double factor, double[] src)` (vector scale)
+ * - `times(double[] dst, double[] src1, double[] src2)` (square matrix multiply)
+ * - `times(double[][] dst, double factor, double[][] src)` (vectorized scale)
+ *
+ * JS port rule (JAVA2JS_PORTING_GUIDELINES.md #5): keep the Java name and dispatch at runtime.
+ *
+ * @param {number[]|number[][]|null} dst
+ * @param {number|number[]|number[][]} factorOrSrc1
+ * @param {number[]|number[]|number[][]} srcOrSrc2
+ * @returns {number[]|number[][]}
  */
-export function times(dst, factor, src) {
+export function times(dst, factorOrSrc1, srcOrSrc2) {
+  // times(double[] dst, double[] src1, double[] src2)  (matrix multiply)
+  if (Array.isArray(factorOrSrc1) && Array.isArray(srcOrSrc2) && typeof factorOrSrc1[0] === 'number') {
+    return timesMatrix(/** @type {number[]|null} */(dst), /** @type {number[]} */(factorOrSrc1), /** @type {number[]} */(srcOrSrc2));
+  }
+
+  // times(double[][] dst, double factor, double[][] src) (vectorized scale)
+  if (typeof factorOrSrc1 === 'number' && Array.isArray(srcOrSrc2) && Array.isArray(srcOrSrc2[0])) {
+    return timesArray(/** @type {number[][]|null} */(dst), factorOrSrc1, /** @type {number[][]} */(srcOrSrc2));
+  }
+
+  // times(double[] dst, double factor, double[] src) (vector scale)
+  const factor = /** @type {number} */ (factorOrSrc1);
+  const src = /** @type {number[]} */ (srcOrSrc2);
+  if (!Array.isArray(src) || typeof src[0] !== 'number') throw new Error('Invalid arguments to Rn.times');
   if (!dst) dst = new Array(src.length);
-  if (dst.length !== src.length) throw new Error('Vectors must be same length');
+  if (!Array.isArray(dst) || dst.length !== src.length) throw new Error('Vectors must be same length');
   const n = dst.length;
   for (let i = 0; i < n; ++i) dst[i] = factor * src[i];
   return dst;
@@ -511,10 +527,10 @@ export function times(dst, factor, src) {
 // times: matrix multiplication
 /**
  * Matrix multiplication dst = src1 * src2 (both square, same size, row-major 1D arrays).
- * @param {Matrix|null} dst
- * @param {Matrix} src1
- * @param {Matrix} src2
- * @returns {Matrix}
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
  */
 export function timesMatrix(dst, src1, src2) {
   if (src1.length !== src2.length) throw new Error('Input Matrices must be same size'+src1.length+' '+src2.length);
@@ -545,10 +561,10 @@ export function timesMatrix(dst, src1, src2) {
 // times: scalar multiplication for array of vectors
 /**
  * Multiply an array of vectors by a scalar factor.
- * @param {Vec[]|null} dst
+ * @param {number[][]|null} dst
  * @param {number} factor
- * @param {Vec[]} src
- * @returns {Vec[]}
+ * @param {number[][]} src
+ * @returns {number[][]}
  */
 export function timesArray(dst, factor, src) {
   if (!dst) dst = new Array(src.length).fill(0).map(() => new Array(src[0].length));
@@ -561,7 +577,7 @@ export function timesArray(dst, factor, src) {
 /**
  * Convert a flat n*n array to a 2D n x n array.
  * @param {number[][]|null} dst
- * @param {Matrix} src
+ * @param {number[]} src
  * @returns {number[][]}
  */
 export function convertFlatArrayTo2DArray(dst, src) {
@@ -595,10 +611,10 @@ export function convert4To3(v3, d4)	{
 // barycentricTriangleInterp: barycentric interpolation
 /**
  * Barycentric interpolation of three corner vectors with weights.
- * @param {Vec|null} dst
- * @param {Vec[]} corners length 3
+ * @param {number[]|null} dst
+ * @param {number[][]} corners length 3
  * @param {number[]} weights length 3
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function barycentricTriangleInterp(dst, corners, weights) {
   let ddst;
@@ -617,7 +633,7 @@ export function barycentricTriangleInterp(dst, corners, weights) {
 /**
  * Compute axis-aligned bounds for a list of vectors.
  * @param {number[][]} bounds [min[], max[]]
- * @param {Vec[]} vlist
+ * @param {number[][]} vlist
  * @returns {number[][]}
  */
 export function calculateBounds(bounds, vlist) {
@@ -720,8 +736,8 @@ export function convertDoubleToFloatArray(ds) {
 // euclideanAngle: angle between vectors
 /**
  * Angle between vectors in Euclidean space.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {number}
  */
 export function euclideanAngle(u, v) {
@@ -739,8 +755,8 @@ export function euclideanAngle(u, v) {
 // equals: check if vectors are equal within tolerance
 /**
  * Compare vectors for approximate equality.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @param {number} [tol=0]
  * @returns {boolean}
  */
@@ -758,7 +774,7 @@ export function equals(u, v, tol = 0) {
 /**
  * Create an identity matrix of given dimension (flattened row-major).
  * @param {number} dim
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function identityMatrix(dim) {
   const m = new Array(dim * dim).fill(0);
@@ -771,7 +787,7 @@ export function identityMatrix(dim) {
 // isIdentityMatrix: check if matrix is identity
 /**
  * Test if a matrix is (approximately) identity.
- * @param {Matrix} mat
+ * @param {number[]} mat
  * @param {number} tol
  * @returns {boolean}
  */
@@ -801,7 +817,7 @@ export function isNan(ds) {
 // isSpecialMatrix: check if determinant is 1
 /**
  * Check if |determinant(mat)| ~= 1 within tolerance.
- * @param {Matrix} mat
+ * @param {number[]} mat
  * @param {number} tol
  * @returns {boolean}
  */
@@ -827,12 +843,12 @@ export function isZero(iline, tol = TOLERANCE) {
 // linearCombination: dst = a*aVec + b*bVec
 /**
  * Linear combination: dst = a*aVec + b*bVec
- * @param {Vec|null} dst
+ * @param {number[]|null} dst
  * @param {number} a
- * @param {Vec} aVec
+ * @param {number[]} aVec
  * @param {number} b
- * @param {Vec} bVec
- * @returns {Vec}
+ * @param {number[]} bVec
+ * @returns {number[]}
  */
 export function linearCombination(dst, a, aVec, b, bVec) {
   if (aVec.length !== bVec.length) throw new Error('Vectors must be same length');
@@ -844,12 +860,16 @@ export function linearCombination(dst, a, aVec, b, bVec) {
 // matrixTimesVector: matrix times vector
 /**
  * Multiply square matrix (flattened) by vector.
- * @param {Vec|null} dst
- * @param {Matrix} m
- * @param {Vec} src
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} m
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function matrixTimesVector(dst, m, src) {
+  // Java overload: matrixTimesVector(double[][] dst, double[] m, double[][] src)
+  if (Array.isArray(src) && Array.isArray(src[0])) {
+    return matrixTimesVectorArray(/** @type {number[][]|null} */(dst), m, /** @type {number[][]} */(src));
+  }
   let out;
   let rewrite = false;
   if (dst === m || dst === src) {
@@ -873,9 +893,9 @@ export function matrixTimesVector(dst, m, src) {
 
 /**
  * Compute bilinear form v2^T * m * v1.
- * @param {Matrix} m
- * @param {Vec} v1
- * @param {Vec} v2
+ * @param {number[]} m
+ * @param {number[]} v1
+ * @param {number[]} v2
  * @returns {number}
  */
 export function bilinearForm(m, v1, v2) {
@@ -885,10 +905,10 @@ export function bilinearForm(m, v1, v2) {
 // matrixTimesVector for array of vectors
 /**
  * Multiply matrix by an array of vectors.
- * @param {Vec[]|null} dst
- * @param {Matrix} m
- * @param {Vec[]} src
- * @returns {Vec[]}
+ * @param {number[][]|null} dst
+ * @param {number[]} m
+ * @param {number[][]} src
+ * @returns {number[][]}
  */
 export function matrixTimesVectorArray(dst, m, src) {
   const n = mysqrt(m.length);
@@ -917,7 +937,7 @@ export function matrixTimesVectorArray(dst, m, src) {
 // matrixToString: convert matrix to string
 /**
  * Convert a square matrix to a formatted string.
- * @param {Matrix} m
+ * @param {number[]} m
  * @param {string} [formatString='%g']
  * @returns {string}
  */
@@ -936,8 +956,8 @@ export function matrixToString(m, formatString = '%g') {
 // setIdentityMatrix: set matrix to identity
 /**
  * Set an existing square matrix to identity in-place.
- * @param {Matrix} mat
- * @returns {Matrix}
+ * @param {number[]} mat
+ * @returns {number[]}
  */
 export function setIdentityMatrix(mat) {
   const n = mysqrt(mat.length), noffs = n + 1;
@@ -951,8 +971,8 @@ export function setIdentityMatrix(mat) {
 // swap: swap contents of two vectors
 /**
  * Swap the contents of two vectors in-place.
- * @param {Vec} u
- * @param {Vec} v
+ * @param {number[]} u
+ * @param {number[]} v
  * @returns {void}
  */
 export function swap(u, v) {
@@ -968,7 +988,7 @@ export function swap(u, v) {
 // toString: convert vector to string
 /**
  * Convert a vector to formatted string.
- * @param {Vec} v
+ * @param {number[]} v
  * @param {string} [formatString='%g']
  * @returns {string}
  */
@@ -985,7 +1005,7 @@ export function toString(v, formatString = '%g') {
 // toString for array of vectors
 /**
  * Convert an array of vectors to a string (for debugging).
- * @param {Vec[]} v
+ * @param {number[][]} v
  * @param {number} [n=-1]
  * @returns {string}
  */
@@ -1021,9 +1041,9 @@ export function toString3D(v) {
 // transpose: transpose matrix
 /**
  * Transpose a square matrix (flattened row-major).
- * @param {Matrix|null} dst
- * @param {Matrix} src
- * @returns {Matrix}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function transpose(dst, src) {
   const n = mysqrt(src.length);
@@ -1118,14 +1138,14 @@ function _matrixTimesVectorSafe(dst, m, src) {
 // bilinearInterpolation: bilinear interpolation
 /**
  * Bilinear interpolation on a quad from bottom/top edges.
- * @param {Vec|null} ds
+ * @param {number[]|null} ds
  * @param {number} u
  * @param {number} v
- * @param {Vec} vb
- * @param {Vec} vt
- * @param {Vec} cb
- * @param {Vec} ct
- * @returns {Vec}
+ * @param {number[]} vb
+ * @param {number[]} vt
+ * @param {number[]} cb
+ * @param {number[]} ct
+ * @returns {number[]}
  */
 export function bilinearInterpolation(ds, u, v, vb, vt, cb, ct) {
   if (!ds) ds = new Array(vb.length);
@@ -1138,13 +1158,13 @@ export function bilinearInterpolation(ds, u, v, vb, vt, cb, ct) {
 // bezierCombination: Bezier curve combination
 /**
  * Cubic Bezier combination of control points and tangents.
- * @param {Vec} dst
+ * @param {number[]} dst
  * @param {number} t
- * @param {Vec} v0
- * @param {Vec} t0
- * @param {Vec} t1
- * @param {Vec} v1
- * @returns {Vec}
+ * @param {number[]} v0
+ * @param {number[]} t0
+ * @param {number[]} t1
+ * @param {number[]} v1
+ * @returns {number[]}
  */
 export function bezierCombination(dst, t, v0, t0, t1, v1) {
   const tmp1 = (1 - t);
@@ -1195,7 +1215,7 @@ export function completeBasis(dst, partial) {
 // determinant: matrix determinant
 /**
  * Determinant of a square matrix (flattened row-major).
- * @param {Matrix} m
+ * @param {number[]} m
  * @returns {number}
  */
 export function determinant(m) {
@@ -1249,9 +1269,9 @@ function determinantOld(m) {
 // diagonalMatrix: create diagonal matrix
 /**
  * Create a diagonal matrix with given diagonal entries.
- * @param {Matrix|null} dst
+ * @param {number[]|null} dst
  * @param {number[]} entries
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function diagonalMatrix(dst, entries) {
   const n = entries.length;
@@ -1263,13 +1283,13 @@ export function diagonalMatrix(dst, entries) {
 // extractSubmatrix: extract rectangular submatrix
 /**
  * Extract a rectangular submatrix [t..b]x[l..r] from a square matrix.
- * @param {Matrix} subm
- * @param {Matrix} src
+ * @param {number[]} subm
+ * @param {number[]} src
  * @param {number} l
  * @param {number} r
  * @param {number} t
  * @param {number} b
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function extractSubmatrix(subm, src, l, r, t, b) {
   if (r - l !== b - t) throw new Error('(b-t) must equal (r-l)');
@@ -1288,10 +1308,10 @@ export function extractSubmatrix(subm, src, l, r, t, b) {
 // planeParallelToPassingThrough: create plane
 /**
  * Construct plane parallel to ds passing through ds2.
- * @param {Vec|null} plane
- * @param {Vec} ds
- * @param {Vec} ds2
- * @returns {Vec}
+ * @param {number[]|null} plane
+ * @param {number[]} ds
+ * @param {number[]} ds2
+ * @returns {number[]}
  */
 export function planeParallelToPassingThrough(plane, ds, ds2) {
   if (!plane) plane = new Array(4);
@@ -1303,10 +1323,10 @@ export function planeParallelToPassingThrough(plane, ds, ds2) {
 // projectOnto: orthogonal projection
 /**
  * Orthogonal projection of src onto fixed.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @param {Vec} fixed
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @param {number[]} fixed
+ * @returns {number[]}
  */
 export function projectOnto(dst, src, fixed) {
   if (!dst) dst = new Array(src.length);
@@ -1319,10 +1339,10 @@ export function projectOnto(dst, src, fixed) {
 // projectOntoComplement: projection onto orthogonal complement
 /**
  * Projection of src onto the orthogonal complement of fixed.
- * @param {Vec|null} dst
- * @param {Vec} src
- * @param {Vec} fixed
- * @returns {Vec}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @param {number[]} fixed
+ * @returns {number[]}
  */
 export function projectOntoComplement(dst, src, fixed) {
   return subtract(dst, src, projectOnto(null, src, fixed));
@@ -1331,9 +1351,9 @@ export function projectOntoComplement(dst, src, fixed) {
 // setDiagonalMatrix: set diagonal matrix
 /**
  * Set a (possibly larger) matrix to have given diagonal entries.
- * @param {Matrix|null} dst
+ * @param {number[]|null} dst
  * @param {number[]} diag
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function setDiagonalMatrix(dst, diag) {
   const n2 = diag.length;
@@ -1349,10 +1369,10 @@ export function setDiagonalMatrix(dst, diag) {
 // setToLength: scale to given length
 /**
  * Scale vector p12 to length rad and write into p1.
- * @param {Vec} p1
- * @param {Vec} p12
+ * @param {number[]} p1
+ * @param {number[]} p12
  * @param {number} rad
- * @returns {Vec}
+ * @returns {number[]}
  */
 export function setToLength(p1, p12, rad) {
   return times(p1, rad / euclideanNorm(p12), p12);
@@ -1361,11 +1381,11 @@ export function setToLength(p1, p12, rad) {
 // submatrix: extract submatrix by deleting row and column
 /**
  * Submatrix by removing given row and column from square matrix.
- * @param {Matrix|null} subm
- * @param {Matrix} m
+ * @param {number[]|null} subm
+ * @param {number[]} m
  * @param {number} row
  * @param {number} column
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function submatrix(subm, m, row, column) {
   const n = mysqrt(m.length);
@@ -1383,7 +1403,7 @@ export function submatrix(subm, m, row, column) {
 // trace: matrix trace
 /**
  * Trace of a square matrix.
- * @param {Matrix} m
+ * @param {number[]} m
  * @returns {number}
  */
 export function trace(m) {
@@ -1396,7 +1416,7 @@ export function trace(m) {
 // cofactor: calculate the (i,j)th cofactor of a matrix
 /**
  * Cofactor C(row,column) of a square matrix.
- * @param {Matrix} m
+ * @param {number[]} m
  * @param {number} row
  * @param {number} column
  * @returns {number}
@@ -1409,9 +1429,9 @@ export function cofactor(m, row, column) {
 // adjugate: calculate the adjugate (classical adjugate) of a matrix
 /**
  * Classical adjugate (transpose of cofactor matrix).
- * @param {Matrix|null} dst
- * @param {Matrix} src
- * @returns {Matrix}
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @returns {number[]}
  */
 export function adjugate(dst, src) {
   const n = mysqrt(src.length);
@@ -1438,9 +1458,9 @@ export function adjugate(dst, src) {
 // inverse: matrix inverse using Gaussian pivoting
 /**
  * Matrix inverse via Gaussian elimination with partial pivoting.
- * @param {Matrix|null} minvIn
- * @param {Matrix} m
- * @returns {Matrix}
+ * @param {number[]|null} minvIn
+ * @param {number[]} m
+ * @returns {number[]}
  */
 export function inverse(minvIn, m) {
   const n = mysqrt(m.length);
@@ -1530,10 +1550,10 @@ export function inverse(minvIn, m) {
 // conjugateByMatrix: form the conjugate of matrix m by matrix c: dst = c * m * Inverse(c)
 /**
  * Conjugate matrix: dst = c * m * inverse(c).
- * @param {Matrix|null} dst
- * @param {Matrix} m
- * @param {Matrix} c
- * @returns {Matrix}
+ * @param {number[]|null} dst
+ * @param {number[]} m
+ * @param {number[]} c
+ * @returns {number[]}
  */
 export function conjugateByMatrix(dst, m, c) {
    if (!dst) dst = new Array(c.length);
@@ -1544,9 +1564,9 @@ export function conjugateByMatrix(dst, m, c) {
 // permutationMatrix: create permutation matrix from permutation array
 /**
  * Build permutation matrix from permutation array (row i -> column perm[i]).
- * @param {Matrix|null} dst
+ * @param {number[]|null} dst
  * @param {number[]} perm
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function permutationMatrix(dst, perm) {
   const n = perm.length;
@@ -1562,10 +1582,10 @@ export function permutationMatrix(dst, perm) {
 // polarDecompose: polar decomposition of a matrix
 /**
  * Polar decomposition m = q * s with q orthogonal and s symmetric positive (iterative).
- * @param {Matrix} q
- * @param {Matrix} s
- * @param {Matrix} m
- * @returns {Matrix}
+ * @param {number[]} q
+ * @param {number[]} s
+ * @param {number[]} m
+ * @returns {number[]}
  */
 export function polarDecompose(q, s, m) {
   let old = 0, nw = 1;

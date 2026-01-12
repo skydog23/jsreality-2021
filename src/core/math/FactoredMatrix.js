@@ -486,13 +486,13 @@ export class FactoredMatrix extends Matrix {
         this.#rotationQ, this.#stretchRotationQ, this.#stretchVector, this.#isReflection,
         this.#metric);
       if (this.#useCenter) {
-        Rn.timesMatrix(super.getArray(), super.getArray(), this.#invCenterMatrix);
-        Rn.timesMatrix(super.getArray(), this.#centerMatrix, super.getArray());
+        Rn.times(super.getArray(), super.getArray(), this.#invCenterMatrix);
+        Rn.times(super.getArray(), this.#centerMatrix, super.getArray());
       }
     } else if (this.#isMatrixHasChanged()) {
       if (this.#useCenter) {
-        Rn.timesMatrix(MC, super.getArray(), this.#centerMatrix);
-        Rn.timesMatrix(MC, this.#invCenterMatrix, MC);
+        Rn.times(MC, super.getArray(), this.#centerMatrix);
+        Rn.times(MC, this.#invCenterMatrix, MC);
         TTmp = MC;
       } else {
         TTmp = super.getArray();

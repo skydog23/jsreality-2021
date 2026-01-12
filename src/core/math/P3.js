@@ -12,10 +12,6 @@
 import * as Pn from './Pn.js';
 import * as Rn from './Rn.js';
 import { Rectangle2D } from '../util/Rectangle2D.js';
-
-/** @typedef {number[]} Vec */
-/** @typedef {number[]} Matrix */
-
 // Constants
 export const p3involution = [-1, -1, -1, -1];
 export const Q_HYPERBOLIC = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1];
@@ -36,18 +32,18 @@ export const hzaxis = [0, 0, 1, 1];
  * In practice this removes the translation component with respect to `point`
  * by conjugating with the translation taking `point` to its image.
  *
- * @param {Matrix|null} dst
- * @param {Matrix} src
- * @param {Vec} point
+ * @param {number[]|null} dst
+ * @param {number[]} src
+ * @param {number[]} point
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function extractOrientationMatrix(dst, src, point, metric) {
   if (!dst) dst = new Array(16);
   const image = Rn.matrixTimesVector(null, src, point);
   const translate = makeTranslationMatrix(null, image, metric);
   const invTranslate = Rn.inverse(null, translate);
-  Rn.timesMatrix(dst, invTranslate, src);
+  Rn.times(dst, invTranslate, src);
   return dst;
 }
 
@@ -55,15 +51,15 @@ export function extractOrientationMatrix(dst, src, point, metric) {
  * Port of `de.jreality.math.P3.getTransformedAbsolute`.
  * Computes \(Q - m^T Q m\) for the metric's quadratic form Q.
  *
- * @param {Matrix} m
+ * @param {number[]} m
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function getTransformedAbsolute(m, metric) {
   const Q = Q_LIST[metric + 1];
-  const Qtm = Rn.timesMatrix(null, Q, m);
+  const Qtm = Rn.times(null, Q, m);
   const mt = Rn.transpose(null, m);
-  const mtQm = Rn.timesMatrix(null, mt, Qtm);
+  const mtQm = Rn.times(null, mt, Qtm);
   return Rn.subtract(null, Q, mtQm);
 }
 
@@ -71,11 +67,11 @@ export function getTransformedAbsolute(m, metric) {
  * Attempt to convert a matrix into an isometry with respect to `metric`.
  * Port of `de.jreality.math.P3.orthonormalizeMatrix`.
  *
- * @param {Matrix|null} dst
- * @param {Matrix} m
+ * @param {number[]|null} dst
+ * @param {number[]} m
  * @param {number} tolerance
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function orthonormalizeMatrix(dst, m, tolerance, metric) {
   if (!dst) dst = new Array(16);
@@ -133,7 +129,7 @@ export function orthonormalizeMatrix(dst, m, tolerance, metric) {
   diagnosis = Rn.subtract(
     null,
     Q,
-    Rn.timesMatrix(null, Rn.transpose(null, dst), Rn.timesMatrix(null, Q_LIST[metric + 1], dst))
+    Rn.times(null, Rn.transpose(null, dst), Rn.times(null, Q_LIST[metric + 1], dst))
   );
   if (dst[15] * lastentry < 0) Rn.times(dst, -1, dst);
   return dst;
@@ -150,12 +146,22 @@ export function orthonormalizeMatrix(dst, m, tolerance, metric) {
 /**
  * Make translation matrix carrying origin to point `to` for given metric.
  * Mirrors P3.makeTranslationMatrix in Java.
- * @param {Matrix|null} mat
- * @param {Vec} to
+ * @param {number[]|null} mat
+ * @param {number[]} to
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
-export function makeTranslationMatrix(mat, to, metric) {
+export function makeTranslationMatrix(mat, fromOrTo, toOrMetric, metricMaybe) {
+    // Java overloads:
+    // - makeTranslationMatrix(double[] mat, double[] to, int metric)
+    // - makeTranslationMatrix(double[] dst, double[] from, double[] to, int metric)
+    //
+    // JS port rule: keep the Java name and dispatch at runtime.
+    if (typeof metricMaybe === 'number' && Array.isArray(fromOrTo) && Array.isArray(toOrMetric)) {
+        return makeTranslationMatrix2(mat, fromOrTo, /** @type {number[]} */(toOrMetric), metricMaybe);
+    }
+    const to = /** @type {number[]} */ (fromOrTo);
+    const metric = /** @type {number} */ (toOrMetric);
     if (!mat) mat = new Array(16);
     return makeTranslationMatrixOld(mat, to, metric);
 }
@@ -169,10 +175,10 @@ export function makeTranslationMatrix(mat, to, metric) {
  */
 /**
  * Internal helper that implements translation construction (signature-compatible).
- * @param {Matrix|null} mat
- * @param {Vec} p
+ * @param {number[]|null} mat
+ * @param {number[]} p
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
 function makeTranslationMatrixOld(mat, p, metric) {
     let tmp = new Array(4);
@@ -249,11 +255,11 @@ function makeTranslationMatrixOld(mat, p, metric) {
 /**
  * Make translation matrix that carries `from` to `to` along their joining axis.
  * Mirrors P3.makeTranslationMatrix2.
- * @param {Matrix|null} dst
- * @param {Vec} from
- * @param {Vec} to
+ * @param {number[]|null} dst
+ * @param {number[]} from
+ * @param {number[]} to
  * @param {number} metric
- * @returns {Matrix}
+ * @returns {number[]}
  */
 export function makeTranslationMatrix2(dst, from, to, metric) {
     if (!dst) dst = new Array(16);
@@ -274,13 +280,26 @@ export function makeTranslationMatrix2(dst, from, to, metric) {
  */
 /**
  * Rotation matrix about axis with angle (fixing origin), mirrors P3.makeRotationMatrix.
- * @param {Matrix|null} m
- * @param {Vec} axis length >=3
+ * @param {number[]|null} m
+ * @param {number[]} axis length >=3
  * @param {number} angle
- * @returns {Matrix}
+ * @returns {number[]}
  */
-export function makeRotationMatrix(m, axis, angle) {
+export function makeRotationMatrix(m, axisOrP1, angleOrP2, maybeAngle, maybeMetric) {
+    // Java overloads:
+    // - makeRotationMatrix(m, axis, angle)
+    // - makeRotationMatrix(m, from, to)
+    // - makeRotationMatrix(m, p1, p2, angle, metric)
+    if (typeof maybeMetric === 'number' && Array.isArray(axisOrP1) && Array.isArray(angleOrP2)) {
+        return makeRotationMatrixAxis(m, axisOrP1, /** @type {number[]} */(angleOrP2), /** @type {number} */(maybeAngle), maybeMetric);
+    }
+    if (Array.isArray(axisOrP1) && Array.isArray(angleOrP2) && maybeAngle === undefined && maybeMetric === undefined) {
+        // from->to overload
+        return makeRotationAxisMatrix(m, axisOrP1, /** @type {number[]} */(angleOrP2));
+    }
     if (!m) m = new Array(16);
+    const axis = /** @type {number[]} */ (axisOrP1);
+    const angle = /** @type {number} */ (angleOrP2);
     if (axis.length < 3) {
         throw new Error("Axis is wrong size");
     }
@@ -318,10 +337,10 @@ export function makeRotationMatrix(m, axis, angle) {
  */
 /**
  * Rotation matrix taking vector `from` to `to` (fixing origin), mirrors P3.makeRotationAxisMatrix.
- * @param {Matrix|null} m
- * @param {Vec} from length >=3
- * @param {Vec} to length >=3
- * @returns {Matrix}
+ * @param {number[]|null} m
+ * @param {number[]} from length >=3
+ * @param {number[]} to length >=3
+ * @returns {number[]}
  */
 export function makeRotationAxisMatrix(m, from, to) {
     if (!m) m = new Array(16);
@@ -426,18 +445,25 @@ export function makePerspectiveProjectionMatrix(dst, viewport, near, far) {
  * @param {number} stretch - Uniform scale factor
  * @returns {number[]} The stretch matrix
  */
-export function makeStretchMatrix(dst, stretch) {
+export function makeStretchMatrix(dst, stretchOrX, yOrScales, zMaybe) {
+    // Java overloads:
+    // - makeStretchMatrix(dst, double stretch)
+    // - makeStretchMatrix(dst, double xscale, double yscale, double zscale)
+    // - makeStretchMatrix(dst, double[] v)
+    if (Array.isArray(stretchOrX)) {
+        return makeStretchMatrixFromVector(dst, stretchOrX);
+    }
+    if (typeof yOrScales === 'number' && typeof zMaybe === 'number') {
+        return makeStretchMatrixXYZ(dst, /** @type {number} */(stretchOrX), yOrScales, zMaybe);
+    }
+    const stretch = /** @type {number} */ (stretchOrX);
     if (!dst) dst = new Array(16);
-    
     // Set to identity matrix
     Rn.setIdentityMatrix(dst);
-    
     // Set diagonal stretch values (leave w component as 1)
     dst[0] = stretch;   // x scale
-    dst[5] = stretch;   // y scale  
+    dst[5] = stretch;   // y scale
     dst[10] = stretch;  // z scale
-    // dst[15] = 1.0;   // w unchanged (already set by identity)
-    
     return dst;
 }
 
@@ -814,7 +840,7 @@ export function affineCoordinate(p1, p2, pw) {
 export function makeScrewMotionMatrix(dst, p1, p2, angle, metric) {
     const tlate = makeTranslationMatrix2(null, p1, p2, metric);
     const rot = makeRotationMatrixAxis(null, p1, p2, angle, metric);
-    return Rn.timesMatrix(dst, tlate, rot);
+    return Rn.times(dst, tlate, rot);
 }
 
 /**
@@ -846,12 +872,12 @@ export function makeLookatMatrix(m, from, to, roll, metric) {
     makeRotationAxisMatrix(tm2, newto, zaxis);
     
     // Combine the transformations: m = tm2 * tm1
-    Rn.timesMatrix(m, tm2, tm1);
+    Rn.times(m, tm2, tm1);
     
     // Apply roll rotation if specified
     if (roll !== 0) {
         makeRotationMatrix(tm1, zaxis, roll);
-        Rn.timesMatrix(m, m, tm1);
+        Rn.times(m, m, tm1);
     }
     
     return m;
@@ -939,7 +965,7 @@ export function factorMatrix(m, transV, rotQ, stretchRotQ, stretchV, isFlipped, 
     makeTranslationMatrix(transT, transV, metric);
     Rn.inverse(itransT, transT);
     // Undo the translation first
-    Rn.timesMatrix(tmp, itransT, m);
+    Rn.times(tmp, itransT, m);
     
     // Next polar decompose M
     Rn.extractSubmatrix(M3, tmp, 0, 2, 0, 2);
@@ -1047,8 +1073,8 @@ export function composeMatrixFromFactors(m, transV, rotQ, stretchRotQ, stretchV,
     Rn.setDiagonalMatrix(stretchT, tmp);
     
     // Compose: m = transT * rotT * stretchT
-    Rn.timesMatrix(m, rotT, stretchT);
-    Rn.timesMatrix(m, transT, m);
+    Rn.times(m, rotT, stretchT);
+    Rn.times(m, transT, m);
     
     return m;
 }

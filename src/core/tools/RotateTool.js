@@ -126,7 +126,10 @@ export class RotateTool extends AbstractTool {
   #animRotAngle = 0;
   
   /** @type {number} */
-  #animAngleFactor = 50.0;
+  // Inertia scale factor.
+  // We intentionally use dt in **milliseconds** (DOM event timeStamp / performance.now()).
+  // Keeping dtMs here avoids accidental 1000x unit mistakes.
+  #animAngleFactor = 0.05;
 
   /** @type {number[]} */
   #animAxis = [0, 0, 1];
@@ -265,7 +268,7 @@ export class RotateTool extends AbstractTool {
       );
     } catch (e) {
       // Set identity matrix
-      MatrixBuilder.euclidean().assignToMatrix(object2avatar);
+      MatrixBuilder.euclidean().assignTo(object2avatar);
     }
 
     const evoArr = tc.getTransformationMatrix(RotateTool.evolutionSlot);
@@ -318,7 +321,7 @@ export class RotateTool extends AbstractTool {
     // Use the actual evolution matrix being applied (after smoothing).
     const rot3Now = convert44To33(this.evolution.getArray());
     // rotationMatrixToQuaternion(this.#lastAppliedDeltaQ, rot3Now);
-    rotationMatrixToQuaternion(this.#smoothedDeltaQ, rot3Now);
+    rotationMatrixToQuaternion(this.#lastAppliedDeltaQ, rot3Now);
 
     if (!this.fixOrigin && this.updateCenter) {
       const currentPick = tc.getCurrentPick();
@@ -362,7 +365,7 @@ export class RotateTool extends AbstractTool {
     this.#lastPerformTimeMs = 0;
     this.#lastPerformDtMs = 0;
     this.#hasSmoothedDelta = false;
-    // this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
+    this.#smoothedDeltaQ.setValue(1, 0, 0, 0);
 
     // Java: only schedule if gesture duration is within [animTimeMin, animTimeMax].
     if (!this.animationEnabled) {
@@ -384,11 +387,11 @@ export class RotateTool extends AbstractTool {
 
     // Java: FactoredMatrix(evolution).getRotationAngle/getRotationAxis; then:
     // if (rotAngle > PI) rotAngle = -2*PI + rotAngle;
-    // Use raw (pre-smoothing) delta to match Java's intent (it uses the last evolution).
-    const aa = this.#quatToAxisAngle(this.#smoothedDeltaQ);
+    // Use the last *applied* delta (post-smoothing), so inertia matches what the user actually saw.
+    const aa = this.#quatToAxisAngle(this.#lastAppliedDeltaQ);
     let rotAngle = aa.angle;
     if (rotAngle > Math.PI) rotAngle = -2 * Math.PI + rotAngle;
-    if (this.debugInertia) console.log('[RotateTool inertia] skip: rotAngle', { rotAngle, axis: aa.axis });
+    if (this.debugInertia) console.log('[RotateTool inertia] rotAngle', { rotAngle, axis: aa.axis });
  
     // Java: Matrix cen = new Matrix(center); SceneGraphComponent c = comp;
     this.#animCenter = new Matrix(this.center);
@@ -416,13 +419,11 @@ export class RotateTool extends AbstractTool {
       const dtMs = Math.max(0, nowMs - this.#animLastTimeMs);
       this.#animLastTimeMs = nowMs;
 
-      // Java uses `0.05 * dt * rotAngle`. In Java AnimatorTask dt is seconds.
-      const dt = dtMs / 1000.0;
-      const dAngle = this.#animAngleFactor * dt * this.#animRotAngle;
+      // Java uses `0.05 * dt * rotAngle` with dt effectively in milliseconds.
+      const dAngle = this.#animAngleFactor * dtMs * this.#animRotAngle;
       if (this.debugInertia) {
         console.log('[RotateTool inertia] frame', {
           dtMs,
-          dt,
           animRotAngle: this.#animRotAngle,
           dAngle,
           axis: this.#animAxis
@@ -453,7 +454,7 @@ export class RotateTool extends AbstractTool {
       this.result.assignFrom(currentTrafo.getMatrix(null));
       MatrixBuilder.euclidean(this.result)
         .times(cen)
-        .rotateArray(dAngle, this.#animAxis)
+        .rotate(dAngle, this.#animAxis)
         .times(cen.getInverse());
 
       if (!Rn.isNan(this.result.getArray())) {
@@ -486,7 +487,7 @@ export class RotateTool extends AbstractTool {
       const bb = BoundingBoxUtility.calculateChildrenBoundingBox(comp);
       MatrixBuilder.init(null, this.metric)
         .translate(bb.getCenter())
-        .assignToMatrix(centerTranslation);
+        .assignTo(centerTranslation);
     }
     return centerTranslation;
   }
@@ -505,13 +506,13 @@ export class RotateTool extends AbstractTool {
     const compPath = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     const compMatrInv = compPath.getInverseMatrix(null);
 
-    const matr = Rn.timesMatrix(null, compMatrInv, pickMatr);
+    const matr = Rn.times(null, compMatrInv, pickMatr);
     const rotationPoint = Rn.matrixTimesVector(null, matr, obj);
 
     const centerTranslation = new Matrix();
     MatrixBuilder.init(null, this.metric)
       .translate(rotationPoint)
-      .assignToMatrix(centerTranslation);
+      .assignTo(centerTranslation);
     return centerTranslation;
   }
 

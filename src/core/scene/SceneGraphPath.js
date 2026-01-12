@@ -404,7 +404,7 @@ export class SceneGraphPath {
       if (node instanceof SceneGraphComponent) {
         const transformation = node.getTransformation();
         if (transformation) {
-          Rn.timesMatrix(result, result, transformation.getMatrix());
+          Rn.times(result, result, transformation.getMatrix());
         }
       }
     }

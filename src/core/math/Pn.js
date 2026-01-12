@@ -14,8 +14,8 @@
  * Points and vectors are represented in homogeneous coordinates by arrays of length n+1.
  * @ts-check
  *
- * @typedef {number[]} Vec
- * @typedef {number[]} Matrix
+ * @typedef {number[]} number[]
+ * @typedef {number[]} number[]
  */
 
 import { innerProduct as RnInnerProduct, normalize as RnNormalize } from './Rn.js';
@@ -345,11 +345,54 @@ export function linearInterpolation(dst, p1, p2, t, metric) {
  * @param {number} metric - Metric type
  * @returns {number[]} The normalized vector
  */
-export function normalize(dst, src, metric) {
-    if (metric === EUCLIDEAN) {
-        return dehomogenize(dst, src);
+export function normalize(dst, a, b, c, d) {
+    // Java overloads:
+    // - normalize(double[] dst, double[] src, int metric)
+    // - normalize(double[][] dst, double[][] src, int metric)
+    // - normalize(double[] dst, double[] dvec, double[] src, double[] svec, int metric)
+    //
+    // JS port rule: keep the Java name and dispatch at runtime.
+
+    // normalize(double[][] dst, double[][] src, int metric)
+    if (Array.isArray(a) && Array.isArray(a[0]) && typeof b === 'number') {
+        const src = /** @type {number[][]} */ (a);
+        const metric = /** @type {number} */ (b);
+        if (dst == null) dst = new Array(src.length).fill(0).map(() => new Array(src[0].length));
+        if (!Array.isArray(dst) || !Array.isArray(dst[0]) || dst.length !== src.length) {
+            throw new Error('Incompatible lengths');
+        }
+        for (let i = 0; i < src.length; ++i) {
+            normalize(dst[i], src[i], metric);
+        }
+        return dst;
     }
-    return setToLength(dst, src, 1.0, metric);
+
+    // normalize(double[] dst, double[] src, int metric)
+    if (typeof b === 'number') {
+        const src = /** @type {number[]} */ (a);
+        const metric = /** @type {number} */ (b);
+        if (metric === EUCLIDEAN) {
+            return dehomogenize(/** @type {number[]|null} */(dst), src);
+        }
+        return setToLength(/** @type {number[]|null} */(dst), src, 1.0, metric);
+    }
+
+    // normalize(double[] dst, double[] dvec, double[] src, double[] svec, int metric)
+    const dvec = /** @type {number[]} */ (a);
+    const src = /** @type {number[]} */ (b);
+    const svec = /** @type {number[]} */ (c);
+    const metric = /** @type {number} */ (d);
+    if (dst == null) dst = new Array(src.length);
+    if (metric === EUCLIDEAN) {
+        dehomogenize(/** @type {number[]} */(dst), src);
+        dehomogenize(dvec, svec);
+        dvec[dvec.length - 1] = 0.0;
+        return dst;
+    }
+    normalize(/** @type {number[]} */(dst), src, metric);
+    projectToTangentSpace(dvec, /** @type {number[]} */(dst), svec, metric);
+    normalize(dvec, dvec, metric);
+    return dst;
 }
 
 /**

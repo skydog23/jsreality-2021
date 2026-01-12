@@ -5,13 +5,16 @@ This is a private todo list for me (a person named Charlie Gunn)
   * Export SVG: Leave the existing export svg code.
   * To test the rendering of a given backend, use the Viewer menu to select that backend. Add a flag to the file dialog to use the current viewer (type) to generate the image.
 
-* Revive Renderman backend?
+* Revive Renderman backend? Partial progress made -- locally installed NCL.
 
 * Conics: 
   * add 5-point SGC 
   * render line pairs and double lines correctly, 
   * create inspector
 
-* Tools / input smoothing:
-  * Current: `RotateTool` implements quaternion-based exponential smoothing (half-life).
-  * Consider: implement an optional `VirtualSmoothing` virtual device in the tool system (slot-level damping, configurable in tool config JSON) so smoothing can be applied globally/per-slot without editing each tool; still allow per-tool overrides for “feel”.
+* WebGL backend: 
+  * get perspective/orthographic working together
+  * look into weird effects with shading 3D in orthographic mode
+  * enforce 4D normals in GLSL shader to prepare for non-euclidean. For euclidean normals set w=0.
+  * implement transparency enabled.
+  * texture maps

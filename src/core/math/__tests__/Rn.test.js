@@ -279,7 +279,7 @@ function testInverseFunction() {
     console.log('2x2 inverse:', inv2x2);
     
     // Verify: mat * inv = identity
-    const identity2 = Rn.timesMatrix(null, mat2x2, inv2x2);
+    const identity2 = Rn.times(null, mat2x2, inv2x2);
     console.log('2x2 verification (should be identity):', identity2);
     
     // Test 3x3 matrix inverse
@@ -292,7 +292,7 @@ function testInverseFunction() {
     console.log('3x3 diagonal matrix:', mat3x3);
     console.log('3x3 inverse:', inv3x3);
     
-    const identity3 = Rn.timesMatrix(null, mat3x3, inv3x3);
+    const identity3 = Rn.times(null, mat3x3, inv3x3);
     console.log('3x3 verification (should be identity):', identity3);
 }
 

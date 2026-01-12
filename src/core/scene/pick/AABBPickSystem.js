@@ -529,7 +529,7 @@ class Impl extends SceneGraphVisitor {
       const nextMatrix = this.#matrixStack[this.#stackCounter + 1].getArray();
       const currentMatrix = this.#matrixStack[this.#stackCounter].getArray();
       const transformMatrix = c.getTransformation().getMatrix();
-      Rn.timesMatrix(nextMatrix, currentMatrix, transformMatrix);
+      Rn.times(nextMatrix, currentMatrix, transformMatrix);
       this.#stackCounter++;
       this.#m = this.#matrixStack[this.#stackCounter];
       this.#mInv = this.#m.getInverse();

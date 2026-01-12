@@ -644,7 +644,7 @@ export function runCanvas2DTest() {
         performance.mark('transform-vertices-start');
       }
       
-      const transformedIcoverts = Rn.matrixTimesVectorArray(null, matrix, icoverts); 
+      const transformedIcoverts = Rn.matrixTimesVector(null, matrix, icoverts); 
       
       if (ENABLE_PROFILING) {
         performance.mark('transform-vertices-end');

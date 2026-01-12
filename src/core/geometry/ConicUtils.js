@@ -712,7 +712,7 @@ export class ConicUtils {
             const r1 = (-bb + p)/(2*aa);
             const r2 = (-bb - p)/(2*aa);
             const ret = [[1,r1,0], [1,r2,0]];
-            const tret = Rn.matrixTimesVectorArray(null, tform33, ret);
+            const tret = Rn.matrixTimesVector(null, tform33, ret);
             logger.fine(-1, "ret = "+Rn.matrixToString(tret));
             return tret;
         }

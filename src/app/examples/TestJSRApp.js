@@ -97,7 +97,7 @@ export class TestJSRApp extends JSRApp {
     this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
     this.updateSaturate();
     this._world.setGeometry(this._ifs);
-    //MatrixBuilder.euclidean().scale(this._scale).assignToSGC(this._world);
+    //MatrixBuilder.euclidean().scale(this._scale).assignTo(this._world);
 
   }
 

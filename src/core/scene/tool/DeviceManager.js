@@ -587,7 +587,7 @@ export class DeviceManager {
     // Update NDCToWorld whenever the camera transforms change.
     if (cameraPath !== null && (worldToCamChanged || camToWorldChanged || camToNDCChanged)) {
       const ndcToCam = Rn.inverse(null, this.#camToNDCTrafo);
-      Rn.timesMatrix(this.#ndcToWorldTrafo, this.#camToWorldTrafo, ndcToCam);
+      Rn.times(this.#ndcToWorldTrafo, this.#camToWorldTrafo, ndcToCam);
       ndcToWorldChanged = true;
     }
 

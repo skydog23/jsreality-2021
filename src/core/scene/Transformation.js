@@ -135,7 +135,7 @@ export class Transformation extends SceneGraphNode {
   multiplyOnRight(T) {
     this.startWriter();
     try {
-      Rn.timesMatrix(this.#theMatrix, this.#theMatrix, T);
+      Rn.times(this.#theMatrix, this.#theMatrix, T);
       this.fireTransformationChanged();
     } finally {
       this.finishWriter();
@@ -149,7 +149,7 @@ export class Transformation extends SceneGraphNode {
   multiplyOnLeft(T) {
     this.startWriter();
     try {
-      Rn.timesMatrix(this.#theMatrix, T, this.#theMatrix);
+      Rn.times(this.#theMatrix, T, this.#theMatrix);
       this.fireTransformationChanged();
     } finally {
       this.finishWriter();

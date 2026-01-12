@@ -1564,7 +1564,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       if (o2w && w2c) {
         const mv = new Array(16);
         // world2cam * object2world
-        Rn.timesMatrix(mv, w2c, o2w);
+        Rn.times(mv, w2c, o2w);
         gl.uniformMatrix4fv(modelViewLoc, true, mv);
 
         // Normal matrix: inverse-transpose of upper-left 3x3 of modelView.

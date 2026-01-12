@@ -61,7 +61,7 @@ export class TranslateTool extends AbstractTool {
     const current = new Matrix(trafoObj.getMatrix(null));
     MatrixBuilder.euclidean(current)
       .times(delta)
-      .assignToTransformation(trafoObj);
+      .assignTo(trafoObj);
 
     // Ensure the viewer updates (jsReality doesn't yet have a central render trigger).
     tc.getViewer().renderAsync();

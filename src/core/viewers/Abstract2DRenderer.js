@@ -549,7 +549,7 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     const world2Cam = cameraPath.getInverseMatrix();
     for (let i = 0; i < 16; i++) this.#world2cam[i] = world2Cam[i];
     const cam2ndc = CameraUtility.getCameraToNDC(this.#viewer);
-    Rn.timesMatrix(this.#world2ndc, cam2ndc, world2Cam);
+    Rn.times(this.#world2ndc, cam2ndc, world2Cam);
     this.#transformationStack = [this.#world2ndc.slice()]; // Clone the matrix
     // Object-to-world stack starts at identity each frame.
     this.#object2worldStack = [Rn.setIdentityMatrix(new Array(16))];
@@ -725,12 +725,12 @@ export class Abstract2DRenderer extends SceneGraphVisitor {
     // Keep our own stacks for compatibility (but device may handle accumulation differently)
     const currentMatrix = this.#transformationStack[this.#transformationStack.length - 1];
     const newMatrix = new Array(16);
-    Rn.timesMatrix(newMatrix, currentMatrix, transformMatrix);
+    Rn.times(newMatrix, currentMatrix, transformMatrix);
     this.#transformationStack.push(newMatrix);
 
     const currentO2W = this.#object2worldStack[this.#object2worldStack.length - 1];
     const newO2W = new Array(16);
-    Rn.timesMatrix(newO2W, currentO2W, transformMatrix);
+    Rn.times(newO2W, currentO2W, transformMatrix);
     this.#object2worldStack.push(newO2W);
   }
 

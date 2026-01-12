@@ -65,7 +65,7 @@ export class VirtualEvolutionOperator {
 
       // delta = newTrafo * inverse(oldTrafo)
       const invOld = Rn.inverse(null, this.#oldTrafo);
-      Rn.timesMatrix(this.#slotValue, newTrafo, invOld);
+      Rn.times(this.#slotValue, newTrafo, invOld);
       this.#oldTrafo = [...newTrafo];
 
       return ToolEvent.createWithTransformation(

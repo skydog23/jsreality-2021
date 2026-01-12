@@ -169,7 +169,7 @@ export class BoundingBoxTraversal extends SceneGraphVisitor {
     }
     // Java uses `Rn.times(dst, a, b)` for matrix multiplication.
     // In the JS port, matrix multiplication is `Rn.timesMatrix`.
-    Rn.timesMatrix(this.#currentTrafo, this.#currentTrafo, matrix);
+    Rn.times(this.#currentTrafo, this.#currentTrafo, matrix);
   }
   
   /**

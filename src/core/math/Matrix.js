@@ -83,7 +83,7 @@ export class Matrix {
    * @returns {Matrix}
    */
   static times(A, B) {
-    return new Matrix(Rn.timesMatrix(null, A.#matrix, B.#matrix));
+    return new Matrix(Rn.times(null, A.#matrix, B.#matrix));
   }
 
   /**
@@ -151,43 +151,79 @@ export class Matrix {
 
 
   /**
-   * Copy this matrix to another array
-   * @param {number[]} array 
+   * Copy this matrix to another object.
+   * Java overloads:
+   * - assignTo(double[])
+   * - assignTo(Matrix)
+   * - assignTo(Transformation)
+   * - assignTo(SceneGraphComponent)
+   *
+   * JS port rule (JAVA2JS_PORTING_GUIDELINES.md #5): keep the Java name and
+   * dispatch at runtime instead of introducing new method names.
+   *
+   * @param {number[]|Matrix|Transformation|SceneGraphComponent} target
    */
-  assignTo(array) {
-    if (array.length !== 16) {
-      throw new Error('Target array must have length 16');
+  assignTo(target) {
+    // assignTo(Matrix)
+    if (target instanceof Matrix) {
+      target.assignFrom(this.#matrix);
+      return;
     }
-    for (let i = 0; i < 16; i++) {
-      array[i] = this.#matrix[i];
+
+    // assignTo(Transformation)
+    if (target instanceof Transformation) {
+      target.setMatrix(this.#matrix);
+      return;
     }
+
+    // assignTo(SceneGraphComponent)
+    if (target instanceof SceneGraphComponent) {
+      if (!target.getTransformation()) {
+        target.setTransformation(new Transformation());
+      }
+      this.assignTo(target.getTransformation());
+      return;
+    }
+
+    // assignTo(double[])
+    if (Array.isArray(target)) {
+      if (target.length !== 16) {
+        throw new Error('Target array must have length 16');
+      }
+      for (let i = 0; i < 16; i++) {
+        target[i] = this.#matrix[i];
+      }
+      return;
+    }
+
+    throw new Error('Invalid argument type');
   }
 
   /**
    * Copy this matrix to another Matrix
    * @param {Matrix} m 
    */
+  /** @deprecated Use `assignTo(m)` */
   assignToMatrix(m) {
-    m.assignFrom(this.#matrix);
+    this.assignTo(m);
   }
 
   /**
    * Copy this matrix to a Transformation
    * @param {Transformation} transformation 
    */
+  /** @deprecated Use `assignTo(transformation)` */
   assignToTransformation(transformation) {
-    transformation.setMatrix(this.#matrix);
+    this.assignTo(transformation);
   }
   
   /**
    * Copy this matrix to a SceneGraphComponent
    * @param {SceneGraphComponent} sgc 
    */
+  /** @deprecated Use `assignTo(sgc)` */
   assignToSGC(sgc) {
-    if (!sgc.getTransformation()) {
-      sgc.setTransformation(new Transformation());
-    }
-    this.assignToTransformation(sgc.getTransformation());
+    this.assignTo(sgc);
   }
   /**
    * Set to identity matrix
@@ -311,7 +347,7 @@ export class Matrix {
   multiplyOnRight(T) {
     this.#matrixChanged = true;
     const Tmatrix = T instanceof Matrix ? T.#matrix : T;
-    Rn.timesMatrix(this.#matrix, this.#matrix, Tmatrix);
+    Rn.times(this.#matrix, this.#matrix, Tmatrix);
   }
 
   /**
@@ -321,7 +357,7 @@ export class Matrix {
   multiplyOnLeft(T) {
     this.#matrixChanged = true;
     const Tmatrix = T instanceof Matrix ? T.#matrix : T;
-    Rn.timesMatrix(this.#matrix, Tmatrix, this.#matrix);
+    Rn.times(this.#matrix, Tmatrix, this.#matrix);
   }
 
   /**

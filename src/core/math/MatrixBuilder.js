@@ -186,7 +186,7 @@ export class MatrixBuilder {
    * @returns {MatrixBuilder}
    */
   rotateAboutAxis(p1, p2, angle) {
-    P3.makeRotationMatrixAxis(this.#tmp, p1, p2, angle, this.#metric);
+    P3.makeRotationMatrix(this.#tmp, p1, p2, angle, this.#metric);
     this.#matrix.multiplyOnRight(this.#tmp);
     return this;
   }
@@ -270,7 +270,7 @@ export class MatrixBuilder {
    * @returns {MatrixBuilder}
    */
   scaleXYZ(scaleX, scaleY, scaleZ) {
-    P3.makeStretchMatrixXYZ(this.#tmp, scaleX, scaleY, scaleZ);
+    P3.makeStretchMatrix(this.#tmp, scaleX, scaleY, scaleZ);
     this.#matrix.multiplyOnRight(this.#tmp);
     return this;
   }
@@ -323,7 +323,7 @@ export class MatrixBuilder {
    * @returns {MatrixBuilder}
    */
   translateFromTo(from, to) {
-    P3.makeTranslationMatrix2(this.#tmp, from, to, this.#metric);
+    P3.makeTranslationMatrix(this.#tmp, from, to, this.#metric);
     this.#matrix.multiplyOnRight(this.#tmp);
     return this;
   }
@@ -415,32 +415,41 @@ export class MatrixBuilder {
   }
 
   /**
-   * Assign to array
-   * @param {number[]} array 
+   * Assign the underlying matrix to a target.
+   * Java overloads:
+   * - assignTo(SceneGraphComponent)
+   * - assignTo(Transformation)
+   * - assignTo(double[])
+   * - assignTo(Matrix)
+   *
+   * @param {number[]|Matrix|Transformation|SceneGraphComponent} target
    */
-  assignTo(array) {
-    this.#matrix.assignTo(array);
+  assignTo(target) {
+    this.#matrix.assignTo(target);
   }
  /**
    * Assign to Matrix
    * @param {Matrix} m 
    */
+ /** @deprecated Use `assignTo(m)` */
  assignToMatrix(m) {
-    this.#matrix.assignToMatrix(m);
+    this.assignTo(m);
   }
 /**
  * Assign to Transformation
  * @param {Transformation} transformation 
  */
+  /** @deprecated Use `assignTo(transformation)` */
   assignToTransformation(transformation) {
-    this.#matrix.assignToTransformation(transformation);
+    this.assignTo(transformation);
   }
   /**
    * Assign to SceneGraphComponent
    * @param {SceneGraphComponent} sgc 
    */
+  /** @deprecated Use `assignTo(sgc)` */
   assignToSGC(sgc) {
-    this.#matrix.assignToSGC(sgc);
+    this.assignTo(sgc);
   }
  
 }
