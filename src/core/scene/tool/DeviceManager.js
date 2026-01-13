@@ -26,6 +26,14 @@ import { VirtualMousePointerTrafo } from './virtual/VirtualMousePointerTrafo.js'
 import { VirtualRotation } from './virtual/VirtualRotation.js';
 import { VirtualExtractTranslationTrafo } from './virtual/VirtualExtractTranslationTrafo.js';
 import { VirtualEvolutionOperator } from './virtual/VirtualEvolutionOperator.js';
+import { VirtualMap } from './virtual/VirtualMap.js';
+import { VirtualDoubleClick } from './virtual/VirtualDoubleClick.js';
+import { VirtualCoupledAxis } from './virtual/VirtualCoupledAxis.js';
+import { VirtualMergedAxis } from './virtual/VirtualMergedAxis.js';
+import { VirtualToggleAxis } from './virtual/VirtualToggleAxis.js';
+import { VirtualInvertMatrix } from './virtual/VirtualInvertMatrix.js';
+import { VirtualProductMatrix } from './virtual/VirtualProductMatrix.js';
+import { VirtualExtractAxis } from './virtual/VirtualExtractAxis.js';
 
 const logger = getLogger('jsreality.core.scene.tool.DeviceManager');
 
@@ -370,8 +378,32 @@ export class DeviceManager {
     if (className === 'VirtualRotation' || className.endsWith('.VirtualRotation')) {
       return new VirtualRotation();
     }
+    if (className === 'VirtualMap' || className.endsWith('.VirtualMap')) {
+      return new VirtualMap();
+    }
+    if (className === 'VirtualDoubleClick' || className.endsWith('.VirtualDoubleClick')) {
+      return new VirtualDoubleClick();
+    }
+    if (className === 'VirtualCoupledAxis' || className.endsWith('.VirtualCoupledAxis')) {
+      return new VirtualCoupledAxis();
+    }
+    if (className === 'VirtualMergedAxis' || className.endsWith('.VirtualMergedAxis')) {
+      return new VirtualMergedAxis();
+    }
+    if (className === 'VirtualToggleAxis' || className.endsWith('.VirtualToggleAxis')) {
+      return new VirtualToggleAxis();
+    }
     if (className === 'VirtualExtractTranslationTrafo' || className.endsWith('.VirtualExtractTranslationTrafo')) {
       return new VirtualExtractTranslationTrafo();
+    }
+    if (className === 'VirtualInvertMatrix' || className.endsWith('.VirtualInvertMatrix')) {
+      return new VirtualInvertMatrix();
+    }
+    if (className === 'VirtualProductMatrix' || className.endsWith('.VirtualProductMatrix')) {
+      return new VirtualProductMatrix();
+    }
+    if (className === 'VirtualExtractAxis' || className.endsWith('.VirtualExtractAxis')) {
+      return new VirtualExtractAxis();
     }
     if (className === 'VirtualEvolutionOperator' || className.endsWith('.VirtualEvolutionOperator')) {
       return new VirtualEvolutionOperator();

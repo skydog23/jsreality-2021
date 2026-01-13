@@ -25,14 +25,16 @@ import { InputSlot } from '../scene/tool/InputSlot.js';
  */
 export class TranslateTool extends AbstractTool {
   static activate = InputSlot.RIGHT_BUTTON; // (Java uses middle button directly)
-  static trafo = InputSlot.DELTA_TRANSLATION;
+  static evolution = InputSlot.getDevice('PointerEvolution');
 
   /** @type {import('../scene/SceneGraphComponent.js').SceneGraphComponent|null} */
   comp = null;
+  local2world = new Matrix();
+  evolution = new Matrix();
 
   constructor() {
     super(TranslateTool.activate);
-    this.addCurrentSlot(TranslateTool.trafo);
+    this.addCurrentSlot(TranslateTool.evolution);
   }
 
   /**
@@ -43,6 +45,9 @@ export class TranslateTool extends AbstractTool {
     if (this.comp && this.comp.getTransformation() === null) {
       this.comp.setTransformation(new Transformation());
     }
+    const path = tc.getRootToLocal();
+    this.local2world.assignFrom(path.getMatrix(null));
+    console.log("local2world", this.local2world);
   }
 
   /**
@@ -50,18 +55,17 @@ export class TranslateTool extends AbstractTool {
    */
   perform(tc) {
     if (!this.comp) return;
-    const trafoObj = this.comp.getTransformation();
-    if (!trafoObj) return;
+    const currentTform = this.comp.getTransformation();
+    if (!currentTform) return;
 
-    const delta = tc.getTransformationMatrix(TranslateTool.trafo);
-    if (!delta) return;
-
-    // MatrixBuilder.euclidean(comp.getTransformation()) is not available in JS,
-    // so we seed a Matrix from the transformation matrix array.
-    const current = new Matrix(trafoObj.getMatrix(null));
-    MatrixBuilder.euclidean(current)
-      .times(delta)
-      .assignTo(trafoObj);
+    this.evolution.assignFrom(tc.getTransformationMatrix(TranslateTool.evolution));
+    if (!this.evolution) return;
+    console.log("evolution", this.evolution);
+   this.evolution.conjugateBy(this.local2world);
+    console.log("evolution", this.evolution);
+     MatrixBuilder.euclidean(currentTform.getMatrix(null))
+      .times(this.evolution)
+      .assignTo(currentTform);
 
     // Ensure the viewer updates (jsReality doesn't yet have a central render trigger).
     tc.getViewer().renderAsync();

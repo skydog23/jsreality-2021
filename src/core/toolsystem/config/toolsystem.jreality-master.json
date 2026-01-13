@@ -1,0 +1,408 @@
+{
+  "meta": {
+    "purpose": "Master tool-system mapping reference for translating jReality tools to jsReality.",
+    "sourceXml": [
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/toolconfig-split.xml",
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/chunks/toolconfig-mouse.xml",
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/chunks/toolconfig-keyboard.xml",
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/chunks/toolconfig-mouse-keyboard.xml",
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/chunks/toolconfig-ndc.xml",
+      "jreality-2021/src-tool/de/jreality/toolsystem/config/chunks/toolconfig-desktop.xml"
+    ],
+    "notes": [
+      "This file is intended as a one-stop reference for InputSlot names + raw/virtual mappings used by jReality tools (e.g. DraggingTool uses DragActivation, DragAlongViewDirection, PointerEvolution, CameraToWorld).",
+      "The config format follows ToolSystemConfiguration.loadFromJSON(). Extra keys like meta/slots/unimplementedVirtualDevices are ignored by the loader.",
+      "Some virtual devices listed here are not implemented in jsReality yet; they are included so the mapping vocabulary is complete for tool translation."
+    ]
+  },
+  "slots": [
+    "PrimaryAction",
+    "PrimarySelection",
+    "PrimaryMenu",
+    "PrimaryUp",
+    "PrimaryDown",
+    "PointerNDC",
+    "PointerNDCevolution",
+    "PointerNdcX",
+    "PointerNdcY",
+    "PointerNdcXevolution",
+    "PointerNdcYevolution",
+    "PointerTransformation",
+    "PointerEvolution",
+    "SystemTime",
+    "WorldToCamera",
+    "CameraToWorld",
+    "CameraToNDC",
+    "NDCToCamera",
+    "WorldToNDC",
+    "NDCToWorld",
+    "AvatarTransformation",
+    "AvatarInverseTransformation",
+    "PointerShipTransformation",
+    "TrackballTransformation",
+    "RotateActivation",
+    "DragActivation",
+    "DragAlongViewDirection",
+    "ScaleActivation",
+    "RunActivation",
+    "Secondary",
+    "Meta",
+    "AltMeta",
+    "Tertiary",
+    "SecondaryAction",
+    "SecondarySelection",
+    "SecondaryMenu",
+    "TertiaryAction",
+    "TertiarySelection",
+    "TertiaryMenu",
+    "PanelAction",
+    "PanelMenu",
+    "PanelSelection",
+    "ShowPanel",
+    "SelectionActivation",
+    "PanelActivation",
+    "Duplication",
+    "AllDragActivation",
+    "PointDragActivation",
+    "EdgeDragActivation",
+    "FaceDragActivation",
+    "DeformActivation",
+    "ShipRotateActivation",
+    "HorizontalShipRotationAngleEvolution",
+    "VerticalShipRotationAngleEvolution",
+    "VerticalHeadRotationAngleEvolution",
+    "ScaleAxis",
+    "JumpActivation",
+    "EncompassActivation",
+    "pageUp",
+    "pageDown",
+    "forward",
+    "backward",
+    "left",
+    "right",
+    "key1",
+    "key2",
+    "key3",
+    "key4",
+    "key5",
+    "ForwardBackwardAxis",
+    "LeftRightAxis",
+    "UpDownAxis",
+    "RotationToggle",
+    "ShiftLeft",
+    "ShiftRight",
+    "AltLeft",
+    "AltRight",
+    "ShiftForward",
+    "ShiftBackward",
+    "AltForward",
+    "AltBackward",
+    "ShiftForwardBackwardAxis",
+    "AltForwardBackwardAxis",
+    "ShiftLeftRightAxis",
+    "AltLeftRightAxis"
+  ],
+  "rawConfigs": [
+    { "rawDevice": "DeviceMouse", "deviceID": "Mouse", "config": {} },
+    { "rawDevice": "DeviceKeyboard", "deviceID": "Keyboard", "config": {} },
+    { "rawDevice": "DeviceSystemTimer", "deviceID": "SystemTimer", "config": {} }
+  ],
+  "rawMappings": [
+    { "deviceID": "Mouse", "sourceSlot": "left", "targetSlot": "PrimaryAction" },
+    { "deviceID": "Mouse", "sourceSlot": "right", "targetSlot": "PrimarySelection" },
+    { "deviceID": "Mouse", "sourceSlot": "center", "targetSlot": "PrimaryMenu" },
+    { "deviceID": "Mouse", "sourceSlot": "wheel_up", "targetSlot": "PrimaryUp" },
+    { "deviceID": "Mouse", "sourceSlot": "wheel_down", "targetSlot": "PrimaryDown" },
+    { "deviceID": "Mouse", "sourceSlot": "axes", "targetSlot": "PointerNDC" },
+    { "deviceID": "Mouse", "sourceSlot": "axesEvolution", "targetSlot": "PointerNDCevolution" },
+
+    { "deviceID": "Keyboard", "sourceSlot": "VK_SPACE", "targetSlot": "JumpActivation" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_SHIFT", "targetSlot": "Secondary" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_CONTROL", "targetSlot": "Meta" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_ALT", "targetSlot": "AltMeta" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_1", "targetSlot": "key1" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_2", "targetSlot": "key2" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_3", "targetSlot": "key3" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_4", "targetSlot": "key4" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_5", "targetSlot": "key5" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_UP", "targetSlot": "forward" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_LEFT", "targetSlot": "left" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_DOWN", "targetSlot": "backward" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_RIGHT", "targetSlot": "right" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_E", "targetSlot": "EncompassActivation" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_PAGE_DOWN", "targetSlot": "pageDown" },
+    { "deviceID": "Keyboard", "sourceSlot": "VK_PAGE_UP", "targetSlot": "pageUp" },
+
+    { "deviceID": "SystemTimer", "sourceSlot": "tick", "targetSlot": "SystemTime" }
+  ],
+  "virtualMappings": [
+    { "sourceSlot": "PrimaryAction", "targetSlot": "PanelAction" },
+    { "sourceSlot": "PrimaryMenu", "targetSlot": "PanelMenu" },
+    { "sourceSlot": "PrimarySelection", "targetSlot": "PanelSelection" },
+    { "sourceSlot": "PrimarySelection", "targetSlot": "ShowPanel" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "RotateActivation" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "AllDragActivation" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "PointDragActivation" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "EdgeDragActivation" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "FaceDragActivation" },
+    { "sourceSlot": "PrimaryMenu", "targetSlot": "DragActivation" },
+    { "sourceSlot": "PrimarySelection", "targetSlot": "ScaleActivation" },
+    { "sourceSlot": "PrimaryAction", "targetSlot": "DeformActivation" },
+
+    { "sourceSlot": "PointerNdcXevolution", "targetSlot": "HorizontalShipRotationAngleEvolution" },
+    { "sourceSlot": "PointerNdcXevolution", "targetSlot": "ScaleAxis" },
+    { "sourceSlot": "PointerNdcYevolution", "targetSlot": "VerticalShipRotationAngleEvolution" },
+    { "sourceSlot": "PointerNdcYevolution", "targetSlot": "VerticalHeadRotationAngleEvolution" },
+
+    { "sourceSlot": "Secondary", "targetSlot": "RunActivation" },
+    { "sourceSlot": "Meta", "targetSlot": "DragAlongViewDirection" },
+    { "sourceSlot": "Meta", "targetSlot": "Tertiary" }
+  ],
+  "virtualConfigs": [
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "ForwardBackwardAxis",
+      "inSlots": ["forward", "backward"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "LeftRightAxis",
+      "inSlots": ["right", "left"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "UpDownAxis",
+      "inSlots": ["pageDown", "pageUp"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualToggleAxis",
+      "outSlot": "RotationToggle",
+      "inSlots": ["JumpActivation"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "ShiftLeft",
+      "inSlots": ["left", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "ShiftRight",
+      "inSlots": ["right", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "AltLeft",
+      "inSlots": ["left", "AltMeta"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "AltRight",
+      "inSlots": ["right", "AltMeta"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "ShiftForward",
+      "inSlots": ["forward", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "ShiftBackward",
+      "inSlots": ["backward", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "AltForward",
+      "inSlots": ["forward", "AltMeta"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "AltBackward",
+      "inSlots": ["backward", "AltMeta"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "ShiftForwardBackwardAxis",
+      "inSlots": ["ShiftForward", "ShiftBackward"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "AltForwardBackwardAxis",
+      "inSlots": ["AltForward", "AltBackward"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "ShiftLeftRightAxis",
+      "inSlots": ["ShiftRight", "ShiftLeft"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMergedAxis",
+      "outSlot": "AltLeftRightAxis",
+      "inSlots": ["AltRight", "AltLeft"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMap",
+      "outSlot": "SelectionActivation",
+      "inSlots": ["PrimaryAction"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualDoubleClick",
+      "outSlot": "PanelActivation",
+      "inSlots": ["PrimaryAction"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualDoubleClick",
+      "outSlot": "Duplication",
+      "inSlots": ["PrimarySelection"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "SecondaryAction",
+      "inSlots": ["PrimaryAction", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "SecondarySelection",
+      "inSlots": ["PrimarySelection", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "SecondaryMenu",
+      "inSlots": ["PrimaryMenu", "Secondary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "TertiaryAction",
+      "inSlots": ["PrimaryAction", "Tertiary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "TertiarySelection",
+      "inSlots": ["PrimarySelection", "Tertiary"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualCoupledAxis",
+      "outSlot": "TertiaryMenu",
+      "inSlots": ["PrimaryMenu", "Tertiary"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMap",
+      "outSlot": "ShipRotateActivation",
+      "inSlots": ["PrimarySelection"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualInvertMatrix",
+      "outSlot": "NDCToCamera",
+      "inSlots": ["CameraToNDC"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualInvertMatrix",
+      "outSlot": "CameraToWorld",
+      "inSlots": ["WorldToCamera"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualProductMatrix",
+      "outSlot": "WorldToNDC",
+      "inSlots": ["CameraToNDC", "WorldToCamera"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualProductMatrix",
+      "outSlot": "NDCToWorld",
+      "inSlots": ["CameraToWorld", "NDCToCamera"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualExtractAxis",
+      "outSlot": "PointerNdcX",
+      "inSlots": ["PointerNDC"],
+      "config": { "axis": "translationX" }
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualExtractAxis",
+      "outSlot": "PointerNdcY",
+      "inSlots": ["PointerNDC"],
+      "config": { "axis": "translationY" }
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualExtractAxis",
+      "outSlot": "PointerNdcYevolution",
+      "inSlots": ["PointerNDCevolution"],
+      "config": { "axis": "translationY" }
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualExtractAxis",
+      "outSlot": "PointerNdcXevolution",
+      "inSlots": ["PointerNDCevolution"],
+      "config": { "axis": "translationX" }
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualRotation",
+      "outSlot": "TrackballTransformation",
+      "inSlots": ["PointerNDC", "CameraToWorld"],
+      "config": { "gain": 3.14 }
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualMousePointerTrafo",
+      "outSlot": "PointerTransformation",
+      "inSlots": ["NDCToWorld", "PointerNDC"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualEvolutionOperator",
+      "outSlot": "PointerEvolution",
+      "inSlots": ["PointerTransformation"],
+      "config": {}
+    },
+
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualInvertMatrix",
+      "outSlot": "AvatarInverseTransformation",
+      "inSlots": ["AvatarTransformation"],
+      "config": {}
+    },
+    {
+      "virtualDevice": "de.jreality.toolsystem.virtual.VirtualProductMatrix",
+      "outSlot": "PointerShipTransformation",
+      "inSlots": ["AvatarInverseTransformation", "PointerTransformation"],
+      "config": {}
+    }
+  ],
+  "unimplementedVirtualDevices": []
+}
+
+

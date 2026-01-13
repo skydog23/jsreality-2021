@@ -70,7 +70,7 @@ export class MatrixBuilder {
    * @param {number} metric 
    */
   constructor(m, metric) {
-    this.#matrix = m;
+    this.#matrix = m instanceof Matrix ? m : new Matrix(m);
     this.#metric = metric;
   }
 

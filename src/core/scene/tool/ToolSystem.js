@@ -425,6 +425,10 @@ export class ToolSystem extends ToolEventReceiver {
    * @returns {ToolSystemConfiguration} Default configuration
    */
   static getDefaultToolSystemConfiguration() {
+    // jReality-style naming slots used by various translated tools.
+    // (e.g. DraggingTool expects "DragActivation".)
+    const DRAG_ACTIVATION = InputSlot.getDevice('DragActivation');
+
     return new ToolSystemConfiguration({
       rawConfigs: [
         new RawDeviceConfig('DeviceMouse', 'Mouse', {}),
@@ -458,8 +462,14 @@ export class ToolSystem extends ToolEventReceiver {
         new VirtualMapping(InputSlot.POINTER_TRANSFORMATION, InputSlot.POINTER_HIT),
         // Map primary action to pointer hit
         new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.POINTER_HIT),
+        // Allow picking with non-left buttons too (important for drag/select tools).
+        new VirtualMapping(InputSlot.RIGHT_BUTTON, InputSlot.POINTER_HIT),
+        new VirtualMapping(InputSlot.MIDDLE_BUTTON, InputSlot.POINTER_HIT),
         // jReality-style activation naming
-        new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.ROTATE_ACTIVATION)
+        new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.ROTATE_ACTIVATION),
+        // DragActivation: map from right click as well as middle click (trackpad-friendly).
+        new VirtualMapping(InputSlot.MIDDLE_BUTTON, DRAG_ACTIVATION),
+        new VirtualMapping(InputSlot.RIGHT_BUTTON, DRAG_ACTIVATION),
       ],
       virtualConfigs: [
         // jReality: VirtualRotation(PointerNDC, CameraToWorld) -> TrackballTransformation
