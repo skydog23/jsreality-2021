@@ -14,6 +14,8 @@ import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
+import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFactory.js';
+import { Primitives } from '../../core/geometry/Primitives.js';
 
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
@@ -39,12 +41,23 @@ export class TestAnimApp extends JSRApp {
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
     squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
-    const ap = squareSGC.getAppearance();
+    let ap = squareSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(`polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
 
-    this._worldSGC.addChild(squareSGC);
+    const lineSGC = SceneGraphUtility.createFullSceneGraphComponent('line');
+    const pointRangeFactory = new PointRangeFactory();
+    pointRangeFactory.setElement0([0,0,0,1]);
+    pointRangeFactory.setElement1([1,1,0,1]);
+    pointRangeFactory.update();
+    lineSGC.setGeometry(pointRangeFactory.getLine()); 
+    ap = lineSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
+    ap.setAttribute(CommonAttributes.TUBES_DRAW, false);
+    ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
+    ap.setAttribute(`lineShader.${CommonAttributes.TUBE_RADIUS}`, 0.02);
+   this._worldSGC.addChildren(lineSGC, squareSGC);
     this.#squareSGC = squareSGC;
     return this._worldSGC;
   }

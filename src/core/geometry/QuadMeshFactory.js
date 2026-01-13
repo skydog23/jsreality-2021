@@ -275,7 +275,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
     if (points == null) {
       return super.setVertexCoordinates(null);
     }
-    const npoints = QuadMeshFactory.#convertDDDtoDD(points, this.getULineCount(), this.getVLineCount());
+    const npoints = QuadMeshFactory._convertDDDtoDD(points, this.getULineCount(), this.getVLineCount());
     return super.setVertexCoordinates(npoints);
   }
 
@@ -284,7 +284,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexNormals(data) {
     if (data == null) return super.setVertexNormals(null);
-    const n = QuadMeshFactory.#convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
     return super.setVertexNormals(n);
   }
 
@@ -293,7 +293,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexColors(data) {
     if (data == null) return super.setVertexColors(null);
-    const n = QuadMeshFactory.#convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
     return super.setVertexColors(n);
   }
 
@@ -302,7 +302,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexTextureCoordinates(data) {
     if (data == null) return super.setVertexTextureCoordinates(null);
-    const n = QuadMeshFactory.#convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
     return super.setVertexTextureCoordinates(n);
   }
 
@@ -377,7 +377,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    * @returns {number[][]} texture coordinates (u,v) for each vertex
    * @private
    */
-  #generateTextureCoordinates() {
+  #generateTextureCoordinatesData() {
     const vLineCount = this.getVLineCount();
     const uLineCount = this.getULineCount();
     const nov = this.getVertexCount();
@@ -494,7 +494,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
       const hasPending = pending.has(GeometryAttribute.TEXTURE_COORDINATES);
       const hasExisting = Boolean(geom.getVertexAttribute(GeometryAttribute.TEXTURE_COORDINATES));
       if (!hasPending && !hasExisting) {
-        const txc = this.#generateTextureCoordinates();
+        const txc = this.#generateTextureCoordinatesData();
         super.setVertexTextureCoordinates(txc);
       }
     }
@@ -518,7 +518,7 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    * @returns {number[][]}
    * @private
    */
-  static #convertDDDtoDD(points, uLineCount, vLineCount) {
+  static _convertDDDtoDD(points, uLineCount, vLineCount) {
     const lengthv = points.length;
     const lengthu = points[0]?.length ?? 0;
     if (lengthv !== vLineCount || lengthu !== uLineCount) {

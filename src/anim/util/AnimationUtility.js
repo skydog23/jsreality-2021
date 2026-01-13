@@ -81,6 +81,28 @@ export class AnimationUtility {
      * @returns {number} The interpolated value
      */
     static linearInterpolation(t, minin, maxin, minout, maxout) {
+        // Overload used in older Charles Gunn code:
+        //   linearInterpolation(double[] dst, double t, double minin, double maxin, double[] minout, double[] maxout)
+        // Implemented here as a runtime-dispatch overload to preserve Java behavior.
+        if (Array.isArray(t)) {
+            const dst = /** @type {number[]} */ (t);
+            const tt = /** @type {number} */ (minin);
+            const inMin = /** @type {number} */ (maxin);
+            const inMax = /** @type {number} */ (minout);
+            if (arguments.length < 6) {
+                throw new Error('AnimationUtility.linearInterpolation(dst, t, minin, maxin, minout, maxout) requires 6 arguments');
+            }
+            const outMin = /** @type {number[]} */ (maxout);
+            const outMax = /** @type {number[]} */ (arguments[5]);
+            if (!Array.isArray(outMin) || !Array.isArray(outMax)) {
+                throw new Error('AnimationUtility.linearInterpolation: expected vector min/max outputs');
+            }
+            const alpha = AnimationUtility.linearInterpolation(tt, inMin, inMax, 0, 1);
+            for (let i = 0; i < outMin.length; i++) {
+                dst[i] = (1 - alpha) * outMin[i] + alpha * outMax[i];
+            }
+            return dst;
+        }
         if (t <= minin) return minout;
         if (t >= maxin) return maxout;
         const input = (t - minin) / (maxin - minin);
