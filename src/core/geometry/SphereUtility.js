@@ -302,8 +302,8 @@ export class SphereUtility {
       return SphereUtility.#tessellatedCubes[i];
     }
     
-    // TODO: oneHalfSphere requires AbstractQuadMeshFactory - skip for now
-    throw new Error('tessellatedCubeSphere requires AbstractQuadMeshFactory (not yet translated). Use tessellatedIcosahedronSphere instead.');
+    // TODO: tessellatedCubeSphere uses a quad-mesh-based helper that is not yet ported/enabled here.
+    throw new Error('tessellatedCubeSphere is not yet implemented. Use tessellatedIcosahedronSphere instead.');
     
     // const hemisphere = SphereUtility.#oneHalfSphere(2 * i + 2);
     // const parent = new SceneGraphComponent();
@@ -407,6 +407,6 @@ export class SphereUtility {
   }
   
   // Note: sphericalPatch() and sphericalPatchFactory() require QuadMeshFactory - skipped for now
-  // Note: oneHalfSphere() requires AbstractQuadMeshFactory - skipped for now
+  // Note: oneHalfSphere() requires QuadMeshFactory - skipped for now
 }
 

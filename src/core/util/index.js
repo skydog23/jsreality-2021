@@ -23,3 +23,5 @@ export {
   Level, 
   Category
 } from './LoggingSystem.js';
+
+export { Dimension } from './Dimension.js';

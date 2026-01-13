@@ -18,3 +18,4 @@ export * from './Matrix.js';        // 4x4 matrix wrapper class
 export * from './Quaternion.js';    // Quaternion class
 export * from './MatrixBuilder.js'; // Fluent matrix construction
 export * from './FactoredMatrix.js'; // Matrix with polar decomposition 
+export * from './PlueckerLineGeometry.js';
