@@ -168,7 +168,7 @@ export class IndexedFaceSet extends IndexedLineSet {
     try {
       // Set count from the data list size
       if (dataList instanceof VariableDataList) {
-        this.#numFaces = dataList.length();
+        this.#numFaces = dataList.length;
       } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
         this.#numFaces = dataList.shape[0];
       }
@@ -194,7 +194,7 @@ export class IndexedFaceSet extends IndexedLineSet {
       // Set count from first attribute
       const firstDataList = attributes.values().next().value;
       if (firstDataList instanceof VariableDataList) {
-        this.#numFaces = firstDataList.length();
+        this.#numFaces = firstDataList.length;
       } else if (firstDataList instanceof RegularDataList && firstDataList.shape.length >= 1) {
         this.#numFaces = firstDataList.shape[0];
       }
@@ -285,7 +285,7 @@ export class IndexedFaceSet extends IndexedLineSet {
       return null;
     }
     
-    if (faceIndex < 0 || faceIndex >= indices.length()) {
+    if (faceIndex < 0 || faceIndex >= indices.length) {
       return null;
     }
     
@@ -335,7 +335,7 @@ export class IndexedFaceSet extends IndexedLineSet {
     }
     
     // Check that the data size matches our face count
-    const dataSize = dataList instanceof VariableDataList ? dataList.length() : dataList.shape[0];
+    const dataSize = dataList instanceof VariableDataList ? dataList.length : dataList.shape[0];
     
     if (this.#numFaces > 0 && dataSize !== this.#numFaces) {
       throw new Error(

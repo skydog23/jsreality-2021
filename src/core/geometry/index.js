@@ -19,6 +19,7 @@ export { PointSetFactory } from './PointSetFactory.js';
 export { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 export { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
 export { QuadMeshFactory } from './QuadMeshFactory.js';
+export { ParametricSurfaceFactory } from './ParametricSurfaceFactory.js';
 
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';

@@ -75,8 +75,17 @@ export class DataList {
    * @abstract
    * @returns {number}
    */
-  length() {
-    throw new Error('length() must be implemented by subclass');
+  getLength() {
+    throw new Error('getLength() must be implemented by subclass');
+  }
+
+  /**
+   * Array-style length property.
+   * This prevents bugs where callers accidentally write `dl.length` instead of `dl.length()`.
+   * @returns {number}
+   */
+  get length() {
+    return this.getLength();
   }
   
   /**

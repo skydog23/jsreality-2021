@@ -172,7 +172,7 @@ export class IndexedLineSet extends PointSet {
     try {
       // Set count from the data list size
       if (dataList instanceof VariableDataList) {
-        this.#numEdges = dataList.length();
+        this.#numEdges = dataList.length;
       } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
         this.#numEdges = dataList.shape[0];
       }
@@ -198,7 +198,7 @@ export class IndexedLineSet extends PointSet {
       // Set count from first attribute
       const firstDataList = attributes.values().next().value;
       if (firstDataList instanceof VariableDataList) {
-        this.#numEdges = firstDataList.length();
+        this.#numEdges = firstDataList.length;
       } else if (firstDataList instanceof RegularDataList && firstDataList.shape.length >= 1) {
         this.#numEdges = firstDataList.shape[0];
       }
@@ -291,7 +291,7 @@ export class IndexedLineSet extends PointSet {
       return null;
     }
     
-    if (edgeIndex < 0 || edgeIndex >= indices.length()) {
+    if (edgeIndex < 0 || edgeIndex >= indices.length) {
       return null;
     }
     
@@ -310,7 +310,7 @@ export class IndexedLineSet extends PointSet {
     }
     
     // Check that the data size matches our edge count
-    const dataSize = dataList instanceof VariableDataList ? dataList.length() : dataList.shape[0];
+    const dataSize = dataList instanceof VariableDataList ? dataList.length : dataList.shape[0];
     
     if (this.#numEdges > 0 && dataSize !== this.#numEdges) {
       throw new Error(

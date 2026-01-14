@@ -92,7 +92,7 @@ export class RegularDataList extends DataList {
    * Get the number of items in the first dimension
    * @returns {number}
    */
-  length() {
+  getLength() {
     return this.shape[0];
   }
   

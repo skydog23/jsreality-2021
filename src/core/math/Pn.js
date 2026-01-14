@@ -840,6 +840,7 @@ export function polarize(polar, p, metric) {
 /**
  * Compute the polar plane of a plane with respect to the given metric.
  * This just calls polarize since the polar plane of a plane is the same operation.
+ * This is assuming a plane-based algebra. Dual euclidean space cannot be represented as a plane.
  * Mirrors Pn.polarizePlane(dst, plane, metric) in Java.
  * @param {number[]|null} dst - Destination array or null to create new
  * @param {number[]} plane - Input plane

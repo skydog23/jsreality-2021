@@ -63,7 +63,7 @@ export class VariableDataList extends DataList {
    * Get the number of rows
    * @returns {number}
    */
-  length() {
+  getLength() {
     return this.rows.length;
   }
   
@@ -260,7 +260,7 @@ export class VariableDataList extends DataList {
   getStats() {
     const lengths = this.getRowLengths();
     return {
-      numRows: this.length(),
+      numRows: this.length,
       totalElements: this.size(),
       minRowLength: Math.min(...lengths),
       maxRowLength: Math.max(...lengths),

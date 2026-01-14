@@ -313,7 +313,7 @@ export class IndexedLineSetFactory extends PointSetFactory {
                 
                 let count = 0;
                 if (dataList instanceof VariableDataList) {
-                    count = dataList.length();
+                    count = dataList.length;
                 } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
                     count = dataList.shape[0];
                 }

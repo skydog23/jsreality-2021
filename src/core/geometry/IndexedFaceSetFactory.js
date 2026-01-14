@@ -262,7 +262,7 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
                 
                 let count = 0;
                 if (dataList instanceof VariableDataList) {
-                    count = dataList.length();
+                    count = dataList.length;
                 } else if (dataList instanceof RegularDataList && dataList.shape.length >= 1) {
                     count = dataList.shape[0];
                 }
@@ -364,7 +364,7 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         const edgeList = [];
         
         // Iterate over all faces
-        for (let faceIdx = 0; faceIdx < faceIndices.length(); faceIdx++) {
+        for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
             const face = faceIndices.item(faceIdx);
             const faceLength = face.length;
             
@@ -426,45 +426,15 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
             
             if (n < 3) {
                 // Degenerate face, skip (matches Java: continue)
+                faceNormals.push([0,0,0,0]);
                 continue;
             }
-            
-            if (metric === EUCLIDEAN) {
-                // Euclidean: find non-degenerate set of 3 vertices (matches Java implementation)
-                let count = 1;
-                let v1 = null;
-                
-                // Find first non-degenerate edge
-                do {
-                    v1 = Rn.subtract(null, verts[face[count++]], verts[face[0]]);
-                } while (Rn.euclideanNorm(v1) < 1e-16 && count < (n - 1));
-                
-                // Find second non-degenerate edge
-                let v2 = null;
-                do {
-                    v2 = Rn.subtract(null, verts[face[count++]], verts[face[0]]);
-                } while (Rn.euclideanNorm(v2) < 1e-16 && count < n);
-                
-                if (count > n) {
-                    // Couldn't find non-degenerate edges, skip this face
-                    continue;
-                }
-                
-                // Compute cross product and normalize
-                const normal = Rn.crossProduct(null, v1, v2);
-                Rn.normalize(normal, normal);
-                faceNormals.push(normal);
-            } else {
-                // Non-euclidean: use plane from three points
-                const p0 = verts[face[0]];
-                const p1 = verts[face[1]];
-                const p2 = verts[face[2]];
-                
-                const plane = P3.planeFromPoints(null, p0, p1, p2);
-                const normal = polarizePlane(null, plane, metric);
-                setToLength(normal, normal, -1.0, metric);
-                faceNormals.push(normal);
-            }
+        
+            const plane = this.#getPlaneThroughFace(verts, face);
+            let normal = polarizePlane(null, plane, metric);
+            if (metric === EUCLIDEAN) normal = normal.slice(0, 3);
+            setToLength(normal, normal, 1.0, metric);
+            faceNormals.push(normal);
         }
         
         // Set the face normals
@@ -472,7 +442,37 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         const normalDataList = toDataList(faceNormals);
         this.#indexedFaceSet.setFaceAttribute(GeometryAttribute.NORMALS, normalDataList);
     }
-    
+    /**
+     * TODO: the check for degenerate vertices shouldn't use euclidean norm.
+     * @param {number[][]} verts 
+     * @param {number[]} indices 
+     * @returns 
+     */
+    #getPlaneThroughFace(verts, indices, tol = 1e-16) {
+        // find non-degenerate set of 3 vertices (matches Java implementation)
+        let count = 1;
+        let v1 = null;
+        
+        // Find first non-degenerate edge
+        do {
+            v1 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
+        } while (Rn.euclideanNorm(v1) < tol && count < (indices.length  - 1));
+        
+        // Find second non-degenerate edge
+        let v2 = null;
+        do {
+            v2 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
+        } while (Rn.euclideanNorm(v2) < tol && count < indices.length);
+        
+        if (count > indices.length) {
+            // Couldn't find non-degenerate edges, skip this face
+            return [0,0,0,0];
+        }
+        const p0 = verts[indices[0]];
+        const p1 = v1;
+        const p2 = v2;
+        return P3.planeFromPoints(null, p0, p1, p2);
+    }
     /**
      * Generate vertex normals by averaging face normals.
      * @private
@@ -504,8 +504,7 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
             const face = faceIndices.item(faceIdx);
             const faceNormal = faceNormals.item(faceIdx);
-            
-            for (let i = 0; i < face.length; i++) {
+             for (let i = 0; i < face.length; i++) {
                 const vertexIdx = face[i];
                 Rn.add(vertexNormals[vertexIdx], vertexNormals[vertexIdx], faceNormal);
             }
@@ -515,9 +514,8 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         if (metric === EUCLIDEAN && normalLength === 3) {
             Rn.normalize(vertexNormals, vertexNormals);
         } else {
-            PnNormalize(vertexNormals, vertexNormals, metric);
+            Pn.normalize(vertexNormals, vertexNormals, metric);
         }
-        
         // Set the vertex normals
         // vertexNormals is a 2D array, so toDataList will auto-detect fiber length
         const normalDataList = toDataList(vertexNormals);

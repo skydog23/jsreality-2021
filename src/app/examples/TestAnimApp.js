@@ -16,6 +16,7 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFactory.js';
 import { Primitives } from '../../core/geometry/Primitives.js';
+import { ParametricSurfaceFactory } from '../../core/geometry/ParametricSurfaceFactory.js';
 
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
@@ -40,6 +41,8 @@ export class TestAnimApp extends JSRApp {
     this.#tform = this._worldSGC.getTransformation();
 
     const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
+
+   
     squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
     let ap = squareSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);

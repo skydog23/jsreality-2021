@@ -142,19 +142,15 @@ export class TestJSRApp extends JSRApp {
    */
   display() {
     super.display();
-     const camera = CameraUtility.getCamera(this.getViewer());
-    camera.setFieldOfView(30);
-    camera.setPerspective(true);
-    camera.setNear(0.1);
-    camera.setFar(100);
-    CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
-      MatrixBuilder.euclidean().translate(0,0,4).getArray());
+    this.setup3DCamera();
 
     this._animationPlugin.setAnimateSceneGraph(true);
     this._animationPlugin.setAnimateCamera(false);
 
     this.getViewer().render();
   }
+
+  
 
   setValueAtTime(t) {
     console.log(t);

@@ -131,7 +131,7 @@ export function testVariableDataList() {
   
   mixedFaces.addRow([20, 21, 22]); // Add new triangle
   console.log('After adding triangle:', mixedFaces.getStats());
-  console.log('New triangle:', mixedFaces.getRow(mixedFaces.length() - 1));
+  console.log('New triangle:', mixedFaces.getRow(mixedFaces.length - 1));
   
   return true;
 }

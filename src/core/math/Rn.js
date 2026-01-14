@@ -52,7 +52,7 @@ export function dehomogenize(dst, src) {
   if (Math.abs(src[length-1]) > 1e-10) {
       factor = 1.0 / src[length-1];
   }
-  return times(dst, factor, src);
+  return /** @type {number[]} */ (times(dst, factor, src));
 }
 
 
@@ -392,27 +392,50 @@ export function negate(dst, src) {
 // normalize: normalize to unit length
 /**
  * Normalize a vector to unit Euclidean length.
+ * @overload
  * @param {number[]|null} dst
  * @param {number[]} src
  * @returns {number[]}
  */
+/**
+ * Normalize an array of vectors to unit Euclidean length.
+ * @overload
+ * @param {number[][]|null} dst
+ * @param {number[][]} src
+ * @returns {number[][]}
+ */
+/**
+ * Normalize a vector (or array of vectors) to unit Euclidean length.
+ * @param {number[]|number[][]|null} dst
+ * @param {number[]|number[][]} src
+ * @returns {number[]|number[][]}
+ */
 export function normalize(dst, src) {
-  return setEuclideanNorm(dst, 1.0, src);
+  // normalize(double[][] dst, double[][] src)
+  if (Array.isArray(src) && Array.isArray(src[0])) {
+    const src2d = /** @type {number[][]} */ (src);
+    if (!dst) dst = new Array(src2d.length).fill(0).map(() => new Array(src2d[0].length));
+    if (!Array.isArray(dst) || !Array.isArray(dst[0]) || dst.length !== src2d.length) {
+      throw new Error('Vectors must have same length');
+    }
+    const dst2d = /** @type {number[][]} */ (dst);
+    const n = src2d.length;
+    for (let i = 0; i < n; ++i) normalize(dst2d[i], src2d[i]);
+    return dst2d;
+  }
+
+  // normalize(double[] dst, double[] src)
+  return setEuclideanNorm(/** @type {number[]|null} */ (dst), 1.0, /** @type {number[]} */ (src));
 }
 
-// normalize array of vectors
 /**
- * Normalize an array of vectors to unit length.
+ * @deprecated Use normalize(dst, src) (runtime-dispatch overload).
  * @param {number[][]|null} dst
  * @param {number[][]} src
  * @returns {number[][]}
  */
 export function normalizeArray(dst, src) {
-  if (!dst) dst = new Array(src.length).fill(0).map(() => new Array(src[0].length));
-  if (dst.length !== src.length || dst[0].length !== src[0].length) throw new Error('Vectors must have same length');
-  const n = Math.min(dst.length, src.length);
-  for (let i = 0; i < n; ++i) normalize(dst[i], src[i]);
-  return dst;
+  return /** @type {number[][]} */ (normalize(dst, src));
 }
 
 // setEuclideanNorm: scale to given length
@@ -432,7 +455,7 @@ export function setEuclideanNorm(dst, length, src) {
     for (let i = 0; i < Math.min(src.length, dst.length); ++i) dst[i] = src[i];
     return dst;
   }
-  return times(dst, length/norm, src);
+  return /** @type {number[]} */ (times(dst, length/norm, src));
 }
 
 
@@ -440,63 +463,108 @@ export function setEuclideanNorm(dst, length, src) {
 // subtract: elementwise subtraction
 /**
  * Elementwise subtraction src1 - src2.
+ * @overload
  * @param {number[]|null} dst
  * @param {number[]} src1
  * @param {number[]} src2
  * @returns {number[]}
  */
+/**
+ * Elementwise subtraction of arrays of vectors.
+ * @overload
+ * @param {number[][]|null} dst
+ * @param {number[][]} src1
+ * @param {number[][]} src2
+ * @returns {number[][]}
+ */
+/**
+ * Elementwise subtraction src1 - src2 (vector or array-of-vectors).
+ * @param {number[]|number[][]|null} dst
+ * @param {number[]|number[][]} src1
+ * @param {number[]|number[][]} src2
+ * @returns {number[]|number[][]}
+ */
 export function subtract(dst, src1, src2) {
-  if (!dst) dst = new Array(Math.max(src1.length, src2.length));
+  // subtract(double[][] dst, double[][] src1, double[][] src2)
+  if (Array.isArray(src1) && Array.isArray(src1[0]) && Array.isArray(src2) && Array.isArray(src2[0])) {
+    const a = /** @type {number[][]} */ (src1);
+    const b = /** @type {number[][]} */ (src2);
+    if (!dst) dst = new Array(a.length).fill(0).map(() => new Array(a[0].length));
+    if (!Array.isArray(dst) || !Array.isArray(dst[0]) || a.length !== b.length || dst.length !== a.length) {
+      throw new Error('Vectors must be same length');
+    }
+    const out = /** @type {number[][]} */ (dst);
+    for (let i = 0; i < a.length; ++i) subtract(out[i], a[i], b[i]);
+    return out;
+  }
+
+  const v1 = /** @type {number[]} */ (src1);
+  const v2 = /** @type {number[]} */ (src2);
+
+  if (!dst) dst = new Array(Math.max(v1.length, v2.length));
+  const out1d = /** @type {number[]} */ (dst);
   
   // Handle empty vectors
-  if (src1.length === 0) {
-    for (let i = 0; i < src2.length; ++i) dst[i] = -src2[i];
-    return dst;
+  if (v1.length === 0) {
+    for (let i = 0; i < v2.length; ++i) out1d[i] = -v2[i];
+    return out1d;
   }
-  if (src2.length === 0) {
-    for (let i = 0; i < src1.length; ++i) dst[i] = src1[i];
-    return dst;
+  if (v2.length === 0) {
+    for (let i = 0; i < v1.length; ++i) out1d[i] = v1[i];
+    return out1d;
   }
   
   // Subtract overlapping elements and keep remaining elements from first vector
-  const minLen = Math.min(src1.length, src2.length);
+  const minLen = Math.min(v1.length, v2.length);
   for (let i = 0; i < minLen; ++i) {
-    dst[i] = src1[i] - src2[i];
+    out1d[i] = v1[i] - v2[i];
   }
   
   // Copy remaining elements from the first vector
-  for (let i = minLen; i < src1.length; ++i) {
-    dst[i] = src1[i];
+  for (let i = minLen; i < v1.length; ++i) {
+    out1d[i] = v1[i];
   }
   
-  return dst;
+  return out1d;
 }
 
-// subtract array of vectors
 /**
- * Elementwise subtraction of arrays of vectors.
+ * @deprecated Use subtract(dst, src1, src2) (runtime-dispatch overload).
  * @param {number[][]|null} dst
  * @param {number[][]} src1
  * @param {number[][]} src2
  * @returns {number[][]}
  */
 export function subtractArray(dst, src1, src2) {
-  if (!dst) dst = new Array(src1.length).fill(0).map(() => new Array(src1[0].length));
-  if (dst.length !== src1.length) throw new Error('Vectors must be same length');
-  const n = src1.length;
-  for (let i = 0; i < n; ++i) subtract(dst[i], src1[i], src2[i]);
-  return dst;
+  return /** @type {number[][]} */ (subtract(dst, src1, src2));
 }
 
-// times: overloaded in Java (vector scale, matrix multiply, vectorized vector scale)
 /**
- * Java overloads:
- * - `times(double[] dst, double factor, double[] src)` (vector scale)
- * - `times(double[] dst, double[] src1, double[] src2)` (square matrix multiply)
- * - `times(double[][] dst, double factor, double[][] src)` (vectorized scale)
- *
- * JS port rule (JAVA2JS_PORTING_GUIDELINES.md #5): keep the Java name and dispatch at runtime.
- *
+ * Multiply vector by scalar, multiply two square matrices, or multiply an array of vectors by a scalar.
+ * @overload
+ * @param {number[]|null} dst
+ * @param {number} factor
+ * @param {number[]} src
+ * @returns {number[]}
+ */
+/**
+ * Multiply two square matrices (flattened 1D arrays).
+ * @overload
+ * @param {number[]|null} dst
+ * @param {number[]} src1
+ * @param {number[]} src2
+ * @returns {number[]}
+ */
+/**
+ * Multiply an array of vectors by a scalar.
+ * @overload
+ * @param {number[][]|null} dst
+ * @param {number} factor
+ * @param {number[][]} src
+ * @returns {number[][]}
+ */
+/**
+ * Java overload dispatcher for `times(...)`.
  * @param {number[]|number[][]|null} dst
  * @param {number|number[]|number[][]} factorOrSrc1
  * @param {number[]|number[]|number[][]} srcOrSrc2
@@ -624,7 +692,7 @@ export function barycentricTriangleInterp(dst, corners, weights) {
   const tmp = new Array(n);
   ddst.fill(0);
   for (let i = 0; i < 3; ++i) {
-    add(ddst, ddst, times(tmp, weights[i], corners[i]));
+    add(ddst, ddst, /** @type {number[]} */ (times(tmp, weights[i], corners[i])));
   }
   return ddst;
 }
@@ -854,16 +922,35 @@ export function linearCombination(dst, a, aVec, b, bVec) {
   if (aVec.length !== bVec.length) throw new Error('Vectors must be same length');
   if (!dst) dst = new Array(aVec.length);
   const tmp = new Array(dst.length);
-  return add(dst, times(tmp, a, aVec), times(dst, b, bVec));
+  return add(
+    dst,
+    /** @type {number[]} */ (times(tmp, a, aVec)),
+    /** @type {number[]} */ (times(dst, b, bVec))
+  );
 }
 
-// matrixTimesVector: matrix times vector
 /**
  * Multiply square matrix (flattened) by vector.
+ * @overload
  * @param {number[]|null} dst
  * @param {number[]} m
  * @param {number[]} src
  * @returns {number[]}
+ */
+/**
+ * Multiply square matrix (flattened) by an array of vectors.
+ * @overload
+ * @param {number[][]|null} dst
+ * @param {number[]} m
+ * @param {number[][]} src
+ * @returns {number[][]}
+ */
+/**
+ * Java overload dispatcher for `matrixTimesVector(...)`.
+ * @param {number[]|number[][]|null} dst
+ * @param {number[]} m
+ * @param {number[]|number[][]} src
+ * @returns {number[]|number[][]}
  */
 export function matrixTimesVector(dst, m, src) {
   // Java overload: matrixTimesVector(double[][] dst, double[] m, double[][] src)
@@ -1174,8 +1261,8 @@ export function bezierCombination(dst, t, v0, t0, t1, v1) {
   const c2 = 3 * tmp1 * t * t;
   const c3 = t * t * t;
   dst = add(dst,
-    add(null, times(null, c0, v0), times(null, c1, t0)),
-    add(null, times(null, c2, t1), times(null, c3, v1)));
+    add(null, /** @type {number[]} */ (times(null, c0, v0)), /** @type {number[]} */ (times(null, c1, t0))),
+    add(null, /** @type {number[]} */ (times(null, c2, t1)), /** @type {number[]} */ (times(null, c3, v1))));
   return dst;
 }
 
@@ -1375,7 +1462,7 @@ export function setDiagonalMatrix(dst, diag) {
  * @returns {number[]}
  */
 export function setToLength(p1, p12, rad) {
-  return times(p1, rad / euclideanNorm(p12), p12);
+  return /** @type {number[]} */ (times(p1, rad / euclideanNorm(p12), p12));
 }
 
 // submatrix: extract submatrix by deleting row and column

@@ -12,6 +12,8 @@
  */
 
 import { JSRViewer, ViewerTypes } from './JSRViewer.js';
+import * as CameraUtility from '../core/util/CameraUtility.js';
+import { MatrixBuilder } from '../core/math/MatrixBuilder.js';  
 import { ToolSystem } from '../core/scene/tool/ToolSystem.js';
 import * as CommonAttributes from '../core/shader/CommonAttributes.js';
 import { Color } from '../core/util/Color.js';
@@ -465,6 +467,15 @@ export class JSRApp extends JSRPlugin {
     // inspector?.refresh?.();
   }
 
+  setup3DCamera() {
+    const camera = CameraUtility.getCamera(this.getViewer());
+     camera.setFieldOfView(30);
+    camera.setPerspective(true);
+    camera.setNear(0.1);
+    camera.setFar(100);
+    CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
+      MatrixBuilder.euclidean().translate(0, 0, 4).getArray());
+  }
 
   /**
    * Set value at time (for animation).

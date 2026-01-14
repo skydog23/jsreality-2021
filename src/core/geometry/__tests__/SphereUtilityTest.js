@@ -37,7 +37,7 @@ const edges0 = ifs0.getEdgeAttribute(GeometryAttribute.INDICES);
 if (edges0) {
   console.log(`Edge indices shape: [${edges0.shape.join(', ')}]`);
   if (edges0 instanceof VariableDataList) {
-    console.log(`Edge indices VariableDataList length: ${edges0.length()}`);
+    console.log(`Edge indices VariableDataList length: ${edges0.length}`);
   }
   const edges0Array = fromDataList(edges0);
   console.log(`Edge indices array length: ${edges0Array.length}`);
@@ -69,7 +69,7 @@ const edges1 = ifs1.getEdgeAttribute(GeometryAttribute.INDICES);
 if (edges1) {
   console.log(`Edge indices shape: [${edges1.shape.join(', ')}]`);
   if (edges1 instanceof VariableDataList) {
-    console.log(`Edge indices VariableDataList length: ${edges1.length()}`);
+    console.log(`Edge indices VariableDataList length: ${edges1.length}`);
   }
   const edges1Array = fromDataList(edges1);
   console.log(`Edge indices array length: ${edges1Array.length}`);

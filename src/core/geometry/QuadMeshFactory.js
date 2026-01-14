@@ -275,7 +275,14 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
     if (points == null) {
       return super.setVertexCoordinates(null);
     }
-    const npoints = QuadMeshFactory._convertDDDtoDD(points, this.getULineCount(), this.getVLineCount());
+    // Overload:
+    // - setVertexCoordinates(double[][][] points) where points is [v][u][fiber] (quad-mesh shaped)
+    // - setVertexCoordinates(double[][] points) where points is [nov][fiber] (flat vertex list)
+    // ParametricSurfaceFactory produces the latter.
+    if (Array.isArray(points[0]) && typeof points[0][0] === 'number') {
+      return super.setVertexCoordinates(/** @type {number[][]} */ (points));
+    }
+    const npoints = QuadMeshFactory._convertDDDtoDD(/** @type {number[][][]} */ (points), this.getULineCount(), this.getVLineCount());
     return super.setVertexCoordinates(npoints);
   }
 
@@ -284,7 +291,10 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexNormals(data) {
     if (data == null) return super.setVertexNormals(null);
-    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
+      return super.setVertexNormals(/** @type {number[][]} */ (data));
+    }
+    const n = QuadMeshFactory._convertDDDtoDD(/** @type {number[][][]} */ (data), this.getULineCount(), this.getVLineCount());
     return super.setVertexNormals(n);
   }
 
@@ -293,7 +303,10 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexColors(data) {
     if (data == null) return super.setVertexColors(null);
-    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
+      return super.setVertexColors(/** @type {number[][]} */ (data));
+    }
+    const n = QuadMeshFactory._convertDDDtoDD(/** @type {number[][][]} */ (data), this.getULineCount(), this.getVLineCount());
     return super.setVertexColors(n);
   }
 
@@ -302,7 +315,10 @@ export class QuadMeshFactory extends IndexedFaceSetFactory {
    */
   setVertexTextureCoordinates(data) {
     if (data == null) return super.setVertexTextureCoordinates(null);
-    const n = QuadMeshFactory._convertDDDtoDD(data, this.getULineCount(), this.getVLineCount());
+    if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
+      return super.setVertexTextureCoordinates(/** @type {number[][]} */ (data));
+    }
+    const n = QuadMeshFactory._convertDDDtoDD(/** @type {number[][][]} */ (data), this.getULineCount(), this.getVLineCount());
     return super.setVertexTextureCoordinates(n);
   }
 
