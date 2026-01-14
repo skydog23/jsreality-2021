@@ -112,7 +112,7 @@ export class TestJSRApp extends JSRApp {
     if (this._origFaceColors == null || this._origFaceColors.length != n) {
       this._origFaceColors = new Array(n);
       for (let i = 0; i < n; i++) {
-        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random(), Math.random()];
+        this._origFaceColors[i] = [Math.random(), Math.random(), Math.random(), 1];
       }
     }
   

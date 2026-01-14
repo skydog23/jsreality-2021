@@ -413,11 +413,11 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         const verts = vertexCoords.map(v => [...v]);
         
         // Dehomogenize vertices if they're 4D and metric is Euclidean (matches Java implementation)
-        if (metric === EUCLIDEAN && verts.length > 0 && verts[0].length === 4) {
-            for (let i = 0; i < verts.length; i++) {
-                verts[i] = dehomogenize(null, verts[i]);
-            }
-        }
+        // if (metric === EUCLIDEAN && verts.length > 0 && verts[0].length === 4) {
+        //     for (let i = 0; i < verts.length; i++) {
+        //         verts[i] = dehomogenize(null, verts[i]);
+        //     }
+        // }
         
         // Calculate normal for each face
         for (let faceIdx = 0; faceIdx < faceIndices.length; faceIdx++) {
@@ -432,8 +432,8 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         
             const plane = this.#getPlaneThroughFace(verts, face);
             let normal = polarizePlane(null, plane, metric);
-            if (metric === EUCLIDEAN) normal = normal.slice(0, 3);
             setToLength(normal, normal, 1.0, metric);
+            if (metric === EUCLIDEAN) normal = normal.slice(0, 3);
             faceNormals.push(normal);
         }
         

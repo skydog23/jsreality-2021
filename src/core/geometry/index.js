@@ -11,20 +11,19 @@
 // Geometric primitives and operations for jsReality
 // Port of de.jreality.geometry package
 
-export {
-  GeometryUtility
-} from './GeometryUtility.js';
-
+export { GeometryUtility} from './GeometryUtility.js';
 export { PointSetFactory } from './PointSetFactory.js';
 export { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 export { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
 export { QuadMeshFactory } from './QuadMeshFactory.js';
 export { ParametricSurfaceFactory } from './ParametricSurfaceFactory.js';
-
+export { TubeFactory } from './TubeFactory.js';
+export { PolygonalTubeFactory } from './PolygonalTubeFactory.js';
+export { FrameFieldType, FrameInfo, octagonalCrossSection, diamondCrossSection, getNgon } from './TubeUtility.js';
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';
 export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 
-
+export { BallAndStickFactory } from './BallAndStickFactory.js';
 export { Snake } from './Snake.js';
 export { PointCollector } from './projective/PointCollector.js';
 export { LineUtility } from './projective/LineUtility.js';

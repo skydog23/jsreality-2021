@@ -287,7 +287,7 @@ export class IndexedLineSetUtility {
       const which = thisEdge[j];
       output[j] = [...vertsArray[which]]; // Copy the vertex array
     }
-    
+    console.log('output: ', output);
     return output;
   }
   
@@ -356,38 +356,111 @@ export class IndexedLineSetUtility {
   }
   
   /**
-   * Create a curve from points (2D array)
-   * @param {number[][]} points - Array of vertex coordinates
-   * @param {boolean} closed - Whether the curve is closed
+   * Create a curve from points.
+   *
+   * This method implements the Java overload set:
+   * - createCurveFromPoints(double[][] points, boolean closed)
+   * - createCurveFromPoints(IndexedLineSet g, double[][] points, boolean closed)
+   * - createCurveFromPoints(double[] points, int fiber, boolean closed)
+   * - createCurveFromPoints(IndexedLineSet g, double[] points, int fiber, boolean closed)
+   * - createCurveFromPoints(IndexedLineSet g, double[] points, int fiber, int[][] indices)
+   *
+   * @param {...any} args
    * @returns {IndexedLineSet}
    */
-  static createCurveFromPoints(points, closed) {
-    return IndexedLineSetUtility.createCurveFromPointsWithLineSet(null, points, closed);
+  static createCurveFromPoints(...args) {
+    const isNumberArray = (x) => Array.isArray(x) && (x.length === 0 || typeof x[0] === 'number');
+    const isArrayOfArrays = (x) => Array.isArray(x) && (x.length === 0 || Array.isArray(x[0]));
+
+    // (double[][] points, boolean closed)
+    if (args.length === 2 && isArrayOfArrays(args[0]) && typeof args[1] === 'boolean') {
+      const [points, closed] = args;
+      return IndexedLineSetUtility.createCurveFactoryFromPoints(points, closed).getIndexedLineSet();
+    }
+
+    // (IndexedLineSet g, double[][] points, boolean closed)  -- Java ignores g; we keep signature for parity.
+    if (args.length === 3 && args[0] instanceof IndexedLineSet && isArrayOfArrays(args[1]) && typeof args[2] === 'boolean') {
+      const [, points, closed] = args;
+      return IndexedLineSetUtility.createCurveFactoryFromPoints(points, closed).getIndexedLineSet();
+    }
+
+    // (double[] points, int fiber, boolean closed)
+    if (args.length === 3 && isNumberArray(args[0]) && Number.isInteger(args[1]) && typeof args[2] === 'boolean') {
+      const [points, fiber, closed] = args;
+      return IndexedLineSetUtility.createCurveFromPointsFlatWithLineSet(null, points, fiber, closed);
+    }
+
+    // (IndexedLineSet g, double[] points, int fiber, boolean closed)
+    if (
+      args.length === 4 &&
+      args[0] instanceof IndexedLineSet &&
+      isNumberArray(args[1]) &&
+      Number.isInteger(args[2]) &&
+      typeof args[3] === 'boolean'
+    ) {
+      const [g, points, fiber, closed] = args;
+      return IndexedLineSetUtility.createCurveFromPointsFlatWithLineSet(g, points, fiber, closed);
+    }
+
+    // (IndexedLineSet g, double[] points, int fiber, int[][] indices)
+    if (
+      args.length === 4 &&
+      args[0] instanceof IndexedLineSet &&
+      isNumberArray(args[1]) &&
+      Number.isInteger(args[2]) &&
+      Array.isArray(args[3])
+    ) {
+      const [g, points, fiber, indices] = args;
+      return IndexedLineSetUtility.createCurveFromPointsFlatWithIndices(g, points, fiber, indices);
+    }
+
+    throw new Error(`IndexedLineSetUtility.createCurveFromPoints: unsupported signature (${args.length} args)`);
   }
   
   /**
-   * Create a curve from points (2D array) with optional existing line set
+   * @deprecated Use {@link IndexedLineSetUtility.createCurveFromPoints} with overload dispatch.
    * @param {IndexedLineSet} [g] - Optional existing line set to modify
    * @param {number[][]} points - Array of vertex coordinates
    * @param {boolean} closed - Whether the curve is closed
    * @returns {IndexedLineSet}
    */
   static createCurveFromPointsWithLineSet(g, points, closed) {
-    return IndexedLineSetUtility.createCurveFactoryFromPoints(points, closed).getIndexedLineSet();
+    return IndexedLineSetUtility.createCurveFromPoints(g, points, closed);
   }
   
   /**
-   * Create a curve factory from points (2D array)
-   * @param {number[][]} points - Array of vertex coordinates
-   * @param {boolean} closed - Whether the curve is closed
+   * Create a curve factory from points.
+   *
+   * Java overload set:
+   * - createCurveFactoryFromPoints(double[][] points, boolean closed)
+   * - createCurveFactoryFromPoints(IndexedLineSetFactory ilsf, double[][] points, boolean closed)
+   *
+   * @param {...any} args
    * @returns {IndexedLineSetFactory}
    */
-  static createCurveFactoryFromPoints(points, closed) {
-    return IndexedLineSetUtility.createCurveFactoryFromPointsWithFactory(null, points, closed);
+  static createCurveFactoryFromPoints(...args) {
+    const isArrayOfArrays = (x) => Array.isArray(x) && (x.length === 0 || Array.isArray(x[0]));
+
+    if (args.length === 2 && isArrayOfArrays(args[0]) && typeof args[1] === 'boolean') {
+      const [points, closed] = args;
+      return IndexedLineSetUtility.createCurveFactoryFromPointsWithFactory(null, points, closed);
+    }
+
+    if (
+      args.length === 3 &&
+      args[0] instanceof IndexedLineSetFactory &&
+      isArrayOfArrays(args[1]) &&
+      typeof args[2] === 'boolean'
+    ) {
+      const [ilsf, points, closed] = args;
+      return IndexedLineSetUtility.createCurveFactoryFromPointsWithFactory(ilsf, points, closed);
+    }
+
+    throw new Error(`IndexedLineSetUtility.createCurveFactoryFromPoints: unsupported signature (${args.length} args)`);
   }
   
   /**
-   * Create a curve factory from points (2D array) with optional existing factory
+   * @deprecated Use {@link IndexedLineSetUtility.createCurveFactoryFromPoints} with overload dispatch.
    * @param {IndexedLineSetFactory} [ilsf] - Optional existing factory to modify
    * @param {number[][]} points - Array of vertex coordinates
    * @param {boolean} closed - Whether the curve is closed
@@ -410,18 +483,18 @@ export class IndexedLineSetUtility {
   }
   
   /**
-   * Create a curve from points (flat array)
+   * @deprecated Use {@link IndexedLineSetUtility.createCurveFromPoints} with overload dispatch.
    * @param {number[]} points - Flat array of vertex coordinates
    * @param {number} fiber - Number of components per vertex
    * @param {boolean} closed - Whether the curve is closed
    * @returns {IndexedLineSet}
    */
   static createCurveFromPointsFlat(points, fiber, closed) {
-    return IndexedLineSetUtility.createCurveFromPointsFlatWithLineSet(null, points, fiber, closed);
+    return IndexedLineSetUtility.createCurveFromPoints(points, fiber, closed);
   }
   
   /**
-   * Create a curve from points (flat array) with indices
+   * @deprecated Use {@link IndexedLineSetUtility.createCurveFromPoints} with overload dispatch.
    * @param {IndexedLineSet} [g] - Optional existing line set to modify
    * @param {number[]} points - Flat array of vertex coordinates
    * @param {number} fiber - Number of components per vertex
@@ -455,7 +528,7 @@ export class IndexedLineSetUtility {
   }
   
   /**
-   * Create a curve from points (flat array) with optional existing line set
+   * @deprecated Use {@link IndexedLineSetUtility.createCurveFromPoints} with overload dispatch.
    * @param {IndexedLineSet} [g] - Optional existing line set to modify
    * @param {number[]} points - Flat array of vertex coordinates
    * @param {number} fiber - Number of components per vertex
@@ -480,7 +553,7 @@ export class IndexedLineSetUtility {
    * @param {number} r - Radius
    * @returns {IndexedLineSet}
    */
-  static circle(n, cx, cy, r) {
+  static circle(n, cx = 0, cy = 0, r = 1) {
     return IndexedLineSetUtility.circleFactory(n, cx, cy, r).getIndexedLineSet();
   }
   

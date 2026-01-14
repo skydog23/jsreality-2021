@@ -149,27 +149,27 @@ export class IndexedFaceSetUtility {
    * @returns {IndexedFaceSetFactory}
    */
   static constructPolygonFactory(ifsf, points, sig) {
+    console.log('constructPolygonFactory: points', points);
     if (ifsf == null) ifsf = new IndexedFaceSetFactory();
     ifsf.setMetric(sig);
     ifsf.setGenerateFaceNormals(false);
     ifsf.setVertexCount(points.length);
     ifsf.setVertexCoordinates(points);
     ifsf.setFaceCount(1);
-    
+  
     const find = [Array(points.length)];
     for (let i = 0; i < points.length; ++i) {
       find[0][i] = i;
     }
     ifsf.setFaceIndices(find);
     
-    const ind = Array(points.length);
-    for (let i = 0; i < points.length; ++i) {
-      ind[i] = [i, (i + 1) % points.length];
+    const ind = Array.from({ length: 1 }, () => Array(points.length+1).fill(0));
+    for (let i = 0; i < points.length+1; ++i) {
+      ind[0][i] = i%points.length;
     }
-    ifsf.setEdgeCount(ind.length);
+    ifsf.setEdgeCount(1);
     ifsf.setEdgeIndices(ind);
     ifsf.update();
-    
     return ifsf;
   }
   

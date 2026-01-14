@@ -18,7 +18,8 @@
  * @typedef {number[]} number[]
  */
 
-import { innerProduct as RnInnerProduct, normalize as RnNormalize } from './Rn.js';
+import { innerProductN as RnInnerProductN, innerProduct as RnInnerProduct, normalize as RnNormalize } from './Rn.js';
+import * as Rn from './Rn.js';
 
 // Metric constants
 export const ELLIPTIC = 1;
@@ -67,7 +68,7 @@ export function angleBetween(u, v, metric) {
     const uu = innerProductPlanes(u, u, metric);
     const vv = innerProductPlanes(v, v, metric);
     const uv = innerProductPlanes(u, v, metric);
-    
+    console.log('angleBetween: uu: ', uu, 'vv: ', vv, 'uv: ', uv);
     if (uu === 0 || vv === 0) {
         return Number.MAX_VALUE; // error: infinite distance
     }
@@ -171,22 +172,9 @@ export function distanceBetween(p1, p2, metric) {
  */
 export function innerProduct(u, v, metric) {
     const n = Math.min(u.length, v.length) - 1;
-    let sum = 0;
-    
-    for (let i = 0; i < n; i++) {
-        sum += u[i] * v[i];
-    }
-    
-    switch (metric) {
-        case HYPERBOLIC:
-            return sum - u[n] * v[n];
-        case EUCLIDEAN:
-            return sum;
-        case ELLIPTIC:
-            return sum + u[n] * v[n];
-        default:
-            return sum;
-    }
+    let sum = RnInnerProductN(u, v, n);
+    return sum + metric * u[n] * v[n];
+
 }
 
 /**
@@ -197,7 +185,7 @@ export function innerProduct(u, v, metric) {
  * @returns {number} The inner product
  */
 export function innerProductPlanes(u, v, metric) {
-    return innerProduct(u, v, -metric);
+    return innerProduct(u, v, metric);
 }
 
 /**
@@ -309,8 +297,7 @@ export function centroid(dst, points, metric) {
  */
 export function linearInterpolation(dst, p1, p2, t, metric) {
     if (!dst) dst = new Array(p1.length);
-    
-    const np1 = normalize(null, p1, metric);
+     const np1 = normalize(null, p1, metric);
     const np2 = normalize(null, p2, metric);
     
     if (metric === EUCLIDEAN) {
@@ -339,6 +326,7 @@ export function linearInterpolation(dst, p1, p2, t, metric) {
 }
 
 /**
+ * TODO The euclidean case is handled awkwardly. normalize, normalizePoint, normalizePlane need to be better coordinated.
  * Normalize a vector to unit length
  * @param {number[]} dst - Destination array
  * @param {number[]} src - Source vector
@@ -396,30 +384,37 @@ export function normalize(dst, a, b, c, d) {
 }
 
 /**
- * Normalize a plane equation
+ * Normalize a plane equation.  The euclidean case needs to be done more consistently.
  * @param {number[]} dst - Destination array
  * @param {number[]} src - Source plane equation
  * @param {number} metric - Metric type
  * @returns {number[]} The normalized plane equation
  */
 export function normalizePlane(dst, src, metric) {
-    if (metric === EUCLIDEAN) {
-        if (!dst) dst = new Array(src.length);
-        const n = src.length - 1;
-        let norm = 0;
-        for (let i = 0; i < n; i++) {
-            norm += src[i] * src[i];
-        }
-        norm = Math.sqrt(norm);
-        if (norm === 0) return null;
-        
-        const scale = 1.0 / norm;
-        for (let i = 0; i < src.length; i++) {
-            dst[i] = scale * src[i];
-        }
-        return dst;
-    }
-    return normalize(dst, src, metric);
+    if (metric !== EUCLIDEAN) return normalize(dst, src, metric);
+    const norm = RnInnerProductN(src, src, src.length - 1);
+    if (norm === 0) return dst;
+    return Rn.times(dst, 1.0 / Math.sqrt(norm), src);
+}
+
+/**
+ * Find the plane which lies, metrically, half-way between the two given planes.
+ *
+ * Mirrors `Pn.midPlane(midp, pl1, pl2, metric)` in Java.
+ *
+ * @param {number[]|null} midp - Destination array or null to create new (expects length 4 for P3)
+ * @param {number[]} pl1 - First plane
+ * @param {number[]} pl2 - Second plane
+ * @param {number} metric - Metric constant
+ * @returns {number[]} The mid-plane
+ */
+export function midPlane(midp, pl1, pl2, metric) {
+    // Java allocates length 4; we keep the same behavior since this is used in P3 contexts.
+    if (midp == null) midp = new Array(4);
+    const pt1 = normalizePlane(null, pl1, metric);
+    const pt2 = normalizePlane(null, pl2, metric);
+    linearInterpolation(midp, pt1, pt2, 0.5, metric);
+    return midp;
 }
 
 /**
@@ -849,5 +844,30 @@ export function polarize(polar, p, metric) {
  */
 export function polarizePlane(dst, plane, metric) {
     return polarize(dst, plane, metric);
+}
+
+/**
+ * Compute the polar plane of a point with respect to the given metric.
+ *
+ * Java semantics:
+ * - If metric is EUCLIDEAN, the polar of any (finite) point is the **ideal plane**.
+ * - Otherwise this is the same as {@link polarize}.
+ *
+ * Mirrors `Pn.polarizePoint(dst, point, metric)` in Java.
+ *
+ * @param {number[]|null} dst - Destination array or null to create new
+ * @param {number[]} point - Input point
+ * @param {number} metric - Metric constant (ELLIPTIC, EUCLIDEAN, HYPERBOLIC)
+ * @returns {number[]} The polar plane
+ */
+export function polarizePoint(dst, point, metric) {
+    if (metric === EUCLIDEAN) {
+        // There is only one polar plane: the plane at infinity.
+        if (dst == null) dst = new Array(point.length);
+        for (let i = 0; i < dst.length - 1; i++) dst[i] = 0.0;
+        dst[dst.length - 1] = -1.0;
+        return dst;
+    }
+    return polarize(dst, point, metric);
 }
  

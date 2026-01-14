@@ -5,6 +5,9 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { RotateTool } from '../../core/tools/RotateTool.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { Primitives } from '../../core/geometry/Primitives.js';
+import { PolygonalTubeFactory } from '../../core/geometry/PolygonalTubeFactory.js';
+import { BallAndStickFactory } from '../../core/geometry/BallAndStickFactory.js';
 
 class TorusImmersion extends DefaultImmersion {
   evaluateUV(u, v) {
@@ -21,38 +24,16 @@ class TorusImmersion extends DefaultImmersion {
   }
 }
 
-// ... inside your JSRApp subclass init / makeScene / buildSceneGraph ...
-
-
-
-
 export class ParametricSurfaceFactoryDemo extends JSRApp {
     _ucount = 15;
     _vcount = 15;
     _psf = null;
+    _type = 2;
+
     getContent() {
         const surfaceSGC = SceneGraphUtility.createFullSceneGraphComponent('surface');
-
-        // Build parametric surface
-        this._psf = new ParametricSurfaceFactory(new TorusImmersion());
-        this._psf.setUMin(0);
-        this._psf.setUMax(1);
-        this._psf.setVMin(0);
-        this._psf.setVMax(1);
-
-        // sampling resolution (quad mesh size)
-        this._psf.setULineCount(this._ucount);
-        this._psf.setVLineCount(this._vcount);
-
-        // optional: normals/texcoords
-        this._psf.setGenerateFaceNormals(true);
-        this._psf.setGenerateVertexNormals(true);
-        this._psf.setGenerateTextureCoordinates(true);
-
-        // build geometry
-        this._psf.update();
-
-        surfaceSGC.setGeometry(this._psf.getIndexedFaceSet());
+        const geometrySGC = SceneGraphUtility.createFullSceneGraphComponent('geometry');
+        this.getGeometry(surfaceSGC);
         const ap = surfaceSGC.getAppearance();
         ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, true);
         ap.setAttribute(CommonAttributes.TRANSPARENCY_ENABLED, false);
@@ -69,6 +50,51 @@ export class ParametricSurfaceFactoryDemo extends JSRApp {
 
         
         return surfaceSGC;
+    }
+
+    getGeometry(sgc) {
+        if (this._type === 0) {
+          const polygon = Primitives.regularPolygon(10); //Vertices(10);
+          const torus1 = Primitives.discreteTorusKnot(1,.25, 2, 3, 50);
+           const ptf = new PolygonalTubeFactory(torus1, 0);
+		   ptf.setClosed(true);
+		   ptf.setRadius(.1);
+		   ptf.setGenerateEdges(true);
+		   ptf.update();
+		   sgc.setGeometry(ptf.getTube());
+        } else if (this._type === 1){
+         // Build parametric surface
+         this._psf = new ParametricSurfaceFactory(new TorusImmersion());
+         this._psf.setUMin(0);
+         this._psf.setUMax(1);
+         this._psf.setVMin(0);
+         this._psf.setVMax(1);
+ 
+         // sampling resolution (quad mesh size)
+         this._psf.setULineCount(this._ucount);
+         this._psf.setVLineCount(this._vcount);
+ 
+         // optional: normals/texcoords
+         this._psf.setGenerateFaceNormals(true);
+         this._psf.setGenerateVertexNormals(true);
+         this._psf.setGenerateTextureCoordinates(true);
+ 
+         // build geometry
+         this._psf.update();
+         sgc.setGeometry(this._psf.getIndexedFaceSet());
+        } else if (this._type === 2){
+           const ils = Primitives.icosahedron(4);
+           const basf = new BallAndStickFactory(ils);
+            basf.setBallRadius(.04);
+            basf.setStickRadius(.02);
+            basf.setShowArrows(true);
+            basf.setArrowScale(.1);
+            basf.setArrowSlope(3);
+            basf.setArrowPosition(.6);
+            basf.update();
+            const tubedIcosa = basf.getSceneGraphComponent();
+            sgc.addChild(tubedIcosa);
+        }
     }
 
     display() {

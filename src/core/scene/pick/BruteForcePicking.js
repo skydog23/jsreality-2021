@@ -344,8 +344,8 @@ export function intersectSphere(sphere, metric, path, m, mInv, from, to, localHi
   } else {
     Rn.subtract(dirOb3, toOb3, fromOb3);
   }
-  
-  intersectSpherePrimitive(MY_HITS, null, fromOb3, dirOb3, 1);
+  const SPHERE_HIT_LIST = [];
+  intersectSpherePrimitive(SPHERE_HIT_LIST, null, fromOb3, dirOb3, 1);
   
   for (let i = 0; i < SPHERE_HIT_LIST.length; i++) {
     let hitPoint = SPHERE_HIT_LIST[i];

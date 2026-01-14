@@ -649,7 +649,7 @@ export function makeRotationMatrixAxis(m, p1, p2, angle, metric) {
  * @returns {number[]} The plane equation [a, b, c, d] where ax + by + cz + d = 0
  */
 export function planeFromPoints(planeIn, p1, p2, p3) {
-    if (p1.length < 3 || p2.length < 3 || p3.length < 3) {
+     if (p1.length < 3 || p2.length < 3 || p3.length < 3) {
         throw new Error("Input points must be homogeneous vectors");
     }
     
@@ -659,22 +659,16 @@ export function planeFromPoints(planeIn, p1, p2, p3) {
     
     if (p1.length === 3 || p2.length === 3 || p3.length === 3) {
         // Handle 3D vectors
-        plane[0] = p1[1] * (p2[2] - p3[2]) - p1[2] * (p2[1] - p3[1]) + (p2[1] * p3[2] - p2[2] * p3[1]);
+        plane[0] = -(p1[1] * (p2[2] - p3[2]) - p1[2] * (p2[1] - p3[1]) + (p2[1] * p3[2] - p2[2] * p3[1]));
         plane[1] = p1[0] * (p2[2] - p3[2]) - p1[2] * (p2[0] - p3[0]) + (p2[0] * p3[2] - p2[2] * p3[0]);
-        plane[2] = p1[0] * (p2[1] - p3[1]) - p1[1] * (p2[0] - p3[0]) + (p2[0] * p3[1] - p2[1] * p3[0]);
+        plane[2] = -(p1[0] * (p2[1] - p3[1]) - p1[1] * (p2[0] - p3[0]) + (p2[0] * p3[1] - p2[1] * p3[0]));
         plane[3] = p1[0] * (p2[1] * p3[2] - p2[2] * p3[1]) - p1[1] * (p2[0] * p3[2] - p2[2] * p3[0]) + p1[2] * (p2[0] * p3[1] - p2[1] * p3[0]);
     } else {
-        // Handle 4D homogeneous vectors
-        plane[0] = p1[1] * (p2[2] * p3[3] - p2[3] * p3[2]) - p1[2] * (p2[1] * p3[3] - p2[3] * p3[1]) + p1[3] * (p2[1] * p3[2] - p2[2] * p3[1]);
-        plane[1] = p1[0] * (p2[2] * p3[3] - p2[3] * p3[2]) - p1[2] * (p2[0] * p3[3] - p2[3] * p3[0]) + p1[3] * (p2[0] * p3[2] - p2[2] * p3[0]);
-        plane[2] = p1[0] * (p2[1] * p3[3] - p2[3] * p3[1]) - p1[1] * (p2[0] * p3[3] - p2[3] * p3[0]) + p1[3] * (p2[0] * p3[1] - p2[1] * p3[0]);
-        plane[3] = p1[0] * (p2[1] * p3[2] - p2[2] * p3[1]) - p1[1] * (p2[0] * p3[2] - p2[2] * p3[0]) + p1[2] * (p2[0] * p3[1] - p2[1] * p3[0]);
-    }
-    
-    // Apply sign corrections from Java version
-    plane[0] *= -1;
-    plane[2] *= -1;
-    
+        plane[0] = -(p1[1]*(p2[2]*p3[3]-p2[3]*p3[2]) - p1[2]*(p2[1]*p3[3]-p2[3]*p3[1]) + p1[3]*(p2[1]*p3[2]-p2[2]*p3[1]));
+        plane[1] = p1[0]*(p2[2]*p3[3]-p2[3]*p3[2]) - p1[2]*(p2[0]*p3[3]-p2[3]*p3[0]) + p1[3]*(p2[0]*p3[2]-p2[2]*p3[0]);
+        plane[2] = -(p1[0]*(p2[1]*p3[3]-p2[3]*p3[1]) - p1[1]*(p2[0]*p3[3]-p2[3]*p3[0]) + p1[3]*(p2[0]*p3[1]-p2[1]*p3[0]));
+        plane[3] = p1[0]*(p2[1]*p3[2]-p2[2]*p3[1]) - p1[1]*(p2[0]*p3[2]-p2[2]*p3[0]) + p1[2]*(p2[0]*p3[1]-p2[1]*p3[0]);			
+     }
     return plane;
 }
 

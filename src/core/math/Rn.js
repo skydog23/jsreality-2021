@@ -286,8 +286,7 @@ export function innerProduct(u, v) {
 export function innerProductN(u, v, n) {
   if (u.length < n || v.length < n) throw new Error('Vectors not long enough');
   let norm = 0.0;
-  const m = u.length < n ? u.length : n;
-  for (let i = 0; i < m; ++i) norm += u[i] * v[i];
+   for (let i = 0; i < n; ++i) norm += u[i] * v[i];
   return norm;
 }
 

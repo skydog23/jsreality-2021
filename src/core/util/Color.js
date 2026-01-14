@@ -93,10 +93,30 @@ export class Color {
      * @param {number[]} floatArray 
      * @returns {Color}
      */
-    fromFloatArray(floatArray) {
-        return floatArray.length === 3 ? 
-        new Color(floatArray[0] * max, floatArray[1] * max, floatArray[2] * max) : 
-        new Color(floatArray[0] * max, floatArray[1] * max, floatArray[2] * max, floatArray[3] * max);
+    fromFloatArray(floatArray, max = 255.0) {
+        // Back-compat instance wrapper; prefer the static form.
+        return Color.fromFloatArray(floatArray, max);
+    }
+
+    /**
+     * Create a Color from a float array `[r,g,b]` or `[r,g,b,a]` with components in range [0,1].
+     * @param {number[]} floatArray
+     * @param {number} [max=255.0] scale factor to convert floats to 0..255 (defaults 255)
+     * @returns {Color}
+     */
+    static fromFloatArray(floatArray, max = 255.0) {
+        if (!Array.isArray(floatArray) && !(floatArray instanceof Float32Array) && !(floatArray instanceof Float64Array)) {
+            throw new Error('Color.fromFloatArray: expected an array');
+        }
+        const n = floatArray.length;
+        if (n !== 3 && n !== 4) {
+            throw new Error(`Color.fromFloatArray: expected length 3 or 4 (got ${n})`);
+        }
+        const r = Number(floatArray[0]) * max;
+        const g = Number(floatArray[1]) * max;
+        const b = Number(floatArray[2]) * max;
+        const a = n === 4 ? Number(floatArray[3]) * max : 255;
+        return new Color(r, g, b, a);
     }
     /**
      * Create Color from float RGB values (0.0-1.0)
@@ -107,7 +127,7 @@ export class Color {
      * @returns {Color}
      */
     static fromFloats(r, g, b, a = 1.0) {
-        return fromFloatArray([r, g, b, a]);
+        return Color.fromFloatArray([r, g, b, a]);
     }
 
     /**
