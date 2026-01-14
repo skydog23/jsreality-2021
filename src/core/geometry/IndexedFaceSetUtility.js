@@ -13,7 +13,7 @@
 
 import { IndexedFaceSet } from '../scene/IndexedFaceSet.js';
 import { IndexedFaceSetFactory } from './IndexedFaceSetFactory.js';
-import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 import { SceneGraphComponent } from '../scene/SceneGraphComponent.js';
 import { SceneGraphVisitor } from '../scene/SceneGraphVisitor.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
@@ -851,6 +851,47 @@ export class IndexedFaceSetUtility {
     return area > 0 ? 1 : -1;
   }
   
+  static getFaceCenters(ifs) {
+    const centers = new Array(ifs.getNumFaces());
+    const indices = fromDataList(ifs.getFaceAttribute(GeometryAttribute.INDICES));
+    const vertices = fromDataList(ifs.getVertexAttribute(GeometryAttribute.COORDINATES));
+    for (let i = 0; i < ifs.getNumFaces(); i++) {
+      const face = indices[i];
+      const center = new Array(3).fill(0);
+      for (let j = 0; j < face.length; j++) {
+        Rn.add(center, vertices[face[j]], center);
+      }
+      Rn.times(center, 1.0 / face.length, center);
+      centers[i] = [...center];
+    }
+    return centers;
+  }
+  static  attachVectorField( ps, vectors, scale = 1.0,type='face')	{
+		const ilsf = new IndexedLineSetFactory();
+    let verts = [];
+    if (type === 'face') {
+      const centers = IndexedFaceSetUtility.getFaceCenters(ps);
+      verts = centers;
+    } else if (type === 'vertex') {
+      verts = fromDataList(ps.getVertexAttribute(GeometryAttribute.COORDINATES));
+    }
+		const n = verts.length;
+		ilsf.setVertexCount(2*n);
+		const vv = new Array(n*2).fill(null).map(() => new Array(verts[0].length));
+		const indices = new Array(n).fill(null).map(() => new Array(2));
+		for (let i = 0; i<n; ++i) {
+			vv[i] = [...verts[i]];
+			vv[n+i] = [...Rn.add(null, verts[i], Rn.times(null, scale, vectors[i]))];
+			indices[i][0] = i;
+			indices[i][1] = n+i;
+		}
+		ilsf.setVertexCoordinates(vv);
+		ilsf.setEdgeCount(n);
+		ilsf.setEdgeIndices(indices);
+		ilsf.update();
+		
+		return ilsf.getIndexedLineSet();
+	}
   /**
    * For each face of ifs, replace it with a face gotten by:
    * - if factor > 0: a shrunken version of the face (factor == 1 gives original face), or

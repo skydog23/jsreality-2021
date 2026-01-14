@@ -432,7 +432,7 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         
             const plane = this.#getPlaneThroughFace(verts, face);
             let normal = polarizePlane(null, plane, metric);
-            setToLength(normal, normal, 1.0, metric);
+            setToLength(normal, normal, -1.0, metric);
             if (metric === EUCLIDEAN) normal = normal.slice(0, 3);
             faceNormals.push(normal);
         }
@@ -453,24 +453,24 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         let count = 1;
         let v1 = null;
         
-        // Find first non-degenerate edge
-        do {
-            v1 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
-        } while (Rn.euclideanNorm(v1) < tol && count < (indices.length  - 1));
+        // // Find first non-degenerate edge
+        // do {
+        //     v1 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
+        // } while (Rn.euclideanNorm(v1) < tol && count < (indices.length  - 1));
         
-        // Find second non-degenerate edge
-        let v2 = null;
-        do {
-            v2 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
-        } while (Rn.euclideanNorm(v2) < tol && count < indices.length);
+        // // Find second non-degenerate edge
+        // let v2 = null;
+        // do {
+        //     v2 = Rn.subtract(null, verts[indices[count++]], verts[indices[0]]);
+        // } while (Rn.euclideanNorm(v2) < tol && count < indices.length);
         
-        if (count > indices.length) {
-            // Couldn't find non-degenerate edges, skip this face
-            return [0,0,0,0];
-        }
+        // if (count > indices.length) {
+        //     // Couldn't find non-degenerate edges, skip this face
+        //     return [0,0,0,0];
+        // }
         const p0 = verts[indices[0]];
-        const p1 = v1;
-        const p2 = v2;
+        const p1 = verts[indices[1]];
+        const p2 = verts[indices[2]];
         return P3.planeFromPoints(null, p0, p1, p2);
     }
     /**

@@ -8,19 +8,18 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
+import { IndexedFaceSetUtility } from '../../core/geometry/IndexedFaceSetUtility.js';
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
-import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import { toDataList } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { RotateTool } from '../../core/tools/RotateTool.js';
 import { TranslateTool } from '../../core/tools/TranslateTool.js';
-import { DraggingTool } from '../../core/tools/DraggingTool.js';
-import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
+import { fromDataList } from '../../core/scene/data/DataUtility.js';
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.
@@ -33,7 +32,8 @@ export class TestJSRApp extends JSRApp {
   _ifs = null;
   _origFaceColors = null;
   _world = SceneGraphUtility.createFullSceneGraphComponent("world");
-
+  _normalSGC = SceneGraphUtility.createFullSceneGraphComponent("normal");
+ 
   getContent() {
      this.updateSphere();
   
@@ -56,6 +56,7 @@ export class TestJSRApp extends JSRApp {
     const transTool = new TranslateTool();
     transTool.setName("translateTool");
     this._world.addTool(transTool);
+    this._world.addChildren(this._normalSGC);
     return this._world;
   }
 
@@ -63,37 +64,7 @@ export class TestJSRApp extends JSRApp {
     return [true, true, true, true];
   }
 
-  getInspectorDescriptors() {
-    return [
-      {
-         type: DescriptorType.TEXT_SLIDER,
-        valueType: 'int',
-        label: 'Sphere Level',
-        getValue: () => this._sphereLevel,
-        setValue: (val) => {
-          this._sphereLevel = val;
-          this.updateSphere();
-        },
-        min: 0,
-        max: 8,
-        step: 1
-      },
-      {
-         type: DescriptorType.TEXT_SLIDER,
-        valueType: 'float',
-        label: 'Saturate',
-        getValue: () => this._saturate,
-        setValue: (val) => {
-          this._saturate = val;
-          this.updateSaturate();
-        },
-        min: 0.0,
-        max: 1.0,
-      }
-    ];
-  }
-
-
+ 
   updateSphere() {
     this._ifs = SphereUtility.tessellatedIcosahedronSphere(this._sphereLevel);
     const ap = this._world.getAppearance();
@@ -102,6 +73,8 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01 * factor);
     this.updateSaturate();
     this._world.setGeometry(this._ifs);
+    this._normalSGC.setGeometry(IndexedFaceSetUtility.
+    attachVectorField(this._ifs, fromDataList(this._ifs.getFaceAttribute(GeometryAttribute.NORMALS)),  .06*factor, 'face'));
     //MatrixBuilder.euclidean().scale(this._scale).assignTo(this._world);
 
   }
@@ -135,6 +108,37 @@ export class TestJSRApp extends JSRApp {
     const data = toDataList(satColors, null, 'float32');
     this._ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
   }
+
+  getInspectorDescriptors() {
+    return [
+      {
+         type: DescriptorType.TEXT_SLIDER,
+        valueType: 'int',
+        label: 'Sphere Level',
+        getValue: () => this._sphereLevel,
+        setValue: (val) => {
+          this._sphereLevel = val;
+          this.updateSphere();
+        },
+        min: 0,
+        max: 8,
+        step: 1
+      },
+      {
+         type: DescriptorType.TEXT_SLIDER,
+        valueType: 'float',
+        label: 'Saturate',
+        getValue: () => this._saturate,
+        setValue: (val) => {
+          this._saturate = val;
+          this.updateSaturate();
+        },
+        min: 0.0,
+        max: 1.0,
+      }
+    ];
+  }
+
 
   /**
    * Called after initialization and before rendering to set up application

@@ -27,19 +27,19 @@ let urCone = null;
 
 /** Java octagonal cross section (3D) used to build the arrow cone geometry. */
 const OCTAGONAL_CROSS_SECTION_3D = [
-  [1, 0, 0],
-  [0.707, 0.707, 0],
-  [0, 1, 0],
-  [-0.707, 0.707, 0],
-  [-1, 0, 0],
-  [-0.707, -0.707, 0],
-  [0, -1, 0],
-  [0.707, -0.707, 0],
+  [1, 0, 0,1 ],
+  [0.707, 0.707, 0,1 ],
+  [0, 1, 0,1 ],
+  [-0.707, 0.707, 0,1 ],
+  [-1, 0, 0,1 ],
+  [-0.707, -0.707, 0,1 ],
+  [0, -1, 0,1 ],
+  [0.707, -0.707, 0,1 ],
 ];
 
 function getUrCone() {
   if (urCone) return urCone;
-  urCone = Primitives.pyramid(OCTAGONAL_CROSS_SECTION_3D, [0, 0, 1]);
+  urCone = Primitives.pyramid(OCTAGONAL_CROSS_SECTION_3D, [0, 0, 1,1 ]);
   IndexedFaceSetUtility.calculateAndSetVertexNormals(urCone);
   return urCone;
 }

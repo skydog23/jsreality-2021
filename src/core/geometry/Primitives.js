@@ -902,10 +902,10 @@ export class Primitives {
 
     const indices = new Array(n + 1);
     for (let i = 0; i < n; i++) {
-      indices[i] = [i, n, (i + 1) % n];
+      indices[i] = [i,(i + 1) % n, n];
     }
     indices[n] = new Array(n);
-    for (let i = 0; i < n; i++) indices[n][i] = i;
+    for (let i = 0; i < n; i++) indices[n][i] = n-i-1;
 
     const ifsf = new IndexedFaceSetFactory();
     ifsf.setVertexCount(n + 1);
