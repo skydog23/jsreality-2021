@@ -1,11 +1,11 @@
 /**
  * JavaScript port/translation of jReality.
- *
- * Port of: de.jreality.geometry.TubeFactory
- *
- * Important jsreality policy:
- * - This implementation enforces **4D homogeneous points only** for tube inputs.
- *   If 3D points are detected, we throw and require upstream homogenization.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import { getLogger, Level, setModuleLevel, Category } from '../util/LoggingSystem.js';

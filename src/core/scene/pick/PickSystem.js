@@ -1,5 +1,5 @@
 /**
- * JavaScript port/translation of jReality's PickSystem interface.
+ * JavaScript port/translation of jReality.
  * 
  * Copyright (c) 2024, jsReality Contributors
  * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus

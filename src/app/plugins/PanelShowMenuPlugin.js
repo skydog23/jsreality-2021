@@ -1,4 +1,14 @@
 /**
+ * JavaScript port/translation of jReality.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
+/**
  * PanelShowMenuPlugin - Plugin that adds checkboxes to View menu for showing/hiding panels.
  * 
  * Adds menu items to the View menu that allow users to toggle visibility of

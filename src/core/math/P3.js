@@ -26,6 +26,88 @@ export const zaxis = [0, 0, -1];
 export const hzaxis = [0, 0, 1, 1];
 
 /**
+ * Compute Plücker coordinates for the line spanned by p0 and p1.
+ * Mirrors PlueckerLineGeometry.lineFromPoints without importing it (avoids circular deps).
+ * @param {number[]|null} dst
+ * @param {number[]} p0
+ * @param {number[]} p1
+ * @returns {number[]}
+ */
+export function lineFromPoints(dst, p0, p1) {
+  const a = p0.length === 3 ? Pn.homogenize(null, p0) : p0;
+  const b = p1.length === 3 ? Pn.homogenize(null, p1) : p1;
+  if (a.length !== 4 || b.length !== 4) {
+    throw new Error('lineFromPoints: input points must be length 3 or 4');
+  }
+  if (dst == null) dst = new Array(6);
+  dst[0] = a[0] * b[1] - a[1] * b[0];
+  dst[1] = a[0] * b[2] - a[2] * b[0];
+  dst[2] = a[0] * b[3] - a[3] * b[0];
+  dst[3] = a[1] * b[2] - a[2] * b[1];
+  dst[4] = a[3] * b[1] - a[1] * b[3];
+  dst[5] = a[2] * b[3] - a[3] * b[2];
+  return dst;
+}
+
+/**
+ * Test whether two Plücker lines intersect (inner product near zero).
+ * @param {number[]} l0
+ * @param {number[]} l1
+ * @param {number} [tol=1e-8]
+ * @returns {boolean}
+ */
+export function linesIntersect(l0, l1, tol = 1e-8) {
+  // Plücker inner product: sum l0[i] * l1[5-i]
+  let sum = 0;
+  for (let i = 0; i < 6; i++) sum += l0[i] * l1[5 - i];
+  return Math.abs(sum) <= tol;
+}
+
+/**
+ * Convenience wrapper for P3.makeRotationMatrix (matches test API).
+ * @param {number[]|null} dst
+ * @param {number[]} axis
+ * @param {number} angle
+ * @returns {number[]}
+ */
+export function rotationMatrix(dst, axis, angle) {
+  return makeRotationMatrix(dst, axis, angle);
+}
+
+/**
+ * Convenience wrapper for P3.makeLookatMatrix (matches test API).
+ * The Java implementation does not use the up vector; we keep that behavior.
+ * @param {number[]|null} dst
+ * @param {number[]} eye
+ * @param {number[]} center
+ * @param {number[]} up
+ * @returns {number[]}
+ */
+export function lookAt(dst, eye, center, up) {
+  void up;
+  return makeLookatMatrix(dst, eye, center, 0, Pn.EUCLIDEAN);
+}
+
+/**
+ * Perspective projection wrapper (fovy/aspect form).
+ * Builds a viewport on the z=-1 plane and delegates to makePerspectiveProjectionMatrix.
+ * @param {number[]|null} dst
+ * @param {number} near
+ * @param {number} far
+ * @param {number} fovy
+ * @param {number} aspect
+ * @returns {number[]}
+ */
+export function perspectiveMatrix(dst, near, far, fovy, aspect) {
+  const top = Math.tan(fovy / 2);
+  const bottom = -top;
+  const right = top * aspect;
+  const left = -right;
+  const viewport = new Rectangle2D(left, bottom, right - left, top - bottom);
+  return makePerspectiveProjectionMatrix(dst, viewport, near, far);
+}
+
+/**
  * Extract a matrix from `src` such that it fixes the input position `point`.
  * Port of `de.jreality.math.P3.extractOrientationMatrix`.
  *

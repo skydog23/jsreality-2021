@@ -1,4 +1,14 @@
 /**
+ * JavaScript port/translation of jReality.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ */
+
+/**
  * PluginLayoutManager - centralized layout orchestration for plugin UI surfaces.
  * Creates common regions (top toolbar stack, left side panels, viewer host) so that
  * plugins and applications no longer need to manipulate DOM structure directly.

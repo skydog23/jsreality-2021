@@ -1,10 +1,11 @@
 /**
  * JavaScript port/translation of jReality.
- *
- * Port of: de.jreality.geometry.PolygonalTubeFactory
- *
- * Policy: This factory expects **4D homogeneous coordinates** for its input curve.
- * Upstream code must homogenize 3D points before constructing/using this factory.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import { getLogger, Category } from '../util/LoggingSystem.js';

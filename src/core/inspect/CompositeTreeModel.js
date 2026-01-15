@@ -1,4 +1,13 @@
 /**
+ * JavaScript port/translation of a Charles Gunn Java codebase.
+ *
+ * Copyright (c) 2008–2026, Charles Gunn
+ *
+ * Licensed under the BSD 3-Clause License. See LICENSE for details.
+ * Contributors retain copyright to their contributions.
+ */
+
+/**
  * CompositeTreeModel - Combines scene graph tree with application instances.
  * 
  * This model creates a tree that includes both the scene graph hierarchy

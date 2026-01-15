@@ -1,11 +1,11 @@
 /**
  * JavaScript port/translation of jReality.
- *
- * Port of: de.jreality.geometry.BallAndStickFactory
- *
- * Policy (jsreality):
- * - This implementation enforces **4D homogeneous vertex coordinates only**.
- *   If 3D points are detected, we throw and require upstream homogenization.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import * as CommonAttributes from '../shader/CommonAttributes.js';
@@ -95,7 +95,7 @@ export class BallAndStickFactory {
   /** @type {boolean} */
   showSticks = true;
   /** @type {boolean} */
-  realSpheres = true;
+  realSpheres = false;
   /** @type {boolean} */
   drawArrows = false;
 
@@ -292,9 +292,9 @@ export class BallAndStickFactory {
         }
       } else {
         this.#balls.setGeometry(null);
-        this.#ballsAp.setAttribute(CommonAttributes.FACE_DRAW, true);
+        this.#ballsAp.setAttribute(CommonAttributes.FACE_DRAW, false);
         this.#ballsAp.setAttribute(CommonAttributes.EDGE_DRAW, false);
-        this.#ballsAp.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+        this.#ballsAp.setAttribute(CommonAttributes.VERTEX_DRAW, true);
         if (this.ballColor != null) {
           this.#ballsAp.setAttribute(
             `${CommonAttributes.POLYGON_SHADER}.${CommonAttributes.DIFFUSE_COLOR}`,

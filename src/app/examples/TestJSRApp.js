@@ -1,4 +1,13 @@
 /**
+ * JavaScript port/translation of a Charles Gunn Java codebase.
+ *
+ * Copyright (c) 2008–2026, Charles Gunn
+ *
+ * Licensed under the BSD 3-Clause License. See LICENSE for details.
+ * Contributors retain copyright to their contributions.
+ */
+
+/**
  * Test application for JSRApp.
  * 
  * Copyright (c) 2024, jsReality Contributors
@@ -73,8 +82,8 @@ export class TestJSRApp extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.01 * factor);
     this.updateSaturate();
     this._world.setGeometry(this._ifs);
-    this._normalSGC.setGeometry(IndexedFaceSetUtility.
-    attachVectorField(this._ifs, fromDataList(this._ifs.getFaceAttribute(GeometryAttribute.NORMALS)),  .06*factor, 'face'));
+    //this._normalSGC.setGeometry(IndexedFaceSetUtility.
+    //attachVectorField(this._ifs, fromDataList(this._ifs.getFaceAttribute(GeometryAttribute.NORMALS)),  .06*factor, 'face'));
     //MatrixBuilder.euclidean().scale(this._scale).assignTo(this._world);
 
   }
