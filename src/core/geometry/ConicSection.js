@@ -16,7 +16,7 @@ import { PointCollector } from './projective/PointCollector.js';
 import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
-setModuleLevel(logger.getModuleName(), Level.FINE);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicSection {
    curve = null;

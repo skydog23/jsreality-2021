@@ -18,7 +18,7 @@ import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 import { ConicSection } from './ConicSection.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicUtils');
-setModuleLevel(logger.getModuleName(), Level.FINE);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicUtils {
     
