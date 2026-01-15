@@ -13,6 +13,10 @@ import * as P3 from '../math/P3.js';
 import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import { FrameInfo, FrameFieldType, octagonalCrossSection, getInitialBinormal} from './TubeUtility.js';
+import * as TubeFactorySceneGraph from './TubeFactorySceneGraph.js';
+
+const logger = getLogger('jsreality.core.geometry.TubeFactory');
+setModuleLevel(logger.getModuleName(), Level.FINER);
 
 export class TubeFactory {
   /**
@@ -22,11 +26,9 @@ export class TubeFactory {
    * Example: TubeFactory.debug |= 2;
    * @type {number}
    */
-  static debug = 0; // matches Java default in TubeFactory.java
+  static debug = 63; // matches Java default in TubeFactory.java
 
-  /** @type {import('../util/LoggingSystem.js').Logger} */
-  #logger;
-
+  
   // "protected" fields (JS convention): subclasses can access them directly.
   /** @type {number[][]|null} */
   _theCurve;
@@ -93,9 +95,7 @@ export class TubeFactory {
 
   constructor(curve = null) {
     this._theCurve = curve;
-     this.#logger = getLogger('jsreality.core.geometry.TubeFactory');
-    setModuleLevel(this.#logger.getModuleName(), Level.FINER);
-  }
+   }
 
   // ---- basic getters/setters (port of Java API) ----
 
@@ -235,17 +235,8 @@ export class TubeFactory {
     this._initialBinormal = initialBinormal;
   }
 
-  getFramesSceneGraphRepresentation() {
-    throw new Error(
-      'TubeFactory.getFramesSceneGraphRepresentation: not yet ported (depends on BallAndStickFactory + appearance tooling).'
-    );
-  }
-
-  getFramesSceneGraphRepresentationScaled(scale) {
-    void scale;
-    throw new Error(
-      'TubeFactory.getFramesSceneGraphRepresentationScaled: not yet ported (depends on BallAndStickFactory + appearance tooling).'
-    );
+  getFramesSceneGraphRepresentation(scale = .02) {
+    return TubeFactorySceneGraph.getSceneGraphRepresentation(this._frames, scale);
   }
 
   update() {
@@ -297,11 +288,11 @@ export class TubeFactory {
     console.log('isLine', this._isLine);
 
     if ((TubeFactory.debug & 1) !== 0) {
-      this.#logger.finer(Category.ALL, `Generating frame field for metric ${metric}`);
+      logger.finer(Category.ALL, `Generating frame field for metric ${metric}`);
     }
     if ((TubeFactory.debug & 32) !== 0) {
       for (let i = 0; i < polygonh.length; i++) {
-        this.#logger.finer(Category.ALL, `Vertex ${i} : ${Rn.toString(polygonh[i])}`);
+        logger.finer(Category.ALL, `Vertex ${i} : ${Rn.toString(polygonh[i])}`);
       }
     }
 
@@ -341,16 +332,16 @@ export class TubeFactory {
 
       const polarPlane = Pn.polarizePoint(null, polygonh[i], metric);
       if ((TubeFactory.debug & 2) !== 0) {
-        this.#logger.fine(Category.ALL, `Polar plane is: ${Rn.toString(polarPlane)}`);
+        logger.fine(Category.ALL, `Polar plane is: ${Rn.toString(polarPlane)}`);
       }
 
       const osculatingPlane = P3.planeFromPoints(null, polygonh[i - 1], polygonh[i], polygonh[i + 1]);
       let size = Rn.euclideanNormSquared(osculatingPlane);
-      console.log('osculatingPlane: ', osculatingPlane);
+     logger.finer(Category.ALL, `osculatingPlane: ${Rn.toString(osculatingPlane)}`);
       // binormal
       if (size < 1e-15) {
         collinear = true;
-        if ((TubeFactory.debug & 2) !== 0) this.#logger.finer(Category.ALL, 'degenerate binormal');
+        if ((TubeFactory.debug & 2) !== 0) logger.finer(Category.ALL, 'degenerate binormal');
         if (i === 1) this.#binormalField[i - 1] = TubeUtility.getInitialBinormal(polygonh, metric);
         else Pn.projectToTangentSpace(this.#binormalField[i - 1], polygonh[i], this.#binormalField[i - 2], metric);
       } else {
@@ -369,7 +360,7 @@ export class TubeFactory {
       }
 
       if ((TubeFactory.debug & 2) !== 0) {
-        this.#logger.finer(Category.ALL, `Binormal is ${Rn.toString(this.#binormalField[i - 1])}`);
+        logger.finer(Category.ALL, `Binormal is ${Rn.toString(this.#binormalField[i - 1])}`);
       }
 
       // tangent via mid-plane (or user tangents)
@@ -392,18 +383,19 @@ export class TubeFactory {
           midPlane = Pn.midPlane(null, plane1, plane2, metric);
           size = Rn.euclideanNormSquared(midPlane);
           if ((TubeFactory.debug & 2) !== 0) {
-            this.#logger.finer(Category.ALL, `tangent norm squared is ${size}`);
+            logger.finer(Category.ALL, `tangent norm squared is ${size}`);
+            logger.finer(Category.ALL, "midplane =", midPlane);
           }
           theta = Pn.angleBetween(plane1, plane2, metric);
           console.log('theta: ', theta);
         }
 
         if (collinear || size < 1e-15) {
-          if ((TubeFactory.debug & 2) !== 0) this.#logger.finer(Category.ALL, 'degenerate Tangent vector');
+          if ((TubeFactory.debug & 2) !== 0) logger.finer(Category.ALL, 'degenerate Tangent vector');
 
           const pseudoT = P3.lineIntersectPlane(null, polygonh[i - 1], polygonh[i + 1], polarPlane);
           if ((TubeFactory.debug & 2) !== 0) {
-            this.#logger.fine(Category.ALL, `pseudo-Tangent vector is ${Rn.toString(pseudoT)}`);
+            logger.fine(Category.ALL, `pseudo-Tangent vector is ${Rn.toString(pseudoT)}`);
           }
           // euclidean vs non-euclidean
           if (metric !== Pn.EUCLIDEAN) {
@@ -415,7 +407,7 @@ export class TubeFactory {
         }
 
         if ((TubeFactory.debug & 2) !== 0) {
-          this.#logger.fine(Category.ALL, `Midplane is ${Rn.toString(midPlane)}`);
+          logger.fine(Category.ALL, `Midplane is ${Rn.toString(midPlane)}`);
         }
         Pn.polarizePlane(this.#tangentField[i - 1], midPlane, metric);
       }
@@ -436,7 +428,7 @@ export class TubeFactory {
       );
       Pn.setToLength(this.#frenetNormalField[i - 1], this.#frenetNormalField[i - 1], 1.0, metric);
       if ((TubeFactory.debug & 2) !== 0) {
-        this.#logger.fine(Category.ALL, `frenet normal is ${Rn.toString(this.#frenetNormalField[i - 1])}`);
+        logger.fine(Category.ALL, `frenet normal is ${Rn.toString(this.#frenetNormalField[i - 1])}`);
       }
 
       if (type === FrameFieldType.PARALLEL) {
@@ -447,7 +439,7 @@ export class TubeFactory {
           const projectedN = P3.pointFromPlanes(null, nPlane, midPlane, polarPlane);
           let projected = projectedN;
           if (Rn.euclideanNormSquared(projected) < 1e-15) {
-            this.#logger.fine(Category.ALL, 'degenerate normal');
+            logger.fine(Category.ALL, 'degenerate normal');
             projected = this.#parallelNormalField[i - 2];
           }
           this.#parallelNormalField[i - 1] = Pn.normalizePlane(null, projected, metric);
@@ -460,7 +452,7 @@ export class TubeFactory {
         }
 
         if ((TubeFactory.debug & 128) !== 0) {
-          this.#logger.fine(Category.ALL, `Parallel normal is ${Rn.toString(this.#parallelNormalField[i - 1])}`);
+          logger.fine(Category.ALL, `Parallel normal is ${Rn.toString(this.#parallelNormalField[i - 1])}`);
         }
 
         phi = Pn.angleBetween(this.#frenetNormalField[i - 1], this.#parallelNormalField[i - 1], metric);
@@ -483,14 +475,14 @@ export class TubeFactory {
       for (let k = 0; k < 4; k++) frame[12 + k] = polygonh[i][k];
 
       if ((TubeFactory.debug & 4) !== 0) {
-        this.#logger.fine(Category.ALL, `determinant is:\n${Rn.determinant(frame)}`);
+        logger.fine(Category.ALL, `determinant is:\n${Rn.determinant(frame)}`);
       }
 
       // Java stores Rn.transpose(null, frame)
       const ft = Rn.transpose(null, frame);
       frameInfo[i - 1] = new FrameInfo(ft, d[i - 1], theta, phi);
       if ((TubeFactory.debug & 16) !== 0) {
-        this.#logger.fine(Category.ALL, `Frame ${i - 1}: ${frameInfo[i - 1].toString()}`);
+        logger.fine(Category.ALL, `Frame ${i - 1}: ${frameInfo[i - 1].toString()}`);
       }
     }
 

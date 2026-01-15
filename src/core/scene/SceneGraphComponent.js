@@ -275,7 +275,7 @@ export class SceneGraphComponent extends SceneGraphNode {
    * @param {...SceneGraphComponent} sgcList - Components to remove
    */
   removeChildren(...sgcList) {
-    this.startWriter();
+     this.startWriter();
     try {
       for (const sgc of sgcList) {
         this.removeChild(sgc);

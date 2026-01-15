@@ -70,7 +70,7 @@ export function angleBetween(u, v, metric) {
     const uv = innerProductPlanes(u, v, metric);
     console.log('angleBetween: uu: ', uu, 'vv: ', vv, 'uv: ', uv);
     if (uu === 0 || vv === 0) {
-        return Number.MAX_VALUE; // error: infinite distance
+        return Number.MAX_VALUE; // error: ideal plans
     }
     
     let f = uv / Math.sqrt(Math.abs(uu * vv));
@@ -295,34 +295,63 @@ export function centroid(dst, points, metric) {
  * @param {number} metric - Metric type
  * @returns {number[]} The interpolated point
  */
-export function linearInterpolation(dst, p1, p2, t, metric) {
-    if (!dst) dst = new Array(p1.length);
-     const np1 = normalize(null, p1, metric);
-    const np2 = normalize(null, p2, metric);
-    
-    if (metric === EUCLIDEAN) {
-        const dp1 = dehomogenize(null, np1);
-        const dp2 = dehomogenize(null, np2);
-        for (let i = 0; i < dp1.length; i++) {
-            dst[i] = (1-t) * dp1[i] + t * dp2[i];
+export function linearInterpolation(dst, u, v, t, metric) {
+    if (!dst) dst = new Array(u.length);
+
+    let s0 = 0.0;
+    let s1 = 0.0;
+    let dot = 0.0;
+    let angle;
+    let s2;
+    let realMetric = metric;
+
+    let uu = u;
+    let vv = v;
+    if (metric !== EUCLIDEAN && metric !== PROJECTIVE) {
+        uu = normalize(null, u, metric);
+        vv = normalize(null, v, metric);
+    }
+
+    switch (metric) {
+        case PROJECTIVE:
+        case EUCLIDEAN:
+            s0 = 1 - t;
+            s1 = t;
+            break;
+        case HYPERBOLIC:
+            dot = innerProduct(uu, vv, metric);
+            if (Math.abs(dot) <= 1.0) realMetric = ELLIPTIC;
+            break;
+        case ELLIPTIC:
+            dot = innerProduct(uu, vv, metric);
+            if (dot > 1.0) dot = 1.0;
+            if (dot < -1.0) dot = -1.0;
+            break;
+    }
+
+    if (realMetric === ELLIPTIC) {
+        angle = Math.acos(dot);
+        s2 = Math.sin(angle);
+        if (s2 !== 0.0) {
+            s0 = Math.sin((1 - t) * angle) / s2;
+            s1 = Math.sin(t * angle) / s2;
+        } else {
+            s0 = 1.0;
+            s1 = 0.0;
         }
-        dst[dst.length-1] = 1;
-    } else {
-        const angle = angleBetween(np1, np2, metric);
-        if (angle === 0) {
-            return setToLength(dst, np1, 1, metric);
-        }
-        
-        const s1 = Math.sin((1-t) * angle);
-        const s2 = Math.sin(t * angle);
-        const sinA = Math.sin(angle);
-        
-        for (let i = 0; i < dst.length; i++) {
-            dst[i] = (s1 * np1[i] + s2 * np2[i]) / sinA;
+    } else if (realMetric === HYPERBOLIC) {
+        angle = acosh(dot);
+        s2 = sinh(angle);
+        if (s2 !== 0.0) {
+            s0 = sinh((1 - t) * angle) / s2;
+            s1 = sinh(t * angle) / s2;
+        } else {
+            s0 = 1.0;
+            s1 = 0.0;
         }
     }
-    
-    return normalize(dst, dst, metric);
+
+    return Rn.linearCombination(dst, s0, uu, s1, vv);
 }
 
 /**
@@ -413,6 +442,8 @@ export function midPlane(midp, pl1, pl2, metric) {
     if (midp == null) midp = new Array(4);
     const pt1 = normalizePlane(null, pl1, metric);
     const pt2 = normalizePlane(null, pl2, metric);
+    console.log('pt1: ', pt1);
+    console.log('pt2: ', pt2);
     linearInterpolation(midp, pt1, pt2, 0.5, metric);
     return midp;
 }

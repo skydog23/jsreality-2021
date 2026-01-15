@@ -20,6 +20,7 @@ export { ParametricSurfaceFactory } from './ParametricSurfaceFactory.js';
 export { TubeFactory } from './TubeFactory.js';
 export { PolygonalTubeFactory } from './PolygonalTubeFactory.js';
 export { FrameFieldType, FrameInfo, octagonalCrossSection, diamondCrossSection, getNgon } from './TubeUtility.js';
+export { getSceneGraphRepresentation, getXYZAxes } from './TubeFactorySceneGraph.js';
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';
 export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 
