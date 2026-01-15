@@ -8,11 +8,7 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// Import the Rn module
-require('../src-core/de/jreality/math/Rn.js');
-
-// Use globalThis.Rn for all tests
-const Rn = globalThis.Rn;
+import * as Rn from '../Rn.js';
 
 describe('Rn (Euclidean Vector Space)', () => {
     describe('identityMatrix', () => {

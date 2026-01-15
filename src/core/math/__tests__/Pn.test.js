@@ -8,11 +8,7 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// Import the Pn module
-require('../src-core/de/jreality/math/Pn.js');
-
-// Use globalThis.Pn for all tests
-const Pn = globalThis.Pn;
+import * as Pn from '../Pn.js';
 
 describe('Pn (Projective Geometry)', () => {
     describe('Constants', () => {

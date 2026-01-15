@@ -68,7 +68,6 @@ export function angleBetween(u, v, metric) {
     const uu = innerProductPlanes(u, u, metric);
     const vv = innerProductPlanes(v, v, metric);
     const uv = innerProductPlanes(u, v, metric);
-    console.log('angleBetween: uu: ', uu, 'vv: ', vv, 'uv: ', uv);
     if (uu === 0 || vv === 0) {
         return Number.MAX_VALUE; // error: ideal plans
     }
@@ -135,32 +134,46 @@ export function homogenize(dst, src) {
  * @returns {number} The distance between the points
  */
 export function distanceBetween(p1, p2, metric) {
-    if (p1[p1.length - 1] === 0 || p2[p2.length - 1] === 0) {
-        return Infinity;
-    }
-
-    // For Euclidean metric, use direct calculation
-    if (metric === EUCLIDEAN) {
-        const p1d = dehomogenize(null, p1);
-        const p2d = dehomogenize(null, p2);
-        let sum = 0;
-        for (let i = 0; i < p1d.length; i++) {
-            const diff = p1d[i] - p2d[i];
-            sum += diff * diff;
-        }
-        return Math.sqrt(sum);
-    }
-
-    // For other metrics, use angle-based calculation
-    const angle = angleBetween(p1, p2, metric);
+    let d = 0.0;
+    const n = p1.length;
     switch (metric) {
-        case HYPERBOLIC:
-            return acosh(Math.abs(cosh(angle)));
-        case ELLIPTIC:
-            return angle;
         default:
-            return angle;
+            // fall through to euclidean
+        case EUCLIDEAN: {
+            let ul = p1[n - 1];
+            let vl = p2[n - 1];
+            const ulvl = ul * vl;
+            for (let i = 0; i < n - 1; ++i) {
+                const tmp = ul * p2[i] - vl * p1[i];
+                d += tmp * tmp;
+            }
+            d = Math.sqrt(d);
+            if (!(d === 0 || d === 1.0)) d /= Math.abs(ulvl);
+            if (ul === 0 || vl === 0) d = Number.MAX_VALUE;
+            break;
+        }
+        case HYPERBOLIC: {
+            const uu = innerProduct(p1, p1, metric);
+            const vv = innerProduct(p2, p2, metric);
+            const uv = innerProduct(p1, p2, metric);
+            // Java allows uu/vv >= 0 and still returns a distance
+            let k = -(uv) / Math.sqrt(Math.abs(uu * vv));
+            if (k < 1.0) k = 1.0;
+            d = Math.abs(acosh(k));
+            break;
+        }
+        case ELLIPTIC: {
+            const uu = innerProduct(p1, p1, metric);
+            const vv = innerProduct(p2, p2, metric);
+            const uv = innerProduct(p1, p2, metric);
+            let ip = (uv) / Math.sqrt(Math.abs(uu * vv));
+            if (ip > 1.0) ip = 1.0;
+            if (ip < -1.0) ip = -1.0;
+            d = Math.acos(ip);
+            break;
+        }
     }
+    return d;
 }
 
 /**
@@ -226,9 +239,29 @@ export function setToLength(dst, src, length, metric) {
  * @param {number} metric - Metric type
  * @returns {boolean} True if valid
  */
-export function isValidCoordinate(v, metric) {
-    const ns = normSquared(v, metric);
-    return metric === EUCLIDEAN ? ns >= 0 : ns !== 0;
+export function isValidCoordinate(v, dimOrMetric, metricMaybe) {
+    let dim;
+    let metric;
+    if (typeof metricMaybe === 'number') {
+        dim = dimOrMetric;
+        metric = metricMaybe;
+    } else {
+        metric = dimOrMetric;
+        dim = v.length - 1;
+    }
+    if (v.length < dim) return false;
+
+    if (metric === EUCLIDEAN && v.length === (dim + 1) && v[dim] === 0.0) {
+        return false;
+    }
+    if (metric === HYPERBOLIC) {
+        if (v.length === (dim + 1)) {
+            if (!(innerProduct(v, v, metric) < 0)) return false;
+        } else if (v.length === dim) {
+            if (!(Rn.innerProduct(v, v) < 1)) return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -238,25 +271,33 @@ export function isValidCoordinate(v, metric) {
  * @returns {number[][]} The bounds array
  */
 export function calculateBounds(bounds, points) {
+    const vl = points[0].length;
     if (!bounds || bounds.length !== 2) {
-        bounds = [[], []];
+        bounds = [new Array(vl - 1), new Array(vl - 1)];
     }
-    
-    const dim = points[0].length - 1;
-    for (let i = 0; i < dim; i++) {
-        bounds[0][i] = Infinity;
-        bounds[1][i] = -Infinity;
+
+    const bl = bounds[0].length;
+    if (vl - 1 > bl) return null;
+
+    for (let i = 0; i < vl - 1; i++) {
+        bounds[0][i] = Number.MAX_VALUE;
+        bounds[1][i] = -Number.MAX_VALUE;
     }
-    
+    for (let i = vl - 1; i < bl; i++) {
+        bounds[0][i] = 0.0;
+        bounds[1][i] = 0.0;
+    }
+
+    const tmp = new Array(vl - 1);
     for (const point of points) {
-        if (point[point.length - 1] === 0) continue;
-        const p = dehomogenize(null, point);
-        for (let i = 0; i < dim; i++) {
-            bounds[0][i] = Math.min(bounds[0][i], p[i]);
-            bounds[1][i] = Math.max(bounds[1][i], p[i]);
+        if (point[vl - 1] === 0.0) continue;
+        dehomogenize(tmp, point);
+        for (let i = 0; i < vl - 1; i++) {
+            bounds[0][i] = Math.min(bounds[0][i], tmp[i]);
+            bounds[1][i] = Math.max(bounds[1][i], tmp[i]);
         }
     }
-    
+
     return bounds;
 }
 
@@ -442,8 +483,6 @@ export function midPlane(midp, pl1, pl2, metric) {
     if (midp == null) midp = new Array(4);
     const pt1 = normalizePlane(null, pl1, metric);
     const pt2 = normalizePlane(null, pl2, metric);
-    console.log('pt1: ', pt1);
-    console.log('pt2: ', pt2);
     linearInterpolation(midp, pt1, pt2, 0.5, metric);
     return midp;
 }

@@ -8,13 +8,8 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-// Import the required modules
-require('../Quat.js');
-require('../Rn.js');
-
-// Use globalThis for accessing the modules
-const Quat = globalThis.Quat;
-const Rn = globalThis.Rn;
+import * as Quat from '../Quaternion.js';
+import * as Rn from '../Rn.js';
 
 describe('Quaternion operations', () => {
     test('add', () => {
