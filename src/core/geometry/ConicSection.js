@@ -14,6 +14,9 @@ import { getLogger, setModuleLevel, Level } from '../util/LoggingSystem.js';
 import { ConicUtils } from './ConicUtils.js';
 import { PointCollector } from './projective/PointCollector.js';
 import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
+import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
+import { GeometryMergeFactory } from './GeometryMergeFactory.js';
+import { PointRangeFactory } from './projective/PointRangeFactory.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -116,6 +119,20 @@ export class ConicSection {
         logger.fine(-1, 'conic Q', this.Q.matrix);
         logger.fine(-1, 'Conic center:', this.centerPoint);
  
+        // todo: rank = 1
+        if (this.rank === 2) {
+            this.linePair = ConicUtils.factorPair(this, this.svdResult);
+            logger.fine(-1, 'line pair = ', this.linePair);
+            let l1 = new PointRangeFactory();
+            l1.set2DLine(this.linePair[0]);
+            l1.update();
+            let l2 = new PointRangeFactory();
+            l2.set2DLine(this.linePair[1]);
+            l2.update();
+
+             this.curve = GeometryMergeFactory.mergeIndexedLineSets(l1.getLine(), l2.getLine());
+            return;
+        }
         // Try several lines through X to find a good point on the conic
         this.findPointOnConic();
 
@@ -142,10 +159,10 @@ export class ConicSection {
                 }
             }
         }
-        // close up the curve by adding the first point again
-        pts4[this.numPoints] = pts4[0];
-        this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);
-    }
+               // close up the curve by adding the first point again
+               pts4[this.numPoints] = pts4[0];
+               this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);       
+     }
 
     getIndexedLineSet() {
         return this.curve;

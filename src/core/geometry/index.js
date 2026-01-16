@@ -23,6 +23,7 @@ export { getSceneGraphRepresentation, getXYZAxes } from './TubeFactorySceneGraph
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';
 export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 
+export { GeometryMergeFactory } from './GeometryMergeFactory.js';
 export { BallAndStickFactory } from './BallAndStickFactory.js';
 export { Snake } from './Snake.js';
 export { PointCollector } from './projective/PointCollector.js';

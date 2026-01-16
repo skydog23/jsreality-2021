@@ -18,6 +18,8 @@ The following directives govern how Java source is translated to JavaScript. **T
 4. **Import/export conventions (ESM)**  
    Use ESM named exports only (no default exports). For modules that export functions rather than a class/object, prefer namespace imports (e.g. `import * as Pn from './Pn.js'`). Re-export public APIs from the appropriate `index.js` barrel when one exists.  
 
+   For a summary of which Java classes are currently mapped to JS, see `docs/CURRENT_STATE_OF_JREALITY_PORT.md`.
+
 5. **1:1 translation by default**  
    Java source code **must be translated 1:1 into JavaScript, without behavioral changes or refactorings**, unless either:
    - the user explicitly grants permission for an exception to this rule, or

@@ -50,8 +50,10 @@ export class TestAnimApp extends JSRApp {
 
     const lineSGC = SceneGraphUtility.createFullSceneGraphComponent('line');
     const pointRangeFactory = new PointRangeFactory();
-    pointRangeFactory.setElement0([0,0,0,1]);
-    pointRangeFactory.setElement1([1,1,0,1]);
+    // this is the line x-y=0, or a=1,b=-1,c=0
+    // pointRangeFactory.setElement0([0,0,0,1]);
+    // pointRangeFactory.setElement1([1,1,0,1]);
+    pointRangeFactory.set2DLine([1,-1,0]);
     pointRangeFactory.update();
     lineSGC.setGeometry(pointRangeFactory.getLine()); 
     ap = lineSGC.getAppearance();

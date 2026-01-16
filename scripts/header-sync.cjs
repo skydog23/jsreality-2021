@@ -1,3 +1,4 @@
+// Sync JS file headers based on Java source presence and override rules.
 const fs = require('fs');
 const path = require('path');
 

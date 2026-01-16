@@ -1,6 +1,10 @@
 /**
  * JavaScript port/translation of a Charles Gunn Java codebase.
  *
+ * Note: `makeOrthogonalParallelLinesExample` and
+ * `makeOrthogonalParallelLinesExample2` are JS-only helpers; they do not exist
+ * in the Java source.
+ *
  * Copyright (c) 2008–2026, Charles Gunn
  *
  * Licensed under the BSD 3-Clause License. See LICENSE for details.
@@ -221,29 +225,40 @@ export function innerProduct(l0, l1) {
 }
 
 /**
- * Project point p onto the line spanned by v0 and v1 perpendicularly.
- * @param {number[]|null} dst
- * @param {number[]} p
- * @param {number[]} v0
- * @param {number[]} v1
- * @param {number} metric metric from P3 (not P5)
+ * Port of Java overloads:
+ * - projectPointOntoLine(dst, p, v0, v1, metric)
+ * - projectPointOntoLine(dst, p, line, metric)
+ * @param  {...any} args
  * @returns {number[]}
  */
-export function projectPointOntoLine(dst, p, v0, v1, metric) {
-  if (dst == null) dst = new Array(4);
-  if (metric === Pn.EUCLIDEAN) {
-    const dv = Rn.subtract(null, v1, v0);
-    const dp = Rn.subtract(null, p, v0);
-    const proj = Rn.projectOnto(null, dp, dv);
-    Rn.add(dst, v0, proj);
+export function projectPointOntoLine(...args) {
+  let dst, p, v0, v1, line, metric;
+  if (args.length === 5) {
+    [dst, p, v0, v1, metric] = args;
+    if (dst == null) dst = new Array(4);
+    if (metric === Pn.EUCLIDEAN) {
+      const dv = Rn.subtract(null, v1, v0);
+      const dp = Rn.subtract(null, p, v0);
+      const proj = Rn.projectOnto(null, dp, dv);
+      Rn.add(dst, v0, proj);
+      return dst;
+    }
+    const polar0 = Pn.polarizePoint(null, v0, metric);
+    const polar1 = Pn.polarizePoint(dst, v1, metric);
+    line = lineFromPlanes(null, polar0, polar1);
+    const plane = lineJoinPoint(null, line, p);
+    P3.lineIntersectPlane(dst, v0, v1, plane);
     return dst;
   }
-  const polar0 = Pn.polarizePoint(null, v0, metric);
-  const polar1 = Pn.polarizePoint(dst, v1, metric);
-  const line = lineFromPlanes(null, polar0, polar1);
-  const plane = lineJoinPoint(null, line, p);
-  P3.lineIntersectPlane(dst, v0, v1, plane);
-  return dst;
+  if (args.length === 4) {
+    [dst, p, line, metric] = args;
+    if (dst == null) dst = new Array(4);
+    const polarLine = polarize(null, line, metric);
+    const plane = lineJoinPoint(null, polarLine, p);
+    lineIntersectPlane(dst, line, plane);
+    return dst;
+  }
+  throw new Error(`PlueckerLineGeometry.projectPointOntoLine: unsupported signature (${args.length} args)`);
 }
 
 /**
@@ -255,11 +270,7 @@ export function projectPointOntoLine(dst, p, v0, v1, metric) {
  * @returns {number[]}
  */
 export function projectPointOntoLineLine(dst, p, line, metric) {
-  if (dst == null) dst = new Array(4);
-  const polarLine = polarize(null, line, metric);
-  const plane = lineJoinPoint(null, polarLine, p);
-  lineIntersectPlane(dst, line, plane);
-  return dst;
+  return projectPointOntoLine(dst, p, line, metric);
 }
 
 /**

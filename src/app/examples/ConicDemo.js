@@ -39,6 +39,7 @@ export class ConicDemo extends JSRApp {
   _whichMode = 1;
   _doSVD = true;
   _psf = null;
+  _doLinePair = true;
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
@@ -136,7 +137,7 @@ export class ConicDemo extends JSRApp {
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1]
       ];
-      if (this._whichMode == 2) {
+      if (this._doLinePair) {
         fivePoints[4] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
       }
     }
