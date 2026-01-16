@@ -7,22 +7,20 @@
  * Contributors retain copyright to their contributions.
  */
 
-import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
-import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
-import { JSRApp } from '../JSRApp.js';
-import { Color } from '../../core/util/Color.js';
-import * as Rn from '../../core/math/Rn.js';
 import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
-import { TestTool } from './TestTool.js';
-import { ToolUtility } from '../../core/scene/tool/ToolUtility.js';
-import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
-import { DragPointTool } from './DragPointTool.js';
-import { DataUtility, fromDataList } from '../../core/scene/data/DataUtility.js'; 
+import * as Rn from '../../core/math/Rn.js';
+import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
+import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { Color } from '../../core/util/Color.js';
+import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
+import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { JSRApp } from '../JSRApp.js';
+import { DragPointTool } from './DragPointTool.js';
 const logger = getLogger('jsreality.app.examples.ConicDemo');
-setModuleLevel(logger.getModuleName(), Level.FINER);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
  * The app contributes its own inspector button to start playback.
@@ -36,10 +34,9 @@ export class ConicDemo extends JSRApp {
   _worldSGC = null;
   _fivePointSGC = null;
    _conic = null;
-  _whichMode = 1;
+  _whichMode = 2;
   _doSVD = true;
   _psf = null;
-  _doLinePair = true;
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
@@ -90,7 +87,7 @@ export class ConicDemo extends JSRApp {
     let fivePoints = this.initFivePoints();
     this.updateConic(fivePoints);
 
-    // set up point set factory for the five points
+     // set up point set factory for the five points
     this._psf = new PointSetFactory();
     this._psf.setVertexCount(fivePoints.length);
     this._psf.setVertexCoordinates(fivePoints);
@@ -129,7 +126,7 @@ export class ConicDemo extends JSRApp {
         fivePoints.push([x, y, 1]);
       }
       logger.fine(-1, 'Using normal conic mode - 5 points on unit circle');
-    } else {
+    } else if (this._whichMode == 1) {
       fivePoints = [
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
@@ -137,10 +134,15 @@ export class ConicDemo extends JSRApp {
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1]
       ];
-      if (this._doLinePair) {
-        fivePoints[4] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
+    } else if (this._whichMode == 2) {
+      fivePoints = new Array(5);
+      const alpha = Math.PI * .25; //Math.random();
+      fivePoints[0] = [0, 0, 1];
+      fivePoints[1] = [Math.cos(alpha), Math.sin(alpha), 1];
+      fivePoints[2] = Rn.add(null, Rn.times(null, .2, fivePoints[0]), Rn.times(null, .8, fivePoints[1]));
+      fivePoints[3] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
+      fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
       }
-    }
     return fivePoints;
+    }
   }
-}

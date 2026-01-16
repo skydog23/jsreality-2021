@@ -85,7 +85,8 @@ export class ConicSection {
             [h/2, b, f/2],
             [g/2, f/2, c]
         ];
-        
+        console.log("Q2D = ",Q2D);
+   
         const my = Rn.maxNorm(this.dQ);
         this.dQ = Rn.times(null, 1/my, this.dQ);
 
@@ -102,7 +103,8 @@ export class ConicSection {
             rank: rank, 
             singularValues: singularValues.map(s => s.toFixed(7))
         });
-        if (rank === 2) {
+
+        if (rank <= 2) {
             this.linePair = ConicUtils.factorPair(this, this.svdResult);
             logger.fine(-1, 'coefficients = ', this.coefficients);
             logger.fine(-1, 'line pair = ', this.linePair);
@@ -120,6 +122,9 @@ export class ConicSection {
         logger.fine(-1, 'Conic center:', this.centerPoint);
  
         // todo: rank = 1
+        if (this.rank === 1) {
+            this.doubleLine = ConicUtils.factorDoubleLine(this, this.svdResult);
+        } 
         if (this.rank === 2) {
             this.linePair = ConicUtils.factorPair(this, this.svdResult);
             logger.fine(-1, 'line pair = ', this.linePair);

@@ -512,6 +512,17 @@ export class ConicUtils {
         return ConicUtils.svdDecomposition(matrix);
     }
 
+    static factorDoubleLine(conic, svd) {
+        // the strategy here:
+        // rank-1 means that the conic is a double line.
+        // we use the fact the that the "polar line" of any point (not on the double line)
+        // is this double line
+
+        let pps = new Array(3);
+        logger.info(-1, "Q = "+conic.Q);
+        logger.info(-1, "V = "+svd.V);
+        return factorPair(conic, svd);
+    }
     static factorPair(conic, svd) {
         
         // // try another way. Use the V matrix from the svd decomposition to find the common point of the line pair
@@ -557,132 +568,15 @@ export class ConicUtils {
             const r2 = (-bb - p)/(2*aa);
             const ret = [[1,r1,0], [1,r2,0]];
             const tret = Rn.matrixTimesVector(null, tform33, ret);
-            logger.fine(-1, "ret = "+Rn.matrixToString(tret));
+            logger.info(-1, "ret = ", ret);
+            logger.info(-1, "tret = ", tret);
             return tret;
         }
 
 
-    
-        let { a, h, b, g, f, c } = conic.params.coefficients;
-
-
-        let swapped = false;
-        let ret = [];
-        // Ensure 'a' is non-zero to simplify the main factorization logic.
-        // If 'a' is zero, but 'b' is not, we can swap x and y variables.
-        if (ConicUtils.isZero(a) && !ConicUtils.isZero(b)) {
-          [a, b] = [b, a];
-          [g, f] = [f, g];
-          swapped = true;
-        }
-  
-        // The condition for a general second-degree equation to represent a pair of straight lines
-        // is that the determinant of the 3x3 matrix of coefficients is zero.
-        const determinant = a * b * c + 2 * f * g * h - a * f * f - b * g * g - c * h * h;
-       logger.fine(-1, "ConicUtils: determinant = "+determinant);
-       if (!ConicUtils.isZero(determinant)) {
-          console.error("The given quadratic form does not represent a pair of straight lines (determinant != 0).");
-          return null;
-        }
-  
-        // The nature of the lines (intersecting or parallel) depends on the discriminant
-        // of the quadratic part: h^2 - ab.
-        let discriminant = h * h - a * b;
-        // if (ConicUtils.isZero(discriminant)) discriminant = 0;
-        // Case 1: Intersecting Lines (h^2 - ab > 0)
-        if (discriminant > 0) {
-          // The coefficients of the two linear factors can be found by solving the original
-          // equation for y (or x) using the quadratic formula. The expression under the
-          // square root will be a perfect square of a linear term.
-          const p = Math.sqrt(discriminant);
-  
-          // We can extract the linear term's coefficients by matching the square root expression.
-          // The expression under the root is (h^2-ab)x^2 + 2(hf-bg)x + (f^2-bc).
-          // This is a perfect square, so it's equal to (p*x + q)^2 for some q.
-          // We can find q by matching the cross-term: 2pqx = 2(hf-bg)x => q = (hf-bg)/p.
-          const q = (h * f - b * g) / p;
-  
-          // The two linear factors are given by:
-          // by + (hx + f) = +/- (px + q)
-          const A1 = h + p;
-          const B1 = b;
-          const C1 = f + q;
-  
-          const A2 = h - p;
-          const B2 = b;
-          const C2 = f - q;
-          
-          // Return the coefficients, and swap them back if the initial variables were swapped.
-          if (swapped) {
-            ret = [P2.normalizeLine([B1, A1, C1]), P2.normalizeLine([B2, A2, C2])];
-          } else {
-            ret = [P2.normalizeLine([A1, B1, C1]), P2.normalizeLine([A2, B2, C2])];
-          }
-        }
         
-        // Case 2: Parallel or Coincident Lines (h^2 - ab = 0)
-        else if (ConicUtils.isZero(discriminant)) {
-          // In this case, the quadratic part of the equation is a perfect square.
-          // ax^2 + 2hxy + by^2 = (sqrt(a)x + s*sqrt(b)y)^2, where s = sign(h).
-          const sa = Math.sqrt(a);
-          const sb = Math.sqrt(b);
-          const s = Math.sign(h);
-  
-          // The full polynomial can be written as (sa*x + s*sb*y + k1)(sa*x + s*sb*y + k2) = 0.
-          // We compare coefficients with the original equation to find k1 and k2.
-          // (k1+k2)*sa = 2g => k1+k2 = 2g/sa
-          // k1*k2 = c
-          const sumK = 2 * g / sa;
-          const prodK = c;
-  
-          // Solve the quadratic equation k^2 - (k1+k2)k + k1*k2 = 0 for k.
-          const kDiscriminant = sumK * sumK - 4 * prodK;
-  
-          if (kDiscriminant < 0) {
-            console.error("The quadratic form represents two imaginary parallel lines.");
-            return null;
-          }
-          
-          const k1 = (sumK + Math.sqrt(kDiscriminant)) / 2;
-          const k2 = (sumK - Math.sqrt(kDiscriminant)) / 2;
-  
-          const A1 = sa;
-          const B1 = s * sb;
-          const C1 = k1;
-  
-          const A2 = sa;
-          const B2 = s * sb;
-          const C2 = k2;
-          
-          // Return the coefficients, and swap them back if the initial variables were swapped.
-          if (swapped) {
-            ret = [P2.normalizeLine([B1, A1, C1]), P2.normalizeLine([B2, A2, C2])];
-          } else {
-            ret = [P2.normalizeLine([A1, B1, C1]), P2.normalizeLine([A2, B2, C2])];
-          }
-        }
-    
-  
-        // Case 3: No real factors (h^2 - ab < 0)
-       if (ret.length === 0) {
-          console.error("The quadratic form represents an ellipse or circle, not two lines.");
-          return null;
-        } else {
-            return ret;
-        }
     }
-
-    /**
-     * Java-style static entry point for constructing a conic.
-     * This forwards to the module-level `createConic()` function below.
-     *
-     * @param {number} whichMode
-     * @returns {ConicSection}
-     */
-    static createConic(whichMode) {
-        return createConic(whichMode);
-    }
-}
+}       
 
 export function convert44To33(m) {
     const m33 = new Array(9);
@@ -698,55 +592,5 @@ export function convert44To33(m) {
     return m33;
 }
 
-export function createConic(whichMode) {
-    const conic = new ConicSection();
-    logger.fine(-1, 'Creating initial conic');
 
-
-    let fivePoints = [];
-    if (whichMode == 0) {
-        fivePoints = [];
-        for (let i = 0; i < 5; i++) {
-            const angle = (2 * Math.PI * i) / 5;
-            const x = Math.cos(angle);
-            const y = Math.sin(angle);
-            fivePoints.push([x, y, 1]);
-        }
-        logger.fine(-1, 'Using normal conic mode - 5 points on unit circle');
-    } else  {
-        fivePoints = [
-            [Math.random()*2-1, Math.random()*2-1,  1],
-            [Math.random()*2-1, Math.random()*2-1, 1],
-            [Math.random()*2-1, Math.random()*2-1,  1],
-            [Math.random()*2-1, Math.random()*2-1, 1],
-            [Math.random()*2-1, Math.random()*2-1, 1]
-            // [0,0, 1]
-        ];
-        logger.fine(-1, 'Using four random points and origin');
-        //fivePoints[4] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
-    }
-
-    updateConicFromPoints(conic, fivePoints);
-    logger.fine(-1, 'Initial 5 points created:', fivePoints);
-    logger.fine(-1, 'Initial conic created:', conic);
-    return conic;
-}
-
-export function updateConicFromPoints(conic, fivePoints, solverMethod='svd') {
-    let coefficients = null;
-    if (solverMethod === 'svd') {
-        coefficients = ConicUtils.solveConicFromPointsSVD(fivePoints);
-    } else {
-        coefficients = ConicUtils.solveConicFromPoints(fivePoints);
-    }
-        logger.fine(-1, 'Computed coefficients (SVD):', coefficients);
-        // Reuse existing instance instead of creating new one
-        if (!conic) {
-           conic = new ConicSection(coefficients);
-        } else {
-            conic.setCoefficients(coefficients);
-        }
-        conic.update();
-        return conic;
-    }
 
