@@ -208,3 +208,4 @@ export class SceneGraphNode extends EventTarget {
     return SceneGraphNode.#threadsafe;
   }
 }
+

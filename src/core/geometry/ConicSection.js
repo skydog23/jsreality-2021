@@ -10,12 +10,10 @@
 // Add references to required classes and utilities
 import * as P2 from '../math/P2.js';
 import * as Rn from '../math/Rn.js';
-import { getLogger, setModuleLevel, Level } from '../util/LoggingSystem.js';
+import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 import { ConicUtils } from './ConicUtils.js';
-import { PointCollector } from './projective/PointCollector.js';
-import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
-import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
+import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
@@ -28,106 +26,52 @@ export class ConicSection {
    centerPoint = [0,0,1];
    pointOnConic = [0,0,1];
    drawRadials = false;
-   numPoints = 500;
+   numPoints = 1000;
    tolerance = 1e-6;
-   coefficients = {a:1, h:0, b:1, g:0, f:0, c:-1};
-   svdResult = null;
+   coefficients = [1,0,1,0,0,-1];
+   svdConic = null;
+   svd5Points = null;
    rank = 0;
    singularValues = null;
    linePair = null;
    Q = null;
    dQ = null;
    dcoefficients = null;
+   fivePoints = null;
 
-    constructor(coefficients = {a:1, h:0, b:1, g:0, f:0, c:-1}) {
-        this.coefficients = coefficients;
-        this.updateMatrixFromCoefficients();
-        this.pointCollector = new PointCollector(this.numPoints, 4);
+    constructor(coefficients = [1,0,1,0,0,-1]) {
+        this.setCoefficients(coefficients);
         this.update();
     }
 
     // Update coefficients and recalculate dependent matrices
     setCoefficients(coefficients) {
-        this.coefficients = { ...coefficients };
-        this.updateMatrixFromCoefficients();
-    }
-
-    // Update a single coefficient and recalculate dependent matrices
-    setCoefficient(name, value) {
-        this.coefficients[name] = value;
-        this.updateMatrixFromCoefficients();
-    }
-
-    // Private method to update Q matrix and dependent fields from coefficients
-    updateMatrixFromCoefficients() {
-        
-        const { a, h, b, g, f, c } = this.coefficients;
-         this.Q = [
-            a, h/2, g/2,
-            h/2, b, f/2,
-            g/2, f/2, c
-        ];
-        const mx = Rn.maxNorm(this.Q);
-        this.Q = Rn.times(null, 1/mx, this.Q);
-        logger.fine(-1, 'Q = '+this.Q);
-        // Compute adjugate and dual parameters (needed for drawing)
-        this.dQ = Rn.adjugate(null, this.Q);
-        this.dcoefficients = { 
-            A: this.dQ[0],
-            H: 2*this.dQ[1],
-            B: this.dQ[4],
-            G: 2*this.dQ[2],
-            F: 2*this.dQ[5],
-            C: this.dQ[8]
-        };
-          const Q2D = [
-            [a, h/2, g/2],
-            [h/2, b, f/2],
-            [g/2, f/2, c]
-        ];
-        console.log("Q2D = ",Q2D);
-   
-        const my = Rn.maxNorm(this.dQ);
-        this.dQ = Rn.times(null, 1/my, this.dQ);
-
-        // Update SVD result
-        this.svdResult = ConicUtils.svdDecomposition(Q2D);
-        
-        const singularValues = this.svdResult.S;
-        
-         const rank = singularValues.filter(s => s > this.tolerance).length;
-        
-        this.rank = rank;
-        
-        logger.fine(-1,'SVD analysis:', {
-            rank: rank, 
-            singularValues: singularValues.map(s => s.toFixed(7))
-        });
-
-        if (rank <= 2) {
-            this.linePair = ConicUtils.factorPair(this, this.svdResult);
-            logger.fine(-1, 'coefficients = ', this.coefficients);
-            logger.fine(-1, 'line pair = ', this.linePair);
-            //     this.decomposeLinePairFromSVD(svd);
-        }
+        this.coefficients = ConicUtils.normalizeCoefficients([ ...coefficients ]);
+        this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
+        this.dQ = ConicUtils.normalizeCoefficients(P2.cofactor(null, this.Q));
+        this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+        logger.info(-1, 'conic Q',this.Q);
+        logger.info(-1, 'conic dQ',this.dQ);
+        logger.info(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
   
     // Get points for general conic in projective space
     update() {
-        const { A,B,C,H,G,F } = this.dcoefficients;
-     
-        // the polar point of the line at iisDegeneratenfinity is the center point of a conic
-        this.centerPoint = Rn.dehomogenize(null,[G/2,F/2,C]);
-        logger.fine(-1, 'conic Q', this.Q.matrix);
-        logger.fine(-1, 'Conic center:', this.centerPoint);
- 
-        // todo: rank = 1
-        if (this.rank === 1) {
-            this.doubleLine = ConicUtils.factorDoubleLine(this, this.svdResult);
+        logger.info(-1, 'Updating conic section');
+         logger.info(-1, 'conic rank',this.rank);
+       
+         if (this.rank === 1) {
+            let l1 = new PointRangeFactory();
+            l1.set2DLine(this.doubleLine);
+            l1.update();
+            this.curve = l1.getLine();
+            const outer = this.doubleLine.map(a => this.doubleLine.map(b => a * b));
+            this.setCoefficients(ConicUtils.convertQToArray(outer.flat()));
+            logger.finer(-1, 'outer = ', outer);
+            return;
         } 
-        if (this.rank === 2) {
-            this.linePair = ConicUtils.factorPair(this, this.svdResult);
-            logger.fine(-1, 'line pair = ', this.linePair);
+        else if (this.rank === 2) {
+             logger.fine(-1, 'line pair = ', this.linePair);
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
@@ -135,14 +79,22 @@ export class ConicSection {
             l2.set2DLine(this.linePair[1]);
             l2.update();
 
-             this.curve = GeometryMergeFactory.mergeIndexedLineSets(l1.getLine(), l2.getLine());
+            this.curve = GeometryMergeFactory.mergeIndexedLineSets(l1.getLine(), l2.getLine());
             return;
         }
-        // Try several lines through X to find a good point on the conic
+        const [A,B,C,H,G,F] = this.dcoefficients;
+        // the polar point of the line at infinity ([0,0,1]) is the center point of a conic
+        // have to use the dual conic to act on lines to obtain points
+        this.centerPoint = Rn.dehomogenize(null,[G/2,F/2,C]);
+        if (this.fivePoints) {
+            this.centerPoint = this.fivePoints.reduce((acc, point) => {return Rn.add(null, acc, point);}, [0,0,0]);
+            this.centerPoint = Rn.dehomogenize(null, this.centerPoint);
+        }
+        logger.info(-1, 'Conic center:', this.centerPoint); 
+     // Try several lines through X to find a good point on the conic
         this.findPointOnConic();
 
         // Now rotate a line around this point and find intersections
-        // const pointCollector = new PointCollector(this.numPoints+1, 4); // needs to close up
         const pts4 = new Array(this.numPoints+1).fill(null).map(() => [0,0,0,0]);
         let firstPoint = null;
         for (let i = 0; i < this.numPoints; i++) {
@@ -157,16 +109,16 @@ export class ConicSection {
             if (Math.abs(a) > 1e-10) {
                 const t = -b/a;  // Other solution is t=0 
                 const currentPoint = Rn.add(null,this.pointOnConic, Rn.times(null,t,V));
-                logger.finer(-1, 'currentPoint = ', currentPoint);
+                // logger.finer(-1, 'currentPoint = ', currentPoint);
                 pts4[i] = Rn.convert3To4(null, currentPoint);
                 if (i === 0) {
                     firstPoint = currentPoint;
                 }
             }
         }
-               // close up the curve by adding the first point again
-               pts4[this.numPoints] = pts4[0];
-               this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);       
+        // close up the curve by adding the first point again
+        pts4[this.numPoints] = pts4[0];
+        this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);       
      }
 
     getIndexedLineSet() {
@@ -193,8 +145,7 @@ export class ConicSection {
 
             // t⁰ coefficient
             const C = Rn.bilinearForm(this.Q, this.centerPoint, this.centerPoint);
-            // console.log('A,B,C:', A,B,C);
-            // Solve quadratic equation
+               // Solve quadratic equation
             if (Math.abs(A) > 1e-10) {
                 const disc = B * B - 4 * A * C;
                 if (disc >= 0) {
@@ -211,8 +162,7 @@ export class ConicSection {
                     for (const p of points) {
                         // Check if this point is actually on the conic
                         const value = Rn.bilinearForm(this.Q, p, p);
-                        // console.log('value:', value);
-                        if (Math.abs(value) < 1e-8) {
+                         if (Math.abs(value) < 1e-8) {
                             const distance = Rn.euclideanNorm(Rn.subtract(null, p, this.centerPoint));
                             // console.log('distance:', distance);
                             if (distance < minDistance) {
@@ -240,7 +190,7 @@ export class ConicSection {
             return 'No equation available';
         }
 
-        const { a,b,c,f,g,h } = this.coefficients;  const terms = [];
+        const [a,b,c,f,g,h] = this.coefficients;  const terms = [];
 
         if (a !== 0) terms.push(`${a.toFixed(4)}x²`);
         if (h !== 0) terms.push(`${h > 0 ? '+' : ''}${h.toFixed(4)}xy`);
@@ -451,8 +401,8 @@ export class ConicSection {
 
         // render SVD into inspector matrices
         const updateInspectorSVD = () => {
-            if (!this.svdResult) return;
-            const { U, S, V } = this.svdResult;
+            if (!this.svdConic) return;
+            const { U, S, V } = this.svdConic;
             const U3 = [[U[0][0],U[0][1],U[0][2]],[U[1][0],U[1][1],U[1][2]],[U[2][0],U[2][1],U[2][2]]];
             const S3 = [[S[0],0,0],[0,S[1],0],[0,0,S[2]]];
             const VT3 = [[V[0][0],V[1][0],V[2][0]],[V[0][1],V[1][1],V[2][1]],[V[0][2],V[1][2],V[2][2]]];

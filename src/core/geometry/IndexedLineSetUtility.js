@@ -20,7 +20,7 @@ import { EUCLIDEAN } from '../math/Pn.js';
 import { getLogger, setModuleLevel, Level } from '../util/LoggingSystem.js'; 
 
 const logger = getLogger('jsreality.core.geometry.IndexedLineSetUtility');
-setModuleLevel(logger.getModuleName(), Level.FINE);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 /**
  * Static methods for constructing, extracting, and modifying 
@@ -594,7 +594,7 @@ export class IndexedLineSetUtility {
    * @param {number} distance - Maximum allowed distance
    * @param {number} tolerance - How close to get to the line at infinity (smaller is closer)
    */
-  static removeInfinity(pts4, distance = 1.0, tolerance = 0.01) {
+  static removeInfinity(pts4, distance = 2.0, tolerance = 0.001) {
     logger.fine(-1, 'distance = ', distance);
     // Dehomogenize vertices (modify in place)
     const verts = pts4.map(v => (v.length === 4) ? Pn.dehomogenize(null, v) : v);

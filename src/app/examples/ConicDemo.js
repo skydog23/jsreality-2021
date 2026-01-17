@@ -10,6 +10,7 @@
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
 import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
+import { Primitives } from '../../core/geometry/Primitives.js';
 import * as Rn from '../../core/math/Rn.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
@@ -34,7 +35,7 @@ export class ConicDemo extends JSRApp {
   _worldSGC = null;
   _fivePointSGC = null;
    _conic = null;
-  _whichMode = 2;
+  _whichMode = 1;
   _doSVD = true;
   _psf = null;
 
@@ -43,6 +44,7 @@ export class ConicDemo extends JSRApp {
     
     this._conicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
+    this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
     
     this.setupConic();
      
@@ -60,6 +62,12 @@ export class ConicDemo extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.RED);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
 
+    ap = this._centerSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.03);
+    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.GREEN);
+    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
+
     ap = this._worldSGC.getAppearance();
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
@@ -68,25 +76,23 @@ export class ConicDemo extends JSRApp {
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
       
-    this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC);
+    this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC);
     return this._worldSGC;
   }
 
   display() {
     super.display();
     console.log('ConicDemo display');
-    this._animationPlugin.setAnimateSceneGraph(true);
-    this._animationPlugin.setAnimateCamera(false);
-    console.log('animated list', this._animationPlugin.getAnimated());
-    // set up animation keyframes
+   
   }
 
   setupConic() {
     
     this._conic = new ConicSection();
     let fivePoints = this.initFivePoints();
-    this.updateConic(fivePoints);
-
+    ConicUtils.getConicThroughFivePoints(fivePoints, this._conic, this._doSVD);
+    this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+   
      // set up point set factory for the five points
     this._psf = new PointSetFactory();
     this._psf.setVertexCount(fivePoints.length);
@@ -94,26 +100,18 @@ export class ConicDemo extends JSRApp {
     this._psf.update();
     this._fivePointSGC.setGeometry(this._psf.getPointSet());
     
-  
+    this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
+
     this._psf.getPointSet().addGeometryListener((event) => {
-      console.log('geometry changed', event);
+      // console.log('geometry changed', event);
       let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
       let fivePoints = DataUtility.fromDataList(vertices);
-      this.updateConic(fivePoints);
+      ConicUtils.getConicThroughFivePoints(fivePoints, this._conic, this._doSVD);
+      this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+      this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
     });
      
    }
-   
-  updateConic(fivePoints) {
-    if (this._doSVD) {
-      this._conic.setCoefficients(ConicUtils.solveConicFromPointsSVD(fivePoints));
-    } else {
-      this._conic.setCoefficients(ConicUtils.solveConicFromPoints(fivePoints));
-    }
-    this._conic.update();
-    this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
-    
-  }
 
   initFivePoints() {
     let fivePoints = [];
@@ -126,7 +124,7 @@ export class ConicDemo extends JSRApp {
         fivePoints.push([x, y, 1]);
       }
       logger.fine(-1, 'Using normal conic mode - 5 points on unit circle');
-    } else if (this._whichMode == 1) {
+    } else if (this._whichMode == 1 || this._whichMode == 2) {
       fivePoints = [
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
@@ -134,14 +132,17 @@ export class ConicDemo extends JSRApp {
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         [Math.random() * 2 - 1, Math.random() * 2 - 1, 1]
       ];
-    } else if (this._whichMode == 2) {
-      fivePoints = new Array(5);
-      const alpha = Math.PI * .25; //Math.random();
-      fivePoints[0] = [0, 0, 1];
-      fivePoints[1] = [Math.cos(alpha), Math.sin(alpha), 1];
-      fivePoints[2] = Rn.add(null, Rn.times(null, .2, fivePoints[0]), Rn.times(null, .8, fivePoints[1]));
-      fivePoints[3] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
-      fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
+      // make it rank-2 (a line pair)
+      if (this._whichMode == 2) fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
+    } else if (this._whichMode == 3) {
+      // arrange all points on line through origin
+        fivePoints = new Array(5);
+        const alpha = Math.PI * .25; //Math.random();
+        fivePoints[0] = [0, 0, 1];
+        fivePoints[1] = [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
+        fivePoints[2] = Rn.add(null, Rn.times(null, .2, fivePoints[0]), Rn.times(null, .8, fivePoints[1]));
+        fivePoints[3] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
+        fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
       }
     return fivePoints;
     }

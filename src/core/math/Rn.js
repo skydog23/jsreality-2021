@@ -1037,7 +1037,7 @@ export function matrixTimesVectorArray(dst, m, src) {
  * @param {string} [formatString='%g']
  * @returns {string}
  */
-export function matrixToString(m, formatString = '%g') {
+export function matrixToString(m, formatString = '%6.2g') {
   const sb = [];
   const n = mysqrt(m.length);
   for (let i = 0; i < n; i++) {
@@ -1324,12 +1324,17 @@ export function determinant(m) {
       det += ((i % 2) === 0) ? tmp : (-tmp);
     }
   } else {
-    return determinantOld(m);
+    det= determinantOld(m);
   }
   return det;
 }
 
 // determinantOld: optimized for low dimensions
+/**
+ * Determinant of a square matrix (flattened row-major).
+ * @param {number[]} m
+ * @returns {number}
+ */
 function determinantOld(m) {
   let det = 0.0;
   const n = mysqrt(m.length);
@@ -1522,7 +1527,7 @@ export function cofactor(m, row, column) {
   return determinant(submatrix(null, m, row, column));
 }
 
-// adjugate: calculate the adjugate (classical adjugate) of a matrix
+// adjugate: calculate the adjugate  of a matrix
 /**
  * Classical adjugate (transpose of cofactor matrix).
  * @param {number[]|null} dst

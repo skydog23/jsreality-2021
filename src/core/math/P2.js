@@ -12,40 +12,79 @@
 import * as Rn from './Rn.js';
 
 // Create a point from affine coordinates (sets w=1)
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {number[]}
+ */
 export function fromAffine(x, y) {
     return [x, y, 1];
 }
 
 // Create a point at infinity in direction (x,y)
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {number[]}
+ */
 export function atInfinity(x, y) {
     const norm = Math.sqrt(x*x + y*y);
     return [x/norm, y/norm, 0];
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number}
+ */
 export function euclideanDistance(p1, p2) {
     return Math.sqrt(euclideanDistanceSquared(p1, p2));
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number}
+ */
 export function euclideanDistanceSquared(p1, p2) {
     p1 = dehomogenize(p1);
     p2 = dehomogenize(p2);
     return innerProduct(subtract(p1,p2), subtract(p1,p2));
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function add(p1, p2) {
     return [p1[0]+p2[0], p1[1]+p2[1], p1[2]+p2[2]];
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function subtract(p1, p2) {
     return [p1[0]-p2[0], p1[1]-p2[1], p1[2]-p2[2]];
 }
 
+/**
+ * @param {number} s
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function scale(s, p2) {
     return [s*p2[0], s*p2[1], s*p2[2]];
 }
 
 // Dehomogenize the point - if w is close to 0, leave it,
 // otherwise scale to make w=1
+/**
+ * @param {number[]} p
+ * @returns {number[]}
+ */
 export function dehomogenize(p) {
     if (Math.abs(p[2]) < 1e-10) {
         return [p[0], p[1], 0];
@@ -55,31 +94,57 @@ export function dehomogenize(p) {
 }
 
 // Check if point is at infinity
+/**
+ * @param {number[]} p
+ * @returns {boolean}
+ */
 export function isAtInfinity(p) {
     return Math.abs(p[2]) < 1e-10;
 }
 
 // Get affine coordinates (x/w, y/w) if finite, null if at infinity
+/**
+ * @param {number[]} p
+ * @returns {{ x: number, y: number } | null}
+ */
 export function getAffine(p) {
     if (isAtInfinity(p)) return null;
     return { x: p[0]/p[2], y: p[1]/p[2] };
 }
 
 // Dot product
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number}
+ */
 export function innerProduct(p1, p2) {
     return p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2];
 }
 
+/**
+ * @param {number[]} p
+ * @returns {number}
+ */
 export function norm(p) {
     return Math.sqrt(innerProduct(p,p));
 }
 
+/**
+ * @param {number[]} p
+ * @returns {number[]}
+ */
 export function normalize(p) {
     const n = norm(p);
     if (n < 1e-10) return p;
     return scale(1/n, p);
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function pointFromLines(p1, p2) {
     const [x1,y1,w1] = dehomogenize(p1);
     const [x2,y2,w2] = dehomogenize(p2);
@@ -87,6 +152,10 @@ export function pointFromLines(p1, p2) {
     return dehomogenize(ret);
 }
 
+/**
+ * @param {number[]} line
+ * @returns {number[]}
+ */
 export function normalizeLine(line) {
     const [a,b,c] = line;
     let d = a*a + b*b;
@@ -94,6 +163,11 @@ export function normalizeLine(line) {
     return [d*a, d*b, d*c];
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function lineFromPoints(p1, p2) {
     const [x1,y1,w1] = dehomogenize(p1);
     const [x2,y2,w2] = dehomogenize(p2);
@@ -101,6 +175,12 @@ export function lineFromPoints(p1, p2) {
     return normalizeLine(ret);
 }
 
+/**
+ * @param {number[]} line
+ * @param {number[]} center
+ * @param {number} radius
+ * @returns {number[][]}
+ */
 export function clipLineToCircle(line, center, radius) {
     const nline = normalizeLine(line);
     let P = (nline[0] !=0) ? [nline[2],0,-nline[0]] : [0,nline[2], -nline[1]];
@@ -121,6 +201,14 @@ export function clipLineToCircle(line, center, radius) {
     return [P1, P2];
 }
 
+/**
+ * @param {number[]} line
+ * @param {number} xmin
+ * @param {number} xmax
+ * @param {number} ymin
+ * @param {number} ymax
+ * @returns {number[][]}
+ */
 export function clipLineToBox(line, xmin, xmax, ymin, ymax) {
     const nline = normalizeLine(line);
     let seg = [];
@@ -148,17 +236,34 @@ export function clipLineToBox(line, xmin, xmax, ymin, ymax) {
     return seg;
 }
 
+/**
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
 export function outerProduct(p1, p2) {
     const [x1,y1,w1] = p1;
     const [x2,y2,w2] = p2;
     return [y1*w2-y2*w1, x2*w1-x1*w2, x1*y2-x2*y1];
 }
 
-export function cofactor(m) {
+/**
+ * @param {number[]|null} dst
+ * @param {number[]} [m]
+ * @returns {number[]}
+ */
+export function cofactor(dst, m) {
+    if (m == null) {
+        m = /** @type {number[]} */ (dst);
+        dst = null;
+    }
+    if (!m) {
+        throw new Error('P2.cofactor: matrix is required');
+    }
     let det = Rn.determinant(m);
     if (Math.abs(det) < Rn.TOLERANCE) det = 1;
-    else det = Math.pow(det, 1/3);
-    return [
+    else det = Math.pow(Math.abs(det), 1/3);
+    const result = [
         (m[4]*m[8] - m[5]*m[7])/det,
         (m[2]*m[7] - m[1]*m[8])/det,
         (m[1]*m[5] - m[2]*m[4])/det,
@@ -169,8 +274,18 @@ export function cofactor(m) {
         (m[1]*m[6] - m[0]*m[7])/det,
         (m[0]*m[4] - m[1]*m[3])/det
     ];
+    if (dst) {
+        dst = [...result];
+        return dst;
+    }
+    return result;
 }
 
+/**
+ * @param {number[]} matrix
+ * @param {number[]} vector
+ * @returns {number[]}
+ */
 export function multiplyMatrixVector(matrix, vector) {
     const result = new Array(3).fill(0);
     for (let i = 0; i < 3; i++) {

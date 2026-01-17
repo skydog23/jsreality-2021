@@ -8,7 +8,8 @@
  */
 
 // Utility functions for conic calculations
-import { det, index, matrix, subset } from 'mathjs';
+import { det, index, matrix } from 'mathjs';
+import Decimal from '../../vendor/decimal/decimal.mjs';
 import * as P2 from '../math/P2.js';
 import * as P3 from '../math/P3.js';
 import * as Pn from '../math/Pn.js';
@@ -20,9 +21,40 @@ import { ConicSection } from './ConicSection.js';
 const logger = getLogger('jsreality.core.geometry.ConicUtils');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
+// Configure Decimal for high precision (used in svdDecompositionHP).
+Decimal.set({ precision: 40 });
+
+function toDecimal(x) {
+    return new Decimal(x);
+}
+
+function fromDecimal(d) {
+    return d.toNumber();
+}
+
 export class ConicUtils {
     
+    static conicTypes = ["zero", "double line", "line pair", "regular"];
 
+
+    static convertQToQ2D(Q) {
+        return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
+    }
+    static convertQToArray(Q) {
+        return [Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]];
+    }
+
+    static convertArrayToQ(a,h,b,g,f,c) {
+        return [a,h/2,g/2,h/2,b,f/2,g/2,f/2,c];
+    }
+    static convertArrayToQ2D(a,h,b,g,f,c) {
+        return [[a,h/2,g/2],[h/2,b,f/2],[g/2,f/2,c]];
+    }
+
+    static normalizeCoefficients(coefficients) {
+        const mx = Rn.maxNorm(coefficients);
+        return Rn.times(null, 1.0/mx, coefficients);
+    }
     /*
      Transform the conic by a projective transformation
      @param {number[][]} Q - The conic matrix
@@ -33,234 +65,7 @@ export class ConicUtils {
         return Rn.conjugateByMatrix(null, Q, transform);
     }
 
-    // Static methods
-    static svdDecomposition(matrix) {
-       
     
-        const m = matrix.length;      // number of rows
-        const n = matrix[0].length;   // number of columns
-        
-        // Create copies to avoid modifying original
-        const U = matrix.map(row => [...row]);
-        const V = Array(n).fill().map(() => Array(n).fill(0));
-        const S = Array(Math.min(m, n)).fill(0);
-        
-        // Initialize V as identity matrix
-        for (let i = 0; i < n; i++) {
-            V[i][i] = 1;
-        }
-        
-        // Perform bidiagonalization using Householder reflections
-        const householderBidiag = (U, V, S) => {
-            const eps = 1e-15;
-            const maxIter = 50;
-            
-            // For small matrices, we'll use Jacobi SVD approach
-            // This is more straightforward for the 5x6 matrices we're dealing with
-            
-            // First, form A^T * A
-            const ATA = Array(n).fill().map(() => Array(n).fill(0));
-            for (let i = 0; i < n; i++) {
-                for (let j = 0; j < n; j++) {
-                    for (let k = 0; k < m; k++) {
-                        ATA[i][j] += U[k][i] * U[k][j];
-                    }
-                }
-            }
-            
-            // Find eigenvalues and eigenvectors of A^T * A using Jacobi method
-            const jacobi = (matrix) => {
-                const size = matrix.length;
-                const eigenVecs = Array(size).fill().map(() => Array(size).fill(0));
-                const eigenVals = Array(size).fill(0);
-                
-                // Initialize eigenvector matrix as identity
-                for (let i = 0; i < size; i++) {
-                    eigenVecs[i][i] = 1;
-                }
-                
-                // Copy matrix
-                const A = matrix.map(row => [...row]);
-                
-                for (let iter = 0; iter < maxIter; iter++) {
-                    // Find largest off-diagonal element
-                    let maxVal = 0;
-                    let p = 0, q = 1;
-                    
-                    for (let i = 0; i < size; i++) {
-                        for (let j = i + 1; j < size; j++) {
-                            if (Math.abs(A[i][j]) > maxVal) {
-                                maxVal = Math.abs(A[i][j]);
-                                p = i;
-                                q = j;
-                            }
-                        }
-                    }
-                    
-                    if (maxVal < eps) break;
-                    
-                    // Calculate rotation angle
-                    const theta = 0.5 * Math.atan2(2 * A[p][q], A[q][q] - A[p][p]);
-                    const c = Math.cos(theta);
-                    const s = Math.sin(theta);
-                    
-                    // Apply Jacobi rotation
-                    const App = A[p][p];
-                    const Aqq = A[q][q];
-                    const Apq = A[p][q];
-                    
-                    A[p][p] = c * c * App + s * s * Aqq - 2 * s * c * Apq;
-                    A[q][q] = s * s * App + c * c * Aqq + 2 * s * c * Apq;
-                    A[p][q] = A[q][p] = 0;
-                    
-                    // Update other elements
-                    for (let i = 0; i < size; i++) {
-                        if (i !== p && i !== q) {
-                            const Aip = A[i][p];
-                            const Aiq = A[i][q];
-                            A[i][p] = A[p][i] = c * Aip - s * Aiq;
-                            A[i][q] = A[q][i] = s * Aip + c * Aiq;
-                        }
-                    }
-                    
-                    // Update eigenvectors
-                    for (let i = 0; i < size; i++) {
-                        const Vip = eigenVecs[i][p];
-                        const Viq = eigenVecs[i][q];
-                        eigenVecs[i][p] = c * Vip - s * Viq;
-                        eigenVecs[i][q] = s * Vip + c * Viq;
-                    }
-                }
-                
-                // Extract eigenvalues and sort
-                for (let i = 0; i < size; i++) {
-                    eigenVals[i] = A[i][i];
-                }
-                
-                // Sort eigenvalues and eigenvectors in descending order
-                const indices = Array.from({length: size}, (_, i) => i);
-                indices.sort((a, b) => Math.abs(eigenVals[b]) - Math.abs(eigenVals[a]));
-                
-                const sortedVals = indices.map(i => eigenVals[i]);
-                const sortedVecs = indices.map(i => eigenVecs.map(row => row[i]));
-                
-                return { eigenValues: sortedVals, eigenVectors: sortedVecs };
-            };
-            
-            const result = jacobi(ATA);
-            
-            // The singular values are square roots of eigenvalues of A^T * A
-            for (let i = 0; i < result.eigenValues.length; i++) {
-                S[i] = Math.sqrt(Math.max(0, result.eigenValues[i]));
-            }
-            
-            // V matrix columns are the eigenvectors of A^T * A
-            for (let i = 0; i < n; i++) {
-                for (let j = 0; j < n; j++) {
-                    V[j][i] = result.eigenVectors[i][j];
-                }
-            }
-            
-            // Compute U = A * V * S^(-1) for non-zero singular values
-            const UResult = Array(m).fill().map(() => Array(Math.min(m, n)).fill(0));
-            for (let i = 0; i < m; i++) {
-                for (let j = 0; j < Math.min(m, n); j++) {
-                    if (S[j] > eps) {
-                        for (let k = 0; k < n; k++) {
-                            UResult[i][j] += U[i][k] * V[k][j] / S[j];
-                        }
-                    }
-                }
-            }
-            
-            // Copy back to U
-            for (let i = 0; i < m; i++) {
-                for (let j = 0; j < Math.min(m, n); j++) {
-                    U[i][j] = UResult[i][j];
-                }
-            }
-        };
-        
-        householderBidiag(U, V, S);
-        
-        return { U, S, V };
-    }
-
-    static eigenDecomposition(matrix) {
-        // This method is not fully implemented in the original file,
-        // but the edit hint implies it should be added.
-        // For now, we'll return a placeholder.
-        return { eigenValues: [], eigenVectors: [] };
-    }
-
-    // Analyze the 3x3 symmetric conic matrix
-    static analyzeConicMatrix(coeffs) {
-        const { a, h, b, g, f, c } = coeffs;
-        
-        // Build the 3x3 symmetric conic matrix
-        const conicMatrix = [
-            [a,     h/2,   g/2],
-            [h/2,   b,     f/2],
-            [g/2,   f/2,   c  ]
-        ];
-
-        logger.fine(-1, 'Conic matrix:');
-        conicMatrix.forEach(row => logger.fine(-1, 'Row:', row.map(x => x.toFixed(6))));
-
-        // Compute SVD of the conic matrix
-        const svd = ConicUtils.svdDecompositionHP(conicMatrix);
-        const singularValues = svd.S.sort((a, b) => Math.abs(b) - Math.abs(a)); // Sort by magnitude
-        logger.fine(-1, 'Singular values:', singularValues);
-        // Determine rank (count non-zero singular values)
-        const tolerance = 1e-4;
-        const rank = singularValues.filter(s => Math.abs(s) > tolerance).length;
-        
-        // Classify the conic
-        let conicType = 'unknown';
-        let degeneracy = 'non-degenerate';
-        
-        if (rank < 3) {
-            degeneracy = 'degenerate';
-            if (rank === 2) {
-                conicType = 'two lines (or parallel lines)';
-            } else if (rank === 1) {
-                conicType = 'single line (double line)';
-            } else {
-                conicType = 'all points (trivial)';
-            }
-        } else {
-            // Non-degenerate: classify by eigenvalues
-            const positiveCount = singularValues.filter(s => s > tolerance).length;
-            const negativeCount = singularValues.filter(s => s < -tolerance).length;
-            const zeroCount = singularValues.filter(s => Math.abs(s) <= tolerance).length;
-            
-            if (zeroCount === 1) {
-                conicType = 'parabola';
-            } else if (positiveCount === 3 || negativeCount === 3) {
-                conicType = 'ellipse (or circle)';
-            } else if (positiveCount === 2 && negativeCount === 1) {
-                conicType = 'hyperbola';
-            } else if (positiveCount === 1 && negativeCount === 2) {
-                conicType = 'hyperbola';
-            }
-        }
-
-        // Calculate condition number
-        const maxSingular = Math.max(...singularValues.map(Math.abs));
-        const minSingular = Math.min(...singularValues.filter(s => Math.abs(s) > tolerance).map(Math.abs));
-        const conditionNumber = minSingular > 0 ? maxSingular / minSingular : Infinity;
-
-        return {
-            matrix: conicMatrix,
-            singularValues: singularValues,
-            rank: rank,
-            conicType: conicType,
-            degeneracy: degeneracy,
-            conditionNumber: conditionNumber,
-            determinant: singularValues.reduce((prod, s) => prod * s, 1)
-        };
-    }
-
     // Matrix multiplication for 3x3 matrices
     static matrixMultiply(A, B) {
         const result = Array(3).fill().map(() => Array(3).fill(0));
@@ -287,10 +92,35 @@ export class ConicUtils {
     }
 
     static getVeroneseEmbedding([x,y,z]) {
-        return [x*x, y*y, z*z, y*z, x*z, x*y]
+        return [x*x,  x*y, y*y, x*z, y*z,  z*z]
     }
 
-    static solveConicFromPoints(points) {
+    static svdDecomposition(matrix, type = 'std') {
+        if (type === 'std') {
+            return this.svdDecompositionStd(matrix);
+        } else if (type === 'hp') {
+            return this.svdDecompositionHP(matrix);
+        } else {
+            throw new Error('Invalid SVD type');
+        }
+    }
+
+    static getConicThroughFivePoints(points, conic = null, useSVD = true) {
+        if (conic == null) {
+            conic = new ConicSection();
+        }
+        conic.fivePoints = points;
+        let coeffs = null;
+        if (useSVD) {
+            this.solveConicFromPointsSVD(points, conic);
+        } else {
+            this.solveConicFromPoints(points, conic);
+        }
+        logger.fine(-1, 'coeffs = ', coeffs);
+        return conic;
+    }
+
+    static solveConicFromPoints(points, conic = null) {
         if (points.length !== 5) {
             throw new Error('Exactly 5 points required');
         }
@@ -309,7 +139,7 @@ export class ConicUtils {
 
     }
     // Solve for conic coefficients from 5 points using proper SVD
-    static solveConicFromPointsSVD(points) {
+    static solveConicFromPointsSVD(points, conic = null, tolerance = 1e-6) {
         if (points.length !== 5) {
             throw new Error('Exactly 5 points required');
         }
@@ -317,61 +147,138 @@ export class ConicUtils {
         logger.fine(-1, 'Using SVD method for conic fitting');
 
         // Build the coefficient matrix A (5x6) directly from homogeneous coordinates
-        const A = [];
-        for (let point of points) {
-            const [x, y, w] = point;
-            logger.fine(-1, `Using point [${x.toFixed(4)}:${y.toFixed(4)}:${w.toFixed(4)}]`);
-            
-            // Row corresponds to ax² + hxy + by² + gxw + fyw + cw² = 0
-            A.push([
-                x*x,  // x² term (a)
-                x*y,  // xy term (h)
-                y*y,  // y² term (b)
-                x*w,  // xw term (g)
-                y*w,  // yw term (f)
-                w*w   // w² term (c)
-            ]);
-        }
-
+        const A = points.map(pt=>this.getVeroneseEmbedding(pt));
+    
         logger.fine(-1, 'Coefficient matrix A:', A);
 
         // Perform SVD decomposition
-        const svd = ConicUtils.svdDecompositionHP(A);
-        logger.fine(-1, 'SVD singular values:', svd.S);
+        const svdPoints = ConicUtils.svdDecomposition(A);
+        const dnsp = svdPoints.S.filter(s => s <= tolerance);
+        logger.fine(-1, 'dimn of null space = ', dnsp.length);
+        logger.fine(-1, 'SVD singular values:', svdPoints.S);
+        logger.fine(-1, 'SVD V:', svdPoints.V);
+        logger.fine(-1, 'SVD U:', svdPoints.U);
 
         // The null space vector is the column of V corresponding to the smallest singular value
-        const minIndex = svd.S.indexOf(Math.min(...svd.S));
-        const nullVector = svd.V.map(row => row[minIndex]);
+        // we can always take the last column of V as an element of the null space
+        const nullVector = svdPoints.V.map(row => row[5]);
+        const coefficients = Rn.normalize(null, nullVector);
 
         logger.fine(-1, 'Null space vector from SVD:', nullVector);
+        logger.fine(-1, 'Normalized coefficients (SVD):', coefficients);
+        // Compute SVD of the conic matrix
+        // it's useful but we may need to recompute Q since the null vector may not be exact
+        const svdQ = ConicUtils.svdDecomposition(this.convertArrayToQ2D(...coefficients));
+        const singularValues = svdQ.S.sort((a, b) => Math.abs(b) - Math.abs(a)); // Sort by magnitude
+        logger.fine(-1, 'Q singular values:', svdQ.S);
+        logger.fine(-1, 'Q singular values sorted:', singularValues);
+        // Determine rank (count non-zero singular values)
+        const rank = singularValues.filter(s => Math.abs(s) > tolerance).length;
 
-        // Normalize the vector to unit length
-        const norm = Math.sqrt(nullVector.reduce((sum, x) => sum + x*x, 0));
-        const normalizedVector = nullVector.map(x => x / norm);
-
-        logger.fine(-1, 'Normalized coefficients (SVD):', normalizedVector);
-
-        // Return coefficients
-        const coefficients = {
-            a: normalizedVector[0],
-            h: normalizedVector[1],
-            b: normalizedVector[2],
-            g: normalizedVector[3],
-            f: normalizedVector[4],
-            c: normalizedVector[5]
-        };
-
-        // Analyze the conic matrix itself
-        const conicAnalysis = ConicUtils.analyzeConicMatrix(coefficients);
-        logger.fine(-1, 'Conic matrix analysis:', conicAnalysis);
-
-        return coefficients;
+        // classify the conic depending on the null space dimension and the rank of Q
+        if (dnsp.length === 1) {    // either a regular conic or a line pair, or a double line
+            if (rank === 3 || rank === 2) {
+                conic.rank = rank;
+                conic.type = this.conicTypes[rank];
+            }  else throw new Error('Invalid rank for conic with one null space vector');
+        } else if (dnsp.length === 2) {  // 4 collinear points: not unique, but a line pair
+            conic.rank = 2;
+            conic.type = this.conicTypes[2];
+        } else if (dnsp.length === 3) {  // 5 points: a unique double line, but has to be found
+            conic.rank = 1;
+            conic.type = this.conicTypes[1];
+        } 
+        conic.svdConic = svdQ;
+        conic.svd5Points = svdPoints;
+        conic.fivePoints = points;
+        conic.setCoefficients(coefficients);
+       if (conic.rank === 1) {
+            conic.doubleLine = this.factorDoubleLine(conic);
+        } else if (conic.rank === 2) {
+            conic.linePair = this.factorPair(conic);
+        }
+         conic.update();
     }
 
-    // Compute Sylvester's canonical form: Q = PDP^(-1)
-    static sylvesterDecomposition(Q) {
+
+    static factorDoubleLine(conic) {
+        // the strategy here:
+        // rank-1 means that the conic is a double line.
+        // we use the fact the that the "polar line" of any point (not on the double line)
+        // is this double line
+
+        logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
+
+        
+        const lines = this.factorPair(conic);
+        logger.fine(-1, "lines = ", lines);
+        const l0inc = conic.fivePoints.map(pt => Rn.innerProduct(pt, lines[0]));
+        const l1inc = conic.fivePoints.map(pt => Rn.innerProduct(pt, lines[1]));
+        const sumAbs0 = l0inc.reduce((sum, x) => sum + Math.abs(x), 0);
+        const sumAbs1 = l1inc.reduce((sum, x) => sum + Math.abs(x), 0);
+        logger.fine(-1, "sumAbs0 = ",sumAbs0);
+        logger.fine(-1, "sumAbs1 = ",sumAbs1);
+        return sumAbs0 < sumAbs1 ? lines[0] : lines[1];
+    }
+    static factorPair(conic) {
+        const svdQ = conic.svdConic;
+
+        // // try another way. Use the V matrix from the svd decomposition to find the common point of the line pair
+        const V = svdQ.V;
+        logger.fine(-1, "V = ", V);
+
+        const dcp = [V[0][2], V[1][2], V[2][2]];  // last column of V
+        logger.fine(-1, "carrierPoint = ",dcp);
+ 
+        // const tform = new Transform();
+        // tform.translate(dcp[0], dcp[1]);
+        const translation = Pn.normalize(null, [dcp[0], dcp[1], 0, dcp[2]], Pn.ELLIPTIC);
+
+        const tform = P3.makeTranslationMatrix(null, translation, Pn.ELLIPTIC);
+
+        const tform33 = convert44To33(tform);
+        logger.fine(-1, "tform = "+tform33);
+        const itform33 = P2.cofactor(tform33);
+        logger.fine(-1, "itform = "+itform33);
+        const tformV = P2.multiplyMatrixVector(itform33, dcp);
+        logger.fine(-1, "tformV = "+tformV);
+
+
+        const Q1D = conic.Q;
+        logger.fine(-1, "Q = ",conic.Q);
+        const result1D = Rn.conjugateByMatrix(null, Q1D, tform33);
+        logger.fine(-1, "result1D = ",result1D);
+        const iresult1D = Rn.conjugateByMatrix(null,Q1D, itform33);
+        logger.fine(-1, "result1D = ",iresult1D);
+
+        // search for the line pair in the transformed conic
+        // the only non-zero entries of iresult1D are the upper left 2x2 submatrix
+         // so we can use the upper left 2x2 submatrix to find the line pair
+        // and the last column of V is the carrier point
+        const vals = [iresult1D[0], -2*iresult1D[1], iresult1D[4]];
+        if (vals[0] !=0) Rn.times(null, 1.0/vals[0], vals);
+        logger.fine(-1, "vals = "+vals);
+        const [aa,bb,cc]= vals;
+        const dd =bb*bb-4*aa*cc;
+        if (dd >= 0) {       
+            const p = Math.sqrt(dd);
+            const r1 = (-bb + p)/(2*aa);
+            const r2 = (-bb - p)/(2*aa);
+            const ret = [[1,r1,0], [1,r2,0]];
+            const tret = Rn.matrixTimesVector(null, tform33, ret);
+            logger.finer(-1, "ret = ", ret);
+            logger.fine(-1, "tret = ", tret);
+            return tret;
+        }
+
+
+        
+    }
+
+     // Compute Sylvester's canonical form: Q = PDP^(-1)
+     static sylvesterDecomposition(Q) {
         // First get eigendecomposition using Jacobi method
-        const jacobi = ConicUtils.svdDecomposition(Q);
+        const jacobi = ConicUtils.svdDecompositionStd(Q);
         const eigenVectors = jacobi.V;
         const eigenValues = jacobi.S.map(s => s * Math.sign(s)); // Get signed values
         
@@ -496,86 +403,321 @@ export class ConicUtils {
         return solution;
     }
 
-    static isZero(a) {
-        const epsilon = 1e-7;
-        return Math.abs(a) < epsilon;
-    }
-
-    static svdDecompositionHP(matrix) {
-        // NOTE:
-        // This method originally used `decimal.js` for high-precision Jacobi eigensolve.
-        // In the browser test runner (`test/test-jsrapp-example.html`) we can’t assume
-        // the dev server exposes `/node_modules/**`, which caused 404s for `decimal.mjs`.
-        //
-        // For interactive demos, the regular double-precision SVD is typically fine.
-        // If you later want HP again, we should load Decimal via an importmap/bundler.
-        return ConicUtils.svdDecomposition(matrix);
-    }
-
-    static factorDoubleLine(conic, svd) {
-        // the strategy here:
-        // rank-1 means that the conic is a double line.
-        // we use the fact the that the "polar line" of any point (not on the double line)
-        // is this double line
-
-        let pps = new Array(3);
-        logger.info(-1, "Q = "+conic.Q);
-        logger.info(-1, "V = "+svd.V);
-        return factorPair(conic, svd);
-    }
-    static factorPair(conic, svd) {
-        
-        // // try another way. Use the V matrix from the svd decomposition to find the common point of the line pair
-        const V = svd.V;
-        logger.fine(-1, "V = "+Rn.toStringArray(V));
-
-        const dcp = [V[0][2], V[1][2], V[2][2]];  // last column of V
-        logger.fine(-1, "carrierPoint = "+Rn.toString(dcp));
- 
-        // const tform = new Transform();
-        // tform.translate(dcp[0], dcp[1]);
-        const translation = Pn.normalize(null, [dcp[0], dcp[1], 0, dcp[2]], Pn.ELLIPTIC);
-
-        const tform = P3.makeTranslationMatrix(null, translation, Pn.ELLIPTIC);
-
-        const tform33 = convert44To33(tform);
-        logger.fine(-1, "tform = "+tform33);
-        const itform33 = P2.cofactor(tform33);
-        logger.fine(-1, "itform = "+itform33);
-        const tformV = P2.multiplyMatrixVector(itform33, dcp);
-        logger.fine(-1, "tformV = "+tformV);
-
-
-        const Q1D = conic.Q;
-        logger.fine(-1, "Q = "+Rn.matrixToString(conic.Q));
-        const result1D = Rn.conjugateByMatrix(null, Q1D, tform33);
-        logger.fine(-1, "result1D = "+Rn.matrixToString(result1D));
-        const iresult1D = Rn.conjugateByMatrix(null,Q1D, itform33);
-        logger.fine(-1, "result1D = "+Rn.matrixToString(iresult1D));
-
-        // search for the line pair in the transformed conic
-        // the only non-zero entries of iresult1D are the upper left 2x2 submatrix
-         // so we can use the upper left 2x2 submatrix to find the line pair
-        // and the last column of V is the carrier point
-        const vals = [iresult1D[0], -2*iresult1D[1], iresult1D[4]];
-        if (vals[0] !=0) Rn.times(null, 1.0/vals[0], vals);
-        logger.fine(-1, "vals = "+vals);
-        const [aa,bb,cc]= vals;
-        const dd =bb*bb-4*aa*cc;
-        if (dd >= 0) {       
-            const p = Math.sqrt(dd);
-            const r1 = (-bb + p)/(2*aa);
-            const r2 = (-bb - p)/(2*aa);
-            const ret = [[1,r1,0], [1,r2,0]];
-            const tret = Rn.matrixTimesVector(null, tform33, ret);
-            logger.info(-1, "ret = ", ret);
-            logger.info(-1, "tret = ", tret);
-            return tret;
+        // Static methods
+        static svdDecompositionStd(matrix) {
+       
+            const m = matrix.length;      // number of rows
+            const n = matrix[0].length;   // number of columns
+            
+            // Create copies to avoid modifying original
+            const U = matrix.map(row => [...row]);
+            const V = Array(n).fill().map(() => Array(n).fill(0));
+            const S = Array(Math.min(m, n)).fill(0);
+            
+            // Initialize V as identity matrix
+            for (let i = 0; i < n; i++) {
+                V[i][i] = 1;
+            }
+            
+            // Perform bidiagonalization using Householder reflections
+            const householderBidiag = (U, V, S) => {
+                const eps = 1e-15;
+                const maxIter = 50;
+                
+                // For small matrices, we'll use Jacobi SVD approach
+                // This is more straightforward for the 5x6 matrices we're dealing with
+                
+                // First, form A^T * A
+                const ATA = Array(n).fill().map(() => Array(n).fill(0));
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        for (let k = 0; k < m; k++) {
+                            ATA[i][j] += U[k][i] * U[k][j];
+                        }
+                    }
+                }
+                
+                // Find eigenvalues and eigenvectors of A^T * A using Jacobi method
+                const jacobi = (matrix) => {
+                    const size = matrix.length;
+                    const eigenVecs = Array(size).fill().map(() => Array(size).fill(0));
+                    const eigenVals = Array(size).fill(0);
+                    
+                    // Initialize eigenvector matrix as identity
+                    for (let i = 0; i < size; i++) {
+                        eigenVecs[i][i] = 1;
+                    }
+                    
+                    // Copy matrix
+                    const A = matrix.map(row => [...row]);
+                    
+                    for (let iter = 0; iter < maxIter; iter++) {
+                        // Find largest off-diagonal element
+                        let maxVal = 0;
+                        let p = 0, q = 1;
+                        
+                        for (let i = 0; i < size; i++) {
+                            for (let j = i + 1; j < size; j++) {
+                                if (Math.abs(A[i][j]) > maxVal) {
+                                    maxVal = Math.abs(A[i][j]);
+                                    p = i;
+                                    q = j;
+                                }
+                            }
+                        }
+                        
+                        if (maxVal < eps) break;
+                        
+                        // Calculate rotation angle
+                        const theta = 0.5 * Math.atan2(2 * A[p][q], A[q][q] - A[p][p]);
+                        const c = Math.cos(theta);
+                        const s = Math.sin(theta);
+                        
+                        // Apply Jacobi rotation
+                        const App = A[p][p];
+                        const Aqq = A[q][q];
+                        const Apq = A[p][q];
+                        
+                        A[p][p] = c * c * App + s * s * Aqq - 2 * s * c * Apq;
+                        A[q][q] = s * s * App + c * c * Aqq + 2 * s * c * Apq;
+                        A[p][q] = A[q][p] = 0;
+                        
+                        // Update other elements
+                        for (let i = 0; i < size; i++) {
+                            if (i !== p && i !== q) {
+                                const Aip = A[i][p];
+                                const Aiq = A[i][q];
+                                A[i][p] = A[p][i] = c * Aip - s * Aiq;
+                                A[i][q] = A[q][i] = s * Aip + c * Aiq;
+                            }
+                        }
+                        
+                        // Update eigenvectors
+                        for (let i = 0; i < size; i++) {
+                            const Vip = eigenVecs[i][p];
+                            const Viq = eigenVecs[i][q];
+                            eigenVecs[i][p] = c * Vip - s * Viq;
+                            eigenVecs[i][q] = s * Vip + c * Viq;
+                        }
+                    }
+                    
+                    // Extract eigenvalues and sort
+                    for (let i = 0; i < size; i++) {
+                        eigenVals[i] = A[i][i];
+                    }
+                    
+                    // Sort eigenvalues and eigenvectors in descending order
+                    const indices = Array.from({length: size}, (_, i) => i);
+                    indices.sort((a, b) => Math.abs(eigenVals[b]) - Math.abs(eigenVals[a]));
+                    
+                    const sortedVals = indices.map(i => eigenVals[i]);
+                    const sortedVecs = indices.map(i => eigenVecs.map(row => row[i]));
+                    
+                    return { eigenValues: sortedVals, eigenVectors: sortedVecs };
+                };
+                
+                const result = jacobi(ATA);
+                
+                // The singular values are square roots of eigenvalues of A^T * A
+                for (let i = 0; i < result.eigenValues.length; i++) {
+                    S[i] = Math.sqrt(Math.max(0, result.eigenValues[i]));
+                }
+                
+                // V matrix columns are the eigenvectors of A^T * A
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        V[j][i] = result.eigenVectors[i][j];
+                    }
+                }
+                
+                // Compute U = A * V * S^(-1) for non-zero singular values
+                const UResult = Array(m).fill().map(() => Array(Math.min(m, n)).fill(0));
+                for (let i = 0; i < m; i++) {
+                    for (let j = 0; j < Math.min(m, n); j++) {
+                        if (S[j] > eps) {
+                            for (let k = 0; k < n; k++) {
+                                UResult[i][j] += U[i][k] * V[k][j] / S[j];
+                            }
+                        }
+                    }
+                }
+                
+                // Copy back to U
+                for (let i = 0; i < m; i++) {
+                    for (let j = 0; j < Math.min(m, n); j++) {
+                        U[i][j] = UResult[i][j];
+                    }
+                }
+            };
+            
+            householderBidiag(U, V, S);
+            
+            return { U, S, V };
         }
-
-
-        
-    }
+    
+        static svdDecompositionHP(matrix) {
+            const m = matrix.length;      // number of rows
+            const n = matrix[0].length;   // number of columns
+    
+            // Create copies to avoid modifying original
+            const U = matrix.map(row => row.map(x => toDecimal(x)));
+            const V = Array(n).fill().map(() => Array(n).fill(toDecimal(0)));
+            const S = Array(Math.min(m, n)).fill(toDecimal(0));
+    
+            // Initialize V as identity matrix
+            for (let i = 0; i < n; i++) {
+                V[i][i] = toDecimal(1);
+            }
+    
+            const householderBidiag = (U, V, S) => {
+                const eps = toDecimal('1e-40');  // High precision threshold
+                const maxIter = 50;
+    
+                // Form A^T * A with high precision
+                const ATA = Array(n).fill().map(() => Array(n).fill(toDecimal(0)));
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        for (let k = 0; k < m; k++) {
+                            ATA[i][j] = ATA[i][j].plus(U[k][i].times(U[k][j]));
+                        }
+                    }
+                }
+    
+                const jacobi = (matrix) => {
+                    const size = matrix.length;
+                    const eigenVecs = Array(size).fill().map(() => Array(size).fill(toDecimal(0)));
+                    const eigenVals = Array(size).fill(toDecimal(0));
+    
+                    // Initialize eigenvector matrix as identity
+                    for (let i = 0; i < size; i++) {
+                        eigenVecs[i][i] = toDecimal(1);
+                    }
+    
+                    // Copy matrix
+                    const A = matrix.map(row => [...row]);
+    
+                    for (let iter = 0; iter < maxIter; iter++) {
+                        // Find largest off-diagonal element
+                        let maxVal = toDecimal(0);
+                        let p = 0, q = 1;
+    
+                        for (let i = 0; i < size; i++) {
+                            for (let j = i + 1; j < size; j++) {
+                                const absVal = A[i][j].abs();
+                                if (absVal.gt(maxVal)) {
+                                    maxVal = absVal;
+                                    p = i;
+                                    q = j;
+                                }
+                            }
+                        }
+    
+                        if (maxVal.lt(eps)) break;
+    
+                        // Calculate rotation angle with high precision
+                        const theta = Decimal.atan2(
+                            toDecimal(2).times(A[p][q]),
+                            A[q][q].minus(A[p][p])
+                        ).dividedBy(2);
+    
+                        const c = Decimal.cos(theta);
+                        const s = Decimal.sin(theta);
+    
+                        // Apply Jacobi rotation with high precision
+                        const App = A[p][p];
+                        const Aqq = A[q][q];
+                        const Apq = A[p][q];
+    
+                        A[p][p] = c.times(c).times(App)
+                                 .plus(s.times(s).times(Aqq))
+                                 .minus(toDecimal(2).times(s).times(c).times(Apq));
+    
+                        A[q][q] = s.times(s).times(App)
+                                 .plus(c.times(c).times(Aqq))
+                                 .plus(toDecimal(2).times(s).times(c).times(Apq));
+    
+                        A[p][q] = A[q][p] = toDecimal(0);
+    
+                        // Update other elements
+                        for (let i = 0; i < size; i++) {
+                            if (i !== p && i !== q) {
+                                const Aip = A[i][p];
+                                const Aiq = A[i][q];
+                                A[i][p] = A[p][i] = c.times(Aip).minus(s.times(Aiq));
+                                A[i][q] = A[q][i] = s.times(Aip).plus(c.times(Aiq));
+                            }
+                        }
+    
+                        // Update eigenvectors
+                        for (let i = 0; i < size; i++) {
+                            const Vip = eigenVecs[i][p];
+                            const Viq = eigenVecs[i][q];
+                            eigenVecs[i][p] = c.times(Vip).minus(s.times(Viq));
+                            eigenVecs[i][q] = s.times(Vip).plus(c.times(Viq));
+                        }
+                    }
+    
+                    // Extract eigenvalues
+                    for (let i = 0; i < size; i++) {
+                        eigenVals[i] = A[i][i];
+                    }
+    
+                    // Sort eigenvalues and eigenvectors in descending order
+                    const indices = Array.from({length: size}, (_, i) => i);
+                    indices.sort((a, b) => eigenVals[b].abs().minus(eigenVals[a].abs()).toNumber());
+    
+                    const sortedVals = indices.map(i => eigenVals[i]);
+                    const sortedVecs = indices.map(i => eigenVecs.map(row => row[i]));
+    
+                    return { eigenValues: sortedVals, eigenVectors: sortedVecs };
+                };
+    
+                const result = jacobi(ATA);
+    
+                // Calculate singular values with high precision
+                for (let i = 0; i < result.eigenValues.length; i++) {
+                    S[i] = Decimal.sqrt(Decimal.max(0, result.eigenValues[i]));
+                }
+    
+                // Copy eigenvectors to V
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < n; j++) {
+                        V[j][i] = result.eigenVectors[i][j];
+                    }
+                }
+    
+                // Compute U = A * V * S^(-1) for non-zero singular values
+                const UResult = Array(m).fill().map(() => Array(Math.min(m, n)).fill(toDecimal(0)));
+                for (let i = 0; i < m; i++) {
+                    for (let j = 0; j < Math.min(m, n); j++) {
+                        if (S[j].gt(eps)) {
+                            for (let k = 0; k < n; k++) {
+                                UResult[i][j] = UResult[i][j].plus(
+                                    U[i][k].times(V[k][j]).dividedBy(S[j])
+                                );
+                            }
+                        }
+                    }
+                }
+    
+                // Copy back to U
+                for (let i = 0; i < m; i++) {
+                    for (let j = 0; j < Math.min(m, n); j++) {
+                        U[i][j] = UResult[i][j];
+                    }
+                }
+            };
+    
+            householderBidiag(U, V, S);
+    
+            // Convert back to numbers before returning
+            return {
+                U: U.map(row => row.map(x => fromDecimal(x))),
+                S: S.map(x => fromDecimal(x)),
+                V: V.map(row => row.map(x => fromDecimal(x)))
+            };
+        }
+    
 }       
 
 export function convert44To33(m) {
