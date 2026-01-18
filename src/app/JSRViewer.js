@@ -677,39 +677,6 @@ export class JSRViewer {
   // PUBLIC API: Convenience Methods
   // ========================================================================
 
-  /**
-   * Set the background color.
-   * @param {Color|string|number[]} color - Background color
-   */
-  setBackgroundColor(color) {
-    if (!this.#sceneRoot) {
-      return;
-    }
-
-    let appearance = this.#sceneRoot.getAppearance();
-    if (!appearance) {
-      appearance = new Appearance('rootAppearance');
-      this.#sceneRoot.setAppearance(appearance);
-    }
-
-    let colorObj = color;
-    if (typeof color === 'string') {
-      // Parse CSS color string (simple implementation)
-      const colorMap = {
-        'white': new Color(255, 255, 255),
-        'gray': new Color(225, 225, 225),
-        'black': new Color(0, 0, 0),
-        'transparent': new Color(0, 0, 0, 0)
-      };
-      colorObj = colorMap[color.toLowerCase()] || new Color(225, 225, 225);
-    } else if (Array.isArray(color)) {
-      colorObj = new Color(...color);
-    }
-
-    appearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, colorObj);
-    this.setPreference('backgroundColor', color);
-    this.render();
-  }
 
   /**
    * Render the scene.
@@ -1022,27 +989,6 @@ export class JSRViewer {
     this.render();
   }
 
-  /**
-   * Encompass the content in the view (fit content to view).
-   */
-  encompassEuclidean() {
-    if (!this.#contentManager || !this.#contentComponent) {
-      return;
-    }
-
-    const content = this.#contentManager.getContent();
-    if (!content) {
-      return;
-    }
-
-    // Use centeredAndScaled strategy with encompass
-    this.#contentManager.setContent(content, {
-      strategy: 'centeredAndScaled',
-      encompass: true
-    });
-
-    this.render();
-  }
 
   /**
    * Dispose of resources.

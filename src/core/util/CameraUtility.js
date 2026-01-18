@@ -22,9 +22,14 @@ import { Rectangle2D } from '../scene/Camera.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import * as P3 from '../math/P3.js';
+import { BoundingBoxUtility } from '../geometry/BoundingBoxUtility.js';
+import { Rectangle3D } from './Rectangle3D.js';
+import * as CommonAttributes from '../shader/CommonAttributes.js';
 
 /** @typedef {import('../scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../scene/Camera.js').Camera} Camera */
+/** @typedef {import('../scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
+/** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
 
 // Constants for support of stereo viewing
 export const MIDDLE_EYE = 0;
@@ -42,10 +47,6 @@ export function getCamera(v) {
     throw new Error('Viewer has no camera!');
   }
   const lastElement = v.getCameraPath().getLastElement();
-  // The camera path typically ends with a SceneGraphComponent that contains the camera
-  if (lastElement && lastElement.getCamera) {
-    return lastElement.getCamera();
-  }
   // Or it might directly be a Camera
   if (lastElement && lastElement.constructor.name === 'Camera') {
     return lastElement;
@@ -75,35 +76,60 @@ export function getAspectRatio(v) {
 
 /**
  * Calculate the camera to NDC (normalized device coordinates) transformation
- * for a given viewer.
- * @param {Viewer} v - The viewer
+ * for a given viewer/camera.
+ *
+ * Java overloads collapsed into one runtime-dispatch function:
+ * - getCameraToNDC(v: Viewer): number[]
+ * - getCameraToNDC(cam: Camera, aspectRatio: number): number[]
+ * - getCameraToNDC(cam: Camera, aspectRatio: number, which: number): number[]
+ * - getCameraToNDC(cam: Camera, aspectRatio: number, which: number, metric: number): number[]
+ *
+ * @param {Viewer|Camera} arg0 - Viewer or Camera
+ * @param {number} [arg1] - aspectRatio (when arg0 is Camera)
+ * @param {number} [arg2] - which (MIDDLE_EYE/LEFT_EYE/RIGHT_EYE)
+ * @param {number} [arg3] - metric (Pn.EUCLIDEAN, etc.)
  * @returns {number[]} 4x4 transformation matrix
  */
-export function getCameraToNDC(v) {
-  const cam = getCamera(v);
-  const aspectRatio = getAspectRatio(v);
-  return getCameraToNDCWithAspect(cam, aspectRatio);
+export function getCameraToNDC(arg0, arg1, arg2, arg3) {
+  // Viewer signature
+  if (arg0 != null && typeof arg0.getCameraPath === 'function') {
+    /** @type {Viewer} */ // @ts-ignore
+    const v = arg0;
+    const cam = getCamera(v);
+    const aspectRatio = getAspectRatio(v);
+    return _getCameraToNDCImpl(cam, aspectRatio, MIDDLE_EYE, Pn.EUCLIDEAN);
+  }
+
+  // Camera signatures
+  /** @type {Camera} */ // @ts-ignore
+  const cam = arg0;
+  const aspectRatio = /** @type {number} */ (arg1);
+  const which = arg2 ?? MIDDLE_EYE;
+  const metric = arg3 ?? Pn.EUCLIDEAN;
+  return _getCameraToNDCImpl(cam, aspectRatio, which, metric);
 }
 
 /**
- * Calculate camera to NDC transformation with explicit aspect ratio.
+ * Backward-compatible wrapper (non-Java name). Prefer {@link getCameraToNDC}.
+ * @deprecated
  * @param {Camera} cam - The camera
  * @param {number} aspectRatio - The aspect ratio
  * @returns {number[]} 4x4 transformation matrix
  */
 export function getCameraToNDCWithAspect(cam, aspectRatio) {
-  return getCameraToNDCWithEye(cam, aspectRatio, MIDDLE_EYE);
+  return getCameraToNDC(cam, aspectRatio);
 }
 
 /**
- * Calculate camera to NDC transformation for a specific eye (stereo support).
+ * Backward-compatible wrapper (non-Java name). Prefer {@link getCameraToNDC}.
+ * @deprecated
  * @param {Camera} cam - The camera
  * @param {number} aspectRatio - The aspect ratio
  * @param {number} which - MIDDLE_EYE, LEFT_EYE, or RIGHT_EYE
  * @returns {number[]} 4x4 transformation matrix
  */
 export function getCameraToNDCWithEye(cam, aspectRatio, which) {
-  return getCameraToNDCFull(cam, aspectRatio, which, Pn.EUCLIDEAN);
+  return getCameraToNDC(cam, aspectRatio, which);
 }
 
 /**
@@ -124,13 +150,13 @@ export function getCameraToNDCWithEye(cam, aspectRatio, which) {
  * In plain English, the monocular, left, and right views all show the same picture if the world
  * lies in the z = focus plane. This plane is in fact the focal plane in this sense.
  * 
- * @param {Camera} cam - The camera
- * @param {number} aspectRatio - The aspect ratio
- * @param {number} which - MIDDLE_EYE, LEFT_EYE, or RIGHT_EYE
- * @param {number} metric - The metric (Pn.EUCLIDEAN, etc.)
+ * @param {Camera} cam
+ * @param {number} aspectRatio
+ * @param {number} which
+ * @param {number} metric
  * @returns {number[]} 4x4 transformation matrix
  */
-export function getCameraToNDCFull(cam, aspectRatio, which, metric) {
+function _getCameraToNDCImpl(cam, aspectRatio, which, metric) {
   const viewPort = getViewport(cam, aspectRatio);
   
   if (which === MIDDLE_EYE) {
@@ -156,22 +182,51 @@ export function getCameraToNDCFull(cam, aspectRatio, which, metric) {
 }
 
 /**
- * Calculate NDC to camera transformation (inverse of getCameraToNDC).
- * @param {Viewer} v - The viewer
+ * Backward-compatible wrapper (non-Java name). Prefer {@link getCameraToNDC}.
+ * @deprecated
+ * @param {Camera} cam - The camera
+ * @param {number} aspectRatio - The aspect ratio
+ * @param {number} which - MIDDLE_EYE, LEFT_EYE, or RIGHT_EYE
+ * @param {number} metric - The metric (Pn.EUCLIDEAN, etc.)
  * @returns {number[]} 4x4 transformation matrix
  */
-export function getNDCToCamera(v) {
-  return Rn.inverse(null, getCameraToNDC(v));
+export function getCameraToNDCFull(cam, aspectRatio, which, metric) {
+  return _getCameraToNDCImpl(cam, aspectRatio, which, metric);
 }
 
 /**
- * Calculate NDC to camera transformation with explicit aspect ratio.
+ * Calculate NDC to camera transformation (inverse of getCameraToNDC).
+ *
+ * Java overloads collapsed into one runtime-dispatch function:
+ * - getNDCToCamera(v: Viewer): number[]
+ * - getNDCToCamera(cam: Camera, aspectRatio: number): number[]
+ *
+ * @param {Viewer|Camera} arg0 - Viewer or Camera
+ * @param {number} [arg1] - aspectRatio (when arg0 is Camera)
+ * @returns {number[]} 4x4 transformation matrix
+ */
+export function getNDCToCamera(arg0, arg1) {
+  // Viewer signature
+  if (arg0 != null && typeof arg0.getCameraPath === 'function') {
+    return Rn.inverse(null, getCameraToNDC(arg0));
+  }
+
+  // Camera signature
+  /** @type {Camera} */ // @ts-ignore
+  const cam = arg0;
+  const aspectRatio = /** @type {number} */ (arg1);
+  return Rn.inverse(null, getCameraToNDC(cam, aspectRatio));
+}
+
+/**
+ * Backward-compatible wrapper (non-Java name). Prefer {@link getNDCToCamera}.
+ * @deprecated
  * @param {Camera} cam - The camera
  * @param {number} aspectRatio - The aspect ratio
  * @returns {number[]} 4x4 transformation matrix
  */
 export function getNDCToCameraWithAspect(cam, aspectRatio) {
-  return Rn.inverse(null, getCameraToNDCWithAspect(cam, aspectRatio));
+  return getNDCToCamera(cam, aspectRatio);
 }
 
 /**
@@ -267,5 +322,163 @@ export function getEyePosition(cam, which) {
   }
   
   return eyePosition;
+}
+
+/**
+ * Encompass the world displayed by a viewer and possibly set derived parameters
+ * in the camera.
+ *
+ * Java overloads collapsed into one runtime-dispatch function:
+ * - encompass(viewer: Viewer): void
+ * - encompass(viewer: Viewer, sgc: SceneGraphComponent, setStereoParameters: boolean): void
+ * - encompass(viewer: Viewer, sgc: SceneGraphComponent, setStereoParameters: boolean, metric: number): void
+ * - encompass(avatarPath: SceneGraphPath, scene: SceneGraphPath, cameraPath: SceneGraphPath, margin: number, metric: number): void
+ *
+ * Note: The SceneGraphPath-based variants delegate to EncompassFactory in Java. Since EncompassFactory
+ * has not been translated yet, those variants are currently unimplemented here.
+ *
+ * @param {Viewer|SceneGraphPath} arg0
+ * @param {*} [arg1]
+ * @param {*} [arg2]
+ * @param {*} [arg3]
+ * @param {*} [arg4]
+ */
+export function encompass(arg0, arg1, arg2, arg3, arg4) {
+  // Viewer signature(s)
+  if (arg0 != null && typeof arg0.getCameraPath === 'function') {
+    /** @type {Viewer} */ // @ts-ignore
+    const viewer = arg0;
+
+    // encompass(viewer)
+    if (arg1 == null) {
+      _encompassViewer(viewer);
+      return;
+    }
+
+    // encompass(viewer, sgc, setStereoParameters[, metric])
+    /** @type {SceneGraphComponent} */ // @ts-ignore
+    const sgc = arg1;
+    const setStereoParameters = Boolean(arg2);
+    const metric = (arg3 != null) ? /** @type {number} */ (arg3) : Pn.EUCLIDEAN;
+    _encompassViewer(viewer, sgc, setStereoParameters, metric);
+    return;
+  }
+
+  // SceneGraphPath signature(s)
+  if (arg0 != null && typeof arg0.getMatrix === 'function' && typeof arg0.getInverseMatrix === 'function') {
+    // encompass(avatarPath, scene, cameraPath, margin, metric) in Java delegates to EncompassFactory.
+    // TODO: Implement once EncompassFactory is translated.
+    throw new Error('CameraUtility.encompass(SceneGraphPath, ...) requires EncompassFactory (not translated yet).');
+  }
+
+  throw new Error('Invalid arguments to encompass(...)');
+}
+
+/**
+ * Internal helper implementing the Viewer-based encompass overloads from Java.
+ *
+ * - _encompassViewer(viewer) matches Java encompass(Viewer)
+ * - _encompassViewer(viewer, sgc, setStereoParameters, metric) matches Java
+ *   encompass(Viewer, SceneGraphComponent, boolean, int)
+ *
+ * @param {Viewer} viewer
+ * @param {SceneGraphComponent} [sgc]
+ * @param {boolean} [setStereoParameters]
+ * @param {number} [metric]
+ */
+function _encompassViewer(viewer, sgc, setStereoParameters, metric) {
+  // encompass(Viewer)
+  if (sgc == null) {
+    // remove camera from the sceneRoot and encompass the result
+    const cp = viewer.getCameraPath();
+    if (cp == null) throw new Error('camerapath == null');
+    if (cp.getLength() < 3) {
+      throw new Error("can't encompass: possibly Camera attached to root");
+    }
+
+    // Second element of camerapath: the "cameraBranch"
+    const cameraBranch = /** @type {SceneGraphComponent} */ (cp.get(1));
+    const root = viewer.getSceneRoot();
+    if (root == null) throw new Error('sceneRoot == null');
+
+    let m = Pn.EUCLIDEAN;
+    const app = root.getAppearance?.() ?? null;
+    if (app != null) {
+      const foo = app.getAttribute(CommonAttributes.METRIC);
+      if (typeof foo === 'number') {
+        m = foo;
+      }
+    }
+
+    let visible = false;
+    try {
+      // TODO this is always true if camerapath starts at root
+      if (root.isDirectAncestor(cameraBranch)) {
+        visible = cameraBranch.isVisible();
+        cameraBranch.setVisible(false);
+      }
+      _encompassViewer(viewer, root, true, m);
+    } finally {
+      cameraBranch.setVisible(visible);
+    }
+    return;
+  }
+
+  // encompass(Viewer, SceneGraphComponent, boolean, int)
+  const m = metric ?? Pn.EUCLIDEAN;
+  const setStereo = Boolean(setStereoParameters);
+
+  /** @type {Rectangle3D} */
+  const worldBox = BoundingBoxUtility.calculateBoundingBox(sgc);
+  if (worldBox == null || worldBox.isEmpty()) {
+    console.warn('encompass: empty bounding box');
+    return;
+  }
+
+  // Transform world bounding box into avatar coordinates
+  /** @type {SceneGraphPath} */ // @ts-ignore
+  const w2a = viewer.getCameraPath().popNew();
+  w2a.pop();
+  const w2ava = w2a.getInverseMatrix(null);
+  worldBox.transformByMatrix(worldBox, w2ava);
+
+  if (worldBox == null || worldBox.isEmpty()) {
+    console.warn('encompass: empty bounding box');
+    return;
+  }
+
+  const cam = getCamera(viewer);
+
+  // the extent in camera coordinates
+  const extent = worldBox.getExtent();
+  const ww = (extent[1] > extent[0]) ? extent[1] : extent[0];
+  const focus = 0.5 * ww / Math.tan(Math.PI * (cam.getFieldOfView()) / 360.0);
+
+  const to = worldBox.getCenter();
+  to[2] += extent[2] * 0.5;
+
+  const tofrom = [0, 0, focus];
+  const from = Rn.add(null, to, tofrom);
+
+  const newCamToWorld = P3.makeTranslationMatrix(null, from, m);
+  const newWorldToCam = Rn.inverse(null, newCamToWorld);
+  const camNode = getCameraNode(viewer);
+  camNode.getTransformation().setMatrix(newCamToWorld);
+
+  const centerWorld = Rn.matrixTimesVector(null, newWorldToCam, worldBox.getCenter());
+  if (setStereo) {
+    cam.setFocus(Math.abs(centerWorld[2]));
+    cam.setEyeSeparation(cam.getFocus() / 12.0);
+  }
+
+  // TODO figure out why setting the near/far clipping planes sometimes doesn't work
+  const cameraBox = worldBox.transformByMatrix(null, newWorldToCam);
+  const zmin = cameraBox.getMinZ();
+  const zmax = cameraBox.getMaxZ();
+
+  // set the near and far parameters based on the transformed bounding box.
+  // be generous but not too generous: openGL rendering quality depends on somewhat tight bounds here.
+  if (zmax < 0.0) cam.setNear(-0.5 * zmax);
+  if (zmin < 0.0) cam.setFar(-2.0 * zmin);
 }
 

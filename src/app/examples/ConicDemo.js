@@ -20,6 +20,7 @@ import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
+import * as CameraUtility from '../../core/util/CameraUtility.js';
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 /**
@@ -29,13 +30,13 @@ setModuleLevel(logger.getModuleName(), Level.INFO);
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
-    return [true, true, false, true];
+    return [true, false, false, true];
   }
   _conicSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
    _conic = null;
-  _whichMode = 1;
+  _whichMode = 0;
   _doSVD = true;
   _psf = null;
 
@@ -83,7 +84,21 @@ export class ConicDemo extends JSRApp {
   display() {
     super.display();
     console.log('ConicDemo display');
-   
+
+    CameraUtility.encompass(this.getViewer());
+    // const cam = CameraUtility.getCamera(this.getViewer());
+    // const dim = this.getViewer().getViewingComponentSize();
+    // console.log('dimension', dim);
+    // const vp = CameraUtility.getViewport(cam, dim.width / dim.height);
+    // console.log('viewport', vp);
+    // const verts = [[vp.x, vp.y], [vp.x + vp.width, vp.y], [vp.x + vp.width, vp.y + vp.height], [vp.x, vp.y + vp.height]];
+    // const psf = new PointSetFactory();
+    // psf.setVertexCount(verts.length);
+    // psf.setVertexCoordinates(verts);
+    // psf.update();
+    // const psgc = SceneGraphUtility.createFullSceneGraphComponent('viewport');
+    // psgc.setGeometry(psf.getPointSet());
+    // this._worldSGC.addChildren(psgc);
   }
 
   setupConic() {

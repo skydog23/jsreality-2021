@@ -52,7 +52,7 @@ export class JSRApp extends JSRPlugin {
   /**
    * @type {JSRViewer} The JSRViewer instance (private)
    */
-  #jsrViewer;
+  #jsrViewer = null;
 
    /**
    * @type {ToolSystem|null} The tool system instance (protected)
