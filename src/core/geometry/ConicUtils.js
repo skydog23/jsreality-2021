@@ -41,12 +41,13 @@ export class ConicUtils {
         return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
     }
     static convertQToArray(Q) {
-        return [Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]];
+        return this.normalizeCoefficients([Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]]);
     }
 
     static convertArrayToQ(a,h,b,g,f,c) {
-        return [a,h/2,g/2,h/2,b,f/2,g/2,f/2,c];
+        return this.normalizeQ([a,h/2,g/2,h/2,b,f/2,g/2,f/2,c]);
     }
+
     static convertArrayToQ2D(a,h,b,g,f,c) {
         return [[a,h/2,g/2],[h/2,b,f/2],[g/2,f/2,c]];
     }
@@ -54,6 +55,16 @@ export class ConicUtils {
     static normalizeCoefficients(coefficients) {
         const mx = Rn.maxNorm(coefficients);
         return Rn.times(null, 1.0/mx, coefficients);
+    }
+
+    static normalizeQ(Q) {
+        const det = Rn.determinant(Q);
+        if (det !== 0) {
+            const n = Math.sqrt(Q.length);
+            const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
+            return Rn.times(null, factor, Q);
+        }
+        return Q;
     }
     /*
      Transform the conic by a projective transformation
@@ -240,7 +251,7 @@ export class ConicUtils {
         logger.fine(-1, "tform = "+tform33);
         const itform33 = P2.cofactor(tform33);
         logger.fine(-1, "itform = "+itform33);
-        const tformV = P2.multiplyMatrixVector(itform33, dcp);
+        const tformV = Rn.matrixTimesVector(null, itform33, dcp);
         logger.fine(-1, "tformV = "+tformV);
 
 

@@ -1,17 +1,20 @@
 This is a private todo list for me (a person named Charlie Gunn)
 
-* 3.12.25 Change File->Export  options to be "Export Image" and "Export SVG". 
-** Export image opens up a file dialog box for saving the image. It allows user to specify type (png or jpeg), size, dimensions, save alpha flag, and file name.  There is a lock icon for fixed aspect ratio, and a flag to save dimensions to next invocation of the dialog. It should render into a new canvas and save the canvas.
-** Export SVG: Leave the existing export svg code.
-** To test the rendering of a given backend, use the Viewer menu to select that backend. Add a flag to the file dialog to use the current viewer (type) to generate the image. 
-
-* Extend the scenegraph inspector with a tabbed pane and pack the SGI along with performance statistics and logger controls in separate tabs.
-
-* Add separete copyright notice for charlesgunn packages (animation, projectiveGeometry)
-
-* Add labels and borders to every nested list in the Descriptor tree
-
+* Go through jsreality-2021 and refactor method overloads so names match 1:1 Java versions.
+    * Look at the many variations in IndexedLineSetUtility of createCurve...() methods and see whether it might be possible to reduce the number of related methods by using optional arguments "foo: initvalue", since that's what many of the variants are doing: setting a default value for some parameter.
 
 * ConicDemo/ConicUtils: browser runner can hit 404 on `decimal.mjs` because `src/core/math/Decimal.js` imports from `/node_modules/**` (not served by many static dev servers). Prefer loading Decimal via importmap + vendored ESM (like `mathjs`) or use a bundler; otherwise fall back to non-HP SVD.
+
+* look at ganja.js and ask AI to convert it to readable JS, perhaps build it out to a genuine GA package.
+
+* look at GeoGebra source code project and investigate whether I can swap out the "backend" for jsreality pure projective approach
+
+* investigate adding an interactive js shell window to jsreality to allow interactive building up of scene graph.
+
+* combine the github pages in its current "pass through" form with the Hugo organic-geometry project to combine the best of both worlds: e-books, Penrose case studies, 
+
+* Have the AI create a table/list of all registered InputSlots and what their getTransformation() returns.
+
+* Add JSRViewer.display() static method so the jreality tutorial folder can be directly ported.
 
 

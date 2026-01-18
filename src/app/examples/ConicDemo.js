@@ -38,8 +38,8 @@ export class ConicDemo extends JSRApp {
   _conicSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
-   _conic = null;
-  _whichMode = 0;
+  _conic = null;
+  _whichMode = 2;
   _doSVD = true;
   _psf = null;
 
@@ -107,19 +107,20 @@ export class ConicDemo extends JSRApp {
     console.log('ConicDemo display');
     const cam = CameraUtility.getCamera(this.getViewer());
     const vc = this.getViewer().getViewingComponent();
-    cam.setFieldOfView(30);
-    // const dim = this.getViewer().getViewingComponentSize();
-    // console.log('dimension', dim);
-    // const vp = CameraUtility.getViewport(cam, dim.width / dim.height);
-    // console.log('viewport', vp);
-    // const verts = [[vp.x, vp.y], [vp.x + vp.width, vp.y], [vp.x + vp.width, vp.y + vp.height], [vp.x, vp.y + vp.height]];
-    // const psf = new PointSetFactory();
-    // psf.setVertexCount(verts.length);
-    // psf.setVertexCoordinates(verts);
-    // psf.update();
-    // const psgc = SceneGraphUtility.createFullSceneGraphComponent('viewport');
-    // psgc.setGeometry(psf.getPointSet());
-    // this._worldSGC.addChildren(psgc);
+    
+    // Add markers at the corners of the viewport
+    const dim = this.getViewer().getViewingComponentSize();
+    console.log('dimension', dim);
+    const vp = CameraUtility.getViewport(cam, dim.width / dim.height);
+    console.log('viewport', vp);
+    const verts = [[vp.x, vp.y], [vp.x + vp.width, vp.y], [vp.x + vp.width, vp.y + vp.height], [vp.x, vp.y + vp.height]];
+    const psf = new PointSetFactory();
+    psf.setVertexCount(verts.length);
+    psf.setVertexCoordinates(verts);
+    psf.update();
+    const psgc = SceneGraphUtility.createFullSceneGraphComponent('viewport');
+    psgc.setGeometry(psf.getPointSet());
+    this._worldSGC.addChildren(psgc);
 
     if (vc) {
       this._resizeObserver = new ResizeObserver(() => {

@@ -1,11 +1,11 @@
 /**
  * JavaScript port/translation of jReality.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
- * Schmies, Steffen Weissmann.
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ *
+ * Port of: de.jreality.geometry.TubeFactory
+ *
+ * Important jsreality policy:
+ * - This implementation enforces **4D homogeneous points only** for tube inputs.
+ *   If 3D points are detected, we throw and require upstream homogenization.
  */
 
 import { getLogger, Level, setModuleLevel, Category } from '../util/LoggingSystem.js';
@@ -82,6 +82,8 @@ export class TubeFactory {
   _closedCurve = false;
   /** @type {boolean} */
   _vertexColorsEnabled = false;
+
+  _tolerance = 1e-15;
 
   // cached working arrays for makeFrameField
   /** @type {number[][]|null} */
@@ -270,9 +272,7 @@ export class TubeFactory {
 
     // Enforce 4D-only policy
     if (polygon[0].length === 3) {
-      throw new Error(
-        'TubeFactory.makeFrameField: 3D points detected. Upstream code must homogenize to 4D before tubing.'
-      );
+      polygon = Pn.homogenize(null, polygon);
     }
     if (polygon[0].length !== 4) {
       throw new Error('TubeFactory.makeFrameField: Points must have dimension 4');
@@ -325,6 +325,7 @@ export class TubeFactory {
     const frame = new Array(16).fill(0);
     console.log('curve: ', this._theCurve);
 
+    // Construct the frames for the "internal joints", away from the ends of the curve
     for (let i = 1; i < numberJoints - 1; i++) {
       let theta = 0.0;
       let phi = 0.0;
@@ -338,8 +339,8 @@ export class TubeFactory {
       const osculatingPlane = P3.planeFromPoints(null, polygonh[i - 1], polygonh[i], polygonh[i + 1]);
       let size = Rn.euclideanNormSquared(osculatingPlane);
      logger.finer(Category.ALL, `osculatingPlane: ${Rn.toString(osculatingPlane)}`);
-      // binormal
-      if (size < 1e-15) {
+      // binormal is the normal to the osculating plane
+      if (size < this._tolerance) {
         collinear = true;
         if ((TubeFactory.debug & 2) !== 0) logger.finer(Category.ALL, 'degenerate binormal');
         if (i === 1) this.#binormalField[i - 1] = TubeUtility.getInitialBinormal(polygonh, metric);
@@ -354,6 +355,7 @@ export class TubeFactory {
       }
       Pn.setToLength(this.#binormalField[i - 1], this.#binormalField[i - 1], 1.0, metric);
 
+      // I once remembered this sign change for elliptic metric, but it's not needed for hyperbolic or euclidean.
       if (i > 1 && metric === Pn.ELLIPTIC) {
         const foo = Pn.angleBetween(this.#binormalField[i - 2], this.#binormalField[i - 1], metric);
         if (Math.abs(foo) > Math.PI / 2) Rn.times(this.#binormalField[i - 1], -1, this.#binormalField[i - 1]);
@@ -363,7 +365,7 @@ export class TubeFactory {
         logger.finer(Category.ALL, `Binormal is ${Rn.toString(this.#binormalField[i - 1])}`);
       }
 
-      // tangent via mid-plane (or user tangents)
+      // tangent via mid-plane (or user tangents if provided)
       let midPlane = null;
       let plane1 = null;
       let plane2 = null;
@@ -376,10 +378,10 @@ export class TubeFactory {
         else theta = 0;
       } else {
         if (!collinear) {
+          // construct the the two planes in the binormal plane pencil containing the two segments meeting here
           plane1 = P3.planeFromPoints(null, this.#binormalField[i - 1], polygonh[i], polygonh[i - 1]);
           plane2 = P3.planeFromPoints(null, this.#binormalField[i - 1], polygonh[i], polygonh[i + 1]);
-          console.log('plane1: ', plane1);
-          console.log('plane2: ', plane2);
+          // we approximate the tangent vector here as the perpendicular to the midplane of these two planes
           midPlane = Pn.midPlane(null, plane1, plane2, metric);
           size = Rn.euclideanNormSquared(midPlane);
           if ((TubeFactory.debug & 2) !== 0) {
@@ -390,18 +392,21 @@ export class TubeFactory {
           console.log('theta: ', theta);
         }
 
-        if (collinear || size < 1e-15) {
+        // if the three points are collinear, we use the pseudo-tangent vector
+        // But I can't recall the logic.  Probably better to pre-process the curve to remove collinear sequences.
+        if (collinear || size < this._tolerance) {
           if ((TubeFactory.debug & 2) !== 0) logger.finer(Category.ALL, 'degenerate Tangent vector');
 
-          const pseudoT = P3.lineIntersectPlane(null, polygonh[i - 1], polygonh[i + 1], polarPlane);
+          const pseudoTangent = P3.lineIntersectPlane(null, polygonh[i - 1], polygonh[i + 1], polarPlane);
           if ((TubeFactory.debug & 2) !== 0) {
-            logger.fine(Category.ALL, `pseudo-Tangent vector is ${Rn.toString(pseudoT)}`);
+            logger.fine(Category.ALL, `pseudo-Tangent vector is ${Rn.toString(pseudoTangent)}`);
           }
+          midPlane = (metric !== Pn.EUCLIDEAN) ? Pn.polarizePoint(null, pseudoTangent, metric) : pseudoTangent;
           // euclidean vs non-euclidean
           if (metric !== Pn.EUCLIDEAN) {
-            midPlane = Pn.polarizePoint(null, pseudoT, metric);
+            midPlane = Pn.polarizePoint(null, pseudoTangent, metric);
           } else {
-            midPlane = pseudoT;
+            midPlane = pseudoTangent;
           }
           theta = Math.PI;
         }
@@ -409,23 +414,27 @@ export class TubeFactory {
         if ((TubeFactory.debug & 2) !== 0) {
           logger.fine(Category.ALL, `Midplane is ${Rn.toString(midPlane)}`);
         }
+        // polarize the midplane to get the tangent vector
         Pn.polarizePlane(this.#tangentField[i - 1], midPlane, metric);
       }
 
       // choose sign of tangent
+      // It should be in roughly the same direction as the segment that brings me to this point
       const diff = Rn.subtract(null, polygonh[i], polygonh[i - 1]);
       if (Rn.innerProduct(diff, this.#tangentField[i - 1]) < 0.0) {
         Rn.times(this.#tangentField[i - 1], -1.0, this.#tangentField[i - 1]);
       }
-
+      // normalize the tangent vector
       Pn.setToLength(this.#tangentField[i - 1], this.#tangentField[i - 1], 1.0, metric);
 
-      // frenet normal
+      // frenet normal is the normal to the plane spanned by the binormal and tangent fields at this point
+      // That is, it completes the orthonormal frame.
       Pn.polarizePlane(
         this.#frenetNormalField[i - 1],
         P3.planeFromPoints(null, this.#binormalField[i - 1], this.#tangentField[i - 1], polygonh[i]),
         metric
       );
+      // normalize the frenet normal
       Pn.setToLength(this.#frenetNormalField[i - 1], this.#frenetNormalField[i - 1], 1.0, metric);
       if ((TubeFactory.debug & 2) !== 0) {
         logger.fine(Category.ALL, `frenet normal is ${Rn.toString(this.#frenetNormalField[i - 1])}`);
@@ -435,32 +444,36 @@ export class TubeFactory {
         if (i === 1) {
           for (let k = 0; k < 4; k++) this.#parallelNormalField[0][k] = this.#frenetNormalField[0][k];
         } else {
+          // parallel-transport the previous parallel normal to the current point
           const nPlane = P3.planeFromPoints(null, polygonh[i], polygonh[i - 1], this.#parallelNormalField[i - 2]);
+          // by intersecting with the midplane and the polar plane we obtain a vector in the tangent space 
+          // to polygonh[i] that has the same direction as the previous parallel normal but is now "based"
+          // at polygonh[i].
           const projectedN = P3.pointFromPlanes(null, nPlane, midPlane, polarPlane);
           let projected = projectedN;
-          if (Rn.euclideanNormSquared(projected) < 1e-15) {
+          if (Rn.euclideanNormSquared(projected) < this._tolerance) {
             logger.fine(Category.ALL, 'degenerate normal');
             projected = this.#parallelNormalField[i - 2];
           }
           this.#parallelNormalField[i - 1] = Pn.normalizePlane(null, projected, metric);
         }
 
-        if (this.#parallelNormalField[i - 1] == null) {
-          this.#parallelNormalField[i - 1] = this.#parallelNormalField[i - 2];
-        } else {
-          Pn.setToLength(this.#parallelNormalField[i - 1], this.#parallelNormalField[i - 1], 1.0, metric);
-        }
+        Pn.setToLength(this.#parallelNormalField[i - 1], this.#parallelNormalField[i - 1], 1.0, metric);
 
         if ((TubeFactory.debug & 128) !== 0) {
           logger.fine(Category.ALL, `Parallel normal is ${Rn.toString(this.#parallelNormalField[i - 1])}`);
         }
 
+        // phi is the angle betwee the frenet direction (determined by torsion of the curve)
+        // and the parallel direction (which ignores the torsion as much as possible).
         phi = Pn.angleBetween(this.#frenetNormalField[i - 1], this.#parallelNormalField[i - 1], metric);
+        // as usual, the elliptic metric is more sensitive.
         if (metric === Pn.ELLIPTIC) {
           if (phi > Math.PI / 2) phi = phi - Math.PI;
           else if (phi < -Math.PI / 2) phi = phi + Math.PI;
         }
         const a = Pn.angleBetween(this.#parallelNormalField[i - 1], this.#binormalField[i - 1], metric);
+        // we force phi to be in the range [-pi/2, pi/2].
         if (a > Math.PI / 2) phi = -phi;
         if (this._isLine) phi = 0;
       } else {
@@ -506,7 +519,7 @@ export class TubeFactory {
         nextPoint = cc[i];
         d = Rn.euclideanDistance(currentPoint, nextPoint);
         i++;
-      } while (d < 1e-15 && i < n);
+      } while (d < this._tolerance && i < n);
       if (i === n) break;
       currentPoint = nextPoint;
       v.push(currentPoint);
@@ -519,7 +532,7 @@ export class TubeFactory {
     for (let i = 1; i < n - 1; i++) {
       const bloop = P3.planeFromPoints(null, polygon[i - 1], polygon[i], polygon[i + 1]);
       console.log('bloop', bloop);
-      if (Rn.euclideanNormSquared(bloop) > 1e-15) {
+      if (Rn.euclideanNormSquared(bloop) > this._tolerance) {
         this._isLine = false;
         return;
       }
@@ -528,8 +541,5 @@ export class TubeFactory {
   }
 
 
-
-  // Visualization helpers from Java are intentionally not ported yet.
-  // They depend on other geometry factories (BallAndStickFactory) not currently present in jsreality.
 }
 

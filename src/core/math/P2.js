@@ -12,16 +12,6 @@
 import * as Pn from './Pn.js';
 import * as Rn from './Rn.js';
 
-
-
-
-
-
-
-
-
-
-
 /**
  * @param {number[]} p1
  * @param {number[]} p2
