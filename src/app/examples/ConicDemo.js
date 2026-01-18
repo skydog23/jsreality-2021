@@ -21,7 +21,6 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
-import * as CameraUtility from '../../core/util/CameraUtility.js';
 
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -106,6 +105,20 @@ export class ConicDemo extends JSRApp {
     console.log('ConicDemo display');
     const cam = CameraUtility.getCamera(this.getViewer());
     const vc = this.getViewer().getViewingComponent();
+    cam.setFieldOfView(30);
+    // const dim = this.getViewer().getViewingComponentSize();
+    // console.log('dimension', dim);
+    // const vp = CameraUtility.getViewport(cam, dim.width / dim.height);
+    // console.log('viewport', vp);
+    // const verts = [[vp.x, vp.y], [vp.x + vp.width, vp.y], [vp.x + vp.width, vp.y + vp.height], [vp.x, vp.y + vp.height]];
+    // const psf = new PointSetFactory();
+    // psf.setVertexCount(verts.length);
+    // psf.setVertexCoordinates(verts);
+    // psf.update();
+    // const psgc = SceneGraphUtility.createFullSceneGraphComponent('viewport');
+    // psgc.setGeometry(psf.getPointSet());
+    // this._worldSGC.addChildren(psgc);
+
     if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
         // update layout / camera / viewport as needed
