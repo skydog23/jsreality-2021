@@ -16,18 +16,24 @@ import { ConicUtils } from './ConicUtils.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
 import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
+import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
+import * as CommonAttributes from '../shader/CommonAttributes.js';
+import { Color } from '../util/Color.js';
+import { LineUtility } from './projective/LineUtility.js';
+import { fromDataList } from '../scene/data/DataUtility.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { convert4To3, convert3To4 } from '../math/Rn.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicSection {
    curve = null;
-   conicSGC = null;
-   pointSGC = null;
+   dualConicSGC = null;
    centerPoint = [0,0,1];
    pointOnConic = [0,0,1];
    drawRadials = false;
-   numPoints = 1000;
+   numPoints = 250;
    tolerance = 1e-6;
    coefficients = [1,0,1,0,0,-1];
    svdConic = null;
@@ -53,15 +59,15 @@ export class ConicSection {
         this.dQ = P2.cofactor(null, this.Q);
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
         this.dQ = ConicUtils.normalizeQ(this.dQ);
-        logger.info(-1, 'conic Q',this.Q);
-        logger.info(-1, 'conic dQ',this.dQ);
-        logger.info(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
+        logger.fine(-1, 'conic Q',this.Q);
+        logger.fine(-1, 'conic dQ',this.dQ);
+        logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
   
     // get the geometric representation for the conic
     update() {
-        logger.info(-1, 'Updating conic section');
-         logger.info(-1, 'conic rank',this.rank);
+        logger.fine(-1, 'Updating conic section');
+         logger.fine(-1, 'conic rank',this.rank);
        
          if (this.rank === 1) {
             let l1 = new PointRangeFactory();
@@ -93,7 +99,7 @@ export class ConicSection {
             this.centerPoint = this.fivePoints.reduce((acc, point) => {return Rn.add(null, acc, point);}, [0,0,0]);
             this.centerPoint = Pn.dehomogenize(null, this.centerPoint);
         }
-        logger.info(-1, 'Conic center:', this.centerPoint); 
+        logger.fine(-1, 'Conic center:', this.centerPoint); 
      // Try several lines through X to find a good point on the conic
         this.findPointOnConic();
 
@@ -126,6 +132,29 @@ export class ConicSection {
 
     getIndexedLineSet() {
         return this.curve;
+    }
+
+    getDualCurveSGC() {
+        if (this.dualConicSGC === null) {
+            this.dualConicSGC = SceneGraphUtility.createFullSceneGraphComponent('dual curve');
+            const ap = this.dualConicSGC.getAppearance();
+            ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
+            ap.setAttribute(CommonAttributes.TUBES_DRAW, true);
+            ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
+            ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, new Color(125, 255, 125));
+            ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+        }
+        this.#updateDualCurveSGC();
+        return this.dualConicSGC;
+    }
+
+    #updateDualCurveSGC() {
+        const sampledCoords = fromDataList(this.curve.getVertexAttribute(GeometryAttribute.COORDINATES)).filter((pt,i) => (i%4) === 0);
+        const sampledCurve = sampledCoords.map(pt => Rn.convert4To3(null,pt));
+        const lineCurve = sampledCurve.map(pt => P2.normalizeLine(ConicUtils.polarize(this.Q, pt)));
+        // console.log('lineCurve = ', lineCurve);
+        this.dualConicSGC.removeAllChildren();
+        LineUtility.sceneGraphForCurveOfLines(this.dualConicSGC, lineCurve, sampledCoords, 2.0, true);
     }
 
     findPointOnConic() {

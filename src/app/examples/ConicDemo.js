@@ -36,12 +36,14 @@ export class ConicDemo extends JSRApp {
     return [true, false, false, true];
   }
   _conicSGC = null;
+  _dualConicSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
   _conic = null;
-  _whichMode = 2;
+  _whichMode = 0;
   _doSVD = true;
   _psf = null;
+  _doDualCurve = false;
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
@@ -99,6 +101,7 @@ export class ConicDemo extends JSRApp {
     this._worldSGC.addTool(new MyEncompassTool());
 
     this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC);
+    if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
     return this._worldSGC;
   }
 
@@ -151,11 +154,13 @@ export class ConicDemo extends JSRApp {
     
     this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
 
+    if (this._doDualCurve) this._dualCurveSGC = this._conic.getDualCurveSGC();
     this._psf.getPointSet().addGeometryListener((event) => {
       // console.log('geometry changed', event);
       let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
       let fivePoints = DataUtility.fromDataList(vertices);
       ConicUtils.getConicThroughFivePoints(fivePoints, this._conic, this._doSVD);
+      if (this._doDualCurve) this._conic.getDualCurveSGC();
       this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
       this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
     });

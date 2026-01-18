@@ -66,6 +66,10 @@ export class ConicUtils {
         }
         return Q;
     }
+
+    static polarize(Q, element){
+        return Rn.matrixTimesVector(null, Q, element);
+    }
     /*
      Transform the conic by a projective transformation
      @param {number[][]} Q - The conic matrix

@@ -185,8 +185,9 @@ export class LineUtility {
    * @param {boolean} [finite=false]
    * @returns {SceneGraphComponent}
    */
-  static sceneGraphForLine(exists, line, point, scale, finite = false) {
+  static sceneGraphForLine(exists, line, point=null, scale=false, finite = false) {
     if (exists == null) exists = new SceneGraphComponent();
+    if (line.length === 3) line = LineUtility.convert2DLineToPluckerLine(line);
     const prf = new PointRangeFactory();
     prf.setPluckerLine(line);
     if (point == null) point = [0, 0, 0, 1];
@@ -300,6 +301,9 @@ export class LineUtility {
     return [p1, p2];
   }
 
+  static convert2DLineToPluckerLine(abc) {
+    return [abc[2], 0, -abc[1], 0, -abc[0], 0];
+  }
   /**
    * @param {number[]|null} dst
    * @param {number[]} line
