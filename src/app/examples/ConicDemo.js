@@ -21,6 +21,8 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
+import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
+import { InputSlot } from '../../core/scene/tool/InputSlot.js';
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 /**
@@ -76,7 +78,25 @@ export class ConicDemo extends JSRApp {
     const tool = new DragPointTool();
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
+    
+    class MyEncompassTool extends AbstractTool {
       
+    
+      static encompassSlot = InputSlot.getDevice('EncompassActivation');
+    
+      constructor() {
+        super();
+        this.addCurrentSlot(MyEncompassTool.encompassSlot);
+      }
+
+      perform(tc) {
+        console.log('MyEncompassTool.perform()', tc);
+        CameraUtility.encompass(tc.getViewer());
+        tc.getViewer().renderAsync();
+      }
+    }
+    this._worldSGC.addTool(new MyEncompassTool());
+
     this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC);
     return this._worldSGC;
   }
@@ -85,8 +105,9 @@ export class ConicDemo extends JSRApp {
     super.display();
     console.log('ConicDemo display');
 
-    CameraUtility.encompass(this.getViewer());
-    // const cam = CameraUtility.getCamera(this.getViewer());
+    // CameraUtility.encompass(this.getViewer());
+    const cam = CameraUtility.getCamera(this.getViewer());
+    cam.setFieldOfView(30);
     // const dim = this.getViewer().getViewingComponentSize();
     // console.log('dimension', dim);
     // const vp = CameraUtility.getViewport(cam, dim.width / dim.height);

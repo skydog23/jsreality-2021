@@ -126,7 +126,7 @@ export class DeviceKeyboard {
     if (keyCode === null) return;
     
     const slot = this.#keysToVirtual.get(keyCode);
-    if (slot !== null) {
+    if (slot != null) {
       this.#enqueueEvent(e, true);
     }
     
@@ -144,7 +144,7 @@ export class DeviceKeyboard {
     if (keyCode === null) return;
     
     const slot = this.#keysToVirtual.get(keyCode);
-    if (slot !== null) {
+    if (slot != null) {
       this.#enqueueEvent(e, false);
     }
     
@@ -208,7 +208,7 @@ export class DeviceKeyboard {
     
     for (const mod of modifiers) {
       const slot = this.#keysToVirtual.get(mod.code);
-      if (slot !== null) {
+      if (slot != null) {
         const wasPressed = this.#keyState.get(mod.code) === true;
         if (!mod.down && wasPressed) {
           // Modifier was released
@@ -301,7 +301,7 @@ export class DeviceKeyboard {
       // Only process if state changed
       if (wasPressed !== pressed) {
         const slot = this.#keysToVirtual.get(keyCode);
-        if (slot !== null) {
+        if (slot != null) {
           const state = pressed ? AxisState.PRESSED : AxisState.ORIGIN;
           this.#queue.addEvent(new ToolEvent(
             queued.event,

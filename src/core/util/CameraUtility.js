@@ -25,6 +25,7 @@ import * as P3 from '../math/P3.js';
 import { BoundingBoxUtility } from '../geometry/BoundingBoxUtility.js';
 import { Rectangle3D } from './Rectangle3D.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
+import { EncompassFactory } from './EncompassFactory.js';
 
 /** @typedef {import('../scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../scene/Camera.js').Camera} Camera */
@@ -368,7 +369,19 @@ export function encompass(arg0, arg1, arg2, arg3, arg4) {
   if (arg0 != null && typeof arg0.getMatrix === 'function' && typeof arg0.getInverseMatrix === 'function') {
     // encompass(avatarPath, scene, cameraPath, margin, metric) in Java delegates to EncompassFactory.
     // TODO: Implement once EncompassFactory is translated.
-    throw new Error('CameraUtility.encompass(SceneGraphPath, ...) requires EncompassFactory (not translated yet).');
+    const avatarPath = arg0;
+    const scenePath = arg1;
+    const cameraPath = arg2;
+    const margin = (arg3 != null) ? arg3 : 0.0;
+    const metric = (arg4 != null) ? arg4 : Pn.EUCLIDEAN;
+    const ef = new EncompassFactory();
+    ef.setAvatarPath(avatarPath);
+    ef.setScenePath(scenePath);
+    ef.setCameraPath(cameraPath);
+    ef.setMargin(margin);
+    ef.setMetric(metric);
+    ef.update();
+    return;
   }
 
   throw new Error('Invalid arguments to encompass(...)');

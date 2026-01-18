@@ -128,6 +128,14 @@ export class SceneGraphPath {
   }
 
   /**
+   * Convert path to a regular array (alias for toList; matches Java naming expectations)
+   * @returns {SceneGraphNode[]}
+   */
+  toArray() {
+    return this.toList();
+  }
+
+  /**
    * Get an iterator over the path nodes
    * @returns {Iterator<SceneGraphNode>}
    */
@@ -361,51 +369,64 @@ export class SceneGraphPath {
   /*** Matrix calculations ***/
 
   /**
-   * Get the cumulative transformation matrix for the entire path
-   * @param {number[]|null} [matrix] - Optional matrix to store result (will be allocated if null)
-   * @returns {number[]} 4x4 transformation matrix as flat array
+   * Get the cumulative transformation matrix for the path.
+   *
+   * Java overloads collapsed into one runtime-dispatch method:
+   * - getMatrix(): number[]
+   * - getMatrix(dst: number[]|null): number[]
+   * - getMatrix(dst: number[]|null, begin: number): number[]
+   * - getMatrix(dst: number[]|null, begin: number, end: number): number[]
+   *
+   * @param {number[]|null} [aMatrix]
+   * @param {number} [begin]
+   * @param {number} [end]
+   * @returns {number[]}
    */
-  getMatrix(matrix = null) {
-    return this.getMatrixRange(matrix, 0, this.#path.length - 1);
+  getMatrix(aMatrix = null, begin, end) {
+    // getMatrix(dst, begin, end)
+    if (typeof begin === 'number' && typeof end === 'number') {
+      return this._getMatrixRangeImpl(aMatrix, begin, end);
+    }
+    // getMatrix(dst, begin)
+    if (typeof begin === 'number') {
+      return this._getMatrixRangeImpl(aMatrix, begin, this.#path.length - 1);
+    }
+    // getMatrix(dst)
+    return this._getMatrixRangeImpl(aMatrix, 0, this.#path.length - 1);
   }
 
   /**
-   * Get the cumulative transformation matrix starting from a specific node
-   * @param {number[]|null} [matrix] - Optional matrix to store result
-   * @param {number} begin - Starting index
-   * @returns {number[]} 4x4 transformation matrix as flat array
+   * Backward-compatible wrapper. Prefer getMatrix(dst, begin, end).
+   * @deprecated
+   * @param {number[]|null} [matrix]
+   * @param {number} [begin]
+   * @returns {number[]}
    */
   getMatrixFrom(matrix = null, begin = 0) {
-    return this.getMatrixRange(matrix, begin, this.#path.length - 1);
+    return this.getMatrix(matrix, begin);
   }
 
   /**
-   * Get the inverse of the cumulative transformation matrix for the entire path
-   * @param {number[]|null} [invMatrix] - Optional matrix to store result
-   * @returns {number[]} 4x4 inverse transformation matrix as flat array
-   */
-  getInverseMatrix(invMatrix = null) {
-    return this.getInverseMatrixRange(invMatrix, 0, this.#path.length - 1);
-  }
-
-  /**
-   * Get the inverse of the cumulative transformation matrix starting from a specific node
-   * @param {number[]|null} [invMatrix] - Optional matrix to store result
-   * @param {number} begin - Starting index
-   * @returns {number[]} 4x4 inverse transformation matrix as flat array
-   */
-  getInverseMatrixFrom(invMatrix = null, begin = 0) {
-    return this.getInverseMatrixRange(invMatrix, begin, this.#path.length - 1);
-  }
-
-  /**
-   * Get the cumulative transformation matrix for a range of nodes in the path
-   * @param {number[]|null} [matrix] - Optional matrix to store result
-   * @param {number} begin - Starting index (inclusive)
-   * @param {number} end - Ending index (inclusive)
-   * @returns {number[]} 4x4 transformation matrix as flat array
+   * Backward-compatible wrapper. Prefer getMatrix(dst, begin, end).
+   * @deprecated
+   * @param {number[]|null} [matrix]
+   * @param {number} [begin]
+   * @param {number} [end]
+   * @returns {number[]}
    */
   getMatrixRange(matrix = null, begin = 0, end = this.#path.length - 1) {
+    return this.getMatrix(matrix, begin, end);
+  }
+
+  /**
+   * Implementation of Java getMatrix(dst, begin, end).
+   * @private
+   * @param {number[]|null} matrix
+   * @param {number} begin
+   * @param {number} end
+   * @returns {number[]}
+   */
+  _getMatrixRangeImpl(matrix, begin, end) {
     const result = matrix || new Array(16);
     Rn.setIdentityMatrix(result);
 
@@ -422,14 +443,62 @@ export class SceneGraphPath {
   }
 
   /**
-   * Get the inverse of the cumulative transformation matrix for a range of nodes
-   * @param {number[]|null} [matrix] - Optional matrix to store result
-   * @param {number} begin - Starting index (inclusive)
-   * @param {number} end - Ending index (inclusive)
-   * @returns {number[]} 4x4 inverse transformation matrix as flat array
+   * Get the inverse of the cumulative transformation matrix for the path.
+   *
+   * Java overloads collapsed into one runtime-dispatch method:
+   * - getInverseMatrix(): number[]
+   * - getInverseMatrix(dst: number[]|null): number[]
+   * - getInverseMatrix(dst: number[]|null, begin: number): number[]
+   * - getInverseMatrix(dst: number[]|null, begin: number, end: number): number[]
+   *
+   * @param {number[]|null} [aMatrix]
+   * @param {number} [begin]
+   * @param {number} [end]
+   * @returns {number[]}
+   */
+  getInverseMatrix(aMatrix = null, begin, end) {
+    if (typeof begin === 'number' && typeof end === 'number') {
+      return this._getInverseMatrixRangeImpl(aMatrix, begin, end);
+    }
+    if (typeof begin === 'number') {
+      return this._getInverseMatrixRangeImpl(aMatrix, begin, this.#path.length - 1);
+    }
+    return this._getInverseMatrixRangeImpl(aMatrix, 0, this.#path.length - 1);
+  }
+
+  /**
+   * Backward-compatible wrapper. Prefer getInverseMatrix(dst, begin, end).
+   * @deprecated
+   * @param {number[]|null} [invMatrix]
+   * @param {number} [begin]
+   * @returns {number[]}
+   */
+  getInverseMatrixFrom(invMatrix = null, begin = 0) {
+    return this.getInverseMatrix(invMatrix, begin);
+  }
+
+  /**
+   * Backward-compatible wrapper. Prefer getInverseMatrix(dst, begin, end).
+   * @deprecated
+   * @param {number[]|null} [matrix]
+   * @param {number} [begin]
+   * @param {number} [end]
+   * @returns {number[]}
    */
   getInverseMatrixRange(matrix = null, begin = 0, end = this.#path.length - 1) {
-    const forwardMatrix = this.getMatrixRange(null, begin, end);
+    return this.getInverseMatrix(matrix, begin, end);
+  }
+
+  /**
+   * Implementation of Java getInverseMatrix(dst, begin, end).
+   * @private
+   * @param {number[]|null} matrix
+   * @param {number} begin
+   * @param {number} end
+   * @returns {number[]}
+   */
+  _getInverseMatrixRangeImpl(matrix, begin, end) {
+    const forwardMatrix = this.getMatrix(null, begin, end);
     const result = matrix || new Array(16);
     return Rn.inverse(result, forwardMatrix);
   }

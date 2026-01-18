@@ -241,7 +241,7 @@ export class DeviceManager {
           device.setEventQueue(eventQueue);
           this.#rawDevices.set(rdc.getDeviceID(), device);
           // Register polling devices
-          if (device instanceof PollingDevice) {
+          if (device != null && typeof device.poll === 'function') {
             Poller.getSharedInstance().addPollingDevice(device);
           }
         }
@@ -701,7 +701,7 @@ export class DeviceManager {
   dispose() {
     // Dispose raw devices
     for (const [deviceID, device] of this.#rawDevices.entries()) {
-      if (device instanceof PollingDevice) {
+      if (device != null && typeof device.poll === 'function') {
         Poller.getSharedInstance().removePollingDevice(device);
       }
       device.dispose();

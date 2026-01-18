@@ -451,9 +451,11 @@ export class ToolSystem extends ToolEventReceiver {
         new RawMapping('Keyboard', 'VK_A', InputSlot.VK_A),
         new RawMapping('Keyboard', 'VK_S', InputSlot.VK_S),
         new RawMapping('Keyboard', 'VK_D', InputSlot.VK_D),
-        new RawMapping('Keyboard', 'VK_SHIFT', InputSlot.SHIFT_LEFT_BUTTON),
-        new RawMapping('Keyboard', 'VK_CONTROL', InputSlot.VK_CONTROL),
-        new RawMapping('Keyboard', 'VK_ALT', InputSlot.VK_ALT),
+        new RawMapping('Keyboard', 'VK_E', InputSlot.getDevice('EncompassActivation')),
+        new RawMapping('Keyboard', 'VK_SHIFT', InputSlot.getDevice('Secondary')),
+        new RawMapping('Keyboard', 'VK_CONTROL', InputSlot.getDevice('Meta')),
+        new RawMapping('Keyboard', 'VK_META', InputSlot.getDevice('Meta')),
+        new RawMapping('Keyboard', 'VK_ALT', InputSlot.getDevice('AltMeta')),
         // System timer mapping
         new RawMapping('Timer', 'tick', InputSlot.SYSTEM_TIME)
       ],
