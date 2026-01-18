@@ -1,0 +1,33 @@
+KeyboardListenerTool feasibility + InputSlotFactory notes
+
+Feasibility
+- High. The ToolSystem already emits ToolEvents for keyboard slots (VK_*).
+- A tool can be always-active and switch on tc.getSource().getName().
+- This can replicate ViewerKeyListener-style behavior with a case statement.
+- Focus still matters: the viewing component must be focused for key events.
+
+Design outline
+- A KeyboardListenerTool can register activation slots for keys you care about.
+- In perform(tc):
+  - const slot = tc.getSource();
+  - switch (slot.getName()) { case 'VK_E': ... }
+
+InputSlotFactory idea
+- InputSlot.getDevice(...) already lets you create slots dynamically.
+- A helper can map 'e' -> InputSlot.getDevice('VK_E').
+
+Example helper
+- inputSlotForKey('e') → InputSlot.getDevice('VK_E')
+- Add special keys as needed (Enter, Escape, ArrowUp, etc.).
+
+Important caveat
+- Creating the InputSlot is not enough.
+- The keyboard device must still be mapped to that slot or ToolSystem won’t emit events.
+
+Ways to avoid big JSON configs
+- Build ToolSystemConfiguration programmatically and add raw mappings in code.
+- Or extend DeviceKeyboard to auto-map VK_* to themselves / a registry.
+
+Estimated effort
+- 1–2 hours for a working tool with a small set of keys.
+- 0.5–1 day for broad parity with ViewerKeyListener (many keys, UI hooks).
