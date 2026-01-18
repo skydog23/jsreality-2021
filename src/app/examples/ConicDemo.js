@@ -21,6 +21,8 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
+import * as CameraUtility from '../../core/util/CameraUtility.js';
+
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 /**
