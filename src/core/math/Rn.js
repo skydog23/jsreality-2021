@@ -48,24 +48,6 @@ function mysqrt(sq) {
   }
 }
 
-/**
- * Dehomogenize a homogeneous vector by dividing by the last coordinate.
- * If the last coordinate is (near) zero, returns a copy scaled by 1 (no-op).
- * @param {number[]|null} dst
- * @param {number[]} src
- * @returns {number[]}
- */
-export function dehomogenize(dst, src) {
-  const length = src.length;
-  let factor = 1.0;
-  if (dst == null) dst = new Array(length);
-  if (Math.abs(src[length-1]) > 1e-10) {
-      factor = 1.0 / src[length-1];
-  }
-  return /** @type {number[]} */ (times(dst, factor, src));
-}
-
-
 // Helper: fill array with value
 /**
  * Fill a vector with a scalar value.

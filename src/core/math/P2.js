@@ -9,136 +9,18 @@
  */
 
 // P2.js - Projective Plane Point utilities (classless)
+import * as Pn from './Pn.js';
 import * as Rn from './Rn.js';
 
-// Create a point from affine coordinates (sets w=1)
-/**
- * @param {number} x
- * @param {number} y
- * @returns {number[]}
- */
-export function fromAffine(x, y) {
-    return [x, y, 1];
-}
 
-// Create a point at infinity in direction (x,y)
-/**
- * @param {number} x
- * @param {number} y
- * @returns {number[]}
- */
-export function atInfinity(x, y) {
-    const norm = Math.sqrt(x*x + y*y);
-    return [x/norm, y/norm, 0];
-}
 
-/**
- * @param {number[]} p1
- * @param {number[]} p2
- * @returns {number}
- */
-export function euclideanDistance(p1, p2) {
-    return Math.sqrt(euclideanDistanceSquared(p1, p2));
-}
 
-/**
- * @param {number[]} p1
- * @param {number[]} p2
- * @returns {number}
- */
-export function euclideanDistanceSquared(p1, p2) {
-    p1 = dehomogenize(p1);
-    p2 = dehomogenize(p2);
-    return innerProduct(subtract(p1,p2), subtract(p1,p2));
-}
 
-/**
- * @param {number[]} p1
- * @param {number[]} p2
- * @returns {number[]}
- */
-export function add(p1, p2) {
-    return [p1[0]+p2[0], p1[1]+p2[1], p1[2]+p2[2]];
-}
 
-/**
- * @param {number[]} p1
- * @param {number[]} p2
- * @returns {number[]}
- */
-export function subtract(p1, p2) {
-    return [p1[0]-p2[0], p1[1]-p2[1], p1[2]-p2[2]];
-}
 
-/**
- * @param {number} s
- * @param {number[]} p2
- * @returns {number[]}
- */
-export function scale(s, p2) {
-    return [s*p2[0], s*p2[1], s*p2[2]];
-}
 
-// Dehomogenize the point - if w is close to 0, leave it,
-// otherwise scale to make w=1
-/**
- * @param {number[]} p
- * @returns {number[]}
- */
-export function dehomogenize(p) {
-    if (Math.abs(p[2]) < 1e-10) {
-        return [p[0], p[1], 0];
-    } else {
-        return [p[0]/p[2], p[1]/p[2], 1];
-    }
-}
 
-// Check if point is at infinity
-/**
- * @param {number[]} p
- * @returns {boolean}
- */
-export function isAtInfinity(p) {
-    return Math.abs(p[2]) < 1e-10;
-}
 
-// Get affine coordinates (x/w, y/w) if finite, null if at infinity
-/**
- * @param {number[]} p
- * @returns {{ x: number, y: number } | null}
- */
-export function getAffine(p) {
-    if (isAtInfinity(p)) return null;
-    return { x: p[0]/p[2], y: p[1]/p[2] };
-}
-
-// Dot product
-/**
- * @param {number[]} p1
- * @param {number[]} p2
- * @returns {number}
- */
-export function innerProduct(p1, p2) {
-    return p1[0]*p2[0] + p1[1]*p2[1] + p1[2]*p2[2];
-}
-
-/**
- * @param {number[]} p
- * @returns {number}
- */
-export function norm(p) {
-    return Math.sqrt(innerProduct(p,p));
-}
-
-/**
- * @param {number[]} p
- * @returns {number[]}
- */
-export function normalize(p) {
-    const n = norm(p);
-    if (n < 1e-10) return p;
-    return scale(1/n, p);
-}
 
 /**
  * @param {number[]} p1
@@ -146,10 +28,10 @@ export function normalize(p) {
  * @returns {number[]}
  */
 export function pointFromLines(p1, p2) {
-    const [x1,y1,w1] = dehomogenize(p1);
-    const [x2,y2,w2] = dehomogenize(p2);
+    const [x1,y1,w1] = Pn.dehomogenize(p1);
+    const [x2,y2,w2] = Pn.dehomogenize(p2);
     const ret = outerProduct([x1,y1,w1], [x2,y2,w2]);
-    return dehomogenize(ret);
+    return Pn.dehomogenize(ret);
 }
 
 /**
@@ -169,8 +51,8 @@ export function normalizeLine(line) {
  * @returns {number[]}
  */
 export function lineFromPoints(p1, p2) {
-    const [x1,y1,w1] = dehomogenize(p1);
-    const [x2,y2,w2] = dehomogenize(p2);
+    const [x1,y1,w1] = Pn.dehomogenize(p1);
+    const [x2,y2,w2] = Pn.dehomogenize(p2);
     const ret = outerProduct([x1,y1,w1], [x2,y2,w2]);
     return normalizeLine(ret);
 }
@@ -294,4 +176,284 @@ export function multiplyMatrixVector(matrix, vector) {
         }
     }
     return result;
+}
+
+/**
+ * Calculate the Euclidean perpendicular bisector of the segment from p1 to p2.
+ * @param {number[]|null} dst
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
+export function perpendicularBisector(dst, p1, p2, metric) {
+    if (p1.length !== 3 || p2.length !== 3) {
+        throw new Error('Input points must be homogeneous vectors');
+    }
+    if (metric == null || metric === Pn.EUCLIDEAN) {
+        if (!dst) dst = new Array(3);
+        const avg = Rn.add(null, Pn.dehomogenize(null, p1), Pn.dehomogenize(null, p2));
+        Rn.times(avg, 0.5, avg);
+        const line = lineFromPoints(p1, p2);
+        dst[0] = -line[1];
+        dst[1] = line[0];
+        dst[2] = -(dst[0] * avg[0] + dst[1] * avg[1]);
+        return dst;
+    }
+    if (!dst) dst = new Array(3);
+    const midpoint = new Array(3);
+    Pn.linearInterpolation(midpoint, p1, p2, 0.5, metric);
+    const line = lineFromPoints(p1, p2);
+    const polarM = Pn.polarize(null, midpoint, metric);
+    const pb = pointFromLines(polarM, line);
+    Pn.polarize(dst, pb, metric);
+    if (Rn.innerProduct(dst, p1) < 0) Rn.times(dst, -1.0, dst);
+    return dst;
+}
+
+/**
+ * Returns true if and only if point is within polygon.
+ * @param {number[][]} polygon
+ * @param {number[]} point
+ * @returns {boolean}
+ */
+export function polygonContainsPoint(polygon, point, open = null) {
+    return getFirstOutsideEdge(polygon, open, point) === -1;
+}
+
+/**
+ * Returns index of first edge outside point, or -1 if inside.
+ * @param {number[][]} polygon
+ * @param {boolean[]|null} open
+ * @param {number[]} point
+ * @returns {number}
+ */
+export function getFirstOutsideEdge(polygon, open, point) {
+    if (point.length !== 3) {
+        throw new Error('Input point must be homogeneous vector');
+    }
+    const n = polygon.length;
+    let p1 = [polygon[0][0], polygon[0][1], 1.0];
+    let p2 = [0, 0, 1.0];
+    let min = 1.0e11;
+    let which = -1;
+    for (let i = 0; i < n; ++i) {
+        const j = (i + 1) % n;
+        p2[0] = polygon[j][0];
+        p2[1] = polygon[j][1];
+        const line = lineFromPoints(p1, p2);
+        const ip = Rn.innerProduct(line, point);
+        if (ip < min) { which = i; min = ip; }
+        const tmp = p1;
+        p1 = p2;
+        p2 = tmp;
+    }
+    if (open != null && open[which]) {
+        if (min <= 0.0) return which;
+    } else if (min < 0.0) return which;
+    return -1;
+}
+
+/**
+ * Returns true if and only if the polygon described by polygon is convex.
+ * @param {number[][]} polygon
+ * @returns {boolean}
+ */
+export function isConvex(polygon) {
+    const n = polygon.length;
+    let metricn = 0.0;
+    const diffs = new Array(n);
+    for (let i = 0; i < n; ++i) {
+        const j = (i + 1) % n;
+        diffs[i] = Rn.subtract(null, polygon[j], polygon[i]);
+        Rn.normalize(diffs[i], diffs[i]);
+    }
+    const tmp = [0, 0, 0];
+    for (let i = 0; i < n; ++i) {
+        const j = (i + 1) % n;
+        Rn.crossProduct(tmp, diffs[i], diffs[j]);
+        if (metricn === 0.0) metricn = tmp[2];
+        else if (metricn * tmp[2] < 0.0) return false;
+    }
+    return true;
+}
+
+/**
+ * Cut a convex polygon with a line (negative inner products are cut away).
+ * @param {number[][]} polygon
+ * @param {number[]} line
+ * @returns {number[][]|null}
+ */
+export function chopConvexPolygonWithLine(polygon, line) {
+    if (line.length !== 3) {
+        throw new Error('Input line must be homogeneous vectors');
+    }
+    if (polygon == null) return null;
+    const n = polygon.length;
+    const center = new Array(3);
+    Rn.average(center, polygon);
+    let noNegative = true;
+    const vals = new Array(n);
+    let count = 0;
+    for (let i = 0; i < n; ++i) {
+        vals[i] = Rn.innerProduct(line, polygon[i]);
+        if (vals[i] >= 0) count++;
+        else noNegative = false;
+    }
+    if (count === 0) {
+        return null;
+    } else if (count === n || noNegative) {
+        return polygon;
+    }
+    const newPolygon = new Array(count + 2).fill(null).map(() => new Array(3));
+    const tmp = [0, 0, 0];
+    count = 0;
+    for (let i = 0; i < n; ++i) {
+        if (vals[i] >= 0) {
+            newPolygon[count][0] = polygon[i][0];
+            newPolygon[count][1] = polygon[i][1];
+            newPolygon[count][2] = polygon[i][2];
+            count++;
+        }
+        if (count >= newPolygon.length) break;
+        if (vals[i] * vals[(i + 1) % n] < 0) {
+            const edge = lineFromPoints(polygon[i], polygon[(i + 1) % n]);
+            const p = pointFromLines(edge, line);
+            Pn.dehomogenize(newPolygon[count], p);
+            count++;
+        }
+        if (count >= newPolygon.length) break;
+    }
+    if (count !== newPolygon.length) {
+        return newPolygon.slice(0, count);
+    }
+    return newPolygon;
+}
+
+/**
+ * Generate a direct isometry carrying the frame (p0,p1) to (q0,q1).
+ * @param {number[]|null} dst
+ * @param {number[]} p0
+ * @param {number[]} p1
+ * @param {number[]} q0
+ * @param {number[]} q1
+ * @param {number} metric
+ * @returns {number[]}
+ */
+export function makeDirectIsometryFromFrames(dst, p0, p1, q0, q1, metric) {
+    const toP = makeDirectIsometryFromFrame(null, p0, p1, metric);
+    const toQ = makeDirectIsometryFromFrame(null, q0, q1, metric);
+    const iToP = Rn.inverse(null, toP);
+    return Rn.times(dst, toQ, iToP);
+}
+
+/**
+ * Generate a direct isometry mapping the frame determined by (point, xdir) to identity.
+ * @param {number[]|null} dst
+ * @param {number[]} point
+ * @param {number[]} xdir
+ * @param {number} metric
+ * @returns {number[]}
+ */
+export function makeDirectIsometryFromFrame(dst, point, xdir, metric) {
+    if (!dst) dst = new Array(9);
+    Pn.normalize(point, point, metric);
+    let p2 = null;
+    let p1n = null;
+    if (metric === Pn.EUCLIDEAN) {
+        p1n = xdir.slice();
+        if (p1n[2] !== 0) {
+            Pn.dehomogenize(p1n, p1n);
+            Rn.subtract(p1n, p1n, point);
+        }
+        Rn.normalize(p1n, p1n);
+        p2 = [-p1n[1], p1n[0], 0];
+    } else {
+        const polarP = Pn.polarize(null, point, metric);
+        const lineP = lineFromPoints(point, xdir);
+        p1n = Pn.normalize(null, pointFromLines(polarP, lineP), metric);
+        p2 = Pn.polarize(null, lineP, metric);
+        Pn.normalize(p2, p2, metric);
+    }
+    return makeMatrixFromColumns(dst, p1n, p2, point);
+}
+
+/**
+ * @param {number[]|null} dst
+ * @param {number[]} p0
+ * @param {number[]} p1
+ * @param {number[]} p2
+ * @returns {number[]}
+ */
+function makeMatrixFromColumns(dst, p0, p1, p2) {
+    if (!dst) dst = new Array(9);
+    const ptrs = [p0, p1, p2];
+    for (let i = 0; i < 3; ++i) {
+        for (let j = 0; j < 3; ++j) {
+            dst[3 * i + j] = ptrs[j][i];
+        }
+    }
+    return dst;
+}
+
+/**
+ * Convert the input (x,y,z,w) into (x,y,w).
+ * @param {number[]|null} vec3
+ * @param {number[]} vec4
+ * @returns {number[]}
+ */
+export function projectP3ToP2(vec3, vec4) {
+    const dst = vec3 ?? new Array(3);
+    dst[0] = vec4[0];
+    dst[1] = vec4[1];
+    dst[2] = vec4[3];
+    return dst;
+}
+
+/**
+ * Convert (x,y,z) into (x,y,0,z). Accepts a single vector or array of vectors.
+ * @param {number[]|number[][]|null} vec4
+ * @param {number[]|number[][]} vec3
+ * @returns {number[]|number[][]}
+ */
+export function imbedP2InP3(vec4, vec3) {
+    if (Array.isArray(vec3[0])) {
+        const src = /** @type {number[][]} */ (vec3);
+        const dst = Array.isArray(vec4) && Array.isArray(vec4[0])
+            ? /** @type {number[][]} */ (vec4)
+            : new Array(src.length).fill(null).map(() => new Array(4));
+        for (let i = 0; i < src.length; ++i) {
+            imbedP2InP3(dst[i], src[i]);
+        }
+        return dst;
+    }
+    const src = /** @type {number[]} */ (vec3);
+    const dst = (vec4 && !Array.isArray(vec4[0])) ? /** @type {number[]} */ (vec4) : new Array(4);
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = 0.0;
+    dst[3] = src[2];
+    return dst;
+}
+
+const _which = [0, 1, 3];
+
+/**
+ * Imbed a 3x3 matrix into a 4x4 matrix (P2 -> P3).
+ * @param {number[]|null} dst
+ * @param {number[]} m3
+ * @returns {number[]}
+ */
+export function imbedMatrixP2InP3(dst, m3) {
+    if (!dst) dst = new Array(16);
+    for (let i = 0; i < 3; ++i) {
+        const i4 = _which[i];
+        for (let j = 0; j < 3; ++j) {
+            const j4 = _which[j] + 4 * i4;
+            const j3 = i * 3 + j;
+            dst[j4] = m3[j3];
+        }
+    }
+    dst[2] = dst[6] = dst[8] = dst[9] = dst[11] = 0.0;
+    dst[10] = 1.0;
+    return dst;
 }

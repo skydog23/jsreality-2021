@@ -120,6 +120,18 @@ export class ConicDemo extends JSRApp {
     // const psgc = SceneGraphUtility.createFullSceneGraphComponent('viewport');
     // psgc.setGeometry(psf.getPointSet());
     // this._worldSGC.addChildren(psgc);
+     const vc = this.getViewer().getViewingComponent();
+    if (vc) {
+      this._resizeObserver = new ResizeObserver(() => {
+        // update layout / camera / viewport as needed
+        console.log('size changed');
+        console.log('width = ', vc.clientWidth, 'height = ', vc.clientHeight);
+        console.log('viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+        this.getViewer().renderAsync();
+      });
+      this._resizeObserver.observe(vc);
+    }
+   
   }
 
   setupConic() {

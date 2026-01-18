@@ -619,8 +619,8 @@ export class IndexedLineSetUtility {
     }
     for (const item of infs) {
       let np0 = verts[item[0]], np1 = verts[item[1]];
-      let V0 =Rn.dehomogenize(null,Rn.add(null,Rn.times(null, -(1+tolerance),np0),np1)), 
-      V1 = Rn.dehomogenize(null,Rn.add(null,np0,Rn.times(null, -(1+tolerance),np1)));
+      let V0 =Pn.dehomogenize(null,Rn.add(null,Rn.times(null, -(1+tolerance),np0),np1)), 
+      V1 = Pn.dehomogenize(null,Rn.add(null,np0,Rn.times(null, -(1+tolerance),np1)));
       verts.push(V0);
       verts.push(V1);
       logger.finer(-1, 'P0 = ', np0, 'V0 = ', V0, 'V1 = ', V1, 'P1 = ', np1);

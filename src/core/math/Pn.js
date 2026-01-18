@@ -83,7 +83,17 @@ export function angleBetween(u, v, metric) {
  * @param {number[]} src - Source array in homogeneous coordinates
  * @returns {number[]} The dehomogenized coordinates
  */
-
+// using this simpler code breaks some code in intersectSpherePrimitive in BruteForcePicking.js
+// export function dehomogenize(dst, src) {
+//     const length = src.length;
+//     let factor = 1.0;
+//     if (dst == null) dst = new Array(length);
+//     if (Math.abs(src[length-1]) > 1e-10) {
+//         factor = 1.0 / src[length-1];
+//     }
+//     return /** @type {number[]} */ (times(dst, factor, src));
+//   }
+  
 export function dehomogenize(dst, src)	{
     // assert dim checks
     const sl = src.length;

@@ -59,6 +59,8 @@ export class JSRApp extends JSRPlugin {
    */
   _toolSystem = null;
 
+  _resizeObserver = null;
+
   getShowPanels() {
     return [true, true, false, false];
   }
@@ -455,6 +457,7 @@ export class JSRApp extends JSRPlugin {
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
     
     this.#jsrViewer.getViewer().render();
+    
     
     // // Refresh inspector if it exists (plugin may have created it)
     // const controller = this.#jsrViewer.getController?.();

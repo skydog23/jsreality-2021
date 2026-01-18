@@ -10,6 +10,7 @@
 // Add references to required classes and utilities
 import * as P2 from '../math/P2.js';
 import * as Rn from '../math/Rn.js';
+import * as Pn from '../math/Pn.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 import { ConicUtils } from './ConicUtils.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
@@ -85,10 +86,10 @@ export class ConicSection {
         const [A,B,C,H,G,F] = this.dcoefficients;
         // the polar point of the line at infinity ([0,0,1]) is the center point of a conic
         // have to use the dual conic to act on lines to obtain points
-        this.centerPoint = Rn.dehomogenize(null,[G/2,F/2,C]);
+        this.centerPoint = Pn.dehomogenize(null,[G/2,F/2,C]);
         if (this.fivePoints) {
             this.centerPoint = this.fivePoints.reduce((acc, point) => {return Rn.add(null, acc, point);}, [0,0,0]);
-            this.centerPoint = Rn.dehomogenize(null, this.centerPoint);
+            this.centerPoint = Pn.dehomogenize(null, this.centerPoint);
         }
         logger.info(-1, 'Conic center:', this.centerPoint); 
      // Try several lines through X to find a good point on the conic
@@ -157,7 +158,7 @@ export class ConicSection {
                     const points = [
                         Rn.add(null, Rn.times(null, t1, V), this.centerPoint),
                         Rn.add(null, Rn.times(null, t2, V), this.centerPoint)
-                    ].map(p => Rn.dehomogenize(null, p));
+                    ].map(p => Pn.dehomogenize(null, p));
 
                     for (const p of points) {
                         // Check if this point is actually on the conic
@@ -180,7 +181,7 @@ export class ConicSection {
             this.pointOnConic = [0, 0, 1];
         }
 
-        this.pointOnConic = Rn.dehomogenize(null, this.pointOnConic);
+        this.pointOnConic = Pn.dehomogenize(null, this.pointOnConic);
         logger.fine(-1, 'Using point on conic:', this.pointOnConic);
     }
 
