@@ -23,7 +23,7 @@ const logger = getLogger('jsreality.app.examples.DragPointTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel(logger.getModuleName(), Level.FINER);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -42,7 +42,7 @@ export class DragPointTool extends AbstractTool {
    */
   constructor() {
     super(InputSlot.LEFT_BUTTON); 
-    this.setDescription('Test tool that prints mouse coordinates');
+    this.setDescription('Drag a point in a point set tool');
     //  this.addCurrentSlot(InputSlot.POINTER_TRANSFORMATION, 'Mouse pointer position');
   }
 
@@ -60,9 +60,8 @@ export class DragPointTool extends AbstractTool {
     this._goodHit = false;
     this._hit = tc.getCurrentPick();
     if (this._hit == null || this._hit.getPickType() !== PickResult.PICK_TYPE_POINT) return;
-    this._pointSGC = this._hit.getPickPath().getLastComponent();
-    this._pointset = this._hit.getPickPath().getLastElement();
-    if (this._pointSGC == null || this._pointset == null || ! (this._pointset instanceof PointSet)) return;
+     this._pointset = this._hit.getPickPath().getLastElement();
+    if ( this._pointset == null || ! (this._pointset instanceof PointSet)) return;
     this._verts = DataUtility.fromDataList(this._pointset.getVertexAttribute(GeometryAttribute.COORDINATES));
     this._index = this._hit.getIndex();
     if (this._verts == null || this._index == -1) return;

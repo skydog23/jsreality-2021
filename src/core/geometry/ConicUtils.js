@@ -59,7 +59,7 @@ export class ConicUtils {
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
     static getQFromFactors(line1, line2) {
-       return (this.line1.map(a => this.line2.map(b => a * b))).flat();  
+       return (line1.map(a => line2.map(b => a * b))).flat();  
     }
 
     static polarize(Q, element){
@@ -78,19 +78,6 @@ export class ConicUtils {
     
      static getVeroneseEmbedding([x,y,z]) {
         return [x*x,  x*y, y*y, x*z, y*z,  z*z]
-    }
-
-    
-    static getConicThroughFivePoints(points, useSVD = true) {
-        
-        let result = null;
-        if (useSVD) {
-           result = this.solveConicFromPointsSVD(points);
-        } else {
-            result = this.solveConicFromPoints(points);
-        }
-        logger.fine(-1, 'result = ', result);
-        return result;
     }
 
     static solveConicFromPoints(points) {
@@ -176,21 +163,16 @@ export class ConicUtils {
         // is this double line
 
         logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
-
-        
         const lines = this.factorPair(conic);
         logger.fine(-1, "lines = ", lines);
-        const l0inc = conic.fivePoints.map(pt => Rn.innerProduct(pt, lines[0]));
-        const l1inc = conic.fivePoints.map(pt => Rn.innerProduct(pt, lines[1]));
-        const sumAbs0 = l0inc.reduce((sum, x) => sum + Math.abs(x), 0);
-        const sumAbs1 = l1inc.reduce((sum, x) => sum + Math.abs(x), 0);
-        logger.fine(-1, "sumAbs0 = ",sumAbs0);
-        logger.fine(-1, "sumAbs1 = ",sumAbs1);
-        return sumAbs0 < sumAbs1 ? lines[0] : lines[1];
+        const evals = lines.map(line => conic.fivePoints.map(pt => Rn.innerProduct(pt, line)))
+        const sums = evals.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
+         logger.fine(-1, "sums = ",sums);
+        return sums[0] < sums[1] ? lines[0] : lines[1];
     }
     static factorPair(conic) {
-        const svdQ = conic.svdConic;
-
+        const svdQ = conic.svdQ;
+        logger.fine(-1, "svdQ = ", svdQ.S)
         // // try another way. Use the V matrix from the svd decomposition to find the common point of the line pair
         const V = svdQ.V;
         logger.fine(-1, "V = ", V);

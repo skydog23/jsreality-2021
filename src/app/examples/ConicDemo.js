@@ -23,6 +23,7 @@ import { DragPointTool } from './DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { InputSlot } from '../../core/scene/tool/InputSlot.js';
+import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -33,7 +34,7 @@ setModuleLevel(logger.getModuleName(), Level.INFO);
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
-    return [true, false, false, true];
+    return [true, true, false, true];
   }
   _conicSGC = null;
   _dualConicSGC = null;
@@ -41,7 +42,6 @@ export class ConicDemo extends JSRApp {
   _fivePointSGC = null;
   _conic = null;
   _whichMode = 0;
-  _doSVD = true;
   _psf = null;
   _doDualCurve = false;
 
@@ -52,6 +52,22 @@ export class ConicDemo extends JSRApp {
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
     this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
     
+     // set up point set factory for the five points
+     this._psf = new PointSetFactory();
+     this._psf.setVertexCount(5);
+     this._psf.setVertexCoordinates(this.unitCircle());
+     this._psf.update();
+     this._fivePointSGC.setGeometry(this._psf.getPointSet());
+     this._psf.getPointSet().addGeometryListener((event) => {
+      // console.log('geometry changed', event);
+      let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
+      let fivePoints = DataUtility.fromDataList(vertices);
+      if (fivePoints == null || fivePoints.length !== 5) { return;}
+      this._conic.setFromFivePoints(fivePoints);
+      if (this._doDualCurve) this._conic.getDualCurveSGC();
+      this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+      this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
+    });
     this.setupConic();
      
     let ap = this._conicSGC.getAppearance();
@@ -140,43 +156,23 @@ export class ConicDemo extends JSRApp {
 
   setupConic() {
     
-    this._conic = new ConicSection();
     let fivePoints = this.initFivePoints();
-    ConicUtils.getConicThroughFivePoints(fivePoints, this._conic, this._doSVD);
-    this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
-   
-     // set up point set factory for the five points
-    this._psf = new PointSetFactory();
-    this._psf.setVertexCount(fivePoints.length);
+    console.log('fivePoints = ', fivePoints.length);
+    if (!this._conic) this._conic = new ConicSection();
     this._psf.setVertexCoordinates(fivePoints);
     this._psf.update();
-    this._fivePointSGC.setGeometry(this._psf.getPointSet());
     
+    this._conic.setFromFivePoints(fivePoints);
+    this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
     this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
-
     if (this._doDualCurve) this._dualCurveSGC = this._conic.getDualCurveSGC();
-    this._psf.getPointSet().addGeometryListener((event) => {
-      // console.log('geometry changed', event);
-      let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
-      let fivePoints = DataUtility.fromDataList(vertices);
-      this._conic.setFromFivePoints(fivePoints);
-      if (this._doDualCurve) this._conic.getDualCurveSGC();
-      this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
-      this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
-    });
      
    }
 
   initFivePoints() {
     let fivePoints = [];
     if (this._whichMode == 0) {
-      fivePoints = [];
-      for (let i = 0; i < 5; i++) {
-        const angle = (2 * Math.PI * i) / 5;
-        const x = Math.cos(angle);
-        const y = Math.sin(angle);
-        fivePoints.push([x, y, 1]);
-      }
+      fivePoints = this.unitCircle();
       logger.fine(-1, 'Using normal conic mode - 5 points on unit circle');
     } else if (this._whichMode == 1 || this._whichMode == 2) {
       fivePoints = [
@@ -188,16 +184,73 @@ export class ConicDemo extends JSRApp {
       ];
       // make it rank-2 (a line pair)
       if (this._whichMode == 2) fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
-    } else if (this._whichMode == 3) {
+    } else {
       // arrange all points on line through origin
         fivePoints = new Array(5);
         const alpha = Math.PI * .25; //Math.random();
-        fivePoints[0] = [0, 0, 1];
+        fivePoints[0] = [Math.random() * 2 - 1, Math.random() * 2 - 1, 1];
         fivePoints[1] = [Math.random() * 2 - 1, Math.random() * 2 - 1, 1],
         fivePoints[2] = Rn.add(null, Rn.times(null, .2, fivePoints[0]), Rn.times(null, .8, fivePoints[1]));
         fivePoints[3] = Rn.add(null, Rn.times(null, .4, fivePoints[0]), Rn.times(null, .6, fivePoints[1]));
-        fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));
+        fivePoints[4] = Rn.add(null, Rn.times(null, .6, fivePoints[0]), Rn.times(null, .4, fivePoints[1]));[Math.random() * 2 - 1, Math.random() * 2 - 1, 1];
+        if (this._whichMode == 3) fivePoints[4] = [Math.random() * 2 - 1, Math.random() * 2 - 1, 1];
+          
       }
     return fivePoints;
+    }
+
+  unitCircle(fivePoints) {
+    fivePoints = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = (2 * Math.PI * i) / 5;
+      const x = Math.cos(angle);
+      const y = Math.sin(angle);
+      fivePoints.push([x, y, 1]);
+    }
+    return fivePoints;
+  }
+
+    getInspectorDescriptors() {
+      return [
+        {
+          type: DescriptorType.CONTAINER,
+          containerLabel: '# Collinear points',
+          direction: 'row',
+          items: [
+            {
+              type: DescriptorType.BUTTON,
+              label: 'Circle',
+              action: () => {
+                console.log('button whichMode = 0');
+                this._whichMode = 0; this.setupConic();
+                this.getViewer().renderAsync();}
+            },
+            {
+              type: DescriptorType.BUTTON,
+              label: '2',
+              action: () => {this._whichMode = 1; this.setupConic();
+                this.getViewer().renderAsync();}
+            },
+            {
+              type: DescriptorType.BUTTON,
+              label: '3',
+              action: () => {this._whichMode = 2; this.setupConic();
+                this.getViewer().renderAsync();}
+            },
+            {
+              type: DescriptorType.BUTTON,
+              label: '4',
+              action: () => {this._whichMode = 3; this.setupConic();
+                this.getViewer().renderAsync();}
+            },
+            {
+              type: DescriptorType.BUTTON,
+              label: '5',
+              action: () => {this._whichMode =43; this.setupConic();
+                this.getViewer().renderAsync();}
+            }
+          ]
+        }
+      ];
     }
   }

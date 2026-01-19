@@ -40,10 +40,10 @@ export class ConicSection {
    coefficients = [1,0,1,0,0,-1];
    dcoefficients = null;
    rank = 0;
-   singularValues = null;
+    svdQ = null;    
+    svd5Points = null;
    linePair = null;
-   fivePointsData = null;
-   doSVD = true;
+   fivePoints = null;
    pts5d = null;
     constructor(coefficients = [1,0,1,0,0,-1]) {
         this.setFromCoefficients(coefficients);
@@ -52,8 +52,14 @@ export class ConicSection {
 
     // the conic can be determined by 5 points
     setFromFivePoints(fivePoints) {
-        this.pts5d = ConicUtils.getConicThroughFivePoints(fivePoints, this, this.doSVD);
+        if (fivePoints  == null || fivePoints.length !== 5) {
+            logger.warn(-1, 'Five points are required to set the conic');
+            return;
+        }
+        this.pts5d = ConicUtils.solveConicFromPointsSVD(fivePoints);
         this.rank = this.pts5d.rank;
+        this.svdQ = this.pts5d.svdQ;
+        this.fivePoints = fivePoints;
         this.setCoefficients(this.pts5d.coefficients);
         this.updateGeomRepn();
     }
@@ -62,10 +68,10 @@ export class ConicSection {
     setFromCoefficients(coefficients) {
         this.pts5d = null;   // get rid of the five points data
          // calculate the rand from SVD of Q
-        const svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
+       this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
          // Determine rank (count non-zero singular values)
-        this.rank = svdQ.S.filter(s => Math.abs(s) > this.degenConicTolerance).length;
-        logger.fine(-1, 'Q singular values:', svdQ.S);
+        this.rank = this.svdQ.S.filter(s => Math.abs(s) > this.degenConicTolerance).length;
+        logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'rank = ', this.rank);
         this.setCoefficients(coefficients);
         this.updateGeomRepn();
@@ -88,9 +94,9 @@ export class ConicSection {
        
          
          if (this.rank === 1) {
-            this.doubleLine = this.factorDoubleLine(this);
+            this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
-            updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
+            this.updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
             logger.fine(-1, 'conic Q',this.Q);
             logger.fine(-1, 'conic dQ',this.dQ);
             logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
@@ -101,10 +107,10 @@ export class ConicSection {
             return;
         } 
         else if (this.rank === 2) {
-            this.linePair = this.factorPair(this);
+            this.linePair = ConicUtils.factorPair(this);
+            logger.fine(-1, 'line pair = ', this.linePair);
             // we now have exact rank-2, and should update the Q matrix
-            updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
-             logger.fine(-1, 'line pair = ', this.linePair);
+            this.updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
@@ -154,13 +160,15 @@ export class ConicSection {
         pts4[this.numPoints] = pts4[0];
         this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);       
 
-        const updateQ = (newQ) => {
-            this.Q = newQ;
-            this.coefficients = ConicUtils.convertQToArray(this.Q);
-            this.dQ = P2.cofactor(null, this.Q);
-            this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
-        };
+        
      }
+
+     updateQ(newQ) {
+        this.Q = newQ;
+        this.coefficients = ConicUtils.convertQToArray(this.Q);
+        this.dQ = P2.cofactor(null, this.Q);
+        this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+    };
 
     getIndexedLineSet() {
         return this.curve;
