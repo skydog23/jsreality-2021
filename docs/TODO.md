@@ -17,4 +17,6 @@ This is a private todo list for me (a person named Charlie Gunn)
 
 * Add JSRViewer.display() static method so the jreality tutorial folder can be directly ported.
 
+* Port DualizeSceneGraph.java
+
 

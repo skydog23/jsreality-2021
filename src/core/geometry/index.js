@@ -29,4 +29,4 @@ export { Snake } from './Snake.js';
 export { PointCollector } from './projective/PointCollector.js';
 export { LineUtility } from './projective/LineUtility.js';
 export { Abstract1DExtentFactory } from './projective/Abstract1DExtentFactory.js';
-export { PointRangeFactory } from './projective/PointRangeFactory.js';
+export { PointRangeFactory } from './projective/PointRangeFactory.js';export { LinePencilFactory } from './projective/LinePencilFactory.js';

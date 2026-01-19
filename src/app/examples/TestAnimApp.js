@@ -16,7 +16,7 @@ import { JSRApp } from '../JSRApp.js';
 import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFactory.js';
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { ParametricSurfaceFactory } from '../../core/geometry/ParametricSurfaceFactory.js';
-
+import { LinePencilFactory } from '../../core/geometry/projective/LinePencilFactory.js';
 /**
  * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
  * The app contributes its own inspector button to start playback.
@@ -50,10 +50,7 @@ export class TestAnimApp extends JSRApp {
 
     const lineSGC = SceneGraphUtility.createFullSceneGraphComponent('line');
     const pointRangeFactory = new PointRangeFactory();
-    // this is the line x-y=0, or a=1,b=-1,c=0
-    // pointRangeFactory.setElement0([0,0,0,1]);
-    // pointRangeFactory.setElement1([1,1,0,1]);
-    pointRangeFactory.set2DLine([1,-1,0]);
+     pointRangeFactory.set2DLine([1,-1,0]);
     pointRangeFactory.update();
     lineSGC.setGeometry(pointRangeFactory.getLine()); 
     ap = lineSGC.getAppearance();
@@ -61,7 +58,18 @@ export class TestAnimApp extends JSRApp {
     ap.setAttribute(CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
     ap.setAttribute(`lineShader.${CommonAttributes.TUBE_RADIUS}`, 0.02);
-   this._worldSGC.addChildren(lineSGC, squareSGC);
+    const pencilSGC = SceneGraphUtility.createFullSceneGraphComponent('pencil');
+    const lpf  = new LinePencilFactory();
+    lpf.setPoint([1,-1,0,1]);
+    lpf.setPlane([0,0,1,0]);
+    lpf.update();
+    pencilSGC.addChild(lpf.getPencil()); 
+    ap = pencilSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
+    ap.setAttribute(CommonAttributes.TUBES_DRAW, true);
+    ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 0, 255));
+    ap.setAttribute(`lineShader.${CommonAttributes.TUBE_RADIUS}`, 0.02);
+   this._worldSGC.addChildren(lineSGC, pencilSGC);
     this.#squareSGC = squareSGC;
     return this._worldSGC;
   }
