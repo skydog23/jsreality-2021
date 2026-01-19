@@ -23,6 +23,7 @@ import { Color } from '../util/Color.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 import * as Rn from '../math/Rn.js';
+import * as Pn from '../math/Pn.js';
 import { DefaultRenderingHintsShader } from '../shader/DefaultRenderingHintsShader.js';
 import {
   compileShader as compileShaderUtil,
@@ -470,8 +471,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
               const idx1 = poly[j + 1];
               const v0 = vertices[idx0];
               const v1 = vertices[idx1];
-              const p0 = this._extractPoint(v0);
-              const p1 = this._extractPoint(v1);
+              const p0 = Pn.dehomogenize(null, this._extractPoint(v0));
+              const p1 = Pn.dehomogenize(null, this._extractPoint(v1));
               const o0 = s * 3;
               const oc = s * 4;
               p0s[o0 + 0] = Number(p0[0] ?? 0) || 0;
