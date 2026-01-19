@@ -469,10 +469,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             for (let j = 0; j < poly.length - 1; j++) {
               const idx0 = poly[j];
               const idx1 = poly[j + 1];
-              const v0 = vertices[idx0];
-              const v1 = vertices[idx1];
-              const p0 = Pn.dehomogenize(null, this._extractPoint(v0));
-              const p1 = Pn.dehomogenize(null, this._extractPoint(v1));
+              const v0 = this._extractPoint(vertices[idx0]);
+              const v1 = this._extractPoint(vertices[idx1]);
+              const p0 = v0.length == 4 ? Pn.dehomogenize(null, v0) : v0;
+              const p1 = v1.length == 4 ? Pn.dehomogenize(null, v1) : v1;
               const o0 = s * 3;
               const oc = s * 4;
               p0s[o0 + 0] = Number(p0[0] ?? 0) || 0;

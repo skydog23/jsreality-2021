@@ -13,6 +13,7 @@ import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 import { ConicUtils } from './ConicUtils.js';
+import {SVDUtil} from '../math/SVDUtil.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
 import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
@@ -31,55 +32,78 @@ export class ConicSection {
    curve = null;
    dualConicSGC = null;
    centerPoint = [0,0,1];
-   pointOnConic = [0,0,1];
    drawRadials = false;
    numPoints = 250;
-   tolerance = 1e-6;
+   degenConicTolerance = 1e-4;
+   Q = null;
+   dQ = null;
    coefficients = [1,0,1,0,0,-1];
-   svdConic = null;
-   svd5Points = null;
+   dcoefficients = null;
    rank = 0;
    singularValues = null;
    linePair = null;
-   Q = null;
-   dQ = null;
-   dcoefficients = null;
-   fivePoints = null;
-
+   fivePointsData = null;
+   doSVD = true;
+   pts5d = null;
     constructor(coefficients = [1,0,1,0,0,-1]) {
-        this.setCoefficients(coefficients);
-        this.update();
+        this.setFromCoefficients(coefficients);
+        
     }
 
-    // Update coefficients and recalculate dependent matrices
+    // the conic can be determined by 5 points
+    setFromFivePoints(fivePoints) {
+        this.pts5d = ConicUtils.getConicThroughFivePoints(fivePoints, this, this.doSVD);
+        this.rank = this.pts5d.rank;
+        this.setCoefficients(this.pts5d.coefficients);
+        this.updateGeomRepn();
+    }
+    
+    // we can also set the conic from coefficients directly
+    setFromCoefficients(coefficients) {
+        this.pts5d = null;   // get rid of the five points data
+         // calculate the rand from SVD of Q
+        const svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
+         // Determine rank (count non-zero singular values)
+        this.rank = svdQ.S.filter(s => Math.abs(s) > this.degenConicTolerance).length;
+        logger.fine(-1, 'Q singular values:', svdQ.S);
+        logger.fine(-1, 'rank = ', this.rank);
+        this.setCoefficients(coefficients);
+        this.updateGeomRepn();
+   }
+
     setCoefficients(coefficients) {
         this.coefficients = ConicUtils.normalizeCoefficients([ ...coefficients ]);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
-        this.Q = ConicUtils.normalizeQ(this.Q);
-        this.dQ = P2.cofactor(null, this.Q);
+        this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
-        this.dQ = ConicUtils.normalizeQ(this.dQ);
         logger.fine(-1, 'conic Q',this.Q);
         logger.fine(-1, 'conic dQ',this.dQ);
         logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
-    }
+     }
   
     // get the geometric representation for the conic
-    update() {
+    updateGeomRepn() {
         logger.fine(-1, 'Updating conic section');
          logger.fine(-1, 'conic rank',this.rank);
        
+         
          if (this.rank === 1) {
+            this.doubleLine = this.factorDoubleLine(this);
+            // we now have exact rank-1, and should update the Q matrix
+            updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
+            logger.fine(-1, 'conic Q',this.Q);
+            logger.fine(-1, 'conic dQ',this.dQ);
+            logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.doubleLine);
             l1.update();
             this.curve = l1.getLine();
-            const outer = this.doubleLine.map(a => this.doubleLine.map(b => a * b));
-            this.setCoefficients(ConicUtils.convertQToArray(outer.flat()));
-            logger.finer(-1, 'outer = ', outer);
             return;
         } 
         else if (this.rank === 2) {
+            this.linePair = this.factorPair(this);
+            // we now have exact rank-2, and should update the Q matrix
+            updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
              logger.fine(-1, 'line pair = ', this.linePair);
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
@@ -91,17 +115,18 @@ export class ConicSection {
             this.curve = GeometryMergeFactory.mergeIndexedLineSets(l1.getLine(), l2.getLine());
             return;
         }
-        const [A,B,C,H,G,F] = this.dcoefficients;
+        // if we are here we are drawing a general conic
+        const [A,H,B,G,F,C] = this.dcoefficients;
         // the polar point of the line at infinity ([0,0,1]) is the center point of a conic
         // have to use the dual conic to act on lines to obtain points
         this.centerPoint = Pn.dehomogenize(null,[G/2,F/2,C]);
-        if (this.fivePoints) {
-            this.centerPoint = this.fivePoints.reduce((acc, point) => {return Rn.add(null, acc, point);}, [0,0,0]);
-            this.centerPoint = Pn.dehomogenize(null, this.centerPoint);
-        }
-        logger.fine(-1, 'Conic center:', this.centerPoint); 
+        // if (this.fivePoints) {
+        //     this.centerPoint = this.fivePoints.reduce((acc, point) => {return Rn.add(null, acc, point);}, [0,0,0]);
+        //     this.centerPoint = Pn.dehomogenize(null, this.centerPoint);
+        // }
+        // logger.fine(-1, 'Conic center:', this.centerPoint); 
      // Try several lines through X to find a good point on the conic
-        this.findPointOnConic();
+        const pointOnConic = this.findPointOnConic();
 
         // Now rotate a line around this point and find intersections
         const pts4 = new Array(this.numPoints+1).fill(null).map(() => [0,0,0,0]);
@@ -114,10 +139,10 @@ export class ConicSection {
             // Quadratic coefficient (t²)
             const a = Rn.bilinearForm(this.Q, V,V);
             // Linear coefficient (t)
-            const b = 2*Rn.bilinearForm(this.Q, V,this.pointOnConic);
+            const b = 2*Rn.bilinearForm(this.Q, V,pointOnConic);
             if (Math.abs(a) > 1e-10) {
                 const t = -b/a;  // Other solution is t=0 
-                const currentPoint = Rn.add(null,this.pointOnConic, Rn.times(null,t,V));
+                const currentPoint = Rn.add(null,pointOnConic, Rn.times(null,t,V));
                 // logger.finer(-1, 'currentPoint = ', currentPoint);
                 pts4[i] = Rn.convert3To4(null, currentPoint);
                 if (i === 0) {
@@ -128,6 +153,13 @@ export class ConicSection {
         // close up the curve by adding the first point again
         pts4[this.numPoints] = pts4[0];
         this.curve = IndexedLineSetUtility.removeInfinity(pts4, 1.0);       
+
+        const updateQ = (newQ) => {
+            this.Q = newQ;
+            this.coefficients = ConicUtils.convertQToArray(this.Q);
+            this.dQ = P2.cofactor(null, this.Q);
+            this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+        };
      }
 
     getIndexedLineSet() {
@@ -158,7 +190,7 @@ export class ConicSection {
     }
 
     findPointOnConic() {
-        this.pointOnConic = null;
+        let pointOnConic = null;
         let minDistance = Infinity;
         const numTrialLines = 20;
 
@@ -199,7 +231,7 @@ export class ConicSection {
                             // console.log('distance:', distance);
                             if (distance < minDistance) {
                                 minDistance = distance;
-                                this.pointOnConic = p;
+                                pointOnConic = p;
                             }
                         }
                     }
@@ -207,13 +239,13 @@ export class ConicSection {
             }
         }
 
-        if (!this.pointOnConic) {
+        if (!pointOnConic) {
             logger.warn(-1, 'Could not find initial point on conic');
-            this.pointOnConic = [0, 0, 1];
+            pointOnConic = [0, 0, 1];
         }
-
-        this.pointOnConic = Pn.dehomogenize(null, this.pointOnConic);
-        logger.fine(-1, 'Using point on conic:', this.pointOnConic);
+        logger.fine(-1, 'Using point on conic:', pointOnConic);
+       return ( Pn.dehomogenize(null, pointOnConic));
+        
     }
 
 

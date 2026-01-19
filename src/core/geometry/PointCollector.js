@@ -10,12 +10,12 @@
 // JavaScript translation of:
 //   ProjectiveGeometry/src/charlesgunn/jreality/geometry/projective/PointCollector.java
 
-import * as Rn from '../../math/Rn.js';
-import { GeometryAttribute } from '../../scene/GeometryAttribute.js';
-import { fromDataList } from '../../scene/data/DataUtility.js';
-import { getLogger, Level, setModuleLevel } from '../../util/LoggingSystem.js';
-import { PointSetFactory } from '../PointSetFactory.js';
-import { Snake } from '../Snake.js';
+import * as Rn from '../math/Rn.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { fromDataList } from '../scene/data/DataUtility.js';
+import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
+import { PointSetFactory } from './PointSetFactory.js';
+import { Snake } from './Snake.js';
 
 const logger = getLogger('jsreality.core.geometry.projective.PointCollector');
 setModuleLevel(logger.getModuleName(), Level.FINE);

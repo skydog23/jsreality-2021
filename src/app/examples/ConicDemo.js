@@ -159,7 +159,7 @@ export class ConicDemo extends JSRApp {
       // console.log('geometry changed', event);
       let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
       let fivePoints = DataUtility.fromDataList(vertices);
-      ConicUtils.getConicThroughFivePoints(fivePoints, this._conic, this._doSVD);
+      this._conic.setFromFivePoints(fivePoints);
       if (this._doDualCurve) this._conic.getDualCurveSGC();
       this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
       this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
