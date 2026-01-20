@@ -279,7 +279,17 @@ function buttonFactory(descriptor) {
   } else if (descriptor.variant === 'primary') {
     button.classList.add('sg-button--primary');
   }
-  button.textContent = descriptor.label || 'Action';
+  const iconSrc = typeof descriptor.iconSrc === 'string' ? descriptor.iconSrc.trim() : '';
+  if (iconSrc) {
+    button.classList.add('sg-button--icon');
+    const img = document.createElement('img');
+    img.src = iconSrc;
+    img.alt = descriptor.iconAlt || '';
+    img.className = 'sg-button__icon';
+    button.appendChild(img);
+  } else {
+    button.textContent = descriptor.label || 'Action';
+  }
   button.disabled = descriptor.disabled || !descriptor.action;
   button.addEventListener('click', () => {
     descriptor.action?.();

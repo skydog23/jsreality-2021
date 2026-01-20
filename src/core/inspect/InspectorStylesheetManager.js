@@ -375,6 +375,28 @@ export class InspectorStylesheetManager {
         background: #1177bb;
       }
 
+      .sg-button--icon {
+        padding: 0;
+        line-height: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 0;
+        background: transparent;
+        width: var(--sg-button-icon-size, 64px);
+        height: var(--sg-button-icon-size, 64px);
+        min-width: 0;
+      }
+
+      .sg-button__icon {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+        margin: 0;
+      }
+
       .sg-button--secondary {
         background: #3c3c3c;
         color: #cccccc;

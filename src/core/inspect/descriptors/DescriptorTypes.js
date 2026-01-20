@@ -113,6 +113,10 @@ export const DescriptorType = Object.freeze({
 /**
  * @typedef {DescriptorCommon & {
  *   action: () => void,
+ *   // Optional icon URL for image-only or image+text buttons.
+ *   iconSrc?: string,
+ *   // Optional alt text for the icon (defaults to label).
+ *   iconAlt?: string,
  *   // Optional visual hint for rendering this as primary/secondary action.
  *   variant?: 'primary' | 'secondary' | 'default'
  * }} ButtonDescriptor
