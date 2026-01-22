@@ -1,13 +1,11 @@
 /**
- * JavaScript port/translation of jReality.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
- * Schmies, Steffen Weissmann.
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ * JavaScript port/translation of a Charles Gunn Java codebase.
+ *
+ * Copyright (c) 2008–2026, Charles Gunn
+ *
+ * Licensed under the BSD 3-Clause License. See LICENSE for details.
+ * Contributors retain copyright to their contributions.
  */
-
 /**
  * AnimationPlugin - Port of charlesgunn.anim.plugin.AnimationPlugin (jReality).
  *
@@ -23,19 +21,19 @@
  * fully implemented (it is loaded lazily when needed).
  */
 
-import { JSRPlugin } from '../plugin/JSRPlugin.js';
+import { JSRPlugin } from '../../app/plugin/JSRPlugin.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import { DescriptorUtility } from '../../core/inspect/descriptors/DescriptorUtility.js';
 import { getLogger } from '../../core/util/LoggingSystem.js';
 import { InterpolationTypes, PlaybackModes } from '../../anim/util/AnimationUtility.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
-import { AnimationPanel } from '../../anim/gui/AnimationPanel.js';
-import { AnimationPanelListenerImpl } from '../../anim/gui/AnimationPanelListenerImpl.js';
-import { AnimationPanelRecordListener } from '../../anim/gui/AnimationPanelRecordListener.js';
-import { RecordingPreferences } from '../../anim/gui/RecordingPreferences.js';
-import { FileSystemAccessRecorderBackend } from '../../anim/gui/recording/FileSystemAccessRecorderBackend.js';
-import { createRecordingPreferencesDescriptors } from '../../anim/gui/RecordingPreferencesDescriptors.js';
-import { PluginIds } from '../plugin/PluginIds.js';
+import { AnimationPanel } from '../gui/AnimationPanel.js';
+import { AnimationPanelListenerImpl } from '../gui/AnimationPanelListenerImpl.js';
+import { AnimationPanelRecordListener } from '../gui/AnimationPanelRecordListener.js';
+import { RecordingPreferences } from '../gui/RecordingPreferences.js';
+import { FileSystemAccessRecorderBackend } from '../gui/recording/FileSystemAccessRecorderBackend.js';
+import { createRecordingPreferencesDescriptors } from '../gui/RecordingPreferencesDescriptors.js';
+import { PluginIds } from '../../app/plugin/PluginIds.js';
 
 const logger = getLogger('jsreality.app.plugins.AnimationPlugin');
 

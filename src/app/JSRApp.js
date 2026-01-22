@@ -21,7 +21,7 @@ import { PanelShowMenuPlugin } from './plugins/PanelShowMenuPlugin.js';
 import { AppMenuPlugin } from './plugins/AppMenuPlugin.js';
 import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility.js';
 import { JSRPlugin } from './plugin/JSRPlugin.js';
-import { AnimationPlugin } from './plugins/AnimationPlugin.js';
+import { AnimationPlugin } from '../anim/plugins/AnimationPlugin.js';
 import { PluginIds } from './plugin/PluginIds.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */

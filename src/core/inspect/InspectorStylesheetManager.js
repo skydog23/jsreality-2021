@@ -17,6 +17,7 @@ const LEGACY_INSPECTOR_CSS_URL = new URL(
  * Ensures the CSS is only inserted once and removed when no longer needed.
  */
 export class InspectorStylesheetManager {
+  static ENABLE_LEGACY_STYLES = true;
   static #instance;
 
   /** @type {HTMLStyleElement|null} */
@@ -62,17 +63,19 @@ export class InspectorStylesheetManager {
     document.head.appendChild(style);
     this.#styleElement = style;
 
-    this.#loadLegacyStyles()
-      .then((cssText) => {
-        if (!cssText || !this.#styleElement) return;
-        this.#styleElement.textContent += `\n${cssText}`;
-      })
-      .catch((error) => {
-        console.warn(
-          'InspectorStylesheetManager: failed to load legacy inspector CSS',
-          error
-        );
-      });
+    if (InspectorStylesheetManager.ENABLE_LEGACY_STYLES) {
+      this.#loadLegacyStyles()
+        .then((cssText) => {
+          if (!cssText || !this.#styleElement) return;
+          this.#styleElement.textContent += `\n${cssText}`;
+        })
+        .catch((error) => {
+          console.warn(
+            'InspectorStylesheetManager: failed to load legacy inspector CSS',
+            error
+          );
+        });
+    }
   }
 
   #removeStyles() {
@@ -280,7 +283,7 @@ export class InspectorStylesheetManager {
       }
       
       .sg-prop-label {
-        flex: 0 0 120px;
+        flex: 0 0 60px;
         color: #9cdcfe;
         font-size: 12px;
       }
@@ -382,8 +385,6 @@ export class InspectorStylesheetManager {
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        border-radius: 0;
-        background: transparent;
         width: var(--sg-button-icon-size, 64px);
         height: var(--sg-button-icon-size, 64px);
         min-width: 0;
@@ -393,8 +394,7 @@ export class InspectorStylesheetManager {
         width: 100%;
         height: 100%;
         display: block;
-        object-fit: cover;
-        margin: 0;
+        object-fit: contain;
       }
 
       .sg-button--secondary {

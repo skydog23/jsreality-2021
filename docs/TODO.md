@@ -5,6 +5,10 @@ This is a private todo list for me (a person named Charlie Gunn)
 
 * ConicDemo/ConicUtils: browser runner can hit 404 on `decimal.mjs` because `src/core/math/Decimal.js` imports from `/node_modules/**` (not served by many static dev servers). Prefer loading Decimal via importmap + vendored ESM (like `mathjs`) or use a bundler; otherwise fall back to non-HP SVD.
 
+* Clear up the copyright notice again -- it's wobbling.
+
+* Figure out how to get "screen-size" dimensions in WebGL: point-size and line-width, even when using spheres and tubes.
+
 * look at ganja.js and ask AI to convert it to readable JS, perhaps build it out to a genuine GA package.
 
 * look at GeoGebra source code project and investigate whether I can swap out the "backend" for jsreality pure projective approach
@@ -17,6 +21,6 @@ This is a private todo list for me (a person named Charlie Gunn)
 
 * Add JSRViewer.display() static method so the jreality tutorial folder can be directly ported.
 
+* Conics: render to a Rectangle2D if one is provided. 
+
 * Port DualizeSceneGraph.java
-
-

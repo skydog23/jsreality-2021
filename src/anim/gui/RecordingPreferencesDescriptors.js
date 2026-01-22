@@ -37,14 +37,12 @@ export function createRecordingPreferencesDescriptors(prefs, options = {}) {
   return [
     {
       type: DescriptorType.CONTAINER,
-      label: '',
       direction: 'column',
       border: true,
       containerLabel: 'Recording Preferences',
       items: [
         {
           type: DescriptorType.CONTAINER,
-          label: '',
           direction: 'row',
           items: [
             {
@@ -71,69 +69,30 @@ export function createRecordingPreferencesDescriptors(prefs, options = {}) {
                 }
               ]
             },
+
             {
               type: DescriptorType.CONTAINER,
-              label: '',
-              direction: 'column',
-              items: [
-                {
-                  type: DescriptorType.CONTAINER,
-                  label: '',
-                  direction: 'column',
-                  border: true,
-                  containerLabel: 'Antialiasing factor',
-                  description:
-                    'Choose the factor of dimension scaling for “antialiased” offscreen rendering.',
-                  items: [
-                    {
-                      type: DescriptorType.ENUM,
-                      label: '',
-                      options: aaOptions,
-                      getValue: () => prefs.getAntialiasing(),
-                      setValue: (v) => prefs.setAntialiasing(v)
-                    }
-                  ]
-                },
-                {
-                  type: DescriptorType.CONTAINER,
-                  label: '',
-                  direction: 'column',
-                  border: true,
-                  containerLabel: 'Image format',
-                  description: 'Choose the output image format.',
-                  items: [
-                    {
-                      type: DescriptorType.ENUM,
-                      label: '',
-                      options: suffixOptions,
-                      getValue: () => prefs.getFileFormatSuffix(),
-                      setValue: (v) => prefs.setFileFormatSuffix(v)
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          type: DescriptorType.CONTAINER,
-          label: '',
-          direction: 'row',
-          items: [
-            {
-              type: DescriptorType.CONTAINER,
-              label: '',
+              containerlabel: 'Image options',
               direction: 'column',
               border: true,
-              containerLabel: 'FPS',
-              description: 'Set frames per second for recording mode.',
+
               items: [
                 {
-                  type: DescriptorType.INT,
-                  label: '',
-                  min: 1,
-                  getValue: () => prefs.getFps(),
-                  setValue: (v) => prefs.setFps(v)
+                  type: DescriptorType.ENUM,
+                  label: 'S-samples',
+                  options: aaOptions,
+                  description: 'Choose supersampling factor for offscreen rendering.',
+                  getValue: () => prefs.getAntialiasing(),
+                  setValue: (v) => prefs.setAntialiasing(v)
+                },
+
+                {
+                  type: DescriptorType.ENUM,
+                  label: 'File format',
+                  options: suffixOptions,
+                  description: 'Choose the output image format.',
+                  getValue: () => prefs.getFileFormatSuffix(),
+                  setValue: (v) => prefs.setFileFormatSuffix(v)
                 }
               ]
             },
@@ -142,7 +101,7 @@ export function createRecordingPreferencesDescriptors(prefs, options = {}) {
               label: '',
               direction: 'column',
               border: true,
-              containerLabel: 'Alpha channel',
+              containerLabel: 'Save options',
               items: [
                 {
                   type: DescriptorType.TOGGLE,
@@ -152,54 +111,50 @@ export function createRecordingPreferencesDescriptors(prefs, options = {}) {
                 },
                 {
                   type: DescriptorType.TOGGLE,
-                  label: 'save screenshot',
+                  label: 'save scrnshot',
                   getValue: () => prefs.isSaveScreenshot(),
                   setValue: (v) => prefs.setSaveScreenshot(Boolean(v))
                 }
               ]
-            }
-          ]
-        },
-        {
-          type: DescriptorType.CONTAINER,
-          label: '',
-          direction: 'row',
-          border: true,
-          containerLabel: 'Record interval',
-          items: [
-            {
-              type: DescriptorType.FLOAT,
-              label: 'Start',
-              getValue: () => prefs.getStartTime(),
-              setValue: (v) => prefs.setStartTime(v)
             },
+        
             {
-              type: DescriptorType.FLOAT,
-              label: 'End',
-              getValue: () => prefs.getEndTime(),
-              setValue: (v) => prefs.setEndTime(v)
-            }
-          ]
-        },
-        {
-          type: DescriptorType.CONTAINER,
-          label: '',
-          direction: 'row',
-          border: true,
-          containerLabel: 'Save directory',
-          items: [
-            {
-              type: DescriptorType.TEXT,
+              type: DescriptorType.CONTAINER,
               label: '',
-              description: 'Set path to directory for saving images in recording mode.',
-              getValue: () => prefs.getCurrentDirectoryPath(),
-              setValue: (v) => prefs.setCurrentDirectoryPath(v)
-            },
-            {
-              type: DescriptorType.BUTTON,
-              label: 'Browse…',
-              disabled: !canPickDirectory || typeof onPickDirectory !== 'function',
-              action: () => onPickDirectory?.()
+              direction: 'column',
+              containerLabel: 'Timing',
+              items: [
+
+                {
+                  type: DescriptorType.INT,
+                  label: 'FPS',
+                  description: 'Set frames per second for recording mode.',
+                  min: 1,
+                  getValue: () => prefs.getFps(),
+                  setValue: (v) => prefs.setFps(v)
+                },
+                {
+                  type: DescriptorType.CONTAINER,
+                  label: '',
+                  direction: 'row',
+                  border: true,
+                  containerLabel: 'Begin:End',
+                  items: [
+                    {
+                      type: DescriptorType.FLOAT,
+                      label: '',
+                      getValue: () => prefs.getStartTime(),
+                      setValue: (v) => prefs.setStartTime(v)
+                    },
+                    {
+                      type: DescriptorType.FLOAT,
+                      label: '',
+                      getValue: () => prefs.getEndTime(),
+                      setValue: (v) => prefs.setEndTime(v)
+                    }
+                  ]
+                }
+              ],
             }
           ]
         },
@@ -209,24 +164,55 @@ export function createRecordingPreferencesDescriptors(prefs, options = {}) {
           direction: 'row',
           items: [
             {
-              type: DescriptorType.TEXT,
-              label: 'Stem',
-              description: 'Choose the stem name for saving images in recording mode.',
-              getValue: () => prefs.getStemName(),
-              setValue: (v) => prefs.setStemName(v)
+              type: DescriptorType.CONTAINER,
+              label: '',
+              direction: 'row',
+              border: true,
+              containerLabel: 'Directory',
+              items: [
+                {
+                  type: DescriptorType.TEXT,
+                  label: 'Directory',
+                  description: 'Set path to directory for saving images in recording mode.',
+                  getValue: () => prefs.getCurrentDirectoryPath(),
+                  setValue: (v) => prefs.setCurrentDirectoryPath(v)
+                },
+                {
+                  type: DescriptorType.BUTTON,
+                  label: 'Browse…',
+                  disabled: !canPickDirectory || typeof onPickDirectory !== 'function',
+                  action: () => onPickDirectory?.()
+                }
+              ]
             },
             {
-              type: DescriptorType.INT,
-              label: 'Start count',
-              description: 'Choose the start count for numbering images in recording mode.',
-              getValue: () => prefs.getStartCount(),
-              setValue: (v) => prefs.setStartCount(v)
+                  type: DescriptorType.CONTAINER,
+                  label: '',
+                  direction: 'row',
+                  border: true,
+                  containerLabel: 'File name',
+                  items: [
+                {
+                  type: DescriptorType.TEXT,
+                  label: 'Stem',
+                  description: 'Choose the stem name for saving images in recording mode.',
+                  getValue: () => prefs.getStemName(),
+                  setValue: (v) => prefs.setStemName(v)
+                },
+                {
+                  type: DescriptorType.INT,
+                  label: 'Start count',
+                  description: 'Choose the start count for numbering images in recording mode.',
+                  getValue: () => prefs.getStartCount(),
+                  setValue: (v) => prefs.setStartCount(v)
+                }
+              ]
             }
           ]
         }
       ]
     }
-  ];
+  ]
 }
 
 

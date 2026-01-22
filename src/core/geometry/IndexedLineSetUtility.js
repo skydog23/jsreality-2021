@@ -18,6 +18,7 @@ import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 import { getLogger, setModuleLevel, Level } from '../util/LoggingSystem.js'; 
+import { Rectangle2D } from '../util/Rectangle2D.js';
 
 const logger = getLogger('jsreality.core.geometry.IndexedLineSetUtility');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -644,5 +645,24 @@ export class IndexedLineSetUtility {
     return Rn.innerProductN(pt0, pt1, 3) * pt0[3]*pt1[3] > 0;
   }
 
+  /** 
+   * 
+   * @param {number[][]} pts4 - Array of homogeneous points
+   * @param {Rectangle2D} rect2d - Rectangle to clip to
+   * @returns {IndexedLineSet}
+   */
+   static clipCurveToRectangle2D(pts4, rect2d) {
+    const containArray = pts4.map(v => rect2d.contains(v[0], v[1]));
+    let newEdges = containArray.map((b,i) => (b || (containArray[(i+1)%pts4.length])) ? [i, (i+1)%pts4.length] : null);
+    newEdges = newEdges.filter(e => e !== null);
+    const ilsf = new IndexedLineSetFactory();
+    ilsf.setVertexCount(pts4.length);
+    ilsf.setVertexCoordinates(pts4);
+    ilsf.setEdgeCount(newEdges.length);
+    ilsf.setEdgeIndices(newEdges);
+    ilsf.update();
+    return ilsf.getIndexedLineSet(null);
+    
+  }
 }
 

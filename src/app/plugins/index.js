@@ -25,7 +25,7 @@ export { AppMenuPlugin } from './AppMenuPlugin.js';
 export { BackgroundColorPlugin } from './BackgroundColorPlugin.js';
 export { SceneGraphInspectorPlugin } from './SceneGraphInspectorPlugin.js';
 export { LoggingInspectorPlugin } from './LoggingInspectorPlugin.js';
-export { AnimationPlugin } from './AnimationPlugin.js';
+export { AnimationPlugin } from '../../anim/plugins/AnimationPlugin.js';
 
 // Add more built-in plugins here as they are created
 

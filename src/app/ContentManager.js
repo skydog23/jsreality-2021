@@ -7,14 +7,6 @@
  * Contributors retain copyright to their contributions.
  */
 
-/**
- * ContentManager - Manages content node in the scene graph with different strategies.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
- */
-
 import { SceneGraphComponent } from '../core/scene/SceneGraphComponent.js';
 import { SceneGraphNode } from '../core/scene/SceneGraphNode.js';
 import { Transformation } from '../core/scene/Transformation.js';

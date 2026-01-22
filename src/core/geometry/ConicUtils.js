@@ -21,6 +21,23 @@ const logger = getLogger('jsreality.core.geometry.ConicUtils');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
 
+export class SolveConicResult {
+    constructor(coefficients, svdQ, svd5Points, fivePoints, rank, maxNumCollPoints) {
+        this.coefficients = coefficients;
+        this.svdQ = svdQ;
+        this.svd5Points = svd5Points;
+        this.fivePoints = fivePoints;
+        this.rank = rank;
+        this.maxNumCollPoints = maxNumCollPoints;
+    }
+    coefficients = null;
+    svdQ = null;
+    svd5Points = null;
+    fivePoints = null;
+    rank = 0;
+    maxNumCollPoints = 0;
+}
+
 export class ConicUtils {
     
     static conicTypes = ["zero", "double line", "line pair", "regular"];
@@ -99,7 +116,7 @@ export class ConicUtils {
 
     }
     // Solve for conic coefficients from 5 points using proper SVD
-    static solveConicFromPointsSVD(points, tolerance = 1e-6) {
+    static solveConicFromPointsSVD(points, tolerance = 1e-4) {
         if (points.length !== 5) {
             throw new Error('Exactly 5 points required');
         }
@@ -144,14 +161,8 @@ export class ConicUtils {
             rank = 1;
             maxNumCollPoints = 5;
         } else throw new Error('Invalid dimension of null space',dnsp);
-        return {
-            coefficients: coefficients,
-            svdQ: svdQ,
-            svd5Points: svdPoints,
-            fivePoints: points,
-            rank: rank,
-            maxNumCollPoints: maxNumCollPoints
-        }
+        return new SolveConicResult(coefficients, svdQ, svdPoints, points, rank, maxNumCollPoints);
+       
        
     }
 
@@ -219,13 +230,71 @@ export class ConicUtils {
             logger.finer(-1, "ret = ", ret);
             logger.fine(-1, "tret = ", tret);
             return tret;
+        }  
+    }
+
+    static getCenterPoint(conic) {
+         const [A,H,B,G,F,C] = conic.dcoefficients;
+         return Pn.dehomogenize(null,[G/2,F/2,C]);
+    }
+
+    static  findPointOnConic(conic ) {
+        let pointOnConic = null;
+        let minDistance = Infinity;
+        const numTrialLines = 20;
+        const centerPoint = this.getCenterPoint(conic);
+
+        for (let i = 0; i < numTrialLines; i++) {
+            const angle = (2 * Math.PI * i) / numTrialLines;
+            const dx = Math.cos(angle);
+            const dy = Math.sin(angle);
+            const V = [dx, dy, 0];
+            // t² coefficient
+            const A = Rn.bilinearForm(conic.Q, V, V);
+            // t¹ coefficient
+            const B = 2 * Rn.bilinearForm(conic.Q, V, centerPoint);
+
+            // t⁰ coefficient
+            const C = Rn.bilinearForm(conic.Q, centerPoint, centerPoint);
+               // Solve quadratic equation
+            if (Math.abs(A) > 1e-10) {
+                const disc = B * B - 4 * A * C;
+                if (disc >= 0) {
+                    // Two solutions for t
+                    const t1 = (-B + Math.sqrt(disc)) / (2 * A);
+                    const t2 = (-B - Math.sqrt(disc)) / (2 * A);
+
+                    // Try both solutions
+                    const points = [
+                        Rn.add(null, Rn.times(null, t1, V), centerPoint),
+                        Rn.add(null, Rn.times(null, t2, V), centerPoint)
+                    ].map(p => Pn.dehomogenize(null, p));
+
+                    for (const p of points) {
+                        // Check if this point is actually on the conic
+                        const value = Rn.bilinearForm(conic.Q, p, p);
+                         if (Math.abs(value) < 1e-8) {
+                            const distance = Rn.euclideanNorm(Rn.subtract(null, p, centerPoint));
+                            // console.log('distance:', distance);
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                pointOnConic = p;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-
+        if (!pointOnConic) {
+            logger.warn(-1, 'Could not find initial point on conic');
+            pointOnConic = [0, 0, 1];
+        }
+        logger.fine(-1, 'Using point on conic:', pointOnConic);
+       return ( Pn.dehomogenize(null, pointOnConic));
         
     }
 
-    
    
 }       
 

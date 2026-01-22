@@ -47,37 +47,40 @@ export class ConicDemo extends JSRApp {
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
-    
+
     this._conicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
     this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
-    
-     // set up point set factory for the five points
-     this._psf = new PointSetFactory();
-     this._psf.setVertexCount(5);
-     this._psf.setVertexCoordinates(this.unitCircle());
-     this._psf.update();
-     this._fivePointSGC.setGeometry(this._psf.getPointSet());
-     this._psf.getPointSet().addGeometryListener((event) => {
-      // console.log('geometry changed', event);
-      let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
-      let fivePoints = DataUtility.fromDataList(vertices);
-      if (fivePoints == null || fivePoints.length !== 5) { return;}
-      this._conic.setFromFivePoints(fivePoints);
-      if (this._doDualCurve) this._conic.getDualCurveSGC();
-      this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
-      this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
-    });
-    this.setupConic();
+
+    // set up point set factory for the five points
+    this._psf = new PointSetFactory();
+    this._psf.setVertexCount(5);
+    this._psf.setVertexCoordinates(this.unitCircle());
+    this._psf.update();
+    this._fivePointSGC.setGeometry(this._psf.getPointSet());
+   
+    this.updateConic();
      
+    this._psf.getPointSet().addGeometryListener((event) => {
+      // console.log('geometry changed', event);
+        let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
+        let fivePoints = DataUtility.fromDataList(vertices);
+        if (fivePoints == null || fivePoints.length !== 5) { return; }
+        this._conic.setFromFivePoints(fivePoints);
+        if (this._doDualCurve) this._conic.getDualCurveSGC();
+        this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+        this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
+      });
     let ap = this._conicSGC.getAppearance();
-    ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
-    ap.setAttribute(CommonAttributes.TUBES_DRAW, true);
-    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+    ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
+   ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, true);
-    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
-
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
+    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
+    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
+    
     ap = this._fivePointSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
@@ -123,6 +126,7 @@ export class ConicDemo extends JSRApp {
 
   display() {
     super.display();
+    this.getViewer().getSceneRoot().getAppearance().setAttribute(CommonAttributes.BACKGROUND_COLOR, Color.BLACK);
     console.log('ConicDemo display');
     const cam = CameraUtility.getCamera(this.getViewer());
     const vc = this.getViewer().getViewingComponent();
@@ -147,24 +151,32 @@ export class ConicDemo extends JSRApp {
         console.log('size changed');
         console.log('width = ', vc.clientWidth, 'height = ', vc.clientHeight);
         console.log('viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+        this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
         this.getViewer().renderAsync();
       });
       this._resizeObserver.observe(vc);
     }
+    // viewport can also change with changes to camera
+    cam.addCameraListener((event) => {
+      console.log('camera changed', event);
+      this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+      this.getViewer().renderAsync();
+    });
    
   }
 
-  setupConic() {
+  updateConic() {
     
     let fivePoints = this.initFivePoints();
     console.log('fivePoints = ', fivePoints.length);
-    if (!this._conic) this._conic = new ConicSection();
-    this._psf.setVertexCoordinates(fivePoints);
+     this._psf.setVertexCoordinates(fivePoints);
     this._psf.update();
     
-    this._conic.setFromFivePoints(fivePoints);
+    if (!this._conic) this._conic = new ConicSection(fivePoints);
+    else this._conic.setFromFivePoints(fivePoints);
     this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
-    this._centerSGC.setGeometry(Primitives.point(this._conic.centerPoint));
+    this._centerSGC.setVisible(this._conic.rank === 3);
+    this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
     if (this._doDualCurve) this._dualCurveSGC = this._conic.getDualCurveSGC();
      
    }
@@ -219,34 +231,37 @@ export class ConicDemo extends JSRApp {
           items: [
             {
               type: DescriptorType.BUTTON,
-              label: 'Circle',
+              label: '\u2299',
               action: () => {
                 console.log('button whichMode = 0');
-                this._whichMode = 0; this.setupConic();
+                this._whichMode = 0; this.updateConic();
                 this.getViewer().renderAsync();}
             },
             {
               type: DescriptorType.BUTTON,
+              // comment out experimental icon support for now
+              // label: '',
+              // iconSrc: '../src/assets/images/icons/fav_icon.png',
               label: '2',
-              action: () => {this._whichMode = 1; this.setupConic();
+              action: () => {this._whichMode = 1; this.updateConic();
                 this.getViewer().renderAsync();}
             },
             {
               type: DescriptorType.BUTTON,
               label: '3',
-              action: () => {this._whichMode = 2; this.setupConic();
+              action: () => {this._whichMode = 2; this.updateConic();
                 this.getViewer().renderAsync();}
             },
             {
               type: DescriptorType.BUTTON,
               label: '4',
-              action: () => {this._whichMode = 3; this.setupConic();
+              action: () => {this._whichMode = 3; this.updateConic();
                 this.getViewer().renderAsync();}
             },
             {
               type: DescriptorType.BUTTON,
               label: '5',
-              action: () => {this._whichMode =43; this.setupConic();
+              action: () => {this._whichMode =43; this.updateConic();
                 this.getViewer().renderAsync();}
             }
           ]

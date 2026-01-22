@@ -6,6 +6,8 @@
  * Licensed under the BSD 3-Clause License. See LICENSE for details.
  * Contributors retain copyright to their contributions.
  */
+// Run from repo root:
+//   node scripts/generate-jsrapp-gallery.js
 
 import fs from 'fs';
 import path from 'path';

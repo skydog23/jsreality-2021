@@ -154,21 +154,6 @@ export function cofactor(dst, m) {
 }
 
 /**
- * @param {number[]} matrix
- * @param {number[]} vector
- * @returns {number[]}
- */
-export function multiplyMatrixVector(matrix, vector) {
-    const result = new Array(3).fill(0);
-    for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < 3; j++) {
-            result[i] += matrix[3*i + j] * vector[j];
-        }
-    }
-    return result;
-}
-
-/**
  * Calculate the Euclidean perpendicular bisector of the segment from p1 to p2.
  * @param {number[]|null} dst
  * @param {number[]} p1
@@ -179,20 +164,15 @@ export function perpendicularBisector(dst, p1, p2, metric) {
     if (p1.length !== 3 || p2.length !== 3) {
         throw new Error('Input points must be homogeneous vectors');
     }
+    const line = lineFromPoints(p1, p2);
+    if (!dst) dst = new Array(3);
     if (metric == null || metric === Pn.EUCLIDEAN) {
-        if (!dst) dst = new Array(3);
         const avg = Rn.add(null, Pn.dehomogenize(null, p1), Pn.dehomogenize(null, p2));
         Rn.times(avg, 0.5, avg);
-        const line = lineFromPoints(p1, p2);
-        dst[0] = -line[1];
-        dst[1] = line[0];
-        dst[2] = -(dst[0] * avg[0] + dst[1] * avg[1]);
+        dst = [-line[1], line[0], -(dst[0] * avg[0] + dst[1] * avg[1])];
         return dst;
     }
-    if (!dst) dst = new Array(3);
-    const midpoint = new Array(3);
-    Pn.linearInterpolation(midpoint, p1, p2, 0.5, metric);
-    const line = lineFromPoints(p1, p2);
+    const midpoint = Pn.linearInterpolation(null, p1, p2, 0.5, metric);
     const polarM = Pn.polarize(null, midpoint, metric);
     const pb = pointFromLines(polarM, line);
     Pn.polarize(dst, pb, metric);
@@ -206,41 +186,14 @@ export function perpendicularBisector(dst, p1, p2, metric) {
  * @param {number[]} point
  * @returns {boolean}
  */
-export function polygonContainsPoint(polygon, point, open = null) {
-    return getFirstOutsideEdge(polygon, open, point) === -1;
+export function pointInsideLinePolygon(lines, point) {
+    const inpros = lines.map(line => Rn.innerProduct(line, point));
+    return inpros.every(ip => ip >= 0);
 }
 
-/**
- * Returns index of first edge outside point, or -1 if inside.
- * @param {number[][]} polygon
- * @param {boolean[]|null} open
- * @param {number[]} point
- * @returns {number}
- */
-export function getFirstOutsideEdge(polygon, open, point) {
-    if (point.length !== 3) {
-        throw new Error('Input point must be homogeneous vector');
-    }
-    const n = polygon.length;
-    let p1 = [polygon[0][0], polygon[0][1], 1.0];
-    let p2 = [0, 0, 1.0];
-    let min = 1.0e11;
-    let which = -1;
-    for (let i = 0; i < n; ++i) {
-        const j = (i + 1) % n;
-        p2[0] = polygon[j][0];
-        p2[1] = polygon[j][1];
-        const line = lineFromPoints(p1, p2);
-        const ip = Rn.innerProduct(line, point);
-        if (ip < min) { which = i; min = ip; }
-        const tmp = p1;
-        p1 = p2;
-        p2 = tmp;
-    }
-    if (open != null && open[which]) {
-        if (min <= 0.0) return which;
-    } else if (min < 0.0) return which;
-    return -1;
+export function pointInsidePointPolygon(points, point) {
+    const lines = points.map((p, i) => lineFromPoints(null, p, points[(i + 1) % points.length]));
+    return pointInsideLinePolygon(lines, point);
 }
 
 /**
@@ -249,22 +202,10 @@ export function getFirstOutsideEdge(polygon, open, point) {
  * @returns {boolean}
  */
 export function isConvex(polygon) {
-    const n = polygon.length;
-    let metricn = 0.0;
-    const diffs = new Array(n);
-    for (let i = 0; i < n; ++i) {
-        const j = (i + 1) % n;
-        diffs[i] = Rn.subtract(null, polygon[j], polygon[i]);
-        Rn.normalize(diffs[i], diffs[i]);
-    }
-    const tmp = [0, 0, 0];
-    for (let i = 0; i < n; ++i) {
-        const j = (i + 1) % n;
-        Rn.crossProduct(tmp, diffs[i], diffs[j]);
-        if (metricn === 0.0) metricn = tmp[2];
-        else if (metricn * tmp[2] < 0.0) return false;
-    }
-    return true;
+    const lines = polygon.map((p, i) => [p, polygon[(i + 1) % polygon.length]]);
+    const crossProducts = lines.map((line, i) => {pointFromLines(null, line, lines[(i + 1) % lines.length])});
+    const allSame = crossProducts.every(cp => cp === crossProducts[0]);
+    return allSame;
 }
 
 /**

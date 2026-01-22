@@ -150,6 +150,9 @@ export class Rectangle2D {
         this.height = height;
     }
 
+    expand(factor) {
+        return new Rectangle2D(this.x - this.width * factor, this.y - this.height * factor, this.width * (1 + 2 * factor), this.height * (1 + 2 * factor));
+    }
     /**
      * Test if a point is inside the rectangle
      * @param {number} x
@@ -220,19 +223,6 @@ export class Rectangle2D {
         return `Rectangle2D[x=${this.x}, y=${this.y}, width=${this.width}, height=${this.height}]`;
     }
 }
-
-/**
- * Convenience subclass for double precision rectangles 
- * (equivalent to Java's Rectangle2D.Double)
- */
-export class Double extends Rectangle2D {
-    constructor(x = 0, y = 0, width = 0, height = 0) {
-        super(x, y, width, height);
-    }
-}
-
-// Add Double as a static property for Java-like usage
-Rectangle2D.Double = Double;
 
 // Default export for convenience
 export default Rectangle2D;
