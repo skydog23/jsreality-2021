@@ -157,11 +157,11 @@ export class ConicDemo extends JSRApp {
       this._resizeObserver.observe(vc);
     }
     // viewport can also change with changes to camera
-    cam.addCameraListener((event) => {
-      console.log('camera changed', event);
-      this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
-      this.getViewer().renderAsync();
-    });
+    // cam.addCameraListener((event) => {
+    //   console.log('camera changed', event);
+    //   this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+    //   this.getViewer().renderAsync();
+    // });
    
   }
 

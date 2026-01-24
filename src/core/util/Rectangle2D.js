@@ -95,18 +95,10 @@ export class Rectangle2D {
 
     /**
      * Get the center X coordinate
-     * @returns {number}
+     * @returns {number[]}
      */
-    getCenterX() {
-        return (this.x + this.width) / 2;
-    }
-
-    /**
-     * Get the center Y coordinate
-     * @returns {number}
-     */
-    getCenterY() {
-        return (this.y + this.height) / 2;
+    getCenter() {
+        return [ this.x + this.width / 2, this.y + this.height / 2, 1 ];
     }
 
     /**

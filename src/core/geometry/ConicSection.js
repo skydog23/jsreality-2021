@@ -16,6 +16,7 @@ import { ConicUtils } from './ConicUtils.js';
 import { SVDUtil } from '../math/SVDUtil.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
 import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
 import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
@@ -23,7 +24,8 @@ import { Color } from '../util/Color.js';
 import { LineUtility } from './projective/LineUtility.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
-import { convert4To3, convert3To4 } from '../math/Rn.js';
+import { Rectangle2D } from '../util/Rectangle2D.js';
+import { convert3To4 } from '../math/Rn.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -41,10 +43,11 @@ export class ConicSection {
     linePair = null;
     fivePoints = null;
     pts5d = null;
-    drawRadials = false;
-    numPoints = 250;
+    exactFollower = true;
+    numPoints = 100;
     degenConicTolerance = 1e-4;
     maxSegmentLength = .03;
+    maxPixelError = .005;   // have to compute this from the viewport and the canvas size
     viewport = null;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1]) {
@@ -68,6 +71,12 @@ export class ConicSection {
         this.svdQ = this.pts5d.svdQ;
         this.fivePoints = fivePoints;
         this.setCoefficients(this.pts5d.coefficients);
+        const evals = this.fivePoints.map(pt => Rn.bilinearForm(this.Q, pt, pt));
+        logger.fine(-1, 'evals = ', evals);
+        if (Math.max(...evals) > 1e-6) {
+            logger.warn(-1, 'Points are not exactly on the conic. Max eval = ', Math.max(...evals));
+            return;
+        }
         this.updateGeomRepn();
     }
 
@@ -78,8 +87,6 @@ export class ConicSection {
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
         // Determine rank (count non-zero singular values)
         this.rank = this.svdQ.S.filter(s => Math.abs(s) > this.degenConicTolerance).length;
-        logger.fine(-1, 'Q singular values:', this.svdQ.S);
-        logger.fine(-1, 'rank = ', this.rank);
         this.setCoefficients(coefficients);
         this.updateGeomRepn();
     }
@@ -89,8 +96,10 @@ export class ConicSection {
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+        logger.fine(-1, 'Q singular values:', this.svdQ.S);
+        logger.fine(-1, 'rank = ', this.rank);
         logger.fine(-1, 'conic Q', this.Q);
-        logger.info(-1, 'Q singular values:', this.svdQ.S);
+        logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'conic dQ', this.dQ);
         logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
@@ -136,85 +145,74 @@ export class ConicSection {
 
     #drawRegularConic() {
 
-        const pointOnConic = ConicUtils.findPointOnConic(this);
-        // Now rotate a line around this point and find intersections
-        let pts4 = [], count = 0;
-        if (this.viewport) {
-            // we implement a two-stage approach.
-            // first make sure that the part of the curve inside the viewport has maximum distance between points.
-            // Then we call a clipCurveToRectangle2D to obtain an IndexedLineSet from the results.
-            // For this reason we apply a slightly larger viewport in the first stage.
-            const biggerVP = this.viewport.clone().expand(.1);
-            let angle = 0,
-            currentPoint = null,
-            lastPoint = null,
-            currentAngle = 0,
-            d = 0;
-            let maxDistance = this.maxSegmentLength;
-            let minDistance = maxDistance / 3;
-            do {
-                let dangle = Math.PI / this.numPoints;  // start with standard step-size
-                // keep halving the step-size until the distance is less than maxDistance
-                // this should also be adaptable to the previous result, and then be allowed to increase, too.
-                // later!
-                let its = 0;
-                do {  
-                    angle = currentAngle + dangle;      // dangle decreases in this loop until distance 
-                        // to previous point is less than maxDistance and the point is on the conic
-                    currentPoint = this.#calculatePointForAngle(angle, pointOnConic);
-                    // skip it if it's outside our expanded viewport
-                    if (currentPoint === null || !biggerVP.contains(currentPoint[0], currentPoint[1])) {
-                        dangle = Math.PI / this.numPoints; 
-                        break;
-                    } 
-                    if (count === 0) break;
-                    // estimate the step-size based on how much too far we moved.
-                    d = Rn.euclideanNorm(Rn.subtract(null, currentPoint, lastPoint));
-                    dangle *= .8 * maxDistance / d;   // reduce step-size
-                    its++;
-                } while (count != 0 && its < 5 && (d > maxDistance || d < minDistance));
-                currentAngle = angle;
-                if (currentPoint !== null) {
-                    pts4.push(Rn.convert3To4(null, currentPoint));
-                    lastPoint = currentPoint;
-                    count++;
-                    // console.log('CS draw regular count = ', count);
-                }
-            } while (angle <= Math.PI);
-            console.log('CS draw regular count = ', count)
-        }  else {
-            pts4 = new Array(this.numPoints + 1).fill(null).map(() => [0, 0, 0, 0]);
-            for (let i = 0; i < this.numPoints; i++) {
-                const angle = (Math.PI * i) / this.numPoints;
-                // find the intersection of a rotating line through the point on the conic with the conic
-                // The quadratic form Q(P+tV) is simple because Q(P,P) = 0
-                const V = [Math.cos(angle), Math.sin(angle), 0];
-                // Quadratic coefficient (t²)
-                const a = Rn.bilinearForm(this.Q, V, V);
-                // Linear coefficient (t)
-                const b = 2 * Rn.bilinearForm(this.Q, V, pointOnConic);
-                if (Math.abs(a) > 1e-10) {
-                    const t = -b / a; // Other solution is t=0 
-                    const currentPoint = Rn.add(null, pointOnConic, Rn.times(null, t, V));
-                    // logger.finer(-1, 'currentPoint = ', currentPoint);
-                    pts4[i] = Rn.convert3To4(null, currentPoint);
-                }
-            }
-            count = this.numPoints;
+        const centerPoint = this.getViewport() != null ? this.getViewport().getCenter() : ConicUtils.getCenterPoint(this);
+        logger.fine(-1, 'centerPoint = ', centerPoint);
+        const npts = this.numPoints;
+        const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
+        const tvals = new Array(npts+1).fill(0).map((_, i) => (2*Math.PI * i) / (npts));
+        const edges = new Array(npts).fill(0).map((_, i) => [i, (i+1)]);
+        const C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
+        let pts4 = tvals.map(t => this.#pointAtTime2(t, C, centerPoint)).filter(pt => pt !== null);
+        if (pts4.length != npts+1) {
+            logger.warn(-1, 'pts4.length = ', pts4.length, ' != npts = ', npts);
+            return null;
         }
-        pts4[count] = pts4[0];  // I'm not sure if this works with the viewport mode
-        return this.viewport ? IndexedLineSetUtility.clipCurveToRectangle2D(pts4, this.viewport) :
-            IndexedLineSetUtility.removeInfinity(pts4, 1.0);
-
+        const newedges = [];
+        do {
+            const [i1, i2] = edges.pop();   // get the next edge
+            const [p1, p2] = [pts4[i1], pts4[i2]];  // and its endpoints
+            // This segment check against viewport should be more careful. 
+            // It could still cut off the corner of the viewport
+            if (!myVP.contains(p1[0], p1[1]) && !myVP.contains(p2[0], p2[1])) {
+                continue;
+            }
+            const [t1, t2] = [tvals[i1], tvals[i2]];   // the times of the endpoints
+            const [mid, tm] = [Rn.linearCombination(null, .5, p1, .5, p2), (t1 + t2) / 2];
+            const pt = this.#pointAtTime2(tm, C, centerPoint);   // the value at the mid-time
+            if (pt === null) {
+                newedges.push([i1, i2]);
+                continue;
+            }
+            const error = Rn.euclideanNorm(Rn.subtract(null, pt, mid)); // compare to midpoint
+            if (error > this.maxPixelError) { // too much curve deviation, subdivide
+                tvals.push(tm);  pts4.push(pt);
+                edges.push([i1, pts4.length - 1]);
+                edges.push([pts4.length - 1, i2]);
+            } else {   // accept this edge
+                newedges.push([i1, i2]);
+            }
+        } while (edges.length > 0 && newedges.length < 10000);  // in case things go crazy
+        logger.fine(-1, 'vcount = ', pts4.length);
+        const ifsf = new IndexedLineSetFactory();
+        ifsf.setVertexCount(pts4.length);
+        ifsf.setVertexCoordinates(pts4);
+        ifsf.setEdgeCount(newedges.length);
+        ifsf.setEdgeIndices(newedges);
+        ifsf.update();
+        return ifsf.getIndexedLineSet();
     }
 
-    #calculatePointForAngle(angle, pointOnConic) {
-        const V = [Math.cos(angle), Math.sin(angle), 0];
+    // calculation using a point not on the conic
+    #pointAtTime2(t, C, startPoint) {
+        const V = [Math.cos(t), Math.sin(t), 0];
+        const A = Rn.bilinearForm(this.Q, V, V);
+        const B = 2 * Rn.bilinearForm(this.Q, V, startPoint);
+        let d = (B * B - 4 * A * C);
+        if (d < -.0001) d = 0; 
+        return Rn.convert3To4(null,
+                Pn.dehomogenize(null, Rn.add(null, 
+                    Rn.times(null, 2*A, startPoint),  
+                    Rn.times(null, (-B + Math.sqrt(d)), V))));
+    }
+
+    // calculation using a point on the conic
+    #pointAtTime(t, pointOnConic) {
+        const V = [Math.cos(t), Math.sin(t), 0];
         const a = Rn.bilinearForm(this.Q, V, V);
         const b = 2 * Rn.bilinearForm(this.Q, V, pointOnConic);
-        if (Math.abs(a) > 1e-10) {
-            return Rn.add(null, pointOnConic, Rn.times(null, -b / a, V));
-        } else return null;
+        const currentPoint = Rn.add(null, Rn.times(null, a, pointOnConic), Rn.times(null, -b, V));
+        const pt = Rn.convert3To4(null, Pn.dehomogenize(currentPoint, currentPoint));
+        return pt;
     }
 
     updateQ(newQ) {
@@ -245,7 +243,7 @@ export class ConicSection {
     setViewport(viewport) {
         this.viewport = viewport;
         this.updateGeomRepn();
-        console.log('ConicSection viewport = ', this.viewport);
+        // console.log('ConicSection viewport = ', this.viewport);
     }
 
     getViewport() {
@@ -260,10 +258,105 @@ export class ConicSection {
         this.dualConicSGC.removeAllChildren();
         LineUtility.sceneGraphForCurveOfLines(this.dualConicSGC, lineCurve, sampledCoords, 2.0, true);
     }
-
-
-
-
-
 }
+
+// Remove this code if it's hanging around in 2027
+// It was part of the process of getting the rendering of the regular conics.
+// Now that Google Gemini reminded my how to do midpoint subdivision, I'm happy with the
+// current code.
+// if (false &&this.exactFollower) {
+//     // try out the exact follower algorithm.
+//     let stepSize = .02,
+//         P = pointOnConic,
+//         nP = null,
+//         C = pointOnConic,   // try putting the center at the point on the conic
+//         c = Pn.polarize(null, C, Pn.ELLIPTIC),   // the "tangent space" of C in Ell2.
+//         np = null,
+//         dir = Pn.normalize(null, Rn.subtract(null, P, C), Pn.ELLIPTIC),     // should be ideal point when C and P are both finite
+//         ndir = null,
+//         totalAngle = 0;
+//     P = Pn.normalize(null, P, Pn.ELLIPTIC);
+//     C = Pn.normalize(null, C, Pn.ELLIPTIC);
+//     do {
+//         nP = this.#exactNextPoint(P, C, c, stepSize);
+//         totalAngle += Pn.angleBetween(P, nP, Pn.ELLIPTIC);
+//         // return to "euclidean" norm
+//         pts4.push(convert3To4(null, Pn.dehomogenize(null, P)));
+//         //pts4.push(Rn.convert3To4(null, Pn.homogenize(null, nP)));
+//         P = nP;
+//         dir = ndir;
+        
+//     } while (Math.abs(totalAngle) <= 2*Math.PI && totalAngle !== 0);
+//     console.log('calculated #points ', pts4.length);
+// } else if (false &&this.viewport) {  
+//     // we implement a two-stage approach.
+//     // first make sure that the part of the curve inside the viewport has maximum distance between points.
+//     // Then we call a clipCurveToRectangle2D to obtain an IndexedLineSet from the results.
+//     // For this reason we apply a slightly larger viewport in the first stage.
+//     const biggerVP = this.viewport.clone().expand(.1);
+//     let angle = 0,
+//     currentPoint = null,
+//     lastPoint = null,
+//     currentAngle = 0,
+//     d = 0;
+//     let maxDistance = this.maxSegmentLength;
+//     let minDistance = maxDistance / 3;
+//     do {
+//         let dangle = Math.PI / this.numPoints;  // start with standard step-size
+//         // keep halving the step-size until the distance is less than maxDistance
+//         // this should also be adaptable to the previous result, and then be allowed to increase, too.
+//         // later!
+//         let its = 0;
+//         do {  
+//             angle = currentAngle + dangle;      // dangle decreases in this loop until distance 
+//                 // to previous point is less than maxDistance and the point is on the conic
+//             currentPoint = this.#calculatePointForAngle(angle, pointOnConic);
+//             // skip it if it's outside our expanded viewport
+//             if (currentPoint === null || !biggerVP.contains(currentPoint[0], currentPoint[1])) {
+//                 dangle = Math.PI / this.numPoints; 
+//                 break;
+//             } 
+//             if (count === 0) break;
+//             // estimate the step-size based on how much too far we moved.
+//             d = Rn.euclideanNorm(Rn.subtract(null, currentPoint, lastPoint));
+//             dangle *= .8 * maxDistance / d;   // reduce step-size
+//             its++;
+//         } while (count != 0 && its < 5 && (d > maxDistance || d < minDistance));
+//         currentAngle = angle;
+//         if (currentPoint !== null) {
+//             pts4.push(Rn.convert3To4(null, currentPoint));
+//             lastPoint = currentPoint;
+//             count++;
+//             // console.log('CS draw regular count = ', count);
+//         }
+//     } while (angle <= Math.PI);
+//     console.log('CS draw regular count = ', count)
+// }  else {
+// #calculatePointForAngle(angle, pointOnConic) {
+//     const V = [Math.cos(angle), Math.sin(angle), 0];
+//     const a = Rn.bilinearForm(this.Q, V, V);
+//     const b = 2 * Rn.bilinearForm(this.Q, V, pointOnConic);
+//     if (Math.abs(a) > 1e-10) {
+//         return Rn.add(null, pointOnConic, Rn.times(null, -b / a, V));
+//     } else return null;
+// }
+
+// #exactNextPoint(P, C, c, stepSize = .02) {
+//     const tangent = ConicUtils.polarize(this.Q, P);
+//     const tdir = Pn.normalize(null, [tangent[1], -tangent[0], 0], Pn.ELLIPTIC); // a point on the "equator" of S2
+//     let np = Rn.add(null, P, Rn.times(null, stepSize, tdir));  // move along tangent line
+//     const sdir = Rn.subtract(null, np, C);     // direction from center to np
+//     const cc = Rn.bilinearForm(this.Q, C, C),
+//         pp = Rn.bilinearForm(this.Q, P, P),
+//         k = Math.sqrt(Math.abs(cc/(pp-cc)));
+//     np = Rn.add(null, C, Rn.times(null, k, sdir));
+//     if (false) {
+//         console.log('P = ', P);
+//         console.log('P.tangent = ', Rn.innerProduct(tangent, P));
+//         console.log('sdir = ', sdir);
+//         console.log('np = ', np);
+//         console.log('Q(np) = ', Rn.bilinearForm(this.Q, np, np));
+//     }
+//     return Pn.normalize(null, np, Pn.ELLIPTIC);
+// }
 

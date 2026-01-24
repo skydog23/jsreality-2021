@@ -308,6 +308,18 @@ export function makeDirectIsometryFromFrame(dst, point, xdir, metric) {
     return makeMatrixFromColumns(dst, p1n, p2, point);
 }
 
+export function orthogonalPointsOnLine(line) {
+    const [a,b,c] = Pn.normalize(null, line, Pn.ELLIPTIC);
+    const pnts = [[b,-a,0], [a,0,-c], [0,c,-b]];   // all lie on line but could be 0-vector
+    const P = Pn.normalize(null, pnts.find(p => Rn.innerProduct(p, p) > 1e-4), Pn.ELLIPTIC);
+    const Q = Pn.normalize(null, this.pointFromLines(null, line, Pn.polarize(null, P, Pn.ELLIPTIC)), Pn.ELLIPTIC);
+    console.log('P.line = ', Rn.innerProduct(line, P));
+    console.log('Q.line = ', Rn.innerProduct(line, Q));
+    console.log('P = ', P);
+    console.log('Q = ', Q);
+    return [P, Q];
+}
+
 /**
  * @param {number[]|null} dst
  * @param {number[]} p0

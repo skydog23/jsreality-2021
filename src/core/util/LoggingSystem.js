@@ -415,6 +415,30 @@ class LoggingSystem {
   }
 }
 
+/**
+ * Console helper: format numeric args with toPrecision.
+ * @param {...any} args - Values to log
+ */
+export function logWithPrecision(...args) {
+  logWithPrecisionN(6, ...args);
+}
+
+/**
+ * Console helper: format numeric args with toPrecision.
+ * @param {number} precision - Significant digits for numbers
+ * @param {...any} args - Values to log
+ */
+export function logWithPrecisionN(precision, ...args) {
+  const effectivePrecision = Number.isFinite(precision) ? precision : 6;
+  const formatted = args.map((arg) => {
+    if (typeof arg === 'number' && Number.isFinite(arg)) {
+      return arg.toPrecision(effectivePrecision);
+    }
+    return arg;
+  });
+  console.log(...formatted);
+}
+
 // Singleton instance
 const loggingSystem = new LoggingSystem();
 

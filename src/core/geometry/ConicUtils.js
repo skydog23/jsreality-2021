@@ -15,6 +15,7 @@ import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import { SVDUtil } from '../math/SVDUtil.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
+import { LoggingInspector } from '../inspect/LoggingInspector.js';
 
 
 const logger = getLogger('jsreality.core.geometry.ConicUtils');
@@ -178,7 +179,7 @@ export class ConicUtils {
         logger.fine(-1, "lines = ", lines);
         const evals = lines.map(line => conic.fivePoints.map(pt => Rn.innerProduct(pt, line)))
         const sums = evals.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
-         logger.fine(-1, "sums = ",sums);
+        logger.fine(-1, "sums = ",sums);
         return sums[0] < sums[1] ? lines[0] : lines[1];
     }
     static factorPair(conic) {
@@ -238,60 +239,60 @@ export class ConicUtils {
          return Pn.dehomogenize(null,[G/2,F/2,C]);
     }
 
-    static  findPointOnConic(conic ) {
-        let pointOnConic = null;
-        let minDistance = Infinity;
-        const numTrialLines = 20;
-        const centerPoint = this.getCenterPoint(conic);
-
-        for (let i = 0; i < numTrialLines; i++) {
-            const angle = (2 * Math.PI * i) / numTrialLines;
-            const dx = Math.cos(angle);
-            const dy = Math.sin(angle);
-            const V = [dx, dy, 0];
-            // t² coefficient
+    static  findPointsOnConic(conic, numPoints = 100) {
+        let numLines = numPoints/2;
+        const centerPoint = conic.getViewport() != null ? conic.getViewport().getCenter() : this.getCenterPoint(conic);
+        logger.fine(-1, 'centerPoint = ', centerPoint);
+            const dirs = new Array(numLines ).fill(0).map((_, i) => {
+            const angle = (2*Math.PI * i) / numLines;
+            return [Math.cos(angle), Math.sin(angle), 0];
+        });
+        const C = Rn.bilinearForm(conic.Q, centerPoint, centerPoint);
+        const data = dirs.map(V => {
             const A = Rn.bilinearForm(conic.Q, V, V);
-            // t¹ coefficient
             const B = 2 * Rn.bilinearForm(conic.Q, V, centerPoint);
+            const d = (B * B - 4 * A * C);
+            if (d < 0) return null;  
+            // const [t1,t2] = [(-B + Math.sqrt(d)) / (2 * A), (-B - Math.sqrt(d)) / (2 * A)];
+            const t1 = (-B + Math.sqrt(d)) / (2 * A); //, (-B - Math.sqrt(d)) / (2 * A)];
+            return Rn.add(null, Rn.times(null, t1, V), centerPoint);
+         });
 
-            // t⁰ coefficient
-            const C = Rn.bilinearForm(conic.Q, centerPoint, centerPoint);
-               // Solve quadratic equation
-            if (Math.abs(A) > 1e-10) {
-                const disc = B * B - 4 * A * C;
-                if (disc >= 0) {
-                    // Two solutions for t
-                    const t1 = (-B + Math.sqrt(disc)) / (2 * A);
-                    const t2 = (-B - Math.sqrt(disc)) / (2 * A);
 
-                    // Try both solutions
-                    const points = [
-                        Rn.add(null, Rn.times(null, t1, V), centerPoint),
-                        Rn.add(null, Rn.times(null, t2, V), centerPoint)
-                    ].map(p => Pn.dehomogenize(null, p));
-
-                    for (const p of points) {
-                        // Check if this point is actually on the conic
-                        const value = Rn.bilinearForm(conic.Q, p, p);
-                         if (Math.abs(value) < 1e-8) {
-                            const distance = Rn.euclideanNorm(Rn.subtract(null, p, centerPoint));
-                            // console.log('distance:', distance);
-                            if (distance < minDistance) {
-                                minDistance = distance;
-                                pointOnConic = p;
-                            }
-                        }
-                    }
-                }
-            }
+        if (data.length === 0) {
+            logger.warn(-1, 'Could not find point on conic');
+            return centerPoint;
         }
+        logger.fine(-1, 'data = ', data);
+        const points = data.filter(data => data !== null);
+        points.map(pt => {Pn.dehomogenize(null, pt)});
+        return points; 
+    }
 
-        if (!pointOnConic) {
-            logger.warn(-1, 'Could not find initial point on conic');
-            pointOnConic = [0, 0, 1];
+    static findPointOnConic(conic, numLines = 20){
+        let pointOnConic = null;
+        const points = this.findPointsOnConic(conic, numLines*2);
+        const centerPoint = conic.getViewport() != null ? conic.getViewport().getCenter() : this.getCenterPoint(conic);
+        if (points.length === 0) {
+            logger.warn(-1, 'Could not find point on conic');
+            return centerPoint;
         }
-        logger.fine(-1, 'Using point on conic:', pointOnConic);
-       return ( Pn.dehomogenize(null, pointOnConic));
+        const best = points.reduce((best, item) => {
+            const value = Pn.distanceBetween( item, centerPoint, Pn.EUCLIDEAN);
+         return value < best.value ? { item, value } : best;
+          }, { item: null, value: Infinity }).item;
+
+        if (best != null) {
+            pointOnConic = best;
+        } else {
+            logger.warn(-1, 'Could not find point on conic');
+            pointOnConic = centerPoint;
+        }
+        logger.fine(-1, '# found points = ', points.length);
+        logger.fine(-1, 'pointOnConic = ', pointOnConic);
+        logger.fine(-1, 'centerPoint = ', centerPoint);
+        logger.fine(-1, 'eval = ', Rn.bilinearForm(conic.Q, pointOnConic, pointOnConic));
+        return ( Pn.dehomogenize(null, pointOnConic));
         
     }
 
