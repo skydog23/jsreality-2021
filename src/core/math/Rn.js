@@ -977,7 +977,7 @@ export function matrixTimesVector(dst, m, src) {
  * @returns {number}
  */
 export function bilinearForm(m, v1, v2) {
-  return innerProduct(matrixTimesVector(null, m, v1), v2);
+  return innerProduct(v1, matrixTimesVector(null, m, v2));
 }
 
 // matrixTimesVector for array of vectors
@@ -1184,33 +1184,15 @@ export function transposeF2D(dst, src) {
 function _matrixTimesVectorSafe(dst, m, src) {
   const sl = src.length;
   const ml = mysqrt(m.length);
-  let dehomog = false;
-  if (ml === sl + 1) dehomog = true;
-  if (sl + 1 < ml || sl > ml) {
-    throw new Error('Invalid dimension in _matrixTimesVectorSafe');
-  }
-  let out;
-  if (dehomog) {
-    out = new Array(ml);
-  } else {
-    out = dst;
-  }
+  if (sl !== ml) throw new Error('Invalid dimensions in _matrixTimesVectorSafe');
+  let out = (dst == null) ? new Array(ml) : dst;
   for (let i = 0; i < ml; ++i) {
     out[i] = 0;
     for (let j = 0; j < ml; ++j) {
-      if (dehomog && j === ml - 1) {
-        out[i] += m[i * ml + j]; // src[last] = 1.0
-      } else {
-        out[i] += m[i * ml + j] * src[j];
-      }
-    }
+         out[i] += m[i * ml + j] * src[j];
+     }
   }
-  if (dehomog) {
-    // Return the full homogeneous result instead of dehomogenizing
-    for (let i = 0; i < ml; ++i) {
-      dst[i] = out[i];
-    }
-  }
+  return out;
 }
 
 // bilinearInterpolation: bilinear interpolation
@@ -1418,6 +1400,73 @@ export function sylvesterDiagonalize3x3(Q, eps = TOLERANCE) {
     signs,
     inertia: { pos, neg, zero }
   };
+}
+
+/**
+ * Reorder a Sylvester diagonalization so the odd sign is last.
+ * For non-degenerate conics this maps (+--) or (-++) to (++-).
+ * Mutates the input object and returns it.
+ * @param {{ P?: number[], D?: number[], eigenvalues?: number[], signs?: number[] }} result
+ * @returns {typeof result}
+ */
+/**
+ * @typedef {Object} SylvesterResult
+ * @property {number[]} [P]
+ * @property {number[]} [D]
+ * @property {number[]} [eigenvalues]
+ * @property {number[]} [signs]
+ * @property {number[]} [permutation]
+ */
+
+/**
+ * Reorder a Sylvester diagonalization so the odd sign is last.
+ * For non-degenerate conics this maps (+--) or (-++) to (++-).
+ * Mutates the input object and returns it.
+ * @param {SylvesterResult} result
+ * @returns {SylvesterResult}
+ */
+export function reorderSylvesterOddSignLast(result) {
+  if (!result || !Array.isArray(result.signs) || result.signs.length !== 3) {
+    return result;
+  }
+
+  const signs = result.signs;
+  const indicesBySign = new Map();
+  for (let i = 0; i < signs.length; i++) {
+    const sign = signs[i];
+    if (!indicesBySign.has(sign)) indicesBySign.set(sign, []);
+    indicesBySign.get(sign).push(i);
+  }
+
+  if (indicesBySign.size !== 2) {
+    return result;
+  }
+
+  const entries = Array.from(indicesBySign.entries());
+  const single = entries.find(([, idxs]) => idxs.length === 1);
+  const twice = entries.find(([, idxs]) => idxs.length === 2);
+  if (!single || !twice) {
+    return result;
+  }
+
+  const oddIndex = single[1][0];
+  const perm = twice[1].concat([oddIndex]);
+
+  if (result.P) {
+    const cols = perm.map(i => _getColumn3(result.P, i));
+    result.P = _columnsToMatrix3(cols[0], cols[1], cols[2]);
+  }
+  if (result.D) {
+    const newSigns = perm.map(i => signs[i]);
+    result.D = diagonalMatrix(null, newSigns);
+  }
+  if (result.eigenvalues) {
+    const eigenvalues = result.eigenvalues;
+    result.eigenvalues = perm.map(i => eigenvalues[i]);
+  }
+  result.signs = perm.map(i => signs[i]);
+  result.permutation = perm;
+  return result;
 }
 
 // extractSubmatrix: extract rectangular submatrix

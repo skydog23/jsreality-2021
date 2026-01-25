@@ -254,35 +254,47 @@ export class ConicUtils {
         const pot = Rn.linearCombination(null, factor, ponc, 1-factor, tli);
         const polpot = ConicUtils.polarize(conic.Q, pot);
        
-        const perpLine = P2.perpLineToLineInPoint(polpot, pot); 
-        logger.fine(-1, 'polpot = ', polpot);
-        logger.fine(-1, 'pot = ', pot);
-        logger.fine(-1, 'perpLine = ', perpLine);
-        const ints = this.intersectLineWithConic(perpLine, conic);
+        const perpLine = P2.perpLineToLineInPoint(tl, ponc); 
+        logger.info(-1, 'ponc = ', ponc);
+        logger.info(-1, 'tl = ', tl);
+        // logger.info(-1, 'polpot = ', polpot);
+        // logger.info(-1, 'pot = ', pot);
+        logger.info(-1, 'perpLine = ', perpLine);
+        const ints = ConicUtils.intersectLineWithConic(perpLine, conic);
         if (ints == null) {
             logger.warn(-1, 'Could not find intersection of perpendicular line with conic');
             return null;
         }
         const [p1, p2] = ints;
         const mid = Rn.linearCombination(null, .5, p1, .5, p2);
-        return mid;
+        logger.info(-1, 'mid = ', mid);
+        return Pn.dehomogenize(null, mid);
     }
 
     static intersectLineWithConic(line, conic) {
         const [a,b,c] = line;
-        const pts = [[-b,a,0], [a,0,-c], [0,c,-b]].filter(pt => Rn.innerProduct(pt, pt) > 0);
+        logger.info(-1, 'line = ', line);
+        let pts = [[-b,a,0], [c,0,-a], [0,-c,b]].filter(pt => Rn.innerProduct(pt, pt) > 0);
+        logger.info(-1, 'pts = ', pts);
         if (pts.length < 2) {
             logger.warn(-1, 'Could not find two points on line');
             return null;
         }
+        pts = pts.map(pt => Pn.normalize(null, pt, Pn.ELLIPTIC));
         const [p1, p2] = [pts[0], pts[1]];
         const A = Rn.bilinearForm(conic.Q, p1, p1);
         const B = 2 * Rn.bilinearForm(conic.Q, p1, p2);
         const C = Rn.bilinearForm(conic.Q, p2, p2);
         const d = (B * B - 4 * A * C);
+        logger.info(-1, 'A = ', A);
+        logger.info(-1, 'B = ', B);
+        logger.info(-1, 'C = ', C);
+        logger.info(-1, 'd = ', d);
+        logger.info(-1, 'p1 = ', p1);
+        logger.info(-1, 'p2 = ', p2);
         if (d < 0) return null; 
-        const ints = [[Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1))], 
-            [Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1))]];
+        const ints = [[Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1)), Pn.ELLIPTIC)], 
+            [Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1)), Pn.ELLIPTIC)]];
         return ints.map(pt => Pn.dehomogenize(null, pt));
     }
 

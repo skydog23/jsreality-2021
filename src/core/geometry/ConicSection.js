@@ -47,7 +47,7 @@ export class ConicSection {
     exactFollower = true;
     numPoints = 100;
     degenConicTolerance = 1e-4;
-    maxSegmentLength = .03;
+    doCenterPoint = true;
     maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
     viewport = null;
 
@@ -147,20 +147,35 @@ export class ConicSection {
 
     #drawRegularConic() {
 
-        const centerPoint = ConicUtils.findPointInsideConic(this, .8);
-        // const centerPoint = this.getViewport() != null ? this.getViewport().getCenter() : ConicUtils.getCenterPoint(this);
-        logger.info(-1, 'centerPoint = ', centerPoint);
-        
+        let centerPoint = null;
+        let C = null;
+        let newSylvester = Rn.reorderSylvesterOddSignLast(this.sylvester);
+        const TP = Rn.transpose(null, newSylvester.P);
+
+        logger.info(-1, 'sylvester.P = ', newSylvester.P);
+        logger.info(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
+        logger.info(-1, 'sylvester.D = ', newSylvester.D);
+        logger.info(-1, 'sylvester.signs = ', newSylvester.signs);
+        logger.info(-1, 'sylvester.inertia = ', newSylvester.inertia);
+        logger.info(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
+              centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
+            // centerPoint =  ConicUtils.findPointInsideConic(this);
+            logger.info(-1, 'centerPoint = ', centerPoint);
+            // centerPoint = Pn.dehomogenize(null, centerPoint);
+            // logger.info(-1, 'dehom centerPoint = ', centerPoint);
+            C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
         const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
+        // const C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const tvals = new Array(npts+1).fill(0).map((_, i) => (2*Math.PI * i) / (npts));
-        const edges = new Array(npts).fill(0).map((_, i) => [i, (i+1)]);
-        const C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
-        let pts4 = tvals.map(t => this.#pointAtTime2(t, C, centerPoint)).filter(pt => pt !== null);
-        if (pts4.length != npts+1) {
-            logger.warn(-1, 'pts4.length = ', pts4.length, ' != npts = ', npts);
-            return null;
+        let pts4 = null;
+        if (!this.doCenterPoint) {
+            let Dpts4 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
+            pts4 = Dpts4.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
+        } else {
+            pts4 = tvals.map(t => this.#pointAtTime2(t, C, centerPoint));
         }
+        const edges = new Array(npts).fill(0).map((_, i) => [i, (i+1)]);
         const newedges = [];
         do {
             const [i1, i2] = edges.pop();   // get the next edge
@@ -172,20 +187,19 @@ export class ConicSection {
             }
             const [t1, t2] = [tvals[i1], tvals[i2]];   // the times of the endpoints
             const [mid, tm] = [Rn.linearCombination(null, .5, p1, .5, p2), (t1 + t2) / 2];
-            const pt = this.#pointAtTime2(tm, C, centerPoint);   // the value at the mid-time
-            if (pt === null) {
-                newedges.push([i1, i2]);
-                continue;
-            }
+            const pt = this.doCenterPoint ? this.#pointAtTime2(tm, C, centerPoint) : this.#pointAtTime3(tm, newSylvester.P);
             const error = Rn.euclideanNorm(Rn.subtract(null, pt, mid)); // compare to midpoint
             if (error > this.maxPixelError) { // too much curve deviation, subdivide
+                logger.fine(-1, 'error = ', error, ' > ', this.maxPixelError, ' subdividing');
+                logger.fine(-1, 'pt = ', pt);
+                logger.fine(-1, 'mid = ', mid);
                 tvals.push(tm);  pts4.push(pt);
                 edges.push([i1, pts4.length - 1]);
                 edges.push([pts4.length - 1, i2]);
             } else {   // accept this edge
                 newedges.push([i1, i2]);
             }
-        } while (edges.length > 0 && newedges.length < 10000);  // in case things go crazy
+        } while (edges.length > 0 && pts4.length < 5*npts && newedges.length < 1000);  // in case things go crazy
         logger.fine(-1, 'vcount = ', pts4.length);
         const ifsf = new IndexedLineSetFactory();
         ifsf.setVertexCount(pts4.length);
@@ -196,13 +210,17 @@ export class ConicSection {
         return ifsf.getIndexedLineSet();
     }
 
+    #pointAtTime3(t, Pm) {
+        const V = [Math.cos(t), Math.sin(t),1];
+        return Pn.dehomogenize(null, Rn.matrixTimesVector(null, Pm, V));
+    }
     // calculation using a point not on the conic
     #pointAtTime2(t, C, startPoint) {
         const V = [Math.cos(t), Math.sin(t), 0];
         const A = Rn.bilinearForm(this.Q, V, V);
         const B = 2 * Rn.bilinearForm(this.Q, V, startPoint);
         let d = (B * B - 4 * A * C);
-        if (d < -.0001) d = 0; 
+        if (d < -.0001) d = -d; 
         return Rn.convert3To4(null,
                 Pn.dehomogenize(null, Rn.add(null, 
                     Rn.times(null, 2*A, startPoint),  

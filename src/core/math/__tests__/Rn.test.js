@@ -327,19 +327,23 @@ describe('Rn (Euclidean Vector Space)', () => {
             ]);
         });
 
-        test('random symmetric Q', () => {
-            const a = 0.7;
-            const b = -0.4;
-            const c = 0.9;
-            const d = 0.2;
-            const e = -0.3;
-            const f = 0.1;
+        test('from  a buggy symmetric Q', () => {
+            const a = 0.8922357105462537;
+            const b = 1.0812849154857034;
+            const c = -1.0340226142508409;
+            const d = 0;
+            const e = -0.04726230123486235;
+            const f = 0;
             const Q = [
                 a, d, e,
                 d, b, f,
                 e, f, c
             ];
-            checkDiagonalForm(Q);
+            checkDiagonalForm(Q, [
+                1, 0, 0,
+                0, 1, 0,
+                0, 0, -1
+            ]);
         });
     });
 }); 
