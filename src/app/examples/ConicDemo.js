@@ -34,7 +34,7 @@ setModuleLevel(logger.getModuleName(), Level.INFO);
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
-    return [true, true, false, true];
+    return [true, false, false, true];
   }
   _conicSGC = null;
   _dualConicSGC = null;

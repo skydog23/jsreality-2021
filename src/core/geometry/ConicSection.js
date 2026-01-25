@@ -40,6 +40,7 @@ export class ConicSection {
     rank = 0;
     svdQ = null;
     svd5Points = null;
+    sylvester = null;
     linePair = null;
     fivePoints = null;
     pts5d = null;
@@ -47,7 +48,7 @@ export class ConicSection {
     numPoints = 100;
     degenConicTolerance = 1e-4;
     maxSegmentLength = .03;
-    maxPixelError = .005;   // have to compute this from the viewport and the canvas size
+    maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
     viewport = null;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1]) {
@@ -94,6 +95,7 @@ export class ConicSection {
     setCoefficients(coefficients) {
         this.coefficients = ConicUtils.normalizeCoefficients([...coefficients]);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
+        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
         logger.fine(-1, 'Q singular values:', this.svdQ.S);
@@ -145,8 +147,10 @@ export class ConicSection {
 
     #drawRegularConic() {
 
-        const centerPoint = this.getViewport() != null ? this.getViewport().getCenter() : ConicUtils.getCenterPoint(this);
-        logger.fine(-1, 'centerPoint = ', centerPoint);
+        const centerPoint = ConicUtils.findPointInsideConic(this, .8);
+        // const centerPoint = this.getViewport() != null ? this.getViewport().getCenter() : ConicUtils.getCenterPoint(this);
+        logger.info(-1, 'centerPoint = ', centerPoint);
+        
         const npts = this.numPoints;
         const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
         const tvals = new Array(npts+1).fill(0).map((_, i) => (2*Math.PI * i) / (npts));
@@ -217,6 +221,7 @@ export class ConicSection {
 
     updateQ(newQ) {
         this.Q = newQ;
+        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
         this.coefficients = ConicUtils.convertQToArray(this.Q);
         this.dQ = P2.cofactor(null, this.Q);
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);

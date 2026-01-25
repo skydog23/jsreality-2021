@@ -1363,6 +1363,63 @@ export function diagonalMatrix(dst, entries) {
   return dst;
 }
 
+/**
+ * Sylvester diagonalization for a symmetric 3x3 matrix Q.
+ * Returns P and D such that P^T * Q * P = D, where D is diagonal with entries in {+1, -1, 0}.
+ * The eigenvectors are ordered to match the requested canonical signatures:
+ *  - (++-) -> x^2 + y^2 - z^2
+ *  - (+-0) -> x^2 - y^2
+ *  - (++0) -> x^2 + y^2
+ *  - (+00) -> z^2
+ * @param {number[]|number[][]} Q
+ * @param {number} [eps=TOLERANCE]
+ * @returns {{ P: number[], D: number[], eigenvalues: number[], signs: number[], inertia: { pos: number, neg: number, zero: number } }}
+ */
+export function sylvesterDiagonalize3x3(Q, eps = TOLERANCE) {
+  const q = _toFlat3x3(Q);
+  const sym = _symmetrize3x3(q);
+  const { values, vectors } = _jacobiEigenSymmetric3x3(sym, eps);
+
+  const pairs = values.map((val, i) => ({
+    val,
+    vec: _getColumn3(vectors, i)
+  }));
+
+  const ordered = _orderEigenpairsForSylvester(pairs, eps);
+
+  const signs = [];
+  const diag = [];
+  const cols = [];
+  let pos = 0;
+  let neg = 0;
+  let zero = 0;
+  for (const { val, vec } of ordered) {
+    const abs = Math.abs(val);
+    let sign = 0;
+    if (abs > eps) {
+      sign = val > 0 ? 1 : -1;
+    }
+    signs.push(sign);
+    if (sign > 0) pos++;
+    else if (sign < 0) neg++;
+    else zero++;
+    diag.push(sign);
+
+    const scale = abs > eps ? (1.0 / Math.sqrt(abs)) : 1.0;
+    cols.push(times(null, scale, vec));
+  }
+
+  const P = _columnsToMatrix3(cols[0], cols[1], cols[2]);
+  const D = diagonalMatrix(null, diag);
+  return {
+    P,
+    D,
+    eigenvalues: ordered.map(p => p.val),
+    signs,
+    inertia: { pos, neg, zero }
+  };
+}
+
 // extractSubmatrix: extract rectangular submatrix
 /**
  * Extract a rectangular submatrix [t..b]x[l..r] from a square matrix.
@@ -1695,6 +1752,121 @@ export function polarDecompose(q, s, m) {
   transpose(qit, qq[nw]);
   timesMatrix(s, qit, m);
   return m;
+}
+
+// ---------------------------------------------------------------------------
+// Sylvester diagonalization helpers (3x3 symmetric matrices)
+// ---------------------------------------------------------------------------
+function _toFlat3x3(Q) {
+  if (Array.isArray(Q) && Q.length === 9 && typeof Q[0] === 'number') {
+    return Q.slice();
+  }
+  if (Array.isArray(Q) && Q.length === 3 && Array.isArray(Q[0])) {
+    return [
+      Q[0][0], Q[0][1], Q[0][2],
+      Q[1][0], Q[1][1], Q[1][2],
+      Q[2][0], Q[2][1], Q[2][2]
+    ];
+  }
+  throw new Error('sylvesterDiagonalize3x3: expected 3x3 matrix (flat or 2D)');
+}
+
+function _symmetrize3x3(Q) {
+  const out = new Array(9);
+  out[0] = Q[0];
+  out[4] = Q[4];
+  out[8] = Q[8];
+  const a01 = 0.5 * (Q[1] + Q[3]);
+  const a02 = 0.5 * (Q[2] + Q[6]);
+  const a12 = 0.5 * (Q[5] + Q[7]);
+  out[1] = a01; out[3] = a01;
+  out[2] = a02; out[6] = a02;
+  out[5] = a12; out[7] = a12;
+  return out;
+}
+
+function _jacobiEigenSymmetric3x3(A, eps, maxIter = 50) {
+  const a = A.slice();
+  let v = identityMatrix(3);
+  for (let iter = 0; iter < maxIter; iter++) {
+    // find largest off-diagonal element
+    let p = 0;
+    let q = 1;
+    let max = Math.abs(a[1]);
+    const a02 = Math.abs(a[2]);
+    const a12 = Math.abs(a[5]);
+    if (a02 > max) { max = a02; p = 0; q = 2; }
+    if (a12 > max) { max = a12; p = 1; q = 2; }
+    if (max <= eps) break;
+
+    const app = a[p * 3 + p];
+    const aqq = a[q * 3 + q];
+    const apq = a[p * 3 + q];
+    const phi = 0.5 * Math.atan2(2.0 * apq, aqq - app);
+    const c = Math.cos(phi);
+    const s = Math.sin(phi);
+
+    // update rows/cols p and q in a
+    for (let k = 0; k < 3; k++) {
+      if (k === p || k === q) continue;
+      const aik = a[p * 3 + k];
+      const akq = a[q * 3 + k];
+      a[p * 3 + k] = c * aik - s * akq;
+      a[k * 3 + p] = a[p * 3 + k];
+      a[q * 3 + k] = s * aik + c * akq;
+      a[k * 3 + q] = a[q * 3 + k];
+    }
+
+    const app2 = c * c * app - 2.0 * s * c * apq + s * s * aqq;
+    const aqq2 = s * s * app + 2.0 * s * c * apq + c * c * aqq;
+    a[p * 3 + p] = app2;
+    a[q * 3 + q] = aqq2;
+    a[p * 3 + q] = 0.0;
+    a[q * 3 + p] = 0.0;
+
+    // update eigenvectors
+    for (let k = 0; k < 3; k++) {
+      const vip = v[k * 3 + p];
+      const viq = v[k * 3 + q];
+      v[k * 3 + p] = c * vip - s * viq;
+      v[k * 3 + q] = s * vip + c * viq;
+    }
+  }
+  const values = [a[0], a[4], a[8]];
+  return { values, vectors: v };
+}
+
+function _getColumn3(m, col) {
+  return [m[col], m[3 + col], m[6 + col]];
+}
+
+function _columnsToMatrix3(c0, c1, c2) {
+  return [
+    c0[0], c1[0], c2[0],
+    c0[1], c1[1], c2[1],
+    c0[2], c1[2], c2[2]
+  ];
+}
+
+function _orderEigenpairsForSylvester(pairs, eps) {
+  const pos = [];
+  const neg = [];
+  const zero = [];
+  for (const p of pairs) {
+    if (Math.abs(p.val) <= eps) zero.push(p);
+    else if (p.val > 0) pos.push(p);
+    else neg.push(p);
+  }
+
+  const nonzero = pos.length + neg.length;
+  if (pos.length === 2 && neg.length === 1) return [pos[0], pos[1], neg[0]];
+  if (pos.length === 1 && neg.length === 1 && zero.length === 1) return [pos[0], neg[0], zero[0]];
+  if (pos.length === 2 && zero.length === 1) return [pos[0], pos[1], zero[0]];
+  if (nonzero === 1 && zero.length === 2) {
+    const single = pos.length === 1 ? pos[0] : neg[0];
+    return [zero[0], zero[1], single];
+  }
+  return [...pos, ...neg, ...zero];
 }
 
 

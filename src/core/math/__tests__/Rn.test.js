@@ -255,6 +255,93 @@ describe('Rn (Euclidean Vector Space)', () => {
             expect(result[2]).toBeCloseTo(1);
         });
     });
+
+    describe('sylvesterDiagonalize3x3', () => {
+        const EPS = 1e-7;
+        const checkDiagonalForm = (Q, expectedDiag = null) => {
+            const { P, D, signs, inertia } = Rn.sylvesterDiagonalize3x3(Q, EPS);
+            const PT = Rn.transpose(null, P);
+            const mid = Rn.timesMatrix(null, PT, Q);
+            const diag = Rn.timesMatrix(null, mid, P);
+
+            // Off-diagonal entries should be ~0
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (i === j) continue;
+                    expect(Math.abs(diag[i * 3 + j])).toBeLessThan(1e-6);
+                }
+            }
+
+            // Diagonal should match D (sign-normalized)
+            for (let i = 0; i < 3; i++) {
+                expect(diag[i * 3 + i]).toBeCloseTo(D[i * 3 + i], 6);
+            }
+
+            if (expectedDiag) {
+                expect(D).toEqual(expectedDiag);
+            }
+
+            // signs/inertia consistency
+            const pos = signs.filter(s => s > 0).length;
+            const neg = signs.filter(s => s < 0).length;
+            const zero = signs.filter(s => s === 0).length;
+            expect(inertia).toEqual({ pos, neg, zero });
+        };
+
+        test('unit circle: diag(1,1,-1)', () => {
+            const Q = [
+                1, 0, 0,
+                0, 1, 0,
+                0, 0, -1
+            ];
+            checkDiagonalForm(Q, [
+                1, 0, 0,
+                0, 1, 0,
+                0, 0, -1
+            ]);
+        });
+
+        test('line pair: xy', () => {
+            const Q = [
+                0, 0.5, 0,
+                0.5, 0, 0,
+                0, 0, 0
+            ];
+            checkDiagonalForm(Q, [
+                1, 0, 0,
+                0, -1, 0,
+                0, 0, 0
+            ]);
+        });
+
+        test('double line: x^2', () => {
+            const Q = [
+                1, 0, 0,
+                0, 0, 0,
+                0, 0, 0
+            ];
+            checkDiagonalForm(Q, [
+                0, 0, 0,
+                0, 0, 0,
+                0, 0, 1
+            ]);
+        });
+
+        test('random symmetric Q', () => {
+            const a = 0.7;
+            const b = -0.4;
+            const c = 0.9;
+            const d = 0.2;
+            const e = -0.3;
+            const f = 0.1;
+            const Q = [
+                a, d, e,
+                d, b, f,
+                e, f, c
+            ];
+            checkDiagonalForm(Q);
+        });
+    });
 }); 
 
 // Test file for the newly added Rn.js functions

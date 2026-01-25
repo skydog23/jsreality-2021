@@ -18,10 +18,10 @@ import * as Rn from './Rn.js';
  * @returns {number[]}
  */
 export function pointFromLines(p1, p2) {
-    const [x1,y1,w1] = Pn.dehomogenize(p1);
-    const [x2,y2,w2] = Pn.dehomogenize(p2);
+    const [x1,y1,w1] = Pn.dehomogenize(null,p1);
+    const [x2,y2,w2] = Pn.dehomogenize(null, p2);
     const ret = outerProduct([x1,y1,w1], [x2,y2,w2]);
-    return Pn.dehomogenize(ret);
+    return Pn.dehomogenize(null, ret);
 }
 
 /**
@@ -41,12 +41,19 @@ export function normalizeLine(line) {
  * @returns {number[]}
  */
 export function lineFromPoints(p1, p2) {
-    const [x1,y1,w1] = Pn.dehomogenize(p1);
-    const [x2,y2,w2] = Pn.dehomogenize(p2);
+    const [x1,y1,w1] = Pn.dehomogenize(null, p1);
+    const [x2,y2,w2] = Pn.dehomogenize(null,p2);
     const ret = outerProduct([x1,y1,w1], [x2,y2,w2]);
     return normalizeLine(ret);
 }
 
+export function perpLineToLineInPoint(line, point) {
+    const [a,b,c] = line;
+    const [x,y,w] = point;
+    const ret = [-b*w, a*w, b*x -a*y];
+    console.log('perpLineToLineInPoint', Rn.innerProduct( point, ret));
+    return ret;
+}
 /**
  * @param {number[]} line
  * @param {number[]} center
@@ -101,7 +108,7 @@ export function clipLineToBox(line, xmin, xmax, ymin, ymax) {
             let p = Rn.add(null, Rn.times(null,dis[i],box[j]), 
                 Rn.times(null, dis[j], box[i]));
             // no-op logging removed for portability
-            seg = [...seg, dehomogenize(p)];
+            seg = [...seg, Pn.dehomogenize(null, p)];
         }
     });
     // no-op logging removed for portability
@@ -196,6 +203,9 @@ export function pointInsidePointPolygon(points, point) {
     return pointInsideLinePolygon(lines, point);
 }
 
+export function crossProduct(a, b) {
+    return this.outerProduct( a, b);
+}
 /**
  * Returns true if and only if the polygon described by polygon is convex.
  * @param {number[][]} polygon
