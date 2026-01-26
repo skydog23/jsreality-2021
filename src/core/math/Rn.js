@@ -661,12 +661,13 @@ export function convert3To4(v4, d3)	{
 
 export function convert4To3(v3, d4)	{
   if (!v3) v3 = new Array(3);
-  v3[0] = d4[0];
-  v3[1] = d4[1];
-  v3[2] = d4[3];
+  v3 = [d4[0], d4[1], d4[3]];
   return v3;
 }
 
+export function convert44To33(m) {
+  return [m[0], m[1], m[3], m[4], m[5], m[7], m[12], m[13], m[15]];
+}
 // barycentricTriangleInterp: barycentric interpolation
 /**
  * Barycentric interpolation of three corner vectors with weights.
