@@ -23,10 +23,19 @@ import { AABBPickSystem } from '../pick/AABBPickSystem.js';
 import { PosWHitFilter } from '../pick/PosWHitFilter.js';
 import * as Rn from '../../math/Rn.js';
 import { getLogger } from '../../util/LoggingSystem.js';
-import { Level, Category } from '../../util/LoggingSystem.js';
+import { Level, Category, setModuleLevel } from '../../util/LoggingSystem.js';
 
 // Module-level logger shared by ToolSystem and helpers in this file
 const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
+setModuleLevel(logger.getModuleName(), Level.INFO);
+
+// Slots that should activate tools without picking (global activation).
+const GLOBAL_ACTIVATION_SLOTS = new Set([
+  InputSlot.getDevice('PrimaryUp'),
+  InputSlot.getDevice('PrimaryDown'),
+  InputSlot.WHEEL_UP,
+  InputSlot.WHEEL_DOWN,
+]);
 
 /**
  * @typedef {import('./Tool.js').Tool} Tool
@@ -444,8 +453,8 @@ export class ToolSystem extends ToolEventReceiver {
       // A virtual device then converts (NDCToWorld, PointerNDC) -> POINTER_TRANSFORMATION.
       new RawMapping('Mouse', 'axes', InputSlot.POINTER_NDC),
         new RawMapping('Mouse', 'axesEvolution', InputSlot.POINTER_EVOLUTION),
-        new RawMapping('Mouse', 'wheel_up', InputSlot.WHEEL_UP),
-        new RawMapping('Mouse', 'wheel_down', InputSlot.WHEEL_DOWN),
+        new RawMapping('Mouse', 'wheel_up', InputSlot.getDevice('PrimaryUp')),
+        new RawMapping('Mouse', 'wheel_down', InputSlot.getDevice('PrimaryDown')),
         // Keyboard mappings (common keys)
         new RawMapping('Keyboard', 'VK_W', InputSlot.VK_W),
         new RawMapping('Keyboard', 'VK_A', InputSlot.VK_A),
@@ -467,6 +476,9 @@ export class ToolSystem extends ToolEventReceiver {
         // Allow picking with non-left buttons too (important for drag/select tools).
         new VirtualMapping(InputSlot.RIGHT_BUTTON, InputSlot.POINTER_HIT),
         new VirtualMapping(InputSlot.MIDDLE_BUTTON, InputSlot.POINTER_HIT),
+        // Normalize mouse wheel slots to jReality-style names.
+        new VirtualMapping(InputSlot.WHEEL_UP, InputSlot.getDevice('PrimaryUp')),
+        new VirtualMapping(InputSlot.WHEEL_DOWN, InputSlot.getDevice('PrimaryDown')),
         // jReality-style activation naming
         new VirtualMapping(InputSlot.LEFT_BUTTON, InputSlot.ROTATE_ACTIVATION),
         // DragActivation: map from right click as well as middle click (trackpad-friendly).
@@ -865,15 +877,26 @@ export class ToolSystem extends ToolEventReceiver {
       this.#toolContext.setEvent(event);
       const slot = event.getInputSlot();
       this.#toolContext.setSourceSlot(slot);
+      const slotName = slot?.getName?.() || 'unknown';
+      if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+        const axisState = this.#deviceManager.getAxisState(slot);
+        logger.info(
+          Category.ALL,
+          `[ToolSystem] wheel trigger: slot=${slotName}, axis=${axisState ? axisState.toString() : 'null'}`
+        );
+      }
       this.#pickResults = null;
       this.#pickResult = null;
 
       const axis = this.#deviceManager.getAxisState(slot);
       let noTrigger = true;
 
-        if (axis !== null && axis.isPressed()) {
+      if (axis !== null && axis.isPressed()) {
         // Possible activation
         const candidatesForPick = new Set(this.#slotManager.getToolsActivatedBySlot(slot));
+        if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+          logger.info(Category.ALL, `[ToolSystem] wheel activation candidates=${candidatesForPick.size}`);
+        }
         logger.finer(
           Category.ALL,
           `[ToolSystem] Activation candidates for slot ${slot.getName()}: ${
@@ -883,6 +906,26 @@ export class ToolSystem extends ToolEventReceiver {
         const candidates = new Set();
 
         if (candidatesForPick.size > 0) {
+          // Global-activation slots bypass picking and activate all candidates directly.
+          if (GLOBAL_ACTIVATION_SLOTS.has(slot)) {
+            for (const tool of candidatesForPick) {
+              try {
+                const path = this.#toolManager.getPathForTool(tool, null);
+                if (path) {
+                  this.#registerActivePathForTool(path, tool);
+                }
+              } catch (error) {
+                logger.warn(Category.ALL, `Global activation: ambiguous path for ${tool.constructor.name}`, error);
+              }
+              candidates.add(tool);
+            }
+            this.#activateToolSet(candidates);
+            for (const tool of candidates) {
+              activatedTools.add(tool);
+            }
+            noTrigger = candidates.size === 0;
+            continue;
+          }
           // Need pick path
           if (pickPath === null) {
             pickPath = this.#calculatePickPath();

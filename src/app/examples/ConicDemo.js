@@ -20,6 +20,7 @@ import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
+import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { InputSlot } from '../../core/scene/tool/InputSlot.js';
@@ -101,6 +102,10 @@ export class ConicDemo extends JSRApp {
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
     
+    const clickWheelTool = new ClickWheelCameraZoomTool();
+    clickWheelTool.setName("clickWheelTool");
+    this._worldSGC.addTool(clickWheelTool);
+
     class MyEncompassTool extends AbstractTool {
       
     

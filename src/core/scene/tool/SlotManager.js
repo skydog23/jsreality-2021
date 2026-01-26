@@ -10,7 +10,7 @@
 
 import { InputSlot } from './InputSlot.js';
 import { getLogger } from '../../util/LoggingSystem.js';
-import { Level, Category } from '../../util/LoggingSystem.js';
+import { Level, Category, setModuleLevel } from '../../util/LoggingSystem.js';
 
 /**
  * @typedef {import('./Tool.js').Tool} Tool
@@ -19,6 +19,7 @@ import { Level, Category } from '../../util/LoggingSystem.js';
  */
 
 const logger = getLogger('jsreality.core.scene.tool.SlotManager');
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 /**
  * SlotManager maps input slots to tools and handles virtual device mappings.
@@ -110,7 +111,12 @@ export class SlotManager {
    * @returns {Set<Tool>} Set of tools
    */
   getToolsActivatedBySlot(slot) {
-    return new Set(this.#getSlot2activation(slot));
+    const tools = new Set(this.#getSlot2activation(slot));
+    const slotName = slot?.getName?.() || 'unknown';
+    if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+      logger.info(Category.ALL, `[SlotManager] activation slot=${slotName} tools=${tools.size}`);
+    }
+    return tools;
   }
 
   /**

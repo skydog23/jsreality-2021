@@ -9,9 +9,10 @@
  */
 
 import { ToolEvent } from './ToolEvent.js';
-import { getLogger, Category } from '../../util/LoggingSystem.js';
+import { getLogger, Category, Level, setModuleLevel } from '../../util/LoggingSystem.js';
 
 const logger = getLogger('jsreality.core.scene.tool.ToolEventQueue');
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 /**
  * @typedef {import('./ToolEvent.js').ToolEvent} ToolEvent
@@ -93,6 +94,10 @@ export class ToolEventQueue {
       const event = this.#queue.shift();
       if (event && this.#running) {
         try {
+          const slotName = event.getInputSlot()?.getName?.() || 'unknown';
+          if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+            logger.info(Category.ALL, `[ToolEventQueue] dispatch slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
+          }
           this.#receiver.processToolEvent(event);
         } catch (error) {
           const slotName = event.getInputSlot()?.getName() || 'unknown';
@@ -116,6 +121,10 @@ export class ToolEventQueue {
     if (!this.#started) {
       logger.warn(Category.ALL, `Queue not started, dropping event: ${event.getInputSlot()?.getName() || 'unknown'}`);
       return false;
+    }
+    const slotName = event.getInputSlot()?.getName?.() || 'unknown';
+    if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+      logger.info(Category.ALL, `[ToolEventQueue] enqueue slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
     }
     return this.#placeEvent(event);
   }

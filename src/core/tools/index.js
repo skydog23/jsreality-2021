@@ -15,5 +15,6 @@
 export { RotateTool } from './RotateTool.js';
 export { TranslateTool } from './TranslateTool.js';
 export { DraggingTool } from './DraggingTool.js';
+export { ClickWheelCameraZoomTool } from './ClickWheelCameraZoomTool.js';
 
 

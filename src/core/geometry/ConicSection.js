@@ -152,11 +152,11 @@ export class ConicSection {
         let newSylvester = Rn.reorderSylvesterOddSignLast(this.sylvester);
         const TP = Rn.transpose(null, newSylvester.P);
 
-        logger.info(-1, 'sylvester.P = ', newSylvester.P);
-        logger.info(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
-        logger.info(-1, 'sylvester.D = ', newSylvester.D);
-        logger.info(-1, 'sylvester.signs = ', newSylvester.signs);
-        logger.info(-1, 'sylvester.inertia = ', newSylvester.inertia);
+        logger.fine(-1, 'sylvester.P = ', newSylvester.P);
+        logger.fine(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
+        logger.fine(-1, 'sylvester.D = ', newSylvester.D);
+        logger.fine(-1, 'sylvester.signs = ', newSylvester.signs);
+        logger.fine(-1, 'sylvester.inertia = ', newSylvester.inertia);
         logger.info(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
               centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
             // centerPoint =  ConicUtils.findPointInsideConic(this);
