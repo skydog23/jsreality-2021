@@ -44,8 +44,8 @@ export class ConicSection {
     exactFollower = true;
     numPoints = 100;
     degenConicTolerance = 1e-4;
-    doCenterPoint = true;
-    maxPixelError = .0001;   // have to compute this from the viewport and the canvas size
+    useSylvParam = false;
+    maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
     viewport = null;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1]) {
@@ -60,6 +60,7 @@ export class ConicSection {
 
     // the conic can be determined by 5 points
     setFromFivePoints(fivePoints) {
+        logger.finer(-1, 'setFromFivePoints called with fivePoints = ', fivePoints);
         if (fivePoints == null || fivePoints.length !== 5) {
             logger.warn(-1, 'Five points are required to set the conic');
             return;
@@ -91,8 +92,14 @@ export class ConicSection {
     }
 
     setCoefficients(coefficients) {
+        // this is a hack to try to guarantee continuity of the "sidednes" of double contact w
+        // hen conics are continually changing
+        // if (this.coefficients && Rn.innerProduct(coefficients, this.coefficients) > .1) {
+        //     coefficients = Rn.times(null, -1, coefficients);
+        // }
         this.coefficients = ConicUtils.normalizeCoefficients([...coefficients]);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
+        this.Q = ConicUtils.normalizeQ(this.Q);
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
@@ -113,7 +120,7 @@ export class ConicSection {
         if (this.rank === 1) {
             this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
-            this.updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
+            this.#updateQ(ConicUtils.outerProduct(this.doubleLine, this.doubleLine));
             logger.fine(-1, 'conic Q', this.Q);
             logger.fine(-1, 'conic dQ', this.dQ);
             logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
@@ -127,7 +134,7 @@ export class ConicSection {
             this.linePair = ConicUtils.factorPair(this);
             logger.fine(-1, 'line pair = ', this.linePair);
             // we now have exact rank-2, and should update the Q matrix
-            this.updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
+            this.#updateQ(ConicUtils.symmetricOuterProduct(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
@@ -155,29 +162,29 @@ export class ConicSection {
         logger.fine(-1, 'sylvester.D = ', newSylvester.D);
         logger.fine(-1, 'sylvester.signs = ', newSylvester.signs);
         logger.fine(-1, 'sylvester.inertia = ', newSylvester.inertia);
-        logger.info(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
-              centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
-            // centerPoint =  ConicUtils.findPointInsideConic(this);
-            logger.info(-1, 'centerPoint = ', centerPoint);
-            // centerPoint = Pn.dehomogenize(null, centerPoint);
-            // logger.info(-1, 'dehom centerPoint = ', centerPoint);
-            C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
+        logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
+        centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
+        C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
         const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
-        const tvals = new Array(npts+1).fill(0).map((_, i) => (2*Math.PI * i) / (npts));
-        let pts4 = null;
-        if (!this.doCenterPoint) {
+        const tvals = new Array(npts).fill(0).map((_, i) => (2*Math.PI * i) / (npts-1));  // wrap around to 2*Pi.
+        const edges = new Array(npts-1).fill(0).map((_, i) => [i, (i+1)]);
+        let pts3 = null;
+        if (this.useSylvParam) {
             // all regular conics have this form in sylvester normal form
-            let Dpts4 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
-            pts4 = Dpts4.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
+            let Dpts3 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
+            pts3 = Dpts3.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
         } else {
-            pts4 = tvals.map(t => this.#pointAtTime2(t, C, centerPoint));
+            pts3 = tvals.map(t => this.#pointCenter(t, C, centerPoint));
         }
-        const edges = new Array(npts).fill(0).map((_, i) => [i, (i+1)]);
+        const evals = pts3.map(pt => Math.abs(Rn.bilinearForm(this.Q, pt, pt)) > 1e-6);
+        if (evals.some(val => val > 1e-6)) {
+            throw new Error('#drawRegularConic: points off conic');
+        }
         const newedges = [];
         do {
             const [i1, i2] = edges.pop();   // get the next edge
-            const [p1, p2] = [pts4[i1], pts4[i2]];  // and its endpoints
+            const [p1, p2] = [pts3[i1], pts3[i2]];  // and its endpoints
             // This segment check against viewport should be more careful. 
             // It could still cut off the corner of the viewport
             if (!myVP.contains(p1[0], p1[1]) && !myVP.contains(p2[0], p2[1])) {
@@ -185,44 +192,45 @@ export class ConicSection {
             }
             const [t1, t2] = [tvals[i1], tvals[i2]];   // the times of the endpoints
             const [mid, tm] = [Rn.linearCombination(null, .5, p1, .5, p2), (t1 + t2) / 2];
-            const pt = this.doCenterPoint ? this.#pointAtTime2(tm, C, centerPoint) : this.#pointAtTime3(tm, newSylvester.P);
+            const pt = this.useSylvParam ?  this.#pointSylvester(tm, newSylvester.P ) : this.#pointCenter(tm, C, centerPoint);
             const error = Rn.euclideanNorm(Rn.subtract(null, pt, mid)); // compare to midpoint
             if (error > this.maxPixelError) { // too much curve deviation, subdivide
                 logger.finer(-1, 'error = ', error, ' > ', this.maxPixelError, ' subdividing');
                 logger.finer(-1, 'pt = ', pt);
                 logger.finer(-1, 'mid = ', mid);
-                tvals.push(tm);  pts4.push(pt);
-                edges.push([i1, pts4.length - 1]);
-                edges.push([pts4.length - 1, i2]);
+                tvals.push(tm);  pts3.push(pt);
+                edges.push([i1, pts3.length - 1]);
+                edges.push([pts3.length - 1, i2]);
             } else {   // accept this edge
                 newedges.push([i1, i2]);
             }
-        } while (edges.length > 0 && pts4.length < 10000);  // in case things go crazy
-        logger.fine(-1, '# points = ', pts4.length);
+        } while (edges.length > 0 && pts3.length < 10000);  // in case things go crazy
+        logger.info(-1, '# points = ', pts3.length);
         const ifsf = new IndexedLineSetFactory();
-        ifsf.setVertexCount(pts4.length);
-        ifsf.setVertexCoordinates(pts4);
+        ifsf.setVertexCount(pts3.length);
+        ifsf.setVertexCoordinates(pts3.map(pt => Rn.convert3To4(null, pt)));
         ifsf.setEdgeCount(newedges.length);
         ifsf.setEdgeIndices(newedges);
         ifsf.update();
         return ifsf.getIndexedLineSet();
     }
 
-    #pointAtTime3(t, Pm) {
+    #pointSylvester(t, Pm) {
         const V = [Math.cos(t), Math.sin(t),1];
         return Pn.dehomogenize(null, Rn.matrixTimesVector(null, Pm, V));
     }
     // calculation using a point not on the conic
-    #pointAtTime2(t, C, startPoint) {
+    #pointCenter(t, C, centerPoint) {
         const V = [Math.cos(t), Math.sin(t), 0];
         const A = Rn.bilinearForm(this.Q, V, V);
-        const B = 2 * Rn.bilinearForm(this.Q, V, startPoint);
+        const B = 2 * Rn.bilinearForm(this.Q, V, centerPoint);
         let d = (B * B - 4 * A * C);
-        if (d < -.0001) d = -d; 
-        return Rn.convert3To4(null,
-                Pn.dehomogenize(null, Rn.add(null, 
-                    Rn.times(null, 2*A, startPoint),  
-                    Rn.times(null, (-B + Math.sqrt(d)), V))));
+        if (d < -.0000001){
+            throw new Error('#pointCenter: d < -.0000001');
+        }
+        return Pn.dehomogenize(null, Rn.add(null, 
+                    Rn.times(null, 2*A, centerPoint),  
+                    Rn.times(null, (-B + Math.sqrt(d)), V)));
     }
 
     // calculation using a point on the conic
@@ -235,8 +243,10 @@ export class ConicSection {
         return pt;
     }
 
-    updateQ(newQ) {
-        this.Q = newQ;
+    // internal function:
+    // if we've detected a degenerate conic, reset with an exact rank-1 or rank-2 conic
+    #updateQ(newQ) {
+        this.Q = ConicUtils.normalizeQ(newQ);
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
         this.coefficients = ConicUtils.convertQToArray(this.Q);
         this.dQ = P2.cofactor(null, this.Q);

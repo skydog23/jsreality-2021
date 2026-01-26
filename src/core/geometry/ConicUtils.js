@@ -57,6 +57,15 @@ export class ConicUtils {
         return [[a,h/2,g/2],[h/2,b,f/2],[g/2,f/2,c]];
     }
 
+    static normalizeQ(aQ) {
+        const det = Rn.determinant(aQ);
+        if (det !== 0) {
+            const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
+            if (det < 0) factor = -factor;
+            return Rn.times(null, factor, aQ);
+        }
+        return aQ;
+    }
     static normalizeCoefficients(coefficients) {
         const mx = Rn.maxNorm(coefficients);
         return Rn.times(null, 1.0/mx, coefficients);
@@ -74,10 +83,14 @@ export class ConicUtils {
 
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
-    static getQFromFactors(line1, line2) {
-       return (line1.map(a => line2.map(b => a * b))).flat();  
-    }
+    static symmetricOuterProduct(line1, line2) {
+        return Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1));
+     }
 
+    static outerProduct(line1, line2) {
+        return (line1.map(a => line2.map(b => a * b))).flat();  
+     }
+  
     static polarize(Q, element){
         return Rn.matrixTimesVector(null, Q, element);
     }
@@ -175,8 +188,10 @@ export class ConicUtils {
         logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
         const lines = this.factorPair(conic);
         logger.fine(-1, "lines = ", lines);
-        const evals = lines.map(line => conic.fivePoints.map(pt => Rn.innerProduct(pt, line)))
-        const sums = evals.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
+        const evols = lines.map(line => P2.pointsOnLine(line).map(pt => Rn.innerProduct(pt, line)));
+        logger.fine(-1, "evols = ", evols);
+        // const evals = lines.map(line => conic.fivePoints.map(pt => Rn.innerProduct(pt, line)))
+        const sums = evols.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
         logger.fine(-1, "sums = ",sums);
         return sums[0] < sums[1] ? lines[0] : lines[1];
     }
@@ -227,8 +242,8 @@ export class ConicUtils {
     }
 
     static getCenterPoint(conic) {
-         const [A,H,B,G,F,C] = conic.dcoefficients;
-         return Pn.dehomogenize(null,[G/2,F/2,C]);
+         const cf = conic.dcoefficients;
+         return Pn.dehomogenize(null, [cf[2], cf[5], cf[8]]); 
     }
 
     static findPointInsideConic(conic, factor = .5)  {
