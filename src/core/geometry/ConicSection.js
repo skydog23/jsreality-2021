@@ -9,23 +9,21 @@
 
 // Add references to required classes and utilities
 import * as P2 from '../math/P2.js';
-import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
-import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
-import { ConicUtils } from './ConicUtils.js';
+import * as Rn from '../math/Rn.js';
 import { SVDUtil } from '../math/SVDUtil.js';
-import { GeometryMergeFactory } from './GeometryMergeFactory.js';
-import { IndexedLineSetUtility } from './IndexedLineSetUtility.js';
-import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
-import { PointRangeFactory } from './projective/PointRangeFactory.js';
-import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
-import * as CommonAttributes from '../shader/CommonAttributes.js';
-import { Color } from '../util/Color.js';
-import { LineUtility } from './projective/LineUtility.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import * as CommonAttributes from '../shader/CommonAttributes.js';
+import { Color } from '../util/Color.js';
+import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 import { Rectangle2D } from '../util/Rectangle2D.js';
-import { convert3To4 } from '../math/Rn.js';
+import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
+import { ConicUtils } from './ConicUtils.js';
+import { GeometryMergeFactory } from './GeometryMergeFactory.js';
+import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
+import { LineUtility } from './projective/LineUtility.js';
+import { PointRangeFactory } from './projective/PointRangeFactory.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -39,7 +37,6 @@ export class ConicSection {
     dcoefficients = null;
     rank = 0;
     svdQ = null;
-    svd5Points = null;
     sylvester = null;
     linePair = null;
     fivePoints = null;
@@ -48,10 +45,11 @@ export class ConicSection {
     numPoints = 100;
     degenConicTolerance = 1e-4;
     doCenterPoint = true;
-    maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
+    maxPixelError = .0001;   // have to compute this from the viewport and the canvas size
     viewport = null;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1]) {
+        // console.log('ConicSection constructor called with initArray = ', initArray);
         if (Array.isArray(initArray)) {
             if (Array.isArray(initArray[0]))
                 this.setFromFivePoints(initArray);
@@ -152,24 +150,16 @@ export class ConicSection {
         let newSylvester = Rn.reorderSylvesterOddSignLast(this.sylvester);
         const TP = Rn.transpose(null, newSylvester.P);
 
-        logger.info(-1, 'sylvester.P = ', newSylvester.P);
-        logger.info(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
-        logger.info(-1, 'sylvester.D = ', newSylvester.D);
-        logger.info(-1, 'sylvester.signs = ', newSylvester.signs);
-        logger.info(-1, 'sylvester.inertia = ', newSylvester.inertia);
-        logger.info(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
-              centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
-            // centerPoint =  ConicUtils.findPointInsideConic(this);
-            logger.info(-1, 'centerPoint = ', centerPoint);
-            // centerPoint = Pn.dehomogenize(null, centerPoint);
-            // logger.info(-1, 'dehom centerPoint = ', centerPoint);
-            C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
+        logger.fine(-1, 'sylvester = ', newSylvester);
+        logger.fine(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
+        centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
+        C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
         const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
-        // const C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const tvals = new Array(npts+1).fill(0).map((_, i) => (2*Math.PI * i) / (npts));
         let pts4 = null;
         if (!this.doCenterPoint) {
+            // all regular conics have this form in sylvester normal form
             let Dpts4 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
             pts4 = Dpts4.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
         } else {
@@ -190,17 +180,17 @@ export class ConicSection {
             const pt = this.doCenterPoint ? this.#pointAtTime2(tm, C, centerPoint) : this.#pointAtTime3(tm, newSylvester.P);
             const error = Rn.euclideanNorm(Rn.subtract(null, pt, mid)); // compare to midpoint
             if (error > this.maxPixelError) { // too much curve deviation, subdivide
-                logger.fine(-1, 'error = ', error, ' > ', this.maxPixelError, ' subdividing');
-                logger.fine(-1, 'pt = ', pt);
-                logger.fine(-1, 'mid = ', mid);
+                logger.finer(-1, 'error = ', error, ' > ', this.maxPixelError, ' subdividing');
+                logger.finer(-1, 'pt = ', pt);
+                logger.finer(-1, 'mid = ', mid);
                 tvals.push(tm);  pts4.push(pt);
                 edges.push([i1, pts4.length - 1]);
                 edges.push([pts4.length - 1, i2]);
             } else {   // accept this edge
                 newedges.push([i1, i2]);
             }
-        } while (edges.length > 0 && pts4.length < 5*npts && newedges.length < 1000);  // in case things go crazy
-        logger.fine(-1, 'vcount = ', pts4.length);
+        } while (edges.length > 0 && pts4.length < 10000);  // in case things go crazy
+        logger.fine(-1, '# points = ', pts4.length);
         const ifsf = new IndexedLineSetFactory();
         ifsf.setVertexCount(pts4.length);
         ifsf.setVertexCoordinates(pts4);

@@ -27,10 +27,19 @@ import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.j
 
 const logger = getLogger('jsreality.app.examples.ConicDemo');
 setModuleLevel(logger.getModuleName(), Level.INFO);
-/**
- * Minimal app demonstrating AnimationPlugin driving a KeyFrameAnimatedTransformation.
- * The app contributes its own inspector button to start playback.
- */
+
+// const buggyQ = [
+//   3.1528413896522745,
+//   -3.667412334380761,
+//   -0.9640363825767823,
+//   -3.667412334380761,
+//   -6.9426786742571664,
+//   -2.966998903894636,
+//   -0.9640363825767823,
+//   -2.966998903894636,
+//   -1.2247686244955394
+// ];
+
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
@@ -58,7 +67,12 @@ export class ConicDemo extends JSRApp {
     this._psf.setVertexCoordinates(this.unitCircle());
     this._psf.update();
     this._fivePointSGC.setGeometry(this._psf.getPointSet());
-   
+    
+    // const buggyCoeffs = ConicUtils.convertQToArray(buggyQ);
+    // this._conic = new ConicSection(buggyCoeffs);
+    // console.log('buggy coeffs = ', buggyCoeffs);
+    // console.log('buggy conic = ', this._conic);
+    
     this.updateConic();
      
     this._psf.getPointSet().addGeometryListener((event) => {
@@ -74,7 +88,7 @@ export class ConicDemo extends JSRApp {
     let ap = this._conicSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
-   ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
@@ -103,7 +117,6 @@ export class ConicDemo extends JSRApp {
     
     class MyEncompassTool extends AbstractTool {
       
-    
       static encompassSlot = InputSlot.getDevice('EncompassActivation');
     
       constructor() {
@@ -119,6 +132,7 @@ export class ConicDemo extends JSRApp {
     }
     this._worldSGC.addTool(new MyEncompassTool());
 
+    
     this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC);
     if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
     return this._worldSGC;

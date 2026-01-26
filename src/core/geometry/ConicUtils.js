@@ -15,8 +15,6 @@ import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import { SVDUtil } from '../math/SVDUtil.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
-import { LoggingInspector } from '../inspect/LoggingInspector.js';
-
 
 const logger = getLogger('jsreality.core.geometry.ConicUtils');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -185,32 +183,26 @@ export class ConicUtils {
     static factorPair(conic) {
         const svdQ = conic.svdQ;
         logger.fine(-1, "svdQ = ", svdQ.S)
-        // // try another way. Use the V matrix from the svd decomposition to find the common point of the line pair
+        //Use the V matrix from the svd decomposition to find the common point of the line pair
         const V = svdQ.V;
         logger.fine(-1, "V = ", V);
-
         const dcp = [V[0][2], V[1][2], V[2][2]];  // last column of V
         logger.fine(-1, "carrierPoint = ",dcp);
- 
-        // const tform = new Transform();
-        // tform.translate(dcp[0], dcp[1]);
         const translation = Pn.normalize(null, [dcp[0], dcp[1], 0, dcp[2]], Pn.ELLIPTIC);
-
         const tform = P3.makeTranslationMatrix(null, translation, Pn.ELLIPTIC);
-
-        const tform33 = convert44To33(tform);
-        logger.fine(-1, "tform = "+tform33);
+        const tform33 = Rn.convert44To33(tform);
         const itform33 = P2.cofactor(tform33);
-        logger.fine(-1, "itform = "+itform33);
         const tformV = Rn.matrixTimesVector(null, itform33, dcp);
-        logger.fine(-1, "tformV = "+tformV);
-
-
+        
         const Q1D = conic.Q;
-        logger.fine(-1, "Q = ",conic.Q);
         const result1D = Rn.conjugateByMatrix(null, Q1D, tform33);
-        logger.fine(-1, "result1D = ",result1D);
         const iresult1D = Rn.conjugateByMatrix(null,Q1D, itform33);
+        
+        logger.finer(-1, "tformV = "+tformV);
+        logger.finer(-1, "tform = "+tform33);
+        logger.finer(-1, "itform = "+itform33);
+        logger.fine(-1, "Q = ",conic.Q);
+        logger.fine(-1, "result1D = ",result1D);
         logger.fine(-1, "result1D = ",iresult1D);
 
         // search for the line pair in the transformed conic
@@ -218,7 +210,7 @@ export class ConicUtils {
          // so we can use the upper left 2x2 submatrix to find the line pair
         // and the last column of V is the carrier point
         const vals = [iresult1D[0], -2*iresult1D[1], iresult1D[4]];
-        if (vals[0] !=0) Rn.times(null, 1.0/vals[0], vals);
+        Rn.times(null, vals[0] != 0 ? 1.0/vals[0] : 1.0, vals);
         logger.fine(-1, "vals = "+vals);
         const [aa,bb,cc]= vals;
         const dd =bb*bb-4*aa*cc;
@@ -229,9 +221,9 @@ export class ConicUtils {
             const ret = [[1,r1,0], [1,r2,0]];
             const tret = Rn.matrixTimesVector(null, tform33, ret);
             logger.finer(-1, "ret = ", ret);
-            logger.fine(-1, "tret = ", tret);
+            logger.finer(-1, "tret = ", tret);
             return tret;
-        }  
+        }  else return null;
     }
 
     static getCenterPoint(conic) {
@@ -248,18 +240,17 @@ export class ConicUtils {
         // find point on tangent line, construct polar line,
         // construct perpendicular line to tangent line at polar point,
         // find intersection of perpendicular line with polar line
+        // take the average of the two intersection points
         const ponc = this.findPointOnConic(conic);
         const tl = ConicUtils.polarize(conic.Q, ponc);
         const tli = [-tl[1], tl[0], 0]; // pt at infinity on the tangent line
         const pot = Rn.linearCombination(null, factor, ponc, 1-factor, tli);
-        const polpot = ConicUtils.polarize(conic.Q, pot);
-       
         const perpLine = P2.perpLineToLineInPoint(tl, ponc); 
-        logger.info(-1, 'ponc = ', ponc);
-        logger.info(-1, 'tl = ', tl);
-        // logger.info(-1, 'polpot = ', polpot);
-        // logger.info(-1, 'pot = ', pot);
-        logger.info(-1, 'perpLine = ', perpLine);
+        logger.finer(-1, 'ponc = ', ponc);
+        logger.finer(-1, 'tl = ', tl);
+        logger.finer(-1, 'tli = ', tli);
+        logger.finer(-1, 'pot = ', pot);
+        logger.finer(-1, 'perpLine = ', perpLine);
         const ints = ConicUtils.intersectLineWithConic(perpLine, conic);
         if (ints == null) {
             logger.warn(-1, 'Could not find intersection of perpendicular line with conic');
@@ -267,34 +258,27 @@ export class ConicUtils {
         }
         const [p1, p2] = ints;
         const mid = Rn.linearCombination(null, .5, p1, .5, p2);
-        logger.info(-1, 'mid = ', mid);
+        logger.finer(-1, 'mid = ', mid);
         return Pn.dehomogenize(null, mid);
     }
 
     static intersectLineWithConic(line, conic) {
         const [a,b,c] = line;
-        logger.info(-1, 'line = ', line);
+        logger.fine(-1, 'line = ', line);
         let pts = [[-b,a,0], [c,0,-a], [0,-c,b]].filter(pt => Rn.innerProduct(pt, pt) > 0);
-        logger.info(-1, 'pts = ', pts);
-        if (pts.length < 2) {
-            logger.warn(-1, 'Could not find two points on line');
-            return null;
-        }
+        logger.finer(-1, 'pts = ', pts);
+        
         pts = pts.map(pt => Pn.normalize(null, pt, Pn.ELLIPTIC));
         const [p1, p2] = [pts[0], pts[1]];
         const A = Rn.bilinearForm(conic.Q, p1, p1);
         const B = 2 * Rn.bilinearForm(conic.Q, p1, p2);
         const C = Rn.bilinearForm(conic.Q, p2, p2);
         const d = (B * B - 4 * A * C);
-        logger.info(-1, 'A = ', A);
-        logger.info(-1, 'B = ', B);
-        logger.info(-1, 'C = ', C);
-        logger.info(-1, 'd = ', d);
-        logger.info(-1, 'p1 = ', p1);
-        logger.info(-1, 'p2 = ', p2);
+        logger.finer(-1, 'A B C d p1 p2 = ', A, B, C, d, p1, p2);
         if (d < 0) return null; 
         const ints = [[Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1)), Pn.ELLIPTIC)], 
             [Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1)), Pn.ELLIPTIC)]];
+        logger.fine(-1, 'ints = ', ints);
         return ints.map(pt => Pn.dehomogenize(null, pt));
     }
 
@@ -317,10 +301,9 @@ export class ConicUtils {
             return Rn.add(null, Rn.times(null, t1, V), centerPoint);
          });
 
-
         if (data.length === 0) {
             logger.warn(-1, 'Could not find point on conic');
-            return centerPoint;
+            return null;
         }
         logger.fine(-1, 'data = ', data);
         const points = data.filter(data => data !== null);
@@ -358,19 +341,7 @@ export class ConicUtils {
    
 }       
 
-export function convert44To33(m) {
-    const m33 = new Array(9);
-    m33[0] = m[0];
-    m33[1] = m[1];
-    m33[2] = m[3];
-    m33[3] = m[4];
-    m33[4] = m[5];
-    m33[5] = m[7];
-    m33[6] = m[12];
-    m33[7] = m[13];
-    m33[8] = m[15];
-    return m33;
-}
+
 
 
 
