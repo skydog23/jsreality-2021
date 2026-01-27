@@ -15,6 +15,7 @@ import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFact
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import * as P2 from '../../core/math/P2.js';
 import * as Rn from '../../core/math/Rn.js';
+import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
@@ -26,6 +27,7 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import { lineFromPoints } from '../../core/math/PlueckerLineGeometry.js';
+import { Appearance } from '../../core/scene/Appearance.js';
 
 const logger = getLogger('jsreality.app.examples.ConicDemo'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -42,56 +44,59 @@ const buggyFivePoints = [
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
-    return [true, false, false, true];
+    return [true, true, false, true];
   }
+  _colors = [Color.RED, Color.GREEN, Color.BLUE];
   _conicSGC = null;
-  _conicInPencilSGC = null;
-  _doubleContactLineSGC = null;
+  _numDoubleLines = 1;
+  _conicInPencilSGC = new Array(this._numDoubleLines).fill(null);
+  _doubleContactLineSGC = new Array(this._numDoubleLines).fill(null);
+  _dblLineArrays = new Array(this._numDoubleLines).fill([1,0,0,0,0,0]);
+  _conicInPencil = new Array(this._numDoubleLines).fill(null);
+  _childSGCs = new Array(this._numDoubleLines).fill(null);
+  _centerSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
-  _twoPointSGC = null;
+  _fivePointPSF = null;
   _conic = null;
-  _conicInPencil = null;
-  _whichMode = 2;
-  _psf = null;
-  _psfTwoPoints = null;
-  _prf = null;
+  _whichMode = 0;
+  _pointPairs = null;
   _doDualCurve = false;
-  _dcParam = 0.5;
-
+  _dcParam = new Array(this._numDoubleLines).fill(0.4);
+  
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
 
     this._conicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
-    this._conicInPencilSGC = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl');
-    this._doubleContactLineSGC = SceneGraphUtility.createFullSceneGraphComponent('dblCntLn');
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
-    this._twoPointSGC = SceneGraphUtility.createFullSceneGraphComponent('twoPoints'); 
     this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
 
     // set up point set factory for the five points
-    this._psf = new PointSetFactory();
-    this._psf.setVertexCount(5);
-    this._psf.setVertexCoordinates(this.unitCircle());
-    this._psf.update();
-    this._fivePointSGC.setGeometry(this._psf.getPointSet());
-    
-    this._psfTwoPoints = new PointSetFactory();
-    this._psfTwoPoints.setVertexCount(2);
-    this._psfTwoPoints.setVertexCoordinates([[0, -.5, 1], [0, .5, 1]]);
-    this._psfTwoPoints.update();
-    this._twoPointSGC.setGeometry(this._psfTwoPoints.getPointSet());
-   
-    this._prf = new PointRangeFactory();
-    this._prf.set2DLine([1, 0, 1]);
-    this._prf.setFiniteSphere(false);
-    this._prf.update();
-    this._doubleContactLineSGC.setGeometry(this._prf.getLine());
-    
-    this.updateConic();
-    this.initDoubleContactPencil();
+    this._fivePointPSF = new PointSetFactory();
+    this._fivePointPSF.setVertexCount(5);
+    this._fivePointPSF.setVertexCoordinates(this.unitCircle());
+    this._fivePointPSF.update();
+    this._fivePointSGC.setGeometry(this._fivePointPSF.getPointSet());
 
-    this._psf.getPointSet().addGeometryListener((event) => {
+    this._conic = new ConicSection();
+    this._conic.name = 'fixed conic';
+
+    
+    this._pointPairs = this.initPointPairs();
+    console.log('point pairs = ', this._pointPairs);
+    for (let i = 0; i < this._numDoubleLines; i++) {
+      this._conicInPencil[i] = new ConicSection();
+      this._conicInPencil[i].name = 'pencil conic '+i;
+      this._conicInPencilSGC[i] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+i);
+      this._doubleContactLineSGC[i] = this.sceneGraphForDoubleLine(i);
+      this._childSGCs[i] = SceneGraphUtility.createFullSceneGraphComponent('child '+i);
+      this._childSGCs[i].addChildren(this._conicInPencilSGC[i], this._doubleContactLineSGC[i]); 
+      this.updateDoubleContactPencil(i);
+    }
+
+    this.updateConic();
+
+    this._fivePointPSF.getPointSet().addGeometryListener((event) => {
       // console.log('geometry changed', event);
         let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
         let fivePoints = DataUtility.fromDataList(vertices);
@@ -100,21 +105,9 @@ export class ConicDemo extends JSRApp {
         if (this._doDualCurve) this._conic.getDualCurveSGC();
         this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
         this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
-        this.updateDoubleContactPencil();
+        this.updateDoubleContactPencils();
     });
-    this._psfTwoPoints.getPointSet().addGeometryListener((event) => {
-      // console.log('geometry changed', event);
-        let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
-        let twoPoints = DataUtility.fromDataList(vertices);
-        if (twoPoints == null || twoPoints.length !== 2) { return; }
-        const l2d = P2.lineFromPoints(twoPoints[0], twoPoints[1])
-        this._prf.set2DLine(l2d);
-        this._prf.update();
-        const newQ = ConicUtils.symmetricOuterProduct(l2d, l2d);
-        this._doubleLineArray =  ConicUtils.convertQToArray(newQ);
-        console.log('newQ = ', this._doubleLineArray);
-        this.updateDoubleContactPencil();
-    });
+    
       
     let ap = this._worldSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
@@ -125,16 +118,11 @@ export class ConicDemo extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
-    
-    ap = this._conicInPencilSGC.getAppearance();
-    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.BLUE);
-    
-    ap = this._doubleContactLineSGC.getAppearance();
-    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.GREEN);
-    
+    ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
+    ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
+     
     ap = this._fivePointSGC.getAppearance();
-    this._twoPointSGC.setAppearance(ap);
-    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.RED);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
@@ -144,26 +132,22 @@ export class ConicDemo extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.03);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.GREEN);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
-
-    ap = this._worldSGC.getAppearance();
-    ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
-    ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
-  
+ 
     const tool = new DragPointTool();
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
 
-    this._twoPointSGC.addTool(tool);
-    
-    const clickWheelTool = new ClickWheelCameraZoomTool();
-    clickWheelTool.setName("clickWheelTool");
-    this._worldSGC.addTool(clickWheelTool);
+   
+    // const clickWheelTool = new ClickWheelCameraZoomTool();
+    // clickWheelTool.setName("clickWheelTool");
+    // this._worldSGC.addTool(clickWheelTool);
 
     // const encompassTool = new EncompassTool();
     // encompassTool.setName("encompassTool");
     // this._worldSGC.addTool(encompassTool);
-    this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC, this._conicInPencilSGC, this._twoPointSGC, this._doubleContactLineSGC);
+    this._worldSGC.addChildren(this._conicSGC, this._fivePointSGC, this._centerSGC, ...this._childSGCs);
     if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
+    
     return this._worldSGC;
   }
 
@@ -212,40 +196,50 @@ export class ConicDemo extends JSRApp {
     
     let fivePoints = this.initFivePoints();
     console.log('fivePoints = ', fivePoints.length);
-    this._psf.setVertexCoordinates(fivePoints);
-    this._psf.update();
+    this._fivePointPSF.setVertexCoordinates(fivePoints);
+    this._fivePointPSF.update();
     
-    if (!this._conic) this._conic = new ConicSection(fivePoints);
-    else this._conic.setFromFivePoints(fivePoints);
+    this._conic.setFromFivePoints(fivePoints);
     this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
 
     this._centerSGC.setVisible(this._conic.rank === 3);
     this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
     if (this._doDualCurve) this._dualCurveSGC = this._conic.getDualCurveSGC();
 
-    this.updateDoubleContactPencil();
+    this.updateDoubleContactPencils();
      
    }
 
-   _doubleLineArray = [1,0,0,0,0,0];
-   
-   initDoubleContactPencil() {
-    this._prf.set2DLine([1,0,0]);
-    this._prf.setFiniteSphere(false);
-    this._prf.update();
-    this._doubleContactLineSGC.setGeometry(this._prf.getLine());
-
-    const pencilArray = Rn.add(null, Rn.times(null, .4, this._doubleLineArray), Rn.times(null, .6, this._conic.coefficients));
-    this._conicInPencil = new ConicSection(pencilArray);
-    this._conicInPencilSGC.setGeometry(this._conicInPencil.getIndexedLineSet());
+   updateDoubleContactPencils() {
+    for (let i = 0; i < this._numDoubleLines; i++) {
+      this.updateDoubleContactPencil(i);
+    }
    }
 
-   updateDoubleContactPencil() {
-    if (!this._conicInPencil) return;
-    const pencilArray = Rn.add(null, Rn.times(null, this._dcParam, this._doubleLineArray), Rn.times(null, 1-this._dcParam, this._conic.coefficients));
-    this._conicInPencil.setFromCoefficients(pencilArray);
-    this._conicInPencilSGC.setGeometry(this._conicInPencil.getIndexedLineSet());
+   updateDoubleContactPencil(which = 0) {
+
+    const t = 2*(this._dcParam[which] - 0.5),
+    sign = t < 0 ? -1 : 1;
+    const pencilArray = Rn.linearCombination(null, t, this._dblLineArrays[which], sign * (1-Math.abs(t)),  this._conic.coefficients);
+    
+    this._conicInPencil[which].setCoefficients(pencilArray);
+    
+    this._conicInPencilSGC[which].setGeometry(this._conicInPencil[which].getIndexedLineSet());
    }
+
+  initPointPairs() { 
+     const initPair = [[.4, -.5, 0, 1], [.4, .5, 0, 1]];
+     const tts = new Array(this._numDoubleLines).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
+     console.log('tts = ', tts);
+     const ret = tts.map((t) => {
+      let mi = MatrixBuilder.euclidean().rotateZ(t).getArray();
+      let pp = Rn.matrixTimesVector(null, mi, initPair);
+      console.log('pp = ', pp);
+      return Pn.dehomogenize(null, pp)
+    });
+    console.log('point pairs = ', ret);
+    return [initPair];
+  }
 
   initFivePoints() {
     let fivePoints = [];
@@ -286,6 +280,49 @@ export class ConicDemo extends JSRApp {
       fivePoints.push([x, y, 1]);
     }
     return fivePoints;
+  }
+
+  sceneGraphForDoubleLine(which = 0) {
+    const ppr4 = this._pointPairs[which];
+    console.log('ppr4 = ', ppr4); 
+    const lcolor = this._colors[which]; 
+    const doubleContactLineSGC = SceneGraphUtility.createFullSceneGraphComponent('dblCntLn '+which);
+    const ap = doubleContactLineSGC.getAppearance();
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, lcolor);
+    const twoPointSGC = SceneGraphUtility.createFullSceneGraphComponent('twoPoints '+which); 
+   
+    const psfTwoPoints = new PointSetFactory();
+    psfTwoPoints.setVertexCount(2);
+    psfTwoPoints.setVertexCoordinates(ppr4);
+    psfTwoPoints.update();
+    twoPointSGC.setGeometry(psfTwoPoints.getPointSet());
+    twoPointSGC.addTool(new DragPointTool());
+    doubleContactLineSGC.addChild(twoPointSGC);
+    
+    const prf = new PointRangeFactory();
+    prf.set2DLine(P2.lineFromPoints(...ppr4.map(p => Rn.convert4To3(null,p))));
+    prf.setFiniteSphere(false);
+    prf.update();
+    doubleContactLineSGC.setGeometry(prf.getLine());
+
+    psfTwoPoints.getPointSet().addGeometryListener((event) => {
+      // console.log('geometry changed', event);
+        let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
+        let twoPoints = DataUtility.fromDataList(vertices);
+        if (twoPoints == null || twoPoints.length !== 2) { return; }
+        const twoPoints3 = ppr4.map(p => Rn.convert4To3(null,p));
+        console.log('twoPoints3 = ', twoPoints3);
+        const l2d = P2.lineFromPoints(...twoPoints3);
+        prf.set2DLine(l2d);
+        prf.update();
+        const newQ = ConicUtils.symmetricOuterProduct(l2d, l2d);
+        this._dblLineArrays[which] =  ConicUtils.convertQToArray(newQ);
+        console.log('newQ = ', this._dblLineArrays[which]);
+        this.updateDoubleContactPencil(which);
+    });
+
+    return doubleContactLineSGC;
+    
   }
 
     getInspectorDescriptors() {
@@ -341,9 +378,10 @@ export class ConicDemo extends JSRApp {
               type: DescriptorType.TEXT_SLIDER,
               min: 0, max: 1, value: 0.5,
               scale: 'linear',
+              label: '',
               setValue: (value) => {
-                this._dcParam = Math.tan(Math.PI*(value-.5));
-                this.updateDoubleContactPencil();
+                this._dcParam = value;
+                this.updateDoubleContactPencil(0);
                 this.getViewer().renderAsync();}
             }
           ]

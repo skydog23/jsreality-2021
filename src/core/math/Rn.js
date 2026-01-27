@@ -132,7 +132,7 @@ export function abs(dst, src) {
  */
 export function add(dst, src1, src2) {
   if (!dst) dst = new Array(Math.max(src1.length, src2.length));
-  
+
   // Handle empty vectors
   if (src1.length === 0) {
     for (let i = 0; i < src2.length; ++i) dst[i] = src2[i];
@@ -142,18 +142,18 @@ export function add(dst, src1, src2) {
     for (let i = 0; i < src1.length; ++i) dst[i] = src1[i];
     return dst;
   }
-  
+
   // Add overlapping elements and keep remaining elements from first vector
   const minLen = Math.min(src1.length, src2.length);
   for (let i = 0; i < minLen; ++i) {
     dst[i] = src1[i] + src2[i];
   }
-  
+
   // Copy remaining elements from the first vector
   for (let i = minLen; i < src1.length; ++i) {
     dst[i] = src1[i];
   }
-  
+
   return dst;
 }
 
@@ -278,7 +278,7 @@ export function innerProduct(u, v) {
 export function innerProductN(u, v, n) {
   if (u.length < n || v.length < n) throw new Error('Vectors not long enough');
   let norm = 0.0;
-   for (let i = 0; i < n; ++i) norm += u[i] * v[i];
+  for (let i = 0; i < n; ++i) norm += u[i] * v[i];
   return norm;
 }
 
@@ -416,7 +416,7 @@ export function normalize(dst, src) {
   }
 
   // normalize(double[] dst, double[] src)
-  return setEuclideanNorm(/** @type {number[]|null} */ (dst), 1.0, /** @type {number[]} */ (src));
+  return setEuclideanNorm(/** @type {number[]|null} */(dst), 1.0, /** @type {number[]} */(src));
 }
 
 /**
@@ -446,7 +446,7 @@ export function setEuclideanNorm(dst, length, src) {
     for (let i = 0; i < Math.min(src.length, dst.length); ++i) dst[i] = src[i];
     return dst;
   }
-  return /** @type {number[]} */ (times(dst, length/norm, src));
+  return /** @type {number[]} */ (times(dst, length / norm, src));
 }
 
 
@@ -494,7 +494,7 @@ export function subtract(dst, src1, src2) {
 
   if (!dst) dst = new Array(Math.max(v1.length, v2.length));
   const out1d = /** @type {number[]} */ (dst);
-  
+
   // Handle empty vectors
   if (v1.length === 0) {
     for (let i = 0; i < v2.length; ++i) out1d[i] = -v2[i];
@@ -504,18 +504,18 @@ export function subtract(dst, src1, src2) {
     for (let i = 0; i < v1.length; ++i) out1d[i] = v1[i];
     return out1d;
   }
-  
+
   // Subtract overlapping elements and keep remaining elements from first vector
   const minLen = Math.min(v1.length, v2.length);
   for (let i = 0; i < minLen; ++i) {
     out1d[i] = v1[i] - v2[i];
   }
-  
+
   // Copy remaining elements from the first vector
   for (let i = minLen; i < v1.length; ++i) {
     out1d[i] = v1[i];
   }
-  
+
   return out1d;
 }
 
@@ -592,7 +592,7 @@ export function times(dst, factorOrSrc1, srcOrSrc2) {
  * @returns {number[]}
  */
 export function timesMatrix(dst, src1, src2) {
-  if (src1.length !== src2.length) throw new Error('Input Matrices must be same size'+src1.length+' '+src2.length);
+  if (src1.length !== src2.length) throw new Error('Input Matrices must be same size' + src1.length + ' ' + src2.length);
   const n = mysqrt(src1.length);
   let out;
   let rewrite = false;
@@ -603,7 +603,7 @@ export function timesMatrix(dst, src1, src2) {
     out = dst;
   }
   if (out.length !== src1.length) throw new Error('Input and output Matrices must be same size');
-  
+
   for (let i = 0; i < n; ++i) {
     for (let j = 0; j < n; ++j) {
       out[i * n + j] = 0.0;
@@ -650,16 +650,16 @@ export function convertFlatArrayTo2DArray(dst, src) {
   return dst;
 }
 
-export function convert3To4(v4, d3)	{
+export function convert3To4(v4, d3) {
   if (!v4) v4 = new Array(4);
   v4[0] = d3[0];
   v4[1] = d3[1];
-  v4[2] = 0.0;  
+  v4[2] = 0.0;
   v4[3] = d3[2];
   return v4;
-} 
+}
 
-export function convert4To3(v3, d4)	{
+export function convert4To3(v3, d4) {
   if (!v3) v3 = new Array(3);
   v3 = [d4[0], d4[1], d4[3]];
   return v3;
@@ -684,7 +684,7 @@ export function barycentricTriangleInterp(dst, corners, weights) {
   const tmp = new Array(n);
   ddst.fill(0);
   for (let i = 0; i < 3; ++i) {
-    add(ddst, ddst, /** @type {number[]} */ (times(tmp, weights[i], corners[i])));
+    add(ddst, ddst, /** @type {number[]} */(times(tmp, weights[i], corners[i])));
   }
   return ddst;
 }
@@ -700,7 +700,7 @@ export function calculateBounds(bounds, vlist) {
   const vl = vlist[0].length;
   const bl = bounds[0].length;
   if (vl > bl) throw new Error('invalid dimension');
-  
+
   // fill bounds with appropriate values
   for (let i = 0; i < vl; ++i) {
     bounds[0][i] = Number.MAX_VALUE;
@@ -858,6 +858,21 @@ export function isIdentityMatrix(mat, tol) {
     if (Math.abs(mat[i] - idd[i]) > tol) return false;
   }
   return true;
+}// isDiagonalMatrix: check if matrix is diagonal
+/**
+ * Test if a matrix is (approximately) diagonal.
+ * @param {number[]} mat
+ * @param {number} tol
+ * @returns {boolean}
+ */
+export function isDiagonalMatrix(mat, tol = TOLERANCE) {
+  const n = mysqrt(mat.length);
+  for (let i = 0; i < n; ++i) {
+    for (let j = 0; j < n; ++j) {
+      if (i !== j && Math.abs(mat[i * n + j]) > tol) return false;
+    }
+  }
+  return true;
 }
 
 // isNan: check if array contains NaN
@@ -916,8 +931,8 @@ export function linearCombination(dst, a, aVec, b, bVec) {
   const tmp = new Array(dst.length);
   return add(
     dst,
-    /** @type {number[]} */ (times(tmp, a, aVec)),
-    /** @type {number[]} */ (times(dst, b, bVec))
+    /** @type {number[]} */(times(tmp, a, aVec)),
+    /** @type {number[]} */(times(dst, b, bVec))
   );
 }
 
@@ -959,9 +974,9 @@ export function matrixTimesVector(dst, m, src) {
   } else {
     out = dst;
   }
-  
+
   _matrixTimesVectorSafe(out, m, src);
-  
+
   if (rewrite) {
     const target = /** @type {number[]} */ (dst);
     for (let i = 0; i < out.length; ++i) target[i] = out[i];
@@ -990,7 +1005,6 @@ export function bilinearForm(m, v1, v2) {
  * @returns {number[][]}
  */
 export function matrixTimesVectorArray(dst, m, src) {
-  const n = mysqrt(m.length);
   let out;
   let rewrite = false;
   if (!dst || dst === src) {
@@ -999,10 +1013,9 @@ export function matrixTimesVectorArray(dst, m, src) {
   } else {
     out = dst;
   }
-  
+
   const nv = src.length;
-  for (let k = 0; k < nv; ++k) _matrixTimesVectorSafe(out[k], m, src[k]);
-  
+  src.map((v, k) => _matrixTimesVectorSafe(out[k], m, v));
   if (rewrite) {
     const target = /** @type {number[][]} */ (dst);
     for (let i = 0; i < target.length; ++i) {
@@ -1190,8 +1203,8 @@ function _matrixTimesVectorSafe(dst, m, src) {
   for (let i = 0; i < ml; ++i) {
     out[i] = 0;
     for (let j = 0; j < ml; ++j) {
-         out[i] += m[i * ml + j] * src[j];
-     }
+      out[i] += m[i * ml + j] * src[j];
+    }
   }
   return out;
 }
@@ -1235,8 +1248,8 @@ export function bezierCombination(dst, t, v0, t0, t1, v1) {
   const c2 = 3 * tmp1 * t * t;
   const c3 = t * t * t;
   dst = add(dst,
-    add(null, /** @type {number[]} */ (times(null, c0, v0)), /** @type {number[]} */ (times(null, c1, t0))),
-    add(null, /** @type {number[]} */ (times(null, c2, t1)), /** @type {number[]} */ (times(null, c3, v1))));
+    add(null, /** @type {number[]} */(times(null, c0, v0)), /** @type {number[]} */(times(null, c1, t0))),
+    add(null, /** @type {number[]} */(times(null, c2, t1)), /** @type {number[]} */(times(null, c3, v1))));
   return dst;
 }
 
@@ -1289,7 +1302,7 @@ export function determinant(m) {
       det += ((i % 2) === 0) ? tmp : (-tmp);
     }
   } else {
-    det= determinantOld(m);
+    det = determinantOld(m);
   }
   return det;
 }
@@ -1439,6 +1452,8 @@ export function reorderSylvesterOddSignLast(result) {
     indicesBySign.get(sign).push(i);
   }
 
+  // not sure why this is here, still might want to permute coordinates
+  // to put quaddratic form into standard form
   if (indicesBySign.size !== 2) {
     return result;
   }
@@ -1694,7 +1709,7 @@ export function inverse(minvIn, m) {
       minv[i * n + k] = minv[largest * n + k];
       minv[largest * n + k] = x;
     }
-    
+
     // now for each remaining row, subtract off a multiple of the ith
     // row so that the entry in the ith column of that row becomes 0
     for (j = i + 1; j < n; j++) {
@@ -1722,7 +1737,7 @@ export function inverse(minvIn, m) {
       minv[i * n + j] *= f;
     }
   }
-  
+
   for (i = n - 1; i >= 0; i--) {
     for (j = i - 1; j >= 0; j--) {
       f = t[j * n + i];
@@ -1746,10 +1761,24 @@ export function inverse(minvIn, m) {
  * @returns {number[]}
  */
 export function conjugateByMatrix(dst, m, c) {
-   if (!dst) dst = new Array(c.length);
+  if (!dst) dst = new Array(c.length);
   timesMatrix(dst, c, timesMatrix(null, m, inverse(null, c)));
   return dst;
 }
+
+/**
+ * Congruence transform of matrix m by matrix c: dst = c * m * transpose(c).
+ * @param {number[]|null} dst
+ * @param {number[]} m
+ * @param {number[]} c
+ * @returns {number[]}
+ */
+export function congruenceTransform(dst, m, c) {
+  if (!dst) dst = new Array(c.length);
+  timesMatrix(dst, c, timesMatrix(null, m, transpose(null, c)));
+  return dst;
+}
+
 
 // permutationMatrix: create permutation matrix from permutation array
 /**
@@ -1797,7 +1826,7 @@ export function polarDecompose(q, s, m) {
     old = 1 - old;
     count++;
   } while (count < 20 && !equals(qq[nw], qq[old], tol));
-  
+
   for (let i = 0; i < m.length; ++i) q[i] = qq[nw][i];
   transpose(qit, qq[nw]);
   timesMatrix(s, qit, m);

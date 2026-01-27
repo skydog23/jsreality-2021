@@ -29,6 +29,7 @@ const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicSection {
+    name = 'conic';
     curve = null;
     dualConicSGC = null;
     Q = null;
@@ -42,7 +43,7 @@ export class ConicSection {
     fivePoints = null;
     pts5d = null;
     exactFollower = true;
-    numPoints = 100;
+    numPoints =100;
     degenConicTolerance = 1e-4;
     useSylvParam = false;
     maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
@@ -92,6 +93,8 @@ export class ConicSection {
     }
 
     setCoefficients(coefficients) {
+        coefficients = this.#chooseContinuity(this.coefficients, coefficients);
+
         // this is a hack to try to guarantee continuity of the "sidednes" of double contact w
         // hen conics are continually changing
         // if (this.coefficients && Rn.innerProduct(coefficients, this.coefficients) > .1) {
@@ -100,8 +103,16 @@ export class ConicSection {
         this.coefficients = ConicUtils.normalizeCoefficients([...coefficients]);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
         this.Q = ConicUtils.normalizeQ(this.Q);
-        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
-        this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
+        // this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
+        this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
+        if (false) {
+            const sylQ = Rn.congruenceTransform(null, this.Q, Rn.inverse(null, this.sylvester.P));
+            if (!Rn.isDiagonalMatrix(sylQ, 1e-4)) {
+                logger.warn(-1, 'sylQ is not diagonal');
+            }
+            logger.info(-1, 'sylvester form of Q = ', sylQ);
+        }
+         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
         logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'rank = ', this.rank);
@@ -111,6 +122,15 @@ export class ConicSection {
         logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
 
+    #chooseContinuity(oldc, newc) {
+        if (oldc == null) return newc;
+        const d1 = Rn.linearCombination(null, .5, oldc, .5, newc);   // (oldc + newc)/2
+        const d2 = Rn.linearCombination(null, .5, oldc, -.5, newc);   // (oldc - newc)/2
+        // choose the smaller norm
+        const norms = [Rn.euclideanNorm(d1), Rn.euclideanNorm(d2)];
+        if (norms[0] > norms[1]) return newc;
+        return Rn.times(null, -1, newc);
+    }
     // get the geometric representation for the conic
     updateGeomRepn() {
         logger.fine(-1, 'Updating conic section');
@@ -121,9 +141,6 @@ export class ConicSection {
             this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
             this.#updateQ(ConicUtils.outerProduct(this.doubleLine, this.doubleLine));
-            logger.fine(-1, 'conic Q', this.Q);
-            logger.fine(-1, 'conic dQ', this.dQ);
-            logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.doubleLine);
             l1.update();
@@ -154,32 +171,45 @@ export class ConicSection {
 
         let centerPoint = null;
         let C = null;
-        let newSylvester = Rn.reorderSylvesterOddSignLast(this.sylvester);
+        let newSylvester = this.sylvester;
         const TP = Rn.transpose(null, newSylvester.P);
-
+        logger.fine(-1, 'name = ', this.name);
         logger.fine(-1, 'sylvester.P = ', newSylvester.P);
-        logger.fine(-1, 'Pt.Q.P = ', Rn.times(null, Rn.times(null, TP, this.Q), newSylvester.P));
+        logger.fine(-1, 'Pt.Q.P = ', Rn.congruenceTransform(null, this.Q, TP));
         logger.fine(-1, 'sylvester.D = ', newSylvester.D);
         logger.fine(-1, 'sylvester.signs = ', newSylvester.signs);
         logger.fine(-1, 'sylvester.inertia = ', newSylvester.inertia);
         logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
         centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
+        if (Math.abs(centerPoint[2]) < 1e-2) {
+            logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
+            centerPoint = [centerPoint[0], centerPoint[1], .1];
+        }
         C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
         const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
         const tvals = new Array(npts).fill(0).map((_, i) => (2*Math.PI * i) / (npts-1));  // wrap around to 2*Pi.
         const edges = new Array(npts-1).fill(0).map((_, i) => [i, (i+1)]);
-        let pts3 = null;
-        if (this.useSylvParam) {
-            // all regular conics have this form in sylvester normal form
-            let Dpts3 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
-            pts3 = Dpts3.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
-        } else {
-            pts3 = tvals.map(t => this.#pointCenter(t, C, centerPoint));
-        }
-        const evals = pts3.map(pt => Math.abs(Rn.bilinearForm(this.Q, pt, pt)) > 1e-6);
-        if (evals.some(val => val > 1e-6)) {
-            throw new Error('#drawRegularConic: points off conic');
+        // let pts3 = null;
+        // if (this.useSylvParam) {
+        //     // all regular conics have this form in sylvester normal form
+        //     let Dpts3 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
+        //     pts3 = Dpts3.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
+        // } else {
+        //     pts3 = tvals.map(t => this.#pointCenter(t, C, centerPoint));
+        // }
+
+        const pts3 = tvals.map(t => this.useSylvParam ? this.#pointSylvester(t, newSylvester.P) : this.#pointCenter(t, C, centerPoint));
+        const evals = pts3.map(pt => Math.abs(Rn.bilinearForm(this.Q, pt, pt))/Rn.innerProduct(pt, pt));
+        const maxEval = Math.max(...evals);
+        if (maxEval > 1e-4) {
+            logger.fine(-1, 'name = ', this.name);
+            logger.fine(-1, 'maxEval = ', maxEval);
+            logger.fine(-1, 'Q = ', this.Q);
+            logger.fine(-1, 'P = ', newSylvester.P);
+            logger.fine(-1, 'evals = ', evals);
+            logger.fine(-1, 'pts3 = ', pts3[pts3.length-1]);
+            logger.warn('#drawRegularConic: points off conic');
         }
         const newedges = [];
         do {
@@ -205,7 +235,7 @@ export class ConicSection {
                 newedges.push([i1, i2]);
             }
         } while (edges.length > 0 && pts3.length < 10000);  // in case things go crazy
-        logger.info(-1, '# points = ', pts3.length);
+        logger.fine(-1, '# points = ', pts3.length);
         const ifsf = new IndexedLineSetFactory();
         ifsf.setVertexCount(pts3.length);
         ifsf.setVertexCoordinates(pts3.map(pt => Rn.convert3To4(null, pt)));
@@ -225,22 +255,15 @@ export class ConicSection {
         const A = Rn.bilinearForm(this.Q, V, V);
         const B = 2 * Rn.bilinearForm(this.Q, V, centerPoint);
         let d = (B * B - 4 * A * C);
-        if (d < -.0000001){
-            throw new Error('#pointCenter: d < -.0000001');
+        if (d < -1e-8){
+            logger.info(-1, 'name = ', this.name);
+            logger.info(-1, 'centerPoint = ', centerPoint);
+            logger.info('#pointCenter: d < -1e-8', d);
+            d = 0;
         }
         return Pn.dehomogenize(null, Rn.add(null, 
                     Rn.times(null, 2*A, centerPoint),  
                     Rn.times(null, (-B + Math.sqrt(d)), V)));
-    }
-
-    // calculation using a point on the conic
-    #pointAtTime(t, pointOnConic) {
-        const V = [Math.cos(t), Math.sin(t), 0];
-        const a = Rn.bilinearForm(this.Q, V, V);
-        const b = 2 * Rn.bilinearForm(this.Q, V, pointOnConic);
-        const currentPoint = Rn.add(null, Rn.times(null, a, pointOnConic), Rn.times(null, -b, V));
-        const pt = Rn.convert3To4(null, Pn.dehomogenize(currentPoint, currentPoint));
-        return pt;
     }
 
     // internal function:

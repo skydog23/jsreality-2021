@@ -133,6 +133,7 @@ export class LoggingInspector {
       }
       const rootDescriptor = this.#buildLoggerTree(configs);
       this.#rootDescriptor = rootDescriptor;
+      this.#expandAllNodes(rootDescriptor);
       this.#treeViewManager.rebuildTree(rootDescriptor);
     } catch (e) {
       logger.severe(-1, 'Failed to refresh LoggingInspector:', e);
@@ -231,6 +232,21 @@ export class LoggingInspector {
 
     for (const child of descriptor.children) {
       this.#sortTree(child);
+    }
+  }
+
+  /**
+   * Expand all nodes in the logging tree.
+   * @param {InspectorTreeNode} descriptor
+   * @private
+   */
+  #expandAllNodes(descriptor) {
+    if (!descriptor) return;
+    this.#treeViewManager.expandNode(descriptor.data);
+    if (Array.isArray(descriptor.children)) {
+      for (const child of descriptor.children) {
+        this.#expandAllNodes(child);
+      }
     }
   }
 

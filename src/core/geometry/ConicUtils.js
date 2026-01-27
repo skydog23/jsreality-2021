@@ -57,29 +57,24 @@ export class ConicUtils {
         return [[a,h/2,g/2],[h/2,b,f/2],[g/2,f/2,c]];
     }
 
+    // normalize the conic matrix Q to have a determinant of 1
+    // or when det == 0, normalize to have max norm of 1
     static normalizeQ(aQ) {
         const det = Rn.determinant(aQ);
+        let factor = 1.0;
         if (det !== 0) {
-            const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
+            let factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
             if (det < 0) factor = -factor;
-            return Rn.times(null, factor, aQ);
+        } else {
+            const maxNorm = Rn.maxNorm(aQ);
+            factor = 1.0 / maxNorm;
         }
-        return aQ;
+        return Rn.times(null, factor, aQ);
     }
     static normalizeCoefficients(coefficients) {
-        const mx = Rn.maxNorm(coefficients);
-        return Rn.times(null, 1.0/mx, coefficients);
+        return Rn.normalize(coefficients, coefficients);
     }
 
-    static normalizeQ(Q) {
-        const det = Rn.determinant(Q);
-        if (det !== 0) {
-            const n = Math.sqrt(Q.length);
-            const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
-            return Rn.times(null, factor, Q);
-        }
-        return Q;
-    }
 
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
@@ -197,7 +192,7 @@ export class ConicUtils {
     }
     static factorPair(conic) {
         const svdQ = conic.svdQ;
-        logger.fine(-1, "svdQ = ", svdQ.S)
+        logger.fine(-1, "svd.S = ", svdQ.S)
         //Use the V matrix from the svd decomposition to find the common point of the line pair
         const V = svdQ.V;
         logger.fine(-1, "V = ", V);
@@ -228,15 +223,16 @@ export class ConicUtils {
         Rn.times(null, vals[0] != 0 ? 1.0/vals[0] : 1.0, vals);
         logger.fine(-1, "vals = "+vals);
         const [aa,bb,cc]= vals;
-        const dd =bb*bb-4*aa*cc;
-        if (dd >= 0) {       
+        let dd =bb*bb-4*aa*cc;
+        if (dd >= -1e-8) { 
+            if (dd < 0) dd = 0;      
             const p = Math.sqrt(dd);
             const r1 = (-bb + p)/(2*aa);
             const r2 = (-bb - p)/(2*aa);
             const ret = [[1,r1,0], [1,r2,0]];
             const tret = Rn.matrixTimesVector(null, tform33, ret);
-            logger.finer(-1, "ret = ", ret);
-            logger.finer(-1, "tret = ", tret);
+            logger.fine(-1, "ret = ", ret);
+            logger.fine(-1, "tret = ", tret);
             return tret;
         }  else return null;
     }
