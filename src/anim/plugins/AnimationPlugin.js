@@ -291,14 +291,15 @@ export class AnimationPlugin extends JSRPlugin {
     const canPickDirectory = FileSystemAccessRecorderBackend.isSupported();
 
     return [
-      {
-        type: DescriptorType.LABEL,
-        label: 'Key frames / Playback',
-        getValue: () => ''
-      },
+      // {
+      //   type: DescriptorType.LABEL,
+      //   label: 'Key frames / Playback',
+      //   getValue: () => ''
+      // },
       {
         type: DescriptorType.CONTAINER,
         label: '',
+        containerLabel: 'Key frames / Playback',
         direction: 'row',
         items: [
           {
@@ -344,7 +345,6 @@ export class AnimationPlugin extends JSRPlugin {
           const tmax = kf?.getTmax?.();
           return Number.isFinite(tmax) ? tmax : 1;
         },
-        step: 0.01,
         getValue: () => this.#ap?.getCurrentTime?.() ?? 0,
         setValue: (v) => this.#ap?.scrubTime?.(v)
       },
