@@ -13,22 +13,18 @@ import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFactory.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
+import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import * as P2 from '../../core/math/P2.js';
 import * as Rn from '../../core/math/Rn.js';
-import * as Pn from '../../core/math/Pn.js';
-import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
-import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { Color } from '../../core/util/Color.js';
 import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
-import { lineFromPoints } from '../../core/math/PlueckerLineGeometry.js';
-import { Appearance } from '../../core/scene/Appearance.js';
 
 const logger = getLogger('jsreality.app.examples.ConicDemo'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -46,15 +42,18 @@ export class ConicDemo extends JSRApp {
   _dblLineArrays = new Array(this._numDoubleLines).fill([1,0,0,0,0,0]);
   _conicInPencil = new Array(this._numDoubleLines).fill(null);
   _childSGCs = new Array(this._numDoubleLines).fill(null);
+  _psfTwoPoints =  new Array(this._numDoubleLines).fill(null);
+  _prfDCLine = new Array(this._numDoubleLines).fill(null);
   _centerSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
   _fivePointPSF = null;
   _conic = null;
   _whichMode = 0;
-  _pointPairs = null;
+  _pointPairs = new Array(this._numDoubleLines).fill(null);
   _doDualCurve = false;
-  _dcParam = new Array(this._numDoubleLines).fill(0.4);
+  _dcParam = new Array(this._numDoubleLines).fill(0.1);
+  _rParam = .4;
   
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
@@ -147,7 +146,9 @@ export class ConicDemo extends JSRApp {
     const cam = CameraUtility.getCamera(this.getViewer());
     const vc = this.getViewer().getViewingComponent();
     
-   
+    // this.animationPlugin.setAnimateSceneGraph(false);
+    // this.animationPlugin.setAnimateCamera(false);
+    
 
     if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
@@ -207,7 +208,7 @@ export class ConicDemo extends JSRApp {
   }
 
   initPointPairs() {
-    const initPair = [[.4, -.5, 0, 1], [.4, .5, 0, 1]];
+    const initPair = [[this._rParam, -.5, 0, 1], [this._rParam, .5, 0, 1]];
     const tts = new Array(this._numDoubleLines);
     tts.fill(0).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
     console.log('tts = ', tts);
@@ -221,7 +222,19 @@ export class ConicDemo extends JSRApp {
       acc = Rn.timesMatrix(null, acc, mi);
     }
     console.log('point pairs = ', ret);
-    return ret;
+      this._pointPairs = ret;
+    return ret;  
+  }
+
+  updatePointPairs()  {
+    console.log('updatePointPairs', this._pointPairs);
+    for (let i = 0; i < this._numDoubleLines; i++) {
+      this._prfDCLine[i].setElement0(this._pointPairs[i][0]);
+      this._prfDCLine[i].setElement1(this._pointPairs[i][1]);
+      this._prfDCLine[i].update();
+      this._psfTwoPoints[i].setVertexCoordinates(this._pointPairs[i]);
+      this._psfTwoPoints[i].update();
+    }
   }
 
   initFivePoints() {
@@ -304,37 +317,37 @@ export class ConicDemo extends JSRApp {
     
     this._childSGCs[which].addChildren(this._conicInPencilSGC[which], this._doubleContactLineSGC[which], twoPointSGC); 
    
-    const psfTwoPoints = new PointSetFactory();
-    psfTwoPoints.setVertexCount(2);
-    psfTwoPoints.setVertexCoordinates(ppr4);
-    psfTwoPoints.update();
-    twoPointSGC.setGeometry(psfTwoPoints.getPointSet());
+    this._psfTwoPoints[which] = new PointSetFactory();
+    this._psfTwoPoints[which].setVertexCount(2);
+    this._psfTwoPoints[which].setVertexCoordinates(ppr4);
+    this._psfTwoPoints[which].update();
+    twoPointSGC.setGeometry(this._psfTwoPoints[which].getPointSet());
     const coefficients = this.#getCoefficientsFromTwoPoints(ppr4);
     this._dblLineArrays[which] = coefficients;
     twoPointSGC.addTool(new DragPointTool());
     
-    const prf = new PointRangeFactory();
-    prf.setElement0(ppr4[0]);
-    prf.setElement1(ppr4[1]);
-    prf.setFiniteSphere(false);
-    prf.setNumberOfSamples(24);
-    prf.update();
-    this._doubleContactLineSGC[which].setGeometry(prf.getLine());
+    this._prfDCLine[which] = new PointRangeFactory();
+    this._prfDCLine[which].setElement0(ppr4[0]);
+    this._prfDCLine[which].setElement1(ppr4[1]);
+    this._prfDCLine[which].setFiniteSphere(false);
+    this._prfDCLine[which].setNumberOfSamples(24);
+    this._prfDCLine[which].update();
+    this._doubleContactLineSGC[which].setGeometry(this._prfDCLine[which].getLine());
 
-    psfTwoPoints.getPointSet().addGeometryListener((event) => {
+    this._psfTwoPoints[which].getPointSet().addGeometryListener((event) => {
       console.log('geometry changed for double contact line', event, ' ', which);
         let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
         let twoPoints = DataUtility.fromDataList(vertices);
         if (twoPoints == null || twoPoints.length !== 2) { return; }
 
-        prf.setElement0(twoPoints[0]);
-        prf.setElement1(twoPoints[1]);
-        prf.update();
+        this._prfDCLine[which].setElement0(twoPoints[0]);
+        this._prfDCLine[which].setElement1(twoPoints[1]);
+        this._prfDCLine[which].update();
         const coefficients = this.#getCoefficientsFromTwoPoints(twoPoints);
         this._dblLineArrays[which] = coefficients;
         this.updateDoubleContactPencil(which);
     });
-    return this._doubleContactLineSGC[which];
+    return this._childSGCs[which];
   }
 
   #getCoefficientsFromTwoPoints(twoPoints) {
@@ -433,6 +446,20 @@ export class ConicDemo extends JSRApp {
               setValue: (val) => {
                 this._dcParam[2] = val;
                 this.updateDoubleContactPencil(2);
+                this.getViewer().renderAsync();
+              }
+            },
+            {
+              type: DescriptorType.TEXT_SLIDER,
+              min: 0, max: 1, value: this._rParam,
+              scale: 'linear',
+              label: 'dblln dist',
+              valueType: 'float',
+              getValue: () => this._rParam ,
+              setValue: (val) => {
+                this._rParam = val;
+                this.initPointPairs();
+                this.updatePointPairs();
                 this.getViewer().renderAsync();
               }
             }
