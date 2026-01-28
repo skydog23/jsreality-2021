@@ -35,7 +35,7 @@ export class ConicDemo extends JSRApp {
     return [true, true, false, true];
   }
   _colors = [Color.RED, Color.GREEN, Color.BLUE];
-  _TjColors = [Color.YELLOW, Color.CYAN, Color.MAGENTA];
+  _SjColors = [Color.YELLOW, Color.CYAN, Color.MAGENTA];
   _conicSGC = null;
   _numDoubleLines = 3;
   _conicInPencilSGC = new Array(this._numDoubleLines).fill(null);
@@ -45,8 +45,8 @@ export class ConicDemo extends JSRApp {
   _childSGCs = new Array(this._numDoubleLines).fill(null);
   _psfTwoPoints =  new Array(this._numDoubleLines).fill(null);
   _prfDCLine = new Array(this._numDoubleLines).fill(null);
-  _TjSGCs = new Array(this._numDoubleLines).fill(null);
-  _TjConicInPencil = new Array(this._numDoubleLines).fill(null);
+  _SjSGCs = new Array(this._numDoubleLines).fill(null);
+  _SjConicInPencil = new Array(this._numDoubleLines).fill(null);
   _centerSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
@@ -81,11 +81,10 @@ export class ConicDemo extends JSRApp {
     // console.log('point pairs = ', this._pointPairs);
     let ap = null;
     for (let i = 0; i < this._numDoubleLines; i++) {
-       this.initSceneGraphForSiPencils(i);
-       this.initSceneGraphForTjPencils(i);
-       this.updateDoubleContactSiPencil(i);
-       this.updateDoubleContactTjPencil(i)
+       this.initSceneGraphForTiPencils(i);
+       this.initSceneGraphForSjPencils(i);
     }
+    this.updateDoubleContactPencils();
 
     this.updateConic();
    
@@ -100,7 +99,6 @@ export class ConicDemo extends JSRApp {
         this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
         this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
         this.updateDoubleContactPencils();
-        this.updateDoubleContactTjPencils();
     });
     
       
@@ -143,7 +141,7 @@ export class ConicDemo extends JSRApp {
     this._worldSGC.addChildren(this._conicSGC, 
       this._fivePointSGC, 
       this._centerSGC, 
-      ...this._childSGCs); //,...this._TjSGCs);
+      ...this._childSGCs); //,...this._SjSGCs);
     if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
     
     return this._worldSGC;
@@ -186,9 +184,8 @@ export class ConicDemo extends JSRApp {
     console.log('setValueAtTime', time);
     for (let i = 0; i < this._numDoubleLines; i++) {
       this._dcParam[i] = time;
-      this.updateDoubleContactSiPencil(i);
-      this.updateDoubleContactTjPencil(i);
     }
+    this.updateDoubleContactPencils();
     this.getViewer().renderAsync();
   }
 
@@ -212,14 +209,14 @@ export class ConicDemo extends JSRApp {
    updateDoubleContactPencils() {
     //console.log('updateDoubleContactPencils');
     for (let i = 0; i < this._numDoubleLines; i++) {
-      this.updateDoubleContactSiPencil(i);
+      this.updateDoubleContactTiPencil(i);
     } 
     for (let i = 0; i < this._numDoubleLines; i++) {
-      this.updateDoubleContactTjPencil(i);
+      this.updateDoubleContactSjPencil(i);
     }
    }
 
-  updateDoubleContactSiPencil(which = 0) {
+  updateDoubleContactTiPencil(which = 0) {
     const u = this._dcParam[which],
       x = 2 * (u - 0.5),
       y = (u <= .5) ? u : 1.0 - u;
@@ -232,7 +229,7 @@ export class ConicDemo extends JSRApp {
   }
 
 
-  updateDoubleContactTjPencil(which = 0) {
+  updateDoubleContactSjPencil(which = 0) {
    
     const [i,j,k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
     const aij = this._aijs[which];
@@ -244,8 +241,8 @@ export class ConicDemo extends JSRApp {
     for (let i = 0; i < 6; i++) {
       acc[i] =(1- aij * aij) * S0[i] + pj[i] + 2*aij*pjk[i] + pk[i];
     }
-    this._TjConicInPencil[which].setFromCoefficients(acc);
-    this._TjSGCs[which].setGeometry(this._TjConicInPencil[which].getIndexedLineSet());
+    this._SjConicInPencil[which].setFromCoefficients(acc);
+    this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
   }
 
   initPointPairs() {
@@ -324,7 +321,7 @@ export class ConicDemo extends JSRApp {
   // it creates the conic section for the pencil, the double contact line, and the two points.
   // it also adds the scene graph components to the childSGCs array.
   // it returns the childSGCs array.
-  initSceneGraphForSiPencils(w = 0) {
+  initSceneGraphForTiPencils(w = 0) {
     const which = w;
     const lcolor = this._colors[which]; 
     const fcolor = lcolor.toFloatArray();
@@ -388,14 +385,14 @@ export class ConicDemo extends JSRApp {
         this._prfDCLine[which].update();
         const coefficients = this.#getCoefficientsFromTwoPoints(twoPoints);
         this._dblLineArrays[which] = coefficients;
-        this.updateDoubleContactSiPencil(which);
+        this.updateDoubleContactTiPencil(which);
     });
     return this._childSGCs[which];
   }
 
-  initSceneGraphForTjPencils(w = 0) {
+  initSceneGraphForSjPencils(w = 0) {
     const which = w;
-    const lcolor = this._TjColors[which]; 
+    const lcolor = this._SjColors[which]; 
     const fcolor = lcolor.toFloatArray();
 
     const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
@@ -403,14 +400,14 @@ export class ConicDemo extends JSRApp {
     const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
 
 
-    this._TjConicInPencil[which] = new ConicSection();
-    this._TjConicInPencil[which].name = 'T pencil conic '+which;
-    this._TjSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('Tj conic '+which);
-    let ap = this._TjSGCs[which].getAppearance();
+    this._SjConicInPencil[which] = new ConicSection();
+    this._SjConicInPencil[which].name = 'T pencil conic '+which;
+    this._SjSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('Sj conic '+which);
+    let ap = this._SjSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
-    this._TjSGCs[which].setGeometry(this._TjConicInPencil[which].getIndexedLineSet());
-    return this._TjSGCs[which];
+    this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
+    return this._SjSGCs[which];
   }
 
   #getCoefficientsFromTwoPoints(twoPoints) {
@@ -482,7 +479,7 @@ export class ConicDemo extends JSRApp {
               getValue: () => this._dcParam[0],
               setValue: (val) => {
                 this._dcParam[0] = val;
-                this.updateDoubleContactSiPencil(0);
+                this.updateDoubleContactTiPencil(0);
                 this.getViewer().renderAsync();
               }
             },
@@ -495,7 +492,7 @@ export class ConicDemo extends JSRApp {
               getValue: () => this._dcParam[1],
               setValue: (val) => {
                 this._dcParam[1] = val;
-                this.updateDoubleContactSiPencil(1);
+                this.updateDoubleContactTiPencil(1);
                 this.getViewer().renderAsync();
               }
             },
@@ -508,7 +505,7 @@ export class ConicDemo extends JSRApp {
               getValue: () => this._dcParam[2],
               setValue: (val) => {
                 this._dcParam[2] = val;
-                this.updateDoubleContactSiPencil(2);
+                this.updateDoubleContactTiPencil(2);
                 this.getViewer().renderAsync();
               }
             },
@@ -523,7 +520,7 @@ export class ConicDemo extends JSRApp {
                 this._rParam = val;
                 this.initPointPairs();
                 this.updatePointPairs();
-                this.updateDoubleContactTjPencils();
+                this.updateDoubleContactPencils();
                 this.getViewer().renderAsync();
               }
             }
