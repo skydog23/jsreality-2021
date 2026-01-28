@@ -102,20 +102,24 @@ export class TestJSRApp extends JSRApp {
      const white = [1,1,1,1];
     for (let i = 0; i < n; i++) {
       let c = this._origFaceColors[i];
-      let max = Math.max(c[0], c[1], c[2]);
-      let min = Math.min(c[0], c[1], c[2]);
-      min = 0;
-      let cs = null;
-      if (max == min) {
-        cs = white;
-      } else {
-      let t = (max-min)/max;
-      cs = c.map(x => (1-this._saturate)*x + this._saturate*(x-min)/(max-min));
-      }
-      satColors[i] = cs;
+      satColors[i] = this.#saturateColor(c, white, this._saturate);
     }
     const data = toDataList(satColors, null, 'float32');
     this._ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
+  }
+
+  #saturateColor(c, white, saturate) {
+    let max = Math.max(c[0], c[1], c[2]);
+    let min = Math.min(c[0], c[1], c[2]);
+    min = 0;
+    let cs = null;
+    if (max == min) {
+      cs = white;
+    } else {
+      let t = (max - min) / max;
+      cs = c.map(x => (1 - saturate) * x + saturate * (x - min) / (max - min));
+    }
+    return cs;
   }
 
   getInspectorDescriptors() {

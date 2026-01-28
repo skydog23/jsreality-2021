@@ -15,6 +15,7 @@ import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFact
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import * as P2 from '../../core/math/P2.js';
 import * as Rn from '../../core/math/Rn.js';
+import * as Pn from '../../core/math/Pn.js';
 import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
@@ -32,15 +33,6 @@ import { Appearance } from '../../core/scene/Appearance.js';
 const logger = getLogger('jsreality.app.examples.ConicDemo'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
-// const buggyQ = 0
-const buggyFivePoints = [
-  [1, 0, 1],
-  [-0.07594863468024297, -0.35442696184113437, 1],
-  [-0.8090169943749473, 0.5877852522924732, 1],
-  [-0.8090169943749476, -0.587785252292473, 1],
-  [0.30901699437494723, -0.9510565162951536, 1]
-];
-
 export class ConicDemo extends JSRApp {
  
   getShowPanels() {
@@ -48,7 +40,7 @@ export class ConicDemo extends JSRApp {
   }
   _colors = [Color.RED, Color.GREEN, Color.BLUE];
   _conicSGC = null;
-  _numDoubleLines = 1;
+  _numDoubleLines = 3;
   _conicInPencilSGC = new Array(this._numDoubleLines).fill(null);
   _doubleContactLineSGC = new Array(this._numDoubleLines).fill(null);
   _dblLineArrays = new Array(this._numDoubleLines).fill([1,0,0,0,0,0]);
@@ -84,14 +76,10 @@ export class ConicDemo extends JSRApp {
     
     this._pointPairs = this.initPointPairs();
     console.log('point pairs = ', this._pointPairs);
+    let ap = null;
     for (let i = 0; i < this._numDoubleLines; i++) {
-      this._conicInPencil[i] = new ConicSection();
-      this._conicInPencil[i].name = 'pencil conic '+i;
-      this._conicInPencilSGC[i] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+i);
-      this._doubleContactLineSGC[i] = this.sceneGraphForDoubleLine(i);
-      this._childSGCs[i] = SceneGraphUtility.createFullSceneGraphComponent('child '+i);
-      this._childSGCs[i].addChildren(this._conicInPencilSGC[i], this._doubleContactLineSGC[i]); 
-      this.updateDoubleContactPencil(i);
+       this.initSceneGraphForPencil(i);
+       this.updateDoubleContactPencil(i);
     }
 
     this.updateConic();
@@ -110,7 +98,7 @@ export class ConicDemo extends JSRApp {
     });
     
       
-    let ap = this._worldSGC.getAppearance();
+    ap = this._worldSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
@@ -206,28 +194,34 @@ export class ConicDemo extends JSRApp {
     }
    }
 
-   updateDoubleContactPencil(which = 0) {
-
-    const t = 2*(this._dcParam[which] - 0.5),
-    sign = t < 0 ? -1 : 1;
-    const pencilArray = Rn.linearCombination(null, t, this._dblLineArrays[which], sign * (1-Math.abs(t)),  this._conic.coefficients);
-    console.log('pencilArray = ', pencilArray);
+  updateDoubleContactPencil(which = 0) {
+    const u = this._dcParam[which],
+      x = 2 * (u - 0.5),
+      y = (u <= .5) ? u : 1.0 - u;
+    const pencilArray = Rn.linearCombination(null, x, this._dblLineArrays[which], y, this._conic.coefficients);
+    console.log('which = ', which, 'time = ', x,  's = ', y, 'pencilArray = ', pencilArray);
+    console.log('conic coefficients = ', this._conic.coefficients);
+    console.log('dblLineArrays = ', this._dblLineArrays[which]);
     this._conicInPencil[which].setFromCoefficients(pencilArray);
     this._conicInPencilSGC[which].setGeometry(this._conicInPencil[which].getIndexedLineSet());
-   }
+  }
 
-  initPointPairs() { 
-     const initPair = [[.4, -.5, 0, 1], [.4, .5, 0, 1]];
-     const tts = new Array(this._numDoubleLines).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
-     console.log('tts = ', tts);
-     const ret = tts.map((t) => {
-      let mi = MatrixBuilder.euclidean().rotateZ(t).getArray();
-      let pp = Rn.matrixTimesVector(null, mi, initPair);
-      console.log('pp = ', pp);
-      return Pn.dehomogenize(null, pp)
-    });
+  initPointPairs() {
+    const initPair = [[.4, -.5, 0, 1], [.4, .5, 0, 1]];
+    const tts = new Array(this._numDoubleLines);
+    tts.fill(0).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
+    console.log('tts = ', tts);
+    let mi = MatrixBuilder.euclidean().rotateZ(2 * Math.PI / this._numDoubleLines).getArray(),
+      acc = Rn.identityMatrix(4);
+    console.log('mi = ', mi);
+    const ret = [];
+    for (let i = 0; i < tts.length; i++) {
+      const t = tts[i];
+      ret.push(Rn.matrixTimesVector(null, acc, initPair))
+      acc = Rn.timesMatrix(null, acc, mi);
+    }
     console.log('point pairs = ', ret);
-    return [initPair];
+    return ret;
   }
 
   initFivePoints() {
@@ -271,53 +265,87 @@ export class ConicDemo extends JSRApp {
     return fivePoints;
   }
 
-  sceneGraphForDoubleLine(w = 0) {
+  // each double line together with the main conic generates a double contact pencil.
+  // this method initializes the scene graph for a double contact pencil.
+  // it creates the conic section for the pencil, the double contact line, and the two points.
+  // it also adds the scene graph components to the childSGCs array.
+  // it returns the childSGCs array.
+  initSceneGraphForPencil(w = 0) {
     const which = w;
+    const lcolor = this._colors[which]; 
+    const fcolor = lcolor.toFloatArray();
+
+    const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
+    const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.25));
+    const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
+
+    console.log('conicColor = ', conicColor);
+    console.log('doubleLineColor = ', doubleLineColor);
+    console.log('twoPointColor = ', twoPointColor);
+
+    this._conicInPencil[which] = new ConicSection();
+    this._conicInPencil[which].name = 'pencil conic '+which;
+    this._conicInPencilSGC[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
+    let ap = this._conicInPencilSGC[which].getAppearance();
+    
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
+    this._childSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('child '+which);
     const ppr4 = this._pointPairs[which];
     console.log('ppr4 = ', ppr4); 
-    const lcolor = this._colors[which]; 
-    const doubleContactLineSGC = SceneGraphUtility.createFullSceneGraphComponent('dblCntLn '+which);
-    let ap = doubleContactLineSGC.getAppearance();
-    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, lcolor);
+    this._doubleContactLineSGC[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntLn '+which);
+    ap = this._doubleContactLineSGC[which].getAppearance();
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
     const twoPointSGC = SceneGraphUtility.createFullSceneGraphComponent('twoPoints '+which); 
     ap = twoPointSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
-    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.RED);
+    ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, twoPointColor);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     
+    this._childSGCs[which].addChildren(this._conicInPencilSGC[which], this._doubleContactLineSGC[which], twoPointSGC); 
+   
     const psfTwoPoints = new PointSetFactory();
     psfTwoPoints.setVertexCount(2);
     psfTwoPoints.setVertexCoordinates(ppr4);
     psfTwoPoints.update();
     twoPointSGC.setGeometry(psfTwoPoints.getPointSet());
+    const coefficients = this.#getCoefficientsFromTwoPoints(ppr4);
+    this._dblLineArrays[which] = coefficients;
     twoPointSGC.addTool(new DragPointTool());
-    doubleContactLineSGC.addChild(twoPointSGC);
     
     const prf = new PointRangeFactory();
-    prf.set2DLine(P2.lineFromPoints(...ppr4.map(p => Rn.convert4To3(null,p))));
+    prf.setElement0(ppr4[0]);
+    prf.setElement1(ppr4[1]);
     prf.setFiniteSphere(false);
+    prf.setNumberOfSamples(24);
     prf.update();
-    doubleContactLineSGC.setGeometry(prf.getLine());
+    this._doubleContactLineSGC[which].setGeometry(prf.getLine());
 
     psfTwoPoints.getPointSet().addGeometryListener((event) => {
       console.log('geometry changed for double contact line', event, ' ', which);
         let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
         let twoPoints = DataUtility.fromDataList(vertices);
         if (twoPoints == null || twoPoints.length !== 2) { return; }
-        const twoPoints3 = twoPoints.map(p => Rn.convert4To3(null,p));
-        console.log('twoPoints3 = ', twoPoints3);
-        const l2d = P2.lineFromPoints(...twoPoints3);
-        prf.set2DLine(l2d);
+
+        prf.setElement0(twoPoints[0]);
+        prf.setElement1(twoPoints[1]);
         prf.update();
-        const newQ = ConicUtils.symmetricOuterProduct(l2d, l2d);
-        this._dblLineArrays[which] =  ConicUtils.convertQToArray(newQ);
-        console.log('newQ = ', this._dblLineArrays[which]);
+        const coefficients = this.#getCoefficientsFromTwoPoints(twoPoints);
+        this._dblLineArrays[which] = coefficients;
         this.updateDoubleContactPencil(which);
     });
-    
-    return doubleContactLineSGC;
-    
+    return this._doubleContactLineSGC[which];
+  }
+
+  #getCoefficientsFromTwoPoints(twoPoints) {
+    const twoPoints3 = twoPoints.map(p => Rn.convert4To3(null,p));
+    const l2d = P2.lineFromPoints(...twoPoints3);
+    const newQ = ConicUtils.symmetricOuterProduct(l2d, l2d);
+    return ConicUtils.convertQToArray(newQ);
+  }
+
+  #saturateColor(c, saturate) {
+     return c.map(x => saturate + (1-saturate)*x);
   }
 
     getInspectorDescriptors() {
@@ -366,18 +394,47 @@ export class ConicDemo extends JSRApp {
         },
         {
           type: DescriptorType.CONTAINER,
-          direction: 'row',
-          containerLabel: 'Double Contact Pencil', 
+          direction: 'column',
+          containerLabel: 'Double Contact Pencils', 
           items: [
             {
               type: DescriptorType.TEXT_SLIDER,
-              min: 0, max: 1, value: 0.5,
+              min: 0, max: 1, value: this._dcParam[0],
               scale: 'linear',
-              label: '',
-              setValue: (value) => {
-                this._dcParam = value;
+              label: 'Pencil 0',
+              valueType: 'float',
+              getValue: () => this._dcParam[0],
+              setValue: (val) => {
+                this._dcParam[0] = val;
                 this.updateDoubleContactPencil(0);
-                this.getViewer().renderAsync();}
+                this.getViewer().renderAsync();
+              }
+            },
+            {
+              type: DescriptorType.TEXT_SLIDER,
+              min: 0, max: 1, value: this._dcParam[1],
+              scale: 'linear',
+              label: 'Pencil 1',
+              valueType: 'float',
+              getValue: () => this._dcParam[1],
+              setValue: (val) => {
+                this._dcParam[1] = val;
+                this.updateDoubleContactPencil(1);
+                this.getViewer().renderAsync();
+              }
+            },
+            {
+              type: DescriptorType.TEXT_SLIDER,
+              min: 0, max: 1, value: this._dcParam[2],
+              scale: 'linear',
+              label: 'Pencil 2',
+              valueType: 'float',
+              getValue: () => this._dcParam[2],
+              setValue: (val) => {
+                this._dcParam[2] = val;
+                this.updateDoubleContactPencil(2);
+                this.getViewer().renderAsync();
+              }
             }
           ]
         }
