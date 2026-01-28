@@ -55,8 +55,9 @@ export class ConicDemo extends JSRApp {
   _whichMode = 0;
   _pointPairs = new Array(this._numDoubleLines).fill(null);
   _doDualCurve = false;
-  _dcParam = new Array(this._numDoubleLines).fill(0.9);
-  _aijs = [.5, .5, .5];
+  _dcParam = [.5, .5, .5];
+  _aijs = [.5,.5,.5];
+  _dis = [[1,1],[1,1],[1,1]];
   _rParam = .4;
   
   getContent() {
@@ -141,7 +142,7 @@ export class ConicDemo extends JSRApp {
     this._worldSGC.addChildren(this._conicSGC, 
       this._fivePointSGC, 
       this._centerSGC, 
-      ...this._childSGCs); //,...this._SjSGCs);
+      ...this._childSGCs,...this._SjSGCs);
     if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
     
     return this._worldSGC;
@@ -216,11 +217,14 @@ export class ConicDemo extends JSRApp {
     }
    }
 
+  
   updateDoubleContactTiPencil(which = 0) {
     const u = this._dcParam[which],
+    // generate homogenous coordinates (x,y) running from [-inf, inf] when u runs from 0 to 1
       x = 2 * (u - 0.5),
       y = (u <= .5) ? u : 1.0 - u;
-    const pencilArray = Rn.linearCombination(null, x, this._dblLineArrays[which], y, this._conic.coefficients);
+    this._dis[which] = [x,y];  // the "di" parameter in Morten's determinant formulas
+    const pencilArray = Rn.linearCombination(null, x,this._conic.coefficients, y, this._dblLineArrays[which]);
     // console.log('which = ', which, 'time = ', x,  's = ', y, 'pencilArray = ', pencilArray);
     // console.log('conic coefficients = ', this._conic.coefficients);
     // console.log('dblLineArrays = ', this._dblLineArrays[which]);
@@ -232,14 +236,17 @@ export class ConicDemo extends JSRApp {
   updateDoubleContactSjPencil(which = 0) {
    
     const [i,j,k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
-    const aij = this._aijs[which];
+    const ajk = this._aijs[i],
+    [djx, djy] = this._dis[j],
+    [dkx, dky] = this._dis[k];
     const S0 = this._conic.coefficients,
         pj = this._dblLineArrays[j],
         pk = this._dblLineArrays[k],
         pjk = ConicUtils.symmetricOuterProduct(pj, pk);
     const acc = new Array(6).fill(0);
     for (let i = 0; i < 6; i++) {
-      acc[i] =(1- aij * aij) * S0[i] + pj[i] + 2*aij*pjk[i] + pk[i];
+      acc[i] =(djx * dkx + djy * dky * ajk * ajk) * S0[i] + dkx*djy*pj[i] + 2*djx*dky*ajk*pjk[i] + djx*dkx*
+      pk[i];
     }
     this._SjConicInPencil[which].setFromCoefficients(acc);
     this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
