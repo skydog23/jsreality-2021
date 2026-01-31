@@ -14,15 +14,13 @@ import { ToolEventQueue } from '../ToolEventQueue.js';
 import { InputSlot } from '../InputSlot.js';
 import { AxisState } from '../AxisState.js';
 import * as Rn from '../../../math/Rn.js';
-import { getLogger, Category, Level, setModuleLevel } from '../../../util/LoggingSystem.js';
+import { getLogger, Category } from '../../../util/LoggingSystem.js';
+import { ViewerSwitch } from '../../../viewers/ViewerSwitch.js';
 
 /**
  * @typedef {import('../ToolEventQueue.js').ToolEventQueue} ToolEventQueue
  * @typedef {import('../../Viewer.js').Viewer} Viewer
  */
-
-const logger = getLogger('jsreality.core.scene.tool.raw.DeviceMouse');
-setModuleLevel(logger.getModuleName(), Level.INFO);
 
 const MOUSE_GRAB_TOGGLE_KEY = 'F10';
 const MOUSE_GRAB_TOGGLE_ALTERNATIVE_KEY = 'c';
@@ -55,10 +53,21 @@ export class DeviceMouse extends AbstractDeviceMouse {
       throw new Error('Viewer must have a viewing component');
     }
     
-    // Attach to the viewer's own viewing component.
-    // For ViewerSwitch this is the stable wrapper element, which ensures
-    // the mouse device keeps working when switching underlying viewers.
-    const component = viewer.getViewingComponent();
+    // If viewer is ViewerSwitch, get the actual current viewer's component
+    let component = viewer.getViewingComponent();
+    
+    // Check if viewer has getCurrentViewer method (ViewerSwitch)
+    if (typeof viewer.getCurrentViewer === 'function') {
+      const currentViewer = viewer.getCurrentViewer();
+      if (currentViewer && currentViewer.hasViewingComponent()) {
+        component = currentViewer.getViewingComponent();
+      }
+    } else if (viewer instanceof ViewerSwitch) {
+      const currentViewer = viewer.getCurrentViewer();
+      if (currentViewer && currentViewer.hasViewingComponent()) {
+        component = currentViewer.getViewingComponent();
+      }
+    }
     
     if (!(component instanceof HTMLElement)) {
       throw new Error('Viewing component must be an HTMLElement');
@@ -163,13 +172,8 @@ export class DeviceMouse extends AbstractDeviceMouse {
     if (deltaY > 0) {
       const slot = this.getUsedSources().get('wheel_up');
       if (slot !== null) {
-        const deltaScale = (e.deltaMode === 1) ? 40 : (e.deltaMode === 2 ? 800 : 1);
-        const steps = Math.max(1, Math.round((Math.abs(deltaY) * deltaScale) / 100));
-        logger.info(
-          Category.ALL,
-          `[DeviceMouse] wheel up: deltaY=${deltaY}, deltaMode=${e.deltaMode}, steps=${steps}, slot=${slot.getName()}`
-        );
-        for (let i = 0; i < steps; i++) {
+        const count = Math.floor(Math.abs(deltaY) / 100); // Normalize wheel delta
+        for (let i = 0; i < count; i++) {
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.PRESSED));
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.ORIGIN));
         }
@@ -177,13 +181,8 @@ export class DeviceMouse extends AbstractDeviceMouse {
     } else if (deltaY < 0) {
       const slot = this.getUsedSources().get('wheel_down');
       if (slot !== null) {
-        const deltaScale = (e.deltaMode === 1) ? 40 : (e.deltaMode === 2 ? 800 : 1);
-        const steps = Math.max(1, Math.round((Math.abs(deltaY) * deltaScale) / 100));
-        logger.info(
-          Category.ALL,
-          `[DeviceMouse] wheel down: deltaY=${deltaY}, deltaMode=${e.deltaMode}, steps=${steps}, slot=${slot.getName()}`
-        );
-        for (let i = 0; i < steps; i++) {
+        const count = Math.floor(Math.abs(deltaY) / 100);
+        for (let i = 0; i < count; i++) {
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.PRESSED));
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.ORIGIN));
         }
@@ -213,7 +212,7 @@ export class DeviceMouse extends AbstractDeviceMouse {
       this.setCenter(false);
       const queue = this.getQueue();
       if (queue !== null) {
-        const lookSwitch = InputSlot.LOOK_SWITCH;
+        const lookSwitch = InputSlot.getDevice('LookSwitch');
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.PRESSED));
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.ORIGIN));
       }
@@ -233,7 +232,7 @@ export class DeviceMouse extends AbstractDeviceMouse {
       this.setCenter(!this.isCenter());
       const queue = this.getQueue();
       if (queue !== null) {
-        const lookSwitch = InputSlot.LOOK_SWITCH;
+        const lookSwitch = InputSlot.getDevice('LookSwitch');
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.PRESSED));
         queue.addEvent(new ToolEvent(this, Date.now(), lookSwitch, AxisState.ORIGIN));
       }

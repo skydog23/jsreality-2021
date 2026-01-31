@@ -1,4 +1,4 @@
-i/**
+/**
  * JavaScript port/translation of a Charles Gunn Java codebase.
  *
  * Note: `makeOrthogonalParallelLinesExample` and
