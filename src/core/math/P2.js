@@ -40,11 +40,11 @@ export function normalizeLine(line) {
  * @param {number[]} p2
  * @returns {number[]}
  */
-export function lineFromPoints(p1, p2) {
+export function lineFromPoints(p1, p2, normalize = false) {
     const [x1,y1,w1] = Pn.dehomogenize(null, p1);
     const [x2,y2,w2] = Pn.dehomogenize(null,p2);
     const ret = outerProduct([x1,y1,w1], [x2,y2,w2]);
-    return normalizeLine(ret);
+    return normalize ? normalizeLine(ret) : ret;
 }
 
 export function perpLineToLineInPoint(line, point) {
@@ -106,7 +106,7 @@ export function clipLineToBox(line, xmin, xmax, ymin, ymax) {
         if (Math.abs(s) < Rn.TOLERANCE) seg = [...seg, box[i]];
         else if (s < 0) {
             let p = Rn.add(null, Rn.times(null,dis[i],box[j]), 
-                Rn.times(null, dis[j], box[i]));
+                Rn.times(  null, dis[j], box[i]));
             // no-op logging removed for portability
             seg = [...seg, Pn.dehomogenize(null, p)];
         }

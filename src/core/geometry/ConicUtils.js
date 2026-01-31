@@ -39,8 +39,6 @@ export class SolveConicResult {
 
 export class ConicUtils {
     
-    static conicTypes = ["zero", "double line", "line pair", "regular"];
-
 
     static convertQToQ2D(Q) {
         return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
@@ -57,35 +55,33 @@ export class ConicUtils {
         return [[a,h/2,g/2],[h/2,b,f/2],[g/2,f/2,c]];
     }
 
-    // normalize the conic matrix Q to have a determinant of 1
-    // or when det == 0, normalize to have max norm of 1
-    static normalizeQ(aQ) {
-        const det = Rn.determinant(aQ);
-        let factor = 1.0;
-        if (det !== 0) {
-            let factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
-            if (det < 0) factor = -factor;
-        } else {
-            const maxNorm = Rn.maxNorm(aQ);
-            factor = 1.0 / maxNorm;
-        }
-        return Rn.times(null, factor, aQ);
-    }
     static normalizeCoefficients(coefficients) {
-        return Rn.normalize(coefficients, coefficients);
+        const mx = Rn.maxNorm(coefficients);
+        return Rn.times(null, 1.0/mx, coefficients);
     }
 
+    static normalizeQ(Q) {
+        const det = Rn.determinant(Q);
+        if (det !== 0) {
+            const n = Math.sqrt(Q.length);
+            const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
+            return Rn.times(null, factor, Q);
+        } else {
+           return Q;
+        }
+    }
 
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
-    static symmetricOuterProduct(line1, line2) {
-        return Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1));
-     }
+    static getQFromFactors(line1, line2) {
+        [line1,line2] = [line1,line2].map(line => Pn.normalize(null, line, Pn.ELLIPTIC));
+       return Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1)); 
+    }
 
     static outerProduct(line1, line2) {
         return (line1.map(a => line2.map(b => a * b))).flat();  
-     }
-  
+    }
+
     static polarize(Q, element){
         return Rn.matrixTimesVector(null, Q, element);
     }
@@ -183,16 +179,14 @@ export class ConicUtils {
         logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
         const lines = this.factorPair(conic);
         logger.fine(-1, "lines = ", lines);
-        const evols = lines.map(line => P2.pointsOnLine(line).map(pt => Rn.innerProduct(pt, line)));
-        logger.fine(-1, "evols = ", evols);
-        // const evals = lines.map(line => conic.fivePoints.map(pt => Rn.innerProduct(pt, line)))
-        const sums = evols.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
+        const evals = lines.map(line => P2.pointsOnLine(line).map(pt => Rn.innerProduct(pt, line)))
+        const sums = evals.map(oneEval => oneEval.reduce((sum, x) => sum + Math.abs(x), 0));
         logger.fine(-1, "sums = ",sums);
         return sums[0] < sums[1] ? lines[0] : lines[1];
     }
     static factorPair(conic) {
         const svdQ = conic.svdQ;
-        logger.fine(-1, "svd.S = ", svdQ.S)
+        logger.fine(-1, "svdQ = ", svdQ.S)
         //Use the V matrix from the svd decomposition to find the common point of the line pair
         const V = svdQ.V;
         logger.fine(-1, "V = ", V);
@@ -211,35 +205,38 @@ export class ConicUtils {
         logger.finer(-1, "tformV = "+tformV);
         logger.finer(-1, "tform = "+tform33);
         logger.finer(-1, "itform = "+itform33);
-        logger.fine(-1, "Q = ",conic.Q);
-        logger.fine(-1, "result1D = ",result1D);
-        logger.fine(-1, "result1D = ",iresult1D);
+        logger.finer(-1, "Q = ",conic.Q);
+        logger.finer(-1, "result1D = ",result1D);
+        logger.finer(-1, "iresult1D = ",iresult1D);
 
         // search for the line pair in the transformed conic
         // the only non-zero entries of iresult1D are the upper left 2x2 submatrix
          // so we can use the upper left 2x2 submatrix to find the line pair
         // and the last column of V is the carrier point
         const vals = [iresult1D[0], -2*iresult1D[1], iresult1D[4]];
-        Rn.times(null, vals[0] != 0 ? 1.0/vals[0] : 1.0, vals);
+        Rn.times(vals, vals[0] != 0 ? 1.0/vals[0] : 1.0, vals);
         logger.fine(-1, "vals = "+vals);
         const [aa,bb,cc]= vals;
         let dd =bb*bb-4*aa*cc;
-        if (dd >= -1e-8) { 
-            if (dd < 0) dd = 0;      
+        if (dd >= -1e-8) {  
+            if (dd<0) dd = 0;     
             const p = Math.sqrt(dd);
             const r1 = (-bb + p)/(2*aa);
             const r2 = (-bb - p)/(2*aa);
             const ret = [[1,r1,0], [1,r2,0]];
             const tret = Rn.matrixTimesVector(null, tform33, ret);
-            logger.fine(-1, "ret = ", ret);
-            logger.fine(-1, "tret = ", tret);
+            logger.finer(-1, "ret = ", ret);
+            logger.finer(-1, "tret = ", tret);
             return tret;
-        }  else return null;
+        }  else {
+            logger.warn(-1, 'negative square root');
+            return null;
+        }
     }
 
     static getCenterPoint(conic) {
-         const cf = conic.dcoefficients;
-         return Pn.dehomogenize(null, [cf[2], cf[5], cf[8]]); 
+         const [A,H,B,G,F,C] = conic.dcoefficients;
+         return Pn.dehomogenize(null,[G/2,F/2,C]);
     }
 
     static findPointInsideConic(conic, factor = .5)  {

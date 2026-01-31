@@ -15,6 +15,7 @@ import { RotateTool } from '../../core/tools/RotateTool.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js'
+import { IndexedLineSetFactory } from '../../core/geometry/IndexedLineSetFactory.js';
 
 import { FrameFieldType } from '../../core/geometry/TubeUtility.js';
 import { TubeFactory } from '../../core/geometry/TubeFactory.js';
@@ -43,20 +44,32 @@ export class TubeDemo extends JSRApp {
         this.surfaceSGC.addTool(rotateTool);
         return this.surfaceSGC;
     }
-
+  ptf = null;
+  toggle = false;
+  width = 2;
+  height = 1;
+    vertices = [
+      [-this.width/2, -this.height/2, 0, 1 ],
+      [this.width/2, -this.height/2, 0, 1 ],
+      [this.width/2, this.height/2 , 0, 1 ],
+      [-this.width/2, this.height/2, 0, 1 ],
+      [-this.width/2, -this.height/2, 0, 1 ]
+    ];
+    
     getGeometry(sgc) {
       // const polygon = Primitives.regularPolygon(4); //Vertices(10);
       console.log('getting geometry');
       const torus1 = Primitives.discreteTorusKnot(1,.25, 2, 9, this.segments);
-      const ptf = new PolygonalTubeFactory(torus1, 0);
-		   ptf.setClosed(true);
-		   ptf.setRadius(this.radius);
-		   ptf.setGenerateEdges(true);
-       ptf.setFrameFieldType(FrameFieldType.PARALLEL);
-		   ptf.update();
-		   sgc.setGeometry(ptf.getTube());
+      this.ptf = new PolygonalTubeFactory(torus1, 0);
+		   this.ptf.setClosed(true);
+		   this.ptf.setRadius(this.radius);
+       this.ptf.setCrossSection(this.vertices);
+		   this.ptf.setGenerateEdges(true);
+       this.ptf.setFrameFieldType(this.toggle ? FrameFieldType.FRENET : FrameFieldType.PARALLEL);
+		   this.ptf.update();
+		   sgc.setGeometry(this.ptf.getTube());
       if (this.showFrames) {
-        const framesSGC = ptf.getFramesSceneGraphRepresentation(.2);
+        const framesSGC = this.ptf.getFramesSceneGraphRepresentation(.2);
         sgc.removeChildren(sgc.getChildComponents());
         sgc.addChild(framesSGC);
       }
@@ -95,6 +108,19 @@ export class TubeDemo extends JSRApp {
             },
             min: 0.01,
             max: 1.0,
+          },
+          {
+            type: DescriptorType.TOGGLE,
+            label: 'flip frame field type',
+            getValue: () => this.toggle,
+            setValue: (v) => {
+              console.log('toggling frame field type',this.toggle);
+              this.toggle = v;
+              this.ptf.setFrameFieldType(this.toggle ? FrameFieldType.FRENET : FrameFieldType.PARALLEL);
+              this.ptf.update();
+              this.surfaceSGC.setGeometry(this.ptf.getTube());
+              this.getViewer().renderAsync();
+            }
           }
         ];
       }

@@ -83,6 +83,7 @@ export class ConicSection {
 
     // we can also set the conic from coefficients directly
     setFromCoefficients(coefficients) {
+        logger.info(-1,"\n Setting from coeffs \n", coefficients);
         this.pts5d = null;   // get rid of the five points data
         // calculate the rand from SVD of Q
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
@@ -93,16 +94,9 @@ export class ConicSection {
     }
 
     setCoefficients(coefficients) {
-        coefficients = this.#chooseContinuity(this.coefficients, coefficients);
-
-        // this is a hack to try to guarantee continuity of the "sidednes" of double contact w
-        // hen conics are continually changing
-        // if (this.coefficients && Rn.innerProduct(coefficients, this.coefficients) > .1) {
-        //     coefficients = Rn.times(null, -1, coefficients);
-        // }
-        this.coefficients = ConicUtils.normalizeCoefficients([...coefficients]);
+        this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
+        this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
-        this.Q = ConicUtils.normalizeQ(this.Q);
         // this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
         this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
         if (false) {
@@ -112,14 +106,13 @@ export class ConicSection {
             }
             logger.info(-1, 'sylvester form of Q = ', sylQ);
         }
-         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
+        this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
-        logger.fine(-1, 'Q singular values:', this.svdQ.S);
-        logger.fine(-1, 'rank = ', this.rank);
-        logger.fine(-1, 'conic Q', this.Q);
-        logger.fine(-1, 'Q singular values:', this.svdQ.S);
-        logger.fine(-1, 'conic dQ', this.dQ);
-        logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
+        logger.info(-1, 'Q singular values:', this.svdQ.S);
+        logger.info(-1, 'rank = ', this.rank);
+        logger.info(-1, 'conic Q', this.Q);
+        logger.info(-1, 'conic dQ', this.dQ);
+        logger.info(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
 
     #chooseContinuity(oldc, newc) {
@@ -140,7 +133,7 @@ export class ConicSection {
         if (this.rank === 1) {
             this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
-            this.#updateQ(ConicUtils.outerProduct(this.doubleLine, this.doubleLine));
+            this.#updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.doubleLine);
             l1.update();
@@ -151,7 +144,7 @@ export class ConicSection {
             this.linePair = ConicUtils.factorPair(this);
             logger.fine(-1, 'line pair = ', this.linePair);
             // we now have exact rank-2, and should update the Q matrix
-            this.#updateQ(ConicUtils.symmetricOuterProduct(this.linePair[0], this.linePair[1]));
+            this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
