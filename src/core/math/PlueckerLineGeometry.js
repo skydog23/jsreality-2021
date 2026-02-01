@@ -1,14 +1,11 @@
 /**
- * JavaScript port/translation of a Charles Gunn Java codebase.
- *
- * Note: `makeOrthogonalParallelLinesExample` and
- * `makeOrthogonalParallelLinesExample2` are JS-only helpers; they do not exist
- * in the Java source.
- *
- * Copyright (c) 2008–2026, Charles Gunn
- *
- * Licensed under the BSD 3-Clause License. See LICENSE for details.
- * Contributors retain copyright to their contributions.
+ * JavaScript port/translation of jReality.
+ * 
+ * Copyright (c) 2024, jsReality Contributors
+ * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
+ * Schmies, Steffen Weissmann.
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import * as Rn from './Rn.js';

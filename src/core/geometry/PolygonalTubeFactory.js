@@ -48,14 +48,14 @@ export class PolygonalTubeFactory extends TubeFactory {
    * @param {number[][]} curve 4D points
    * @param {number[]} radii
    * @param {number[][]} xsec cross-section points (must be 4D for 4x4 multiplication)
-   * @param {number} type FrameFieldType (numeric)
+   * @param {number} frameType FrameFieldType (numeric)
    * @param {boolean} closed
    * @param {number} metric
    * @param {number} twists
    * @returns {number[][]|null}
    */
-  _makeTube(curve, radii, xsec, type, closed, metric, twists) {
-    console.log('makeTube', type);
+  _makeTube(curve, radii, xsec, frameType, closed, metric, twists) {
+    console.log('makeTube', frameType);
     if (!curve || curve.length === 0) return null;
     if (curve[0].length !== 4) {
       throw new Error('PolygonalTubeFactory: curve points must have dimension 4.');
@@ -119,7 +119,7 @@ export class PolygonalTubeFactory extends TubeFactory {
     }
    
     // frames
-    if (this._userFrames == null) this._frames = this.makeFrameField(this.#polygon2, type, metric);
+    if (this._userFrames == null) this._frames = this.makeFrameField(this.#polygon2, frameType, metric);
     else this._frames = this._userFrames;
 
     if (this._frames == null) throw new Error('PolygonalTubeFactory: No frames!');

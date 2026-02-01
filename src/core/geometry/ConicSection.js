@@ -83,7 +83,7 @@ export class ConicSection {
 
     // we can also set the conic from coefficients directly
     setFromCoefficients(coefficients) {
-        logger.info(-1,"\n Setting from coeffs \n", coefficients);
+        logger.fine(-1,"\n Setting from coeffs \n", coefficients);
         this.pts5d = null;   // get rid of the five points data
         // calculate the rand from SVD of Q
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
@@ -108,11 +108,11 @@ export class ConicSection {
         }
         this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
-        logger.info(-1, 'Q singular values:', this.svdQ.S);
-        logger.info(-1, 'rank = ', this.rank);
-        logger.info(-1, 'conic Q', this.Q);
-        logger.info(-1, 'conic dQ', this.dQ);
-        logger.info(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
+        logger.fine(-1, 'Q singular values:', this.svdQ.S);
+        logger.fine(-1, 'rank = ', this.rank);
+        logger.fine(-1, 'conic Q', this.Q);
+        logger.fine(-1, 'conic dQ', this.dQ);
+        logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
     }
 
     #chooseContinuity(oldc, newc) {

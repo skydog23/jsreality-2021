@@ -16,7 +16,8 @@ import { FrameInfo, FrameFieldType, octagonalCrossSection, getInitialBinormal} f
 import * as TubeFactorySceneGraph from './TubeFactorySceneGraph.js';
 
 const logger = getLogger('jsreality.core.geometry.TubeFactory');
-setModuleLevel(logger.getModuleName(), Level.FINER);
+setModuleLevel(logger.getModuleName(), Level.INFO);
+logger.setEnabledCategories(63);
 
 export class TubeFactory {
   /**
@@ -26,7 +27,7 @@ export class TubeFactory {
    * Example: TubeFactory.debug |= 2;
    * @type {number}
    */
-  static debug = 63; // matches Java default in TubeFactory.java
+  static debug = 0; // matches Java default in TubeFactory.java
 
   
   // "protected" fields (JS convention): subclasses can access them directly.
@@ -97,6 +98,7 @@ export class TubeFactory {
 
   constructor(curve = null) {
     this._theCurve = curve;
+    
    }
 
   // ---- basic getters/setters (port of Java API) ----
@@ -149,6 +151,7 @@ export class TubeFactory {
 
   setFrameFieldType(frameFieldType) {
     this._frameFieldType = frameFieldType;
+    this._framesDirty = true;
   }
 
   setRadius(radius) {
@@ -256,11 +259,11 @@ export class TubeFactory {
    * Enforces: polygon points must be 4D homogeneous coordinates.
    *
    * @param {number[][]} polygon array of 4D points, including endpoint padding (length n)
-   * @param {number} type FrameFieldType.PARALLEL or FrameFieldType.FRENET
+   * @param {number} frameType FrameFieldType.PARALLEL or FrameFieldType.FRENET
    * @param {number} metric
    * @returns {FrameInfo[]}
    */
-  makeFrameField(polygon, type, metric) {
+  makeFrameField(polygon, frameType, metric) {
     if (this._frames != null && !this._framesDirty) return this._frames;
 
     const numberJoints = polygon.length;
@@ -285,8 +288,7 @@ export class TubeFactory {
     }
 
     this.#calculateIsLine(polygonh);
-    console.log('isLine', this._isLine);
-
+    
     if ((TubeFactory.debug & 1) !== 0) {
       logger.finer(Category.ALL, `Generating frame field for metric ${metric}`);
     }
@@ -323,8 +325,7 @@ export class TubeFactory {
     for (let i = 1; i < numberJoints - 1; i++) d[i - 1] *= totalLength;
 
     const frame = new Array(16).fill(0);
-    console.log('curve: ', this._theCurve);
-
+    
     // Construct the frames for the "internal joints", away from the ends of the curve
     for (let i = 1; i < numberJoints - 1; i++) {
       let theta = 0.0;
@@ -389,8 +390,7 @@ export class TubeFactory {
             logger.finer(Category.ALL, "midplane =", midPlane);
           }
           theta = Pn.angleBetween(plane1, plane2, metric);
-          console.log('theta: ', theta);
-        }
+          }
 
         // if the three points are collinear, we use the pseudo-tangent vector
         // But I can't recall the logic.  Probably better to pre-process the curve to remove collinear sequences.
@@ -440,7 +440,7 @@ export class TubeFactory {
         logger.fine(Category.ALL, `frenet normal is ${Rn.toString(this.#frenetNormalField[i - 1])}`);
       }
 
-      if (type === FrameFieldType.PARALLEL) {
+      if (frameType === FrameFieldType.PARALLEL) {
         if (i === 1) {
           for (let k = 0; k < 4; k++) this.#parallelNormalField[0][k] = this.#frenetNormalField[0][k];
         } else {
@@ -531,7 +531,6 @@ export class TubeFactory {
     const n = polygon.length;
     for (let i = 1; i < n - 1; i++) {
       const bloop = P3.planeFromPoints(null, polygon[i - 1], polygon[i], polygon[i + 1]);
-      console.log('bloop', bloop);
       if (Rn.euclideanNormSquared(bloop) > this._tolerance) {
         this._isLine = false;
         return;

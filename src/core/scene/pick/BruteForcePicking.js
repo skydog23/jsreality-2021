@@ -298,7 +298,7 @@ export function intersectPoints(ps, metric, path, m, mInv, from, to, pointRadius
       realRad = pointRadius * pointRadii[j];
     }
     
-    intersectSphere(MY_HITS, vertex, fromOb3, dirOb3, realRad);
+    intersectSpherePrimitive(MY_HITS, vertex, fromOb3, dirOb3, realRad);
     
     for (let i = 0; i < MY_HITS.length; i++) {
       let hitPoint = MY_HITS[i];

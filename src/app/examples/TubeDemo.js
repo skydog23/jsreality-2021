@@ -45,7 +45,7 @@ export class TubeDemo extends JSRApp {
         return this.surfaceSGC;
     }
   ptf = null;
-  toggle = false;
+  toggle = true;
   width = 2;
   height = 1;
     vertices = [
@@ -58,7 +58,6 @@ export class TubeDemo extends JSRApp {
     
     getGeometry(sgc) {
       // const polygon = Primitives.regularPolygon(4); //Vertices(10);
-      console.log('getting geometry');
       const torus1 = Primitives.discreteTorusKnot(1,.25, 2, 9, this.segments);
       this.ptf = new PolygonalTubeFactory(torus1, 0);
 		   this.ptf.setClosed(true);
@@ -111,11 +110,10 @@ export class TubeDemo extends JSRApp {
           },
           {
             type: DescriptorType.TOGGLE,
-            label: 'flip frame field type',
+            label: 'Parallel frame',
             getValue: () => this.toggle,
             setValue: (v) => {
-              console.log('toggling frame field type',this.toggle);
-              this.toggle = v;
+               this.toggle = v;
               this.ptf.setFrameFieldType(this.toggle ? FrameFieldType.FRENET : FrameFieldType.PARALLEL);
               this.ptf.update();
               this.surfaceSGC.setGeometry(this.ptf.getTube());

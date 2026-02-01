@@ -162,7 +162,7 @@ export class ConicDemo extends JSRApp {
     const cam = CameraUtility.getCamera(this.getViewer());
     const vc = this.getViewer().getViewingComponent();
     
-    console.log('animated list = ', this._animationPlugin.getAnimated());
+    // console.log('animated list = ', this._animationPlugin.getAnimated());
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
     
@@ -249,20 +249,20 @@ export class ConicDemo extends JSRApp {
     const S0 = this._conic.coefficients,
         pj = this._dblLineArrays[j],
         pk = this._dblLineArrays[k],
-        pjk =  ConicUtils.convertQToArray(ConicUtils.getQFromFactors(this._dblLineEqArrays[j], this._dblLineEqArrays[k]) );
-    const acc = new Array(6).fill(0);
+        l2j = this._dblLineEqArrays[j],
+        l2k = this._dblLineEqArrays[k], 
+        pjk =  ConicUtils.convertQToArray(ConicUtils.getQFromFactors(l2j, l2k));
     // the formula is Sj = (djdk- ajk*ajk)S0 - dk*pj*pj + 2*aij*pj*pk - dj*pk*pk
     // when we dehomogenize by multiplying through by djy*dky we get
     for (let m = 0; m < 6; m++) {
       acc[m] =(djx * dkx - djy * dky * ajk * ajk) * S0[m] - dkx*djy*pj[m] + 
           2*djy*dky*ajk*pjk[m] - djx*dky*pk[m];
-      console.log('acc[m] = ', acc[m]);
+      // console.log('acc[m] = ', acc[m]);
     }
-    // console.log('Sj which = ', which, 'acc = ', acc);
-    // console.log('dj',this._dis[j], 'dk', this._dis[k], 'ajk', this._aijs[i]);
-    // console.log('pj',pj);
-    // console.log('pk',pk);
-    // console.log('pjk',pjk);
+    // const qj = Rn.add(null, Rn.times(null, djy*aijs[i], l2j),Rn.times(null, -dkx, l2k));
+    // console.log("i = ",which," qj = ",qj);
+    // const qjdblln = 
+
     this._SjConicInPencil[which].setFromCoefficients(acc);
     this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
   }
