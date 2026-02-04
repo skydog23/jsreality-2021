@@ -245,7 +245,7 @@ export class PointRangeFactory extends Abstract1DExtentFactory {
     this.setElement1(pts[1]);
   }
 
-  set2DLine(abc) {
+  set2DLine(abc) {       
     const pc = [abc[2], 0, -abc[1], 0, -abc[0], 0];
     const pts = LineUtility.twoPointsOnLine(null, pc);
     this.setElement0(pts[0]);

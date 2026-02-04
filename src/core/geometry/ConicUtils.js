@@ -182,7 +182,7 @@ export class ConicUtils {
         // rank-1 means that the conic is a double line.
         // we use the fact the that the "polar line" of any point (not on the double line)
         // is this double line
-         logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
+        logger.fine(-1, "factorDoubleLine: Q = ",Rn.matrixToString(conic.Q));
         const lines = this.factorPair(conic);
         logger.fine(-1, "lines = ", lines);
         const evals = lines.map(line => P2.pointsOnLine(line).map(pt => Rn.innerProduct(pt, line)))
@@ -290,12 +290,12 @@ export class ConicUtils {
         let d = (B * B - 4 * A * C);
         logger.finer(-1, 'A B C d p1 p2 = ', A, B, C, d, p1, p2);
         if (d < 0) {
-            logger.info(-1, 'negative discriminant', d);
+            logger.fine(-1, 'negative discriminant', d);
             d = 0;
         }
         const ints = [Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1)), Pn.ELLIPTIC), 
             Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1)), Pn.ELLIPTIC)];
-        logger.info(-1, 'ints = ', ints);
+        logger.fine(-1, 'ints = ', ints);
         return ints;
     }
 

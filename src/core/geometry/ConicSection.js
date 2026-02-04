@@ -142,6 +142,7 @@ export class ConicSection {
             // we now have exact rank-1, and should update the Q matrix
             if (this.normalize) this.#updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
             let l1 = new PointRangeFactory();
+            logger.fine("double line = ",Rn.toString(this.doubleLine));
             l1.set2DLine(this.doubleLine);
             l1.update();
             this.curve = l1.getLine();
@@ -257,9 +258,9 @@ export class ConicSection {
         const B = 2 * Rn.bilinearForm(this.Q, V, centerPoint);
         let d = (B * B - 4 * A * C);
         if (d < -1e-8){
-            logger.info(-1, 'name = ', this.name);
-            logger.info(-1, 'centerPoint = ', centerPoint);
-            logger.info('#pointCenter: d < -1e-8', d);
+            logger.fine(-1, 'name = ', this.name);
+            logger.fine(-1, 'centerPoint = ', centerPoint);
+            logger.fine('#pointCenter: d < -1e-8', d);
             d = 0;
         }
         return Pn.dehomogenize(null, Rn.add(null, 

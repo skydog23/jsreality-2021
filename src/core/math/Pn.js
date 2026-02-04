@@ -91,7 +91,6 @@ export function angleBetween(u, v, metric) {
 //     if (Math.abs(src[length-1]) > 1e-10) {
 //         factor = 1.0 / src[length-1];
 //     }
-//     return /** @type {number[]} */ (times(dst, factor, src));
 //   }
   
 export function dehomogenize(dst, src)	{
