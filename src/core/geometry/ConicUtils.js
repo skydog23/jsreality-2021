@@ -43,12 +43,18 @@ export class ConicUtils {
     static convertQToQ2D(Q) {
         return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
     }
+
+    static convertQToArrayRaw(Q)  {
+        return [Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]];
+    }
+
     static convertQToArray(Q) {
-        return this.normalizeCoefficients([Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]]);
+        return this.normalizeCoefficients(this.convertQToArrayRaw(Q));
     }
 
     static convertArrayToQ(a,h,b,g,f,c) {
-        return this.normalizeQ([a,h/2,g/2,h/2,b,f/2,g/2,f/2,c]);
+        // return this.normalizeQ([a,h/2,g/2,h/2,b,f/2,g/2,f/2,c]);
+        return [a,h/2,g/2,h/2,b,f/2,g/2,f/2,c];
     }
 
     static convertArrayToQ2D(a,h,b,g,f,c) {
@@ -61,6 +67,7 @@ export class ConicUtils {
     }
 
     static normalizeQ(Q) {
+        return this.normalizeCoefficients(Q);
         const det = Rn.determinant(Q);
         if (det !== 0) {
             const n = Math.sqrt(Q.length);
@@ -74,8 +81,8 @@ export class ConicUtils {
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
     static getQFromFactors(line1, line2) {
-        [line1,line2] = [line1,line2].map(line => Pn.normalize(null, line, Pn.ELLIPTIC));
-       return Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1)); 
+        //[line1,line2] = [line1,line2].map(line => Pn.normalize(null, line, Pn.ELLIPTIC));
+       return Rn.times(null, .5, Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1))); 
     }
 
     static outerProduct(line1, line2) {
@@ -175,8 +182,7 @@ export class ConicUtils {
         // rank-1 means that the conic is a double line.
         // we use the fact the that the "polar line" of any point (not on the double line)
         // is this double line
-
-        logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
+         logger.fine(-1, "factorDoubleLine: Q = ",conic.Q);
         const lines = this.factorPair(conic);
         logger.fine(-1, "lines = ", lines);
         const evals = lines.map(line => P2.pointsOnLine(line).map(pt => Rn.innerProduct(pt, line)))
@@ -198,7 +204,7 @@ export class ConicUtils {
         const itform33 = P2.cofactor(tform33);
         const tformV = Rn.matrixTimesVector(null, itform33, dcp);
         
-        const Q1D = conic.Q;
+        const Q1D = ConicUtils.normalizeQ(conic.Q);
         const result1D = Rn.conjugateByMatrix(null, Q1D, tform33);
         const iresult1D = Rn.conjugateByMatrix(null,Q1D, itform33);
         
@@ -218,18 +224,18 @@ export class ConicUtils {
         logger.fine(-1, "vals = "+vals);
         const [aa,bb,cc]= vals;
         let dd =bb*bb-4*aa*cc;
-        if (dd >= -1e-8) {  
+        if (true ||dd/aa >= -1e-8) {  
             if (dd<0) dd = 0;     
             const p = Math.sqrt(dd);
-            const r1 = (-bb + p)/(2*aa);
-            const r2 = (-bb - p)/(2*aa);
-            const ret = [[1,r1,0], [1,r2,0]];
+            const r1 = (-bb + p);
+            const r2 = (-bb - p);
+            const ret = [[2*aa, r1,0], [2*aa, r2,0]].map(pt => Pn.normalize(null, pt, Pn.ELLIPTIC));
             const tret = Rn.matrixTimesVector(null, tform33, ret);
             logger.finer(-1, "ret = ", ret);
             logger.finer(-1, "tret = ", tret);
             return tret;
         }  else {
-            logger.warn(-1, 'negative square root');
+            logger.warn(-1, 'negative square root', dd, ' ', aa);
             return null;
         }
     }
@@ -273,7 +279,7 @@ export class ConicUtils {
     static intersectLineWithConic(line, conic) {
         const [a,b,c] = line;
         logger.fine(-1, 'line = ', line);
-        let pts = [[-b,a,0], [c,0,-a], [0,-c,b]].filter(pt => Rn.innerProduct(pt, pt) > 0);
+        let pts = [[c,0,-a], [0,-c,b], [-b,a,0]].filter(pt => Rn.innerProduct(pt, pt) > 1e-8);
         logger.finer(-1, 'pts = ', pts);
         
         pts = pts.map(pt => Pn.normalize(null, pt, Pn.ELLIPTIC));
@@ -281,13 +287,16 @@ export class ConicUtils {
         const A = Rn.bilinearForm(conic.Q, p1, p1);
         const B = 2 * Rn.bilinearForm(conic.Q, p1, p2);
         const C = Rn.bilinearForm(conic.Q, p2, p2);
-        const d = (B * B - 4 * A * C);
+        let d = (B * B - 4 * A * C);
         logger.finer(-1, 'A B C d p1 p2 = ', A, B, C, d, p1, p2);
-        if (d < 0) return null; 
-        const ints = [[Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1)), Pn.ELLIPTIC)], 
-            [Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1)), Pn.ELLIPTIC)]];
-        logger.fine(-1, 'ints = ', ints);
-        return ints.map(pt => Pn.dehomogenize(null, pt));
+        if (d < 0) {
+            logger.info(-1, 'negative discriminant', d);
+            d = 0;
+        }
+        const ints = [Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B + Math.sqrt(d)), p1)), Pn.ELLIPTIC), 
+            Pn.normalize(null, Rn.add(null, Rn.times(null, 2*A, p2), Rn.times(null, (-B - Math.sqrt(d)), p1)), Pn.ELLIPTIC)];
+        logger.info(-1, 'ints = ', ints);
+        return ints;
     }
 
     static  findPointsOnConic(conic, numPoints = 100) {

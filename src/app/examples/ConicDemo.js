@@ -15,6 +15,7 @@ import { PointRangeFactory } from '../../core/geometry/projective/PointRangeFact
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import * as P2 from '../../core/math/P2.js';
+import * as Pn from '../../core/math/Pn.js';
 import * as Rn from '../../core/math/Rn.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
@@ -48,6 +49,9 @@ export class ConicDemo extends JSRApp {
   _prfDCLine = new Array(this._numDoubleLines).fill(null);
   _SjSGCs = new Array(this._numDoubleLines).fill(null);
   _SjConicInPencil = new Array(this._numDoubleLines).fill(null);
+  _SjTkDblLnConics = new Array(2*this._numDoubleLines).fill(null);
+  _SjTkDblLnConicsSGC = new Array(2*this._numDoubleLines).fill(null);
+  _pipjs = new Array(this._numDoubleLines).fill(null);
   _centerSGC = null;
   _worldSGC = null;
   _fivePointSGC = null;
@@ -58,11 +62,12 @@ export class ConicDemo extends JSRApp {
   _doDualCurve = false;
   _dcParam = [.5, .5, .5];
   _aijs = [1,1,1];
+  _aijshom = [[.5,1],[.5,1],[.5,1]];
   _dis = [[1,1],[1,1],[1,1]];
-  _rParam = .4;
+  _rParam = Math.sqrt(2.0)/2 + .0000001; //.4;
   
   getContent() {
-    this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
+    this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('wold');
 
     this._conicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
@@ -85,12 +90,20 @@ export class ConicDemo extends JSRApp {
     for (let i = 0; i < this._numDoubleLines; i++) {
        this.initSceneGraphForTiPencils(i);
        this.initSceneGraphForSjPencils(i);
+       this.initSceneGraphForSjTkDblLnConics(i);
     }
+    this.updatePipjs();
     this.updateDoubleContactPencils();
 
     this.updateConic();
    
-    this.setValueAtTime(.5);
+    this.setValueAtTime(.76);
+
+    console.log('p2 = ', Rn.toString(this._dblLineEqArrays[1]));
+    console.log('p3 = ', Rn.toString(this._dblLineEqArrays[2]));
+    console.log('p2p3 = ', Rn.matrixToString(ConicUtils.convertArrayToQ(...this._pipjs[0])));
+    console.log('S0 = \n', Rn.matrixToString(this._conic.Q));
+    console.log('S3 = \n', Rn.matrixToString(this._SjConicInPencil[0].Q));
 
     this._fivePointPSF.getPointSet().addGeometryListener((event) => {
       // console.log('geometry changed for five points', event);
@@ -144,12 +157,17 @@ export class ConicDemo extends JSRApp {
     this._TiSGCs[0].setVisible(false);
     this._SjSGCs[1].setVisible(false);
     this._SjSGCs[2].setVisible(false);
+    this._SjTkDblLnConicsSGC[2].setVisible(false);
+    this._SjTkDblLnConicsSGC[3].setVisible(false);
+    this._SjTkDblLnConicsSGC[4].setVisible(false);
+    this._SjTkDblLnConicsSGC[5].setVisible(false);
     
     this._worldSGC.addChildren(this._conicSGC, 
       this._fivePointSGC, 
       this._centerSGC, 
       ...this._TiSGCs,
-      ...this._SjSGCs);
+      ...this._SjSGCs,
+      ...this._SjTkDblLnConicsSGC);
     if (this._doDualCurve) this._worldSGC.addChildren(this._conic.getDualCurveSGC());
     
     return this._worldSGC;
@@ -224,12 +242,20 @@ export class ConicDemo extends JSRApp {
     }
    }
 
-  
-  updateDoubleContactTiPencil(which = 0) {
-    const u = 1- this._dcParam[which],
+   #r1parm(t) {
+    const [x,y] = this.#p1parm(t);
+    return (y !== 0) ? x/y : 1e10;
+   }
+   #p1parm(t) {
+    const u = 1- t,
     // generate homogenous coordinates (x,y) running from [-inf, inf] when u runs from 0 to 1
       x = -2 * (u - 0.5),
-      y = (u <= .5) ? u : 1.0 - u;
+      y = 2 * ((u <= .5) ? u : 1.0 - u);
+    return [x,y];
+   }
+  
+  updateDoubleContactTiPencil(which = 0) {
+    let [x,y] = this.#p1parm(this._dcParam[which]);
     this._dis[which] = [x,y];  // the "di" parameter in Morten's determinant formulas
     // the formula is Ti = di*S0 - pi*pi, or homogenized  dix*S0 - diy*pi*pi
     const pencilArray = Rn.linearCombination(null, x,this._conic.coefficients, -y, this._dblLineArrays[which]);
@@ -243,47 +269,106 @@ export class ConicDemo extends JSRApp {
   updateDoubleContactSjPencil(which = 0) {
    
     const [i,j,k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
-    const ajk = this._aijs[i],
-    [djx, djy] = this._dis[j],
-    [dkx, dky] = this._dis[k];
-    const S0 = this._conic.coefficients,
-        pj = this._dblLineArrays[j],
-        pk = this._dblLineArrays[k],
-        l2j = this._dblLineEqArrays[j],
-        l2k = this._dblLineEqArrays[k], 
-        pjk =  ConicUtils.convertQToArray(ConicUtils.getQFromFactors(l2j, l2k));
+    const ajk = this._aijs[i];
+    const dbgp = this._aijs[j]
+    let [djx, djy] = this._dis[j];
+    if (djy === 0) djy = .0000001;
+    [djx, djy] = [djx/djy, 1];
+    let [dkx, dky] = this._dis[k];
+    if (dky === 0) dky = .0000001;
+    [dkx, dky] = [dkx/dky, 1];
+    const S0 = this._conic.coefficients;
+    const pj = this._dblLineArrays[j];
+    const pk = this._dblLineArrays[k];
+    const pjk = this._pipjs[which];
+    const l2j = this._dblLineEqArrays[j];
+    const l2k = this._dblLineEqArrays[k];
+    // const pjkq =  ConicUtils.getQFromFactors(l2j, l2k);
+    // const pjk = ConicUtils.convertQToArrayRaw(pjkq);
+    // console.log("det = ", Rn.maxNorm(pjkq));
+    // console.log("ajk", ajk, "dbgp", dbgp);
+    console.log("djx", djx, "djy", djy, "\n\tdkx", dkx, "dky", dky);
+    console.log("pjk ",Rn.matrixToString(ConicUtils.convertArrayToQ(...pjk)));
+   console.log("l2j", Rn.toString(l2j), "l2k", Rn.toString(l2k));
+    
+  
     // the formula is Sj = (djdk- ajk*ajk)S0 - dk*pj*pj + 2*aij*pj*pk - dj*pk*pk
     // when we dehomogenize by multiplying through by djy*dky we get
+       // the formula is Sj = (djdk- ajk*ajk)S0 - dk*pj*pj + 2*aij*pj*pk - dj*pk*pk
+    // when we dehomogenize by multiplying through by djy*dky we get
+    const acc = new Array(6).fill(0); 
+    let k1 = djx * dkx - djy * dky * ajk * ajk;
     for (let m = 0; m < 6; m++) {
-      acc[m] =(djx * dkx - djy * dky * ajk * ajk) * S0[m] - dkx*djy*pj[m] + 
-          2*djy*dky*ajk*pjk[m] - djx*dky*pk[m];
-      // console.log('acc[m] = ', acc[m]);
-    }
-    // const qj = Rn.add(null, Rn.times(null, djy*aijs[i], l2j),Rn.times(null, -dkx, l2k));
-    // console.log("i = ",which," qj = ",qj);
-    // const qjdblln = 
+      acc[m] = k1 * S0[m] - dkx*djy*pj[m] + 2*ajk*djy*dky*pjk[m] - djx*dky*pk[m];
+      acc[m] = acc[m] / (djy*dky);
+     }
 
     this._SjConicInPencil[which].setFromCoefficients(acc);
     this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
+    const sjQ = this._SjConicInPencil[which].Q;
+    const intersections = ConicUtils.intersectLineWithConic(l2j, this._SjConicInPencil[which]);
+    // console.log("contact points = ", intersections);
+    const evls = intersections.map(pt => Rn.innerProduct(pt,  l2j));
+    // console.log("incidence with polar line = ", evls);
+    // console.log("Sj conic in pencil = \n", Rn.matrixToString(sjQ));
+
+     // calculate the double line on the edge Si-Tj
+     const accjk = new Array(6).fill(0),
+     acckj = new Array(6).fill(0);
+     const kk = djx * dkx - djy * dky * ajk * ajk;
+     for (let m = 0; m < 6; m++) {
+       accjk[m] = kk * acc[m] - djx*dky*S0[m];
+       acckj[m] = kk * acc[m] - dkx*djy*S0[m];
+     }
+     const accjk3 = new Array(3).fill(0),
+     acckj3 = new Array(3).fill(0);
+     for (let m = 0; m < 3; m++) {
+       accjk3[m] = djy * ajk * l2j[m] - djx*l2k[m];
+       acckj3[m] = dky * ajk * l2k[m] - dkx*l2j[m];
+     }
+     const dbljk3 = ConicUtils.convertQToArrayRaw(ConicUtils.getQFromFactors(accjk3, accjk3));
+     const dblkj3 = ConicUtils.convertQToArrayRaw(ConicUtils.getQFromFactors(acckj3, acckj3));
+     this._SjTkDblLnConics[2*which].setFromCoefficients(accjk);
+     this._SjTkDblLnConics[2*which+1].setFromCoefficients(acckj);
+     this._SjTkDblLnConicsSGC[2*which].setGeometry(this._SjTkDblLnConics[2*which].getIndexedLineSet());
+     this._SjTkDblLnConicsSGC[2*which+1].setGeometry(this._SjTkDblLnConics[2*which+1].getIndexedLineSet());
+  }
+
+  updatePipjs() {
+    for (let i = 0; i < this._numDoubleLines; i++) {
+      this.updatePipj(i);
+    }
+  }
+  updatePipj(which) {
+    const [i, j, k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
+    const l2j = this._dblLineEqArrays[j];
+    const l2k = this._dblLineEqArrays[k];
+    const pjkq = ConicUtils.getQFromFactors(l2j, l2k);
+    this._pipjs[i] = ConicUtils.convertQToArrayRaw(pjkq);
   }
 
   initPointPairs() {
-    const initPair = [[this._rParam, -.5, 0, 1], [this._rParam, .5, 0, 1]];
-    const tts = new Array(this._numDoubleLines);
-    tts.fill(0).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
-    // console.log('tts = ', tts);
-    let mi = MatrixBuilder.euclidean().rotateZ(2 * Math.PI / this._numDoubleLines).getArray(),
-      acc = Rn.identityMatrix(4);
-    // console.log('mi = ', mi);
-    const ret = [];
-    for (let i = 0; i < tts.length; i++) {
-      const t = tts[i];
-      ret.push(Rn.matrixTimesVector(null, acc, initPair))
-      acc = Rn.timesMatrix(null, acc, mi);
-    }
-    // console.log('point pairs = ', ret);
-      this._pointPairs = ret;
-    return ret;  
+    const r = this._rParam, d = .8
+    const initPairs = [ [[d,r,0,1], [-d,r,0,1]], [[-d,d,0,1],[d,-d,0,1]], [[d,d,0,1],[-d,-d,0,1]]];
+    const m = MatrixBuilder.euclidean().translate(r,0,0).getArray();
+    this._pointPairs = initPairs.map(pair => Rn.matrixTimesVector(null, m, pair));
+    return this._pointPairs;
+    // const initPair = [[this._rParam, -.5, 0, 1], [this._rParam, .5, 0, 1]];
+    // const tts = new Array(this._numDoubleLines);
+    // tts.fill(0).map((_, i) => (2 * Math.PI * i) / this._numDoubleLines);
+    // // console.log('tts = ', tts);
+    // let mi = MatrixBuilder.euclidean().rotateZ(2 * Math.PI / this._numDoubleLines).getArray(),
+    //   acc = Rn.identityMatrix(4);
+    // // console.log('mi = ', mi);
+    // const ret = [];
+    // for (let i = 0; i < tts.length; i++) {
+    //   const t = tts[i];
+    //   ret.push(Rn.matrixTimesVector(null, acc, initPair))
+    //   acc = Rn.timesMatrix(null, acc, mi);
+    // }
+    // // console.log('point pairs = ', ret);
+    //   this._pointPairs = ret;
+    // return ret;  
   }
 
   updatePointPairs()  {
@@ -356,7 +441,7 @@ export class ConicDemo extends JSRApp {
     // console.log('doubleLineColor = ', doubleLineColor);
     // console.log('twoPointColor = ', twoPointColor);
 
-    this._conicInPencil[which] = new ConicSection();
+    this._conicInPencil[which] = new ConicSection(null, false);
     this._conicInPencil[which].name = 'pencil conic '+which;
     this._conicInPencilSGC[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
     let ap = this._conicInPencilSGC[which].getAppearance();
@@ -366,7 +451,7 @@ export class ConicDemo extends JSRApp {
     this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('child '+which);
     const ppr4 = this._pointPairs[which];
     // console.log('ppr4 = ', ppr4); 
-    this._doubleContactLineSGC[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntLn '+which);
+    this._doubleContactLineSGC[which] = SceneGraphUtility.createFullSceneGraphComponent('p'+which);
     ap = this._doubleContactLineSGC[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
@@ -409,9 +494,10 @@ export class ConicDemo extends JSRApp {
         const [l2d, coeffs] = this.#getLineFromTwoPoints(twoPoints);
         this._dblLineArrays[which] = coeffs;
         this._dblLineEqArrays[which] = l2d;
-        this.updateDoubleContactTiPencil(which);
+        this.updatePipjs();
+        this.updateDoubleContactPencils();
+        this.getViewer().renderAsync();
     });
-    return this._TiSGCs[which];
   }
 
   initSceneGraphForSjPencils(w = 0) {
@@ -422,21 +508,51 @@ export class ConicDemo extends JSRApp {
     const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
     const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.25));
     const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
-
-
-    this._SjConicInPencil[which] = new ConicSection();
-    this._SjConicInPencil[which].name = 'T pencil conic '+which;
+    
+    this._SjConicInPencil[which] = new ConicSection(null, false);
+    this._SjConicInPencil[which].name = 'S'+which;
     this._SjSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('Sj conic '+which);
     let ap = this._SjSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
     this._SjSGCs[which].setGeometry(this._SjConicInPencil[which].getIndexedLineSet());
-    return this._SjSGCs[which];
   }
+
+  initSceneGraphForSjTkDblLnConics(w = 0) {
+    const which = w;
+    const [i,j,k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
+    const [li,lj,lk] = [i+1,j+1,k+1];
+    
+    const lcolorj = this._colors[j];
+    const lcolork = this._colors[k];
+
+    const fcolorj = lcolorj.toFloatArray();
+    const fcolork = lcolork.toFloatArray();
+
+    const doubleLineColorj = Color.fromFloatArray(this.#saturateColor(fcolorj, 0.5));
+    const doubleLineColork = Color.fromFloatArray(this.#saturateColor(fcolork, 0.5));
+    
+
+    this._SjTkDblLnConics[2*which] = new ConicSection(null, false);
+    this._SjTkDblLnConics[2*which].name = 'Sj-Tk DL '+li+'-'+lj;
+    this._SjTkDblLnConicsSGC[2*which] = SceneGraphUtility.createFullSceneGraphComponent('Sj-Tk DL '+li+'-'+lj);
+    let ap = this._SjTkDblLnConicsSGC[2*which].getAppearance();
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColorj);
+    this._SjTkDblLnConicsSGC[2*which].setGeometry(this._SjTkDblLnConics[2*which].getIndexedLineSet());
+    this._SjTkDblLnConics[2*which+1] = new ConicSection(null, false);
+    this._SjTkDblLnConics[2*which+1].name = 'Tk-Sj DL '+lk+'-'+li;
+    this._SjTkDblLnConicsSGC[2*which+1] = SceneGraphUtility.createFullSceneGraphComponent('Sk-Tj DL '+lk+'-'+li);
+    ap = this._SjTkDblLnConicsSGC[2*which+1].getAppearance();
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColork);
+    this._SjTkDblLnConicsSGC[2*which+1].setGeometry(this._SjTkDblLnConics[2*which+1].getIndexedLineSet());
+  }
+
 
   #getLineFromTwoPoints(twoPoints) {
     const twoPoints3 = twoPoints.map(p => Rn.convert4To3(null,p));
-    const l2d = P2.lineFromPoints(...twoPoints3);
+    const l2d = Pn.normalize(null, P2.lineFromPoints(...twoPoints3), Pn.ELLIPTIC);
     const newQ = ConicUtils.getQFromFactors(l2d, l2d);
     return [l2d, ConicUtils.convertQToArray(newQ)];
   }
@@ -535,40 +651,43 @@ export class ConicDemo extends JSRApp {
             },
                {
                   type: DescriptorType.TEXT_SLIDER,
-                  min: 0, max: 1, value: this._aijs[0],
+                  min: -5, max: 5, value: this._aijs[0],
                   scale: 'linear',
                   label: 'a12',
                   valueType: 'float',
                   getValue: () => this._aijs[0],
                   setValue: (val) => {
                     this._aijs[0] = val;
-                    this.updateDoubleContactSjPencil(0);
+                    this._aijshom[0] = this.#p1parm(val);
+                    this.updateDoubleContactPencils();
                     this.getViewer().renderAsync();
                   }
                 },
                 {
                   type: DescriptorType.TEXT_SLIDER,
-                  min: 0, max: 1, value: this._aijs[1],
+                  min: -5, max: 5, value: this._aijs[1],
                   scale: 'linear',
                   label: 'a02',
                   valueType: 'float',
                   getValue: () => this._aijs[1],
                   setValue: (val) => {
                     this._aijs[1] = val;
-                    this.updateDoubleContactSjPencil(1);
+                    this._aijshom[0] = this.#p1parm(val);
+                    this.updateDoubleContactPencils();
                     this.getViewer().renderAsync();
                   }
                 },
                 {
                   type: DescriptorType.TEXT_SLIDER,
-                  min: 0, max: 1, value: this._aijs[2],
+                  min: -5, max: 5, value: this._aijs[2],
                   scale: 'linear',
                   label: 'a01',
                   valueType: 'float',
                   getValue: () => this._aijs[2],
                   setValue: (val) => {
                     this._aijs[2] = val;
-                    this.updateDoubleContactSjPencil(2);
+                    this._aijshom[0] = this.#p1parm(val);
+                    this.updateDoubleContactPencils();
                     this.getViewer().renderAsync();
                   }
                 },
@@ -583,6 +702,7 @@ export class ConicDemo extends JSRApp {
                 this._rParam = val;
                 this.initPointPairs();
                 this.updatePointPairs();
+                this.updatePipjs();
                 this.updateDoubleContactPencils();
                 this.getViewer().renderAsync();
               }

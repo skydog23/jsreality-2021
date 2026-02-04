@@ -46,17 +46,23 @@ export class ConicSection {
     numPoints =100;
     degenConicTolerance = 1e-4;
     useSylvParam = false;
-    maxPixelError = .0003;   // have to compute this from the viewport and the canvas size
+    maxPixelError = .0003;  // have to compute this from the viewport and the canvas size
     viewport = null;
+    normalize = true;
 
-    constructor(initArray = [1, 0, 1, 0, 0, -1]) {
+    constructor(initArray = [1, 0, 1, 0, 0, -1], normalize = true) {
         // console.log('ConicSection constructor called with initArray = ', initArray);
-        if (Array.isArray(initArray)) {
-            if (Array.isArray(initArray[0]))
-                this.setFromFivePoints(initArray);
-            else this.setFromCoefficients(initArray);
-        }
-        else throw new Error('Argument must be an array of arrays or a single array');
+        if (initArray !== null)
+            if (Array.isArray(initArray)) {
+                if (Array.isArray(initArray[0]))
+                    this.setFromFivePoints(initArray);
+                else if (initArray.length == 6) this.setFromCoefficients(initArray);
+                else if (initArray.length == 9) {
+                    this.setFromCoefficients(ConicUtils.convertQToArrayRaw(initArray));
+                }
+            }
+            else throw new Error('Argument must be an array of arrays or a single array');
+        this.normalize = normalize;
     }
 
     // the conic can be determined by 5 points
@@ -95,7 +101,7 @@ export class ConicSection {
 
     setCoefficients(coefficients) {
         this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
-        this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
+        if (this.normalize) this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
         // this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
         this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
@@ -106,7 +112,8 @@ export class ConicSection {
             }
             logger.info(-1, 'sylvester form of Q = ', sylQ);
         }
-        this.dQ = ConicUtils.normalizeQ(P2.cofactor(null, this.Q));
+        this.dQ = P2.cofactor(null, this.Q);
+        if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
         this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
         logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'rank = ', this.rank);
@@ -133,7 +140,7 @@ export class ConicSection {
         if (this.rank === 1) {
             this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
-            this.#updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
+            if (this.normalize) this.#updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.doubleLine);
             l1.update();
@@ -144,7 +151,8 @@ export class ConicSection {
             this.linePair = ConicUtils.factorPair(this);
             logger.fine(-1, 'line pair = ', this.linePair);
             // we now have exact rank-2, and should update the Q matrix
-            this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
+            if (this.normalize) this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
+            else this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
@@ -262,7 +270,8 @@ export class ConicSection {
     // internal function:
     // if we've detected a degenerate conic, reset with an exact rank-1 or rank-2 conic
     #updateQ(newQ) {
-        this.Q = ConicUtils.normalizeQ(newQ);
+        if (this.normalize) this.Q = ConicUtils.normalizeQ(newQ);
+        else this.Q = newQ;
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
         this.coefficients = ConicUtils.convertQToArray(this.Q);
         this.dQ = P2.cofactor(null, this.Q);

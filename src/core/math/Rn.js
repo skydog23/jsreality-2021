@@ -1026,24 +1026,7 @@ export function matrixTimesVectorArray(dst, m, src) {
   return out;
 }
 
-// matrixToString: convert matrix to string
-/**
- * Convert a square matrix to a formatted string.
- * @param {number[]} m
- * @param {string} [formatString='%g']
- * @returns {string}
- */
-export function matrixToString(m, formatString = '%6.2g') {
-  const sb = [];
-  const n = mysqrt(m.length);
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      sb.push(formatString.replace('%g', String(m[n * i + j])));
-      sb.push(j === (n - 1) ? '\n' : '\t');
-    }
-  }
-  return sb.join('');
-}
+
 
 // setIdentityMatrix: set matrix to identity
 /**
@@ -1081,19 +1064,37 @@ export function swap(u, v) {
 /**
  * Convert a vector to formatted string.
  * @param {number[]} v
- * @param {string} [formatString='%g']
+ * @param {number} [precision=6]
  * @returns {string}
  */
-export function toString(v, formatString = '%g') {
+export function toString(v, precision = 6) {
   const n = v.length;
   const strb = [];
   for (let i = 0; i < n; ++i) {
-    strb.push(formatString.replace('%g', String(v[i])));
+    strb.push(v[i].toFixed(precision));
     strb.push('\t');
   }
   return strb.join('');
 }
 
+// matrixToString: convert matrix to string
+/**
+ * Convert a square matrix to a formatted string.
+ * @param {number[]} m
+ * @param {number} [precision=6]
+ * @returns {string}
+ */
+export function matrixToString(m, precision = 6) {
+  const sb = [];
+  const n = mysqrt(m.length);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      sb.push(m[i * 3 + j].toFixed(precision));
+      sb.push(j === (n - 1) ? '\n' : '\t');
+    }
+  }
+  return sb.join('');
+}
 // toString for array of vectors
 /**
  * Convert an array of vectors to a string (for debugging).
