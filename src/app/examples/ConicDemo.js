@@ -396,7 +396,7 @@ export class ConicDemo extends JSRApp {
       acc[i] = k0 * S0[i] + k1 * p1[i] + k2 * p2[i] + k3 * p3[i] + k23 * u1[i] + k13 * u2[i] + k12 * u3[i];
     }
     this._T0Conic.setFromCoefficients(acc); 
-    console.log('T0 conic = ', Rn.matrixToString(this._T0Conic.Q));
+    // console.log('T0 conic = ', Rn.matrixToString(this._T0Conic.Q));
     this._T0ConicSGC.setGeometry(this._T0Conic.getIndexedLineSet());
    }
   updatePipjs() {
@@ -911,10 +911,11 @@ export class ConicDemo extends JSRApp {
               scale: 'linear',
               label: 'tolerance',
               valueType: 'integer',
+              step: 1,
               getValue: () => ConicUtils.getDegenConicTolerance(),
               setValue: (val) => {
-                ConicUtils.setDegenConicTolerance(val);
-                console.log("conic degeneracy tolerance set to ", Math.pow(10, -val));
+                ConicUtils.setDegenConicTolerance(Math.pow(10, -val));
+                // console.log("conic degeneracy tolerance set to ", Math.pow(10, -val));
                  this.getViewer().renderAsync();
               }
             }
