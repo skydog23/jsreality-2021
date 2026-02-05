@@ -1,4 +1,4 @@
-vi/**
+/**
  * JavaScript port/translation of jReality.
  * 
  * Copyright (c) 2024, jsReality Contributors

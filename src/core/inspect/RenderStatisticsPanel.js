@@ -63,7 +63,7 @@ export class RenderStatisticsPanel {
   /**
    * @type {number}
    */
-  #updateInterval = 100; // Update display every 100ms
+  #updateInterval = 0; // Update display every 100ms
 
   /**
    * @type {number}

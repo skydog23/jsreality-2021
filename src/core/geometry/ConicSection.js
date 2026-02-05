@@ -29,7 +29,7 @@ const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicSection {
-    name = 'conic';
+     name = 'conic';
     curve = null;
     dualConicSGC = null;
     Q = null;
@@ -44,7 +44,6 @@ export class ConicSection {
     pts5d = null;
     exactFollower = true;
     numPoints =100;
-    degenConicTolerance = 1e-4;
     useSylvParam = false;
     maxPixelError = .0003;  // have to compute this from the viewport and the canvas size
     viewport = null;
@@ -65,6 +64,7 @@ export class ConicSection {
         this.normalize = normalize;
     }
 
+    
     // the conic can be determined by 5 points
     setFromFivePoints(fivePoints) {
         logger.finer(-1, 'setFromFivePoints called with fivePoints = ', fivePoints);
@@ -94,7 +94,7 @@ export class ConicSection {
         // calculate the rand from SVD of Q
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
         // Determine rank (count non-zero singular values)
-        this.rank = this.svdQ.S.filter(s => Math.abs(s) > this.degenConicTolerance).length;
+        this.rank = this.svdQ.S.filter(s => Math.abs(s) > ConicUtils.getDegenConicTolerance()).length;
         this.setCoefficients(coefficients);
         this.updateGeomRepn();
     }

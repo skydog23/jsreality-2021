@@ -39,6 +39,15 @@ export class SolveConicResult {
 
 export class ConicUtils {
     
+    static degenConicTolerance = 1e-4;    // singular value of Q had to be below this value
+
+    static getDegenConicTolerance() {
+        return ConicUtils.degenConicTolerance;
+    }
+
+    static setDegenConicTolerance(tolerance) {
+        ConicUtils.degenConicTolerance = tolerance;
+    }
 
     static convertQToQ2D(Q) {
         return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
@@ -156,9 +165,9 @@ export class ConicUtils {
         // Compute SVD of the conic matrix
         // it's useful but we may need to recompute Q since the null vector may not be exact
         const svdQ = SVDUtil.svdDecomposition(this.convertArrayToQ2D(...coefficients));
-        logger.fine(-1, 'Q singular values:', svdQ.S);
+        logger.info(-1, 'Q singular values:', svdQ.S);
          // Determine rank (count non-zero singular values)
-        let rank = svdQ.S.filter(s => Math.abs(s) > tolerance).length;
+        let rank = svdQ.S.filter(s => Math.abs(s) > ConicUtils.getDegenConicTolerance()).length;
         let maxNumCollPoints = -1;
         // classify the conic depending on the null space dimension and the rank of Q
         if (dnsp.length === 1) {    // either a regular conic or a line pair, or a double line

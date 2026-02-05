@@ -297,9 +297,7 @@ export function textSliderWidgetFactory(descriptor, context, createRow, formatNu
 
   // Poll for external updates (playback, programmatic changes)
   const intervalMs =
-    typeof descriptor.updateIntervalMs === 'number' && descriptor.updateIntervalMs > 0
-      ? descriptor.updateIntervalMs
-      : 200;
+    typeof descriptor.updateIntervalMs === 'number' ? descriptor.updateIntervalMs : 200;
 
   let lastSignature = null;
   const poll = () => {
@@ -342,8 +340,10 @@ export function textSliderWidgetFactory(descriptor, context, createRow, formatNu
   };
 
   poll();
-  const intervalId = setInterval(poll, intervalMs);
-  context?.registerCleanup?.(() => clearInterval(intervalId));
+  if (intervalMs > 0) {
+    const intervalId = setInterval(poll, intervalMs);
+    context?.registerCleanup?.(() => clearInterval(intervalId));
+  }
 
   wrapper.value.appendChild(root);
   return wrapper.root;

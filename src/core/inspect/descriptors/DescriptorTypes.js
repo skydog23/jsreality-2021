@@ -76,6 +76,7 @@ export const DescriptorType = Object.freeze({
  *   type: typeof DescriptorType.LIVE_LABEL,
  *   getValue: () => string,
  *   // Poll interval for updating the label text (ms). Defaults to 200ms.
+ *   // Set to 0 to disable polling.
  *   updateIntervalMs?: number
  * }} LiveLabelDescriptor
  */
@@ -105,7 +106,7 @@ export const DescriptorType = Object.freeze({
  *   // For future UI: decimal formatting control.
  *   fractionDigits?: number,
  *   // Optional polling interval (ms) for keeping UI in sync with external updates.
- *   // Defaults to 200ms when omitted.
+ *   // Defaults to 200ms when omitted. Set to 0 to disable polling.
  *   updateIntervalMs?: number
  * }} TextSliderDescriptor
  */

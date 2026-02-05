@@ -332,13 +332,12 @@ function liveLabelFactory(descriptor, context) {
   update();
 
   const intervalMs =
-    typeof descriptor.updateIntervalMs === 'number' && descriptor.updateIntervalMs > 0
-      ? descriptor.updateIntervalMs
-      : 200;
-  const intervalId = setInterval(update, intervalMs);
-
-  if (context?.registerCleanup) {
-    context.registerCleanup(() => clearInterval(intervalId));
+    typeof descriptor.updateIntervalMs === 'number' ? descriptor.updateIntervalMs : 200;
+  if (intervalMs > 0) {
+    const intervalId = setInterval(update, intervalMs);
+    if (context?.registerCleanup) {
+      context.registerCleanup(() => clearInterval(intervalId));
+    }
   }
 
   return wrapper.root;
