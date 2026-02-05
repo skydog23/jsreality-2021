@@ -45,6 +45,7 @@ export class ConicDemo extends JSRApp {
   }
   _colors = [Color.RED, Color.GREEN, Color.BLUE];
   _SjColors = [Color.YELLOW, Color.CYAN, Color.MAGENTA];
+  _conic = null;
   _conicSGC = null;
   _numDoubleLines = 3;
   _TiSGCs = new Array(this._numDoubleLines).fill(null);
@@ -67,8 +68,7 @@ export class ConicDemo extends JSRApp {
   _worldSGC = null;
   _fivePointSGC = null;
   _fivePointPSF = null;
-  _conic = null;
-  _whichMode = 0;
+   _whichMode = 0;
   _pointPairs = new Array(this._numDoubleLines).fill(null);
   _doDualCurve = false;
   _showCenterPoint = false;
@@ -76,11 +76,11 @@ export class ConicDemo extends JSRApp {
   _showTiSjCC = false;
   _dcParam = [.5, .5, .5];
   _aijs = [.5,.5,.5];
-  _aijsRaw = new Array(3).fill(1);
+  _aijsRaw = new Array(3).fill(.5);
   _dis = [[1,1],[1,1],[1,1]];
   _rParam = .25;
   
-  #penroseCorners = new Array(8);
+  _penroseCorners = new Array(8);
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('wold');
@@ -114,7 +114,7 @@ export class ConicDemo extends JSRApp {
        this.initSceneGraphForSjTkDblLnConics(i);
     }
 
-    // this.initPenroseCorners();
+    this.initPenroseCorners();
 
     this.updatePipjs();
     this.updateDoubleContactPencils();
@@ -234,11 +234,19 @@ export class ConicDemo extends JSRApp {
     this.getViewer().renderAsync();
   }
 
-  // initPenroseCorners() {
-  //   this.#penroseCorners = [
-      
-  //   ];
-  // }
+  initPenroseCorners() {
+    this._penroseCorners = [
+      this._conicSGC,
+      this._TiCollectorSGCs[0],
+      this._TiCollectorSGCs[1],
+      this._TiCollectorSGCs[2],
+      this._SjSGCs[0],
+      this._SjSGCs[1],
+      this._SjSGCs[2],
+      this._T0ConicSGC
+    ];
+  }
+
 
   updateAijs() {
     this._aijs = this._aijsRaw.map(val => this.#convert01ToR(val));
@@ -675,40 +683,40 @@ export class ConicDemo extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[0].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
-
+                     const sgc = this._penroseCorners[0];
+                    sgc.setVisible(val);
                     this.getViewer().renderAsync();
                   }
                 },
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[0].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
-
+                    const sgc = this._penroseCorners[1];
+                    sgc.setVisible(val);
                     this.getViewer().renderAsync();
                   }
                 },
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[2].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
-
+                    const sgc = this._penroseCorners[2];
+                    sgc.setVisible(val);
                     this.getViewer().renderAsync();
                   }
                 },
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[3].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
-
+                    const sgc = this._penroseCorners[3];
+                    sgc.setVisible(val);
                     this.getViewer().renderAsync();
                   }
                 }
@@ -722,9 +730,10 @@ export class ConicDemo extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[4].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
+                    const sgc = this._penroseCorners[4];
+                    sgc.setVisible(val);
 
                     this.getViewer().renderAsync();
                   }
@@ -732,9 +741,10 @@ export class ConicDemo extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[5].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
+                    const sgc = this._penroseCorners[5];
+                    sgc.setVisible(val);
 
                     this.getViewer().renderAsync();
                   }
@@ -742,9 +752,10 @@ export class ConicDemo extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[6].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
+                    const sgc = this._penroseCorners[6];
+                    sgc.setVisible(val);
 
                     this.getViewer().renderAsync();
                   }
@@ -752,9 +763,10 @@ export class ConicDemo extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._showS0,
+                  getValue: () => this._penroseCorners[7].isVisible(),
                   setValue: (val) => {
-                    this._showS0 = val;
+                    const sgc = this._penroseCorners[7];
+                    sgc.setVisible(val);
 
                     this.getViewer().renderAsync();
                   }
@@ -912,7 +924,7 @@ export class ConicDemo extends JSRApp {
               label: 'tolerance',
               valueType: 'integer',
               step: 1,
-              getValue: () => ConicUtils.getDegenConicTolerance(),
+              getValue: () => -Math.log10(ConicUtils.getDegenConicTolerance()),
               setValue: (val) => {
                 ConicUtils.setDegenConicTolerance(Math.pow(10, -val));
                 // console.log("conic degeneracy tolerance set to ", Math.pow(10, -val));
