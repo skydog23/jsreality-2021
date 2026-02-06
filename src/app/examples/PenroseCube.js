@@ -366,8 +366,8 @@ export class PenroseCube extends JSRApp {
        accjk3[m] = djy * ajk * l2j[m] - djx*l2k[m];
        acckj3[m] = dky * ajk * l2k[m] - dkx*l2j[m];
      }
-     const dbljk3 = ConicUtils.convertQToArray(ConicUtils.getQFromFactors(accjk3, accjk3));
-     const dblkj3 = ConicUtils.convertQToArray(ConicUtils.getQFromFactors(acckj3, acckj3));
+     const dbljk3 = ConicUtils.convertQToArray(ConicUtils.buildQFromFactors(accjk3, accjk3));
+     const dblkj3 = ConicUtils.convertQToArray(ConicUtils.buildQFromFactors(acckj3, acckj3));
      this._SjTkDblLnConics[2*which].setFromCoefficients(dbljk3);
      this._SjTkDblLnConics[2*which+1].setFromCoefficients(dblkj3);
      this._SjTkDblLnSGCs[2*which].setGeometry(this._SjTkDblLnConics[2*which].getIndexedLineSet());
@@ -409,7 +409,7 @@ export class PenroseCube extends JSRApp {
     const [i, j, k] = [which, (which + 1) % this._numDoubleLines, (which + 2) % this._numDoubleLines];
     const l2j = this._S0TiDblLnEqArrays[j];
     const l2k = this._S0TiDblLnEqArrays[k];
-    const pjkq = ConicUtils.getQFromFactors(l2j, l2k);
+    const pjkq = ConicUtils.buildQFromFactors(l2j, l2k);
     this._pipjs[i] = ConicUtils.convertQToArray(pjkq);
   }
 
@@ -615,7 +615,7 @@ export class PenroseCube extends JSRApp {
   #getLineFromTwoPoints(twoPoints) {
     const twoPoints3 = twoPoints.map(p => Rn.convert4To3(null,p));
     const l2d = Pn.normalize(null, P2.lineFromPoints(...twoPoints3), Pn.ELLIPTIC);
-    const newQ = ConicUtils.getQFromFactors(l2d, l2d);
+    const newQ = ConicUtils.buildQFromFactors(l2d, l2d);
     return [l2d, ConicUtils.convertQToArray(newQ)];
   }
 

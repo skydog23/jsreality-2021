@@ -35,7 +35,7 @@ import { fromDataList } from '../../core/scene/data/DataUtility.js';
  * 
  * @abstract
  */
-export class TestJSRApp extends JSRApp {
+export class TessellatedSphereDemo extends JSRApp {
   _sphereLevel = 1;
   _saturate = 1.0;
   _ifs = null;

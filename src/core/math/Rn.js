@@ -1769,6 +1769,7 @@ export function conjugateByMatrix(dst, m, c) {
 
 /**
  * Congruence transform of matrix m by matrix c: dst = c * m * transpose(c).
+ * This is the transforemation rule for symmetric matrices
  * @param {number[]|null} dst
  * @param {number[]} m
  * @param {number[]} c

@@ -75,22 +75,18 @@ export class ConicUtils {
         return Rn.times(null, 1.0/mx, coefficients);
     }
 
-    static normalizeQ(Q) {
-        return this.normalizeCoefficients(Q);
-        const det = Rn.determinant(Q);
-        if (det !== 0) {
-            const n = Math.sqrt(Q.length);
+    static normalizeQ(Q, useDet=false) {
+        if (!useDet) return this.normalizeCoefficients(Q);
+        let det = Rn.determinant(Q);
+        if (det !== 0) { // normalize to have determinant +/-1
             const factor = 1.0 / Math.pow(Math.abs(det), 1/3.0);
             return Rn.times(null, factor, Q);
-        } else {
-           return Q;
-        }
+        } else return Q;
     }
 
     // when rank=1 or two then the conic Q is the outer product of the line factors
     // generically a line pair, but can be a double line when line1 = line2
-    static getQFromFactors(line1, line2) {
-        //[line1,line2] = [line1,line2].map(line => Pn.normalize(null, line, Pn.ELLIPTIC));
+    static buildQFromFactors(line1, line2) {
        return Rn.times(null, .5, Rn.add(null, this.outerProduct(line1, line2), this.outerProduct(line2, line1))); 
     }
 
@@ -108,9 +104,15 @@ export class ConicUtils {
      @returns {number[][]} The transformed conic matrix
      */
      static transform(Q, transform) {
-        return Rn.conjugateByMatrix(null, Q, transform);
+        return Rn.congruenceTransform(null, Q, transform);
     }
 
+    static isImaginary(Q)   {
+        const popo = Rn.matrixTimesVector(null, Q, [0,0,1]);
+        const evl = Rn.innerProduct([0,0,1],popo);
+        
+        return evl > 0;
+    }
     
      static getVeroneseEmbedding([x,y,z]) {
         return [x*x,  x*y, y*y, x*z, y*z,  z*z]

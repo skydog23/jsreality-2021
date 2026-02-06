@@ -20,7 +20,7 @@ import { IndexedLineSetFactory } from '../../core/geometry/IndexedLineSetFactory
 import { FrameFieldType } from '../../core/geometry/TubeUtility.js';
 import { TubeFactory } from '../../core/geometry/TubeFactory.js';
 
-export class TubeDemo extends JSRApp {
+export class TubedTorusKnotDemo extends JSRApp {
     segments = 40;
     radius = .1;
     showFrames = false;
@@ -45,7 +45,7 @@ export class TubeDemo extends JSRApp {
         return this.surfaceSGC;
     }
   ptf = null;
-  toggle = true;
+  isParallelFrame = false;
   width = 2;
   height = 1;
     vertices = [
@@ -64,7 +64,7 @@ export class TubeDemo extends JSRApp {
 		   this.ptf.setRadius(this.radius);
        this.ptf.setCrossSection(this.vertices);
 		   this.ptf.setGenerateEdges(true);
-       this.ptf.setFrameFieldType(this.toggle ? FrameFieldType.FRENET : FrameFieldType.PARALLEL);
+       this.ptf.setFrameFieldType(this.isParallelFrame ?  FrameFieldType.PARALLEL : FrameFieldType.FRENET);
 		   this.ptf.update();
 		   sgc.setGeometry(this.ptf.getTube());
       if (this.showFrames) {
@@ -110,11 +110,11 @@ export class TubeDemo extends JSRApp {
           },
           {
             type: DescriptorType.TOGGLE,
-            label: 'Parallel frame',
-            getValue: () => this.toggle,
+            label: 'frame Parallel',
+            getValue: () => this.isParallelFrame,
             setValue: (v) => {
-               this.toggle = v;
-              this.ptf.setFrameFieldType(this.toggle ? FrameFieldType.FRENET : FrameFieldType.PARALLEL);
+               this.isParallelFrame = v;
+              this.ptf.setFrameFieldType(this.isParallelFrame ? FrameFieldType.PARALLEL : FrameFieldType.FRENET );
               this.ptf.update();
               this.surfaceSGC.setGeometry(this.ptf.getTube());
               this.getViewer().renderAsync();

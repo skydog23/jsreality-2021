@@ -29,7 +29,7 @@ const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
 export class ConicSection {
-     name = 'conic';
+    name = 'conic';
     curve = null;
     dualConicSGC = null;
     Q = null;
@@ -39,6 +39,7 @@ export class ConicSection {
     rank = 0;
     svdQ = null;
     sylvester = null;
+    isImaginary = false;
     linePair = null;
     fivePoints = null;
     pts5d = null;
@@ -46,6 +47,7 @@ export class ConicSection {
     numPoints =100;
     useSylvParam = false;
     maxPixelError = .0003;  // have to compute this from the viewport and the canvas size
+    degConTol = null;  // set this to override ConicUtils.degenConicTolerance.
     viewport = null;
     normalize = true;
 
@@ -94,7 +96,9 @@ export class ConicSection {
         // calculate the rand from SVD of Q
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
         // Determine rank (count non-zero singular values)
-        this.rank = this.svdQ.S.filter(s => Math.abs(s) > ConicUtils.getDegenConicTolerance()).length;
+        const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
+
+        this.rank = this.svdQ.S.filter(s => Math.abs(s) > tol).length;
         this.setCoefficients(coefficients);
         this.updateGeomRepn();
     }
@@ -103,6 +107,10 @@ export class ConicSection {
         this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
         if (this.normalize) this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
+        // this.isImaginary = ConicUtils.isImaginary(this.Q);
+        // if (this.isImaginary)    {
+        //     console.log('Conic ', this.name, ' imaginary conic\n', Rn.matrixToString(this.Q));
+        // }
         // this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
         this.sylvester =  Rn.reorderSylvesterOddSignLast(Rn.sylvesterDiagonalize3x3(this.Q));
         if (false) {
@@ -140,7 +148,7 @@ export class ConicSection {
         if (this.rank === 1) {
             this.doubleLine = ConicUtils.factorDoubleLine(this);
             // we now have exact rank-1, and should update the Q matrix
-            if (this.normalize) this.#updateQ(ConicUtils.getQFromFactors(this.doubleLine, this.doubleLine));
+            if (this.normalize) this.#updateQ(ConicUtils.buildQFromFactors(this.doubleLine, this.doubleLine));
             let l1 = new PointRangeFactory();
             logger.fine("double line = ",Rn.toString(this.doubleLine));
             l1.set2DLine(this.doubleLine);
@@ -152,8 +160,8 @@ export class ConicSection {
             this.linePair = ConicUtils.factorPair(this);
             logger.fine(-1, 'line pair = ', this.linePair);
             // we now have exact rank-2, and should update the Q matrix
-            if (this.normalize) this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
-            else this.#updateQ(ConicUtils.getQFromFactors(this.linePair[0], this.linePair[1]));
+            if (this.normalize) this.#updateQ(ConicUtils.buildQFromFactors(this.linePair[0], this.linePair[1]));
+            else this.#updateQ(ConicUtils.buildQFromFactors(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();

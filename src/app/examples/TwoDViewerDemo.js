@@ -37,7 +37,7 @@ import {Appearance} from '../../core/scene/Appearance.js';
  * 
  * @abstract
  */
-export class TestGeometryApp extends JSRApp {
+export class TwoDViewerDemo extends JSRApp {
 
   getContent() {
     const worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
