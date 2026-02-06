@@ -57,7 +57,7 @@ export class ConicSection {
                     this.setFromFivePoints(initArray);
                 else if (initArray.length == 6) this.setFromCoefficients(initArray);
                 else if (initArray.length == 9) {
-                    this.setFromCoefficients(ConicUtils.convertQToArrayRaw(initArray));
+                    this.setFromCoefficients(ConicUtils.convertQToArray(initArray));
                 }
             }
             else throw new Error('Argument must be an array of arrays or a single array');
@@ -114,7 +114,7 @@ export class ConicSection {
         }
         this.dQ = P2.cofactor(null, this.Q);
         if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
-        this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+        this.dcoefficients = ConicUtils.convertQToArrayN(this.dQ);
         logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'rank = ', this.rank);
         logger.fine(-1, 'conic Q', this.Q);
@@ -274,9 +274,9 @@ export class ConicSection {
         if (this.normalize) this.Q = ConicUtils.normalizeQ(newQ);
         else this.Q = newQ;
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
-        this.coefficients = ConicUtils.convertQToArray(this.Q);
+        this.coefficients = ConicUtils.convertQToArrayN(this.Q);
         this.dQ = P2.cofactor(null, this.Q);
-        this.dcoefficients = ConicUtils.convertQToArray(this.dQ);
+        this.dcoefficients = ConicUtils.convertQToArrayN(this.dQ);
     };
 
     getIndexedLineSet() {

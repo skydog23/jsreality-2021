@@ -7,13 +7,6 @@
  * Contributors retain copyright to their contributions.
  */
 
-/**  TODO
- *  devise tube radius to depend on viewport size, to preserve screen-space line width
- *  create one appearance for each different class of conics in the full diagram and only set the color
- *      in the leaf appearance.
- *   use texturing on the tubing to simulate different line-styles (dotted, dashed, etc.)
- * 
- */
 
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
@@ -35,10 +28,10 @@ import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 
-const logger = getLogger('jsreality.app.examples.ConicDemo'); 
+const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
-export class ConicDemo extends JSRApp {
+export class PenroseCube extends JSRApp {
  
   getShowPanels() {
     return [true, true, false, true];
@@ -373,8 +366,8 @@ export class ConicDemo extends JSRApp {
        accjk3[m] = djy * ajk * l2j[m] - djx*l2k[m];
        acckj3[m] = dky * ajk * l2k[m] - dkx*l2j[m];
      }
-     const dbljk3 = ConicUtils.convertQToArrayRaw(ConicUtils.getQFromFactors(accjk3, accjk3));
-     const dblkj3 = ConicUtils.convertQToArrayRaw(ConicUtils.getQFromFactors(acckj3, acckj3));
+     const dbljk3 = ConicUtils.convertQToArray(ConicUtils.getQFromFactors(accjk3, accjk3));
+     const dblkj3 = ConicUtils.convertQToArray(ConicUtils.getQFromFactors(acckj3, acckj3));
      this._SjTkDblLnConics[2*which].setFromCoefficients(dbljk3);
      this._SjTkDblLnConics[2*which+1].setFromCoefficients(dblkj3);
      this._SjTkDblLnSGCs[2*which].setGeometry(this._SjTkDblLnConics[2*which].getIndexedLineSet());
@@ -417,7 +410,7 @@ export class ConicDemo extends JSRApp {
     const l2j = this._S0TiDblLnEqArrays[j];
     const l2k = this._S0TiDblLnEqArrays[k];
     const pjkq = ConicUtils.getQFromFactors(l2j, l2k);
-    this._pipjs[i] = ConicUtils.convertQToArrayRaw(pjkq);
+    this._pipjs[i] = ConicUtils.convertQToArray(pjkq);
   }
 
   initPointPairs() {
@@ -623,7 +616,7 @@ export class ConicDemo extends JSRApp {
     const twoPoints3 = twoPoints.map(p => Rn.convert4To3(null,p));
     const l2d = Pn.normalize(null, P2.lineFromPoints(...twoPoints3), Pn.ELLIPTIC);
     const newQ = ConicUtils.getQFromFactors(l2d, l2d);
-    return [l2d, ConicUtils.convertQToArrayRaw(newQ)];
+    return [l2d, ConicUtils.convertQToArray(newQ)];
   }
 
   #saturateColor(c, saturate) {

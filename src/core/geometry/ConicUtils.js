@@ -53,12 +53,12 @@ export class ConicUtils {
         return [[Q[0],Q[1],Q[2]],[Q[3],Q[4],Q[5]],[Q[6],Q[7],Q[8]]];
     }
 
-    static convertQToArrayRaw(Q)  {
+    static convertQToArray(Q)  {
         return [Q[0], 2*Q[1], Q[4], 2*Q[2], 2*Q[5], Q[8]];
     }
 
-    static convertQToArray(Q) {
-        return this.normalizeCoefficients(this.convertQToArrayRaw(Q));
+    static convertQToArrayN(Q) {
+        return this.normalizeCoefficients(this.convertQToArray(Q));
     }
 
     static convertArrayToQ(a,h,b,g,f,c) {
