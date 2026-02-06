@@ -167,7 +167,7 @@ export class ConicUtils {
         // Compute SVD of the conic matrix
         // it's useful but we may need to recompute Q since the null vector may not be exact
         const svdQ = SVDUtil.svdDecomposition(this.convertArrayToQ2D(...coefficients));
-        logger.info(-1, 'Q singular values:', svdQ.S);
+        logger.finer(-1, 'Q singular values:', svdQ.S);
          // Determine rank (count non-zero singular values)
         let rank = svdQ.S.filter(s => Math.abs(s) > ConicUtils.getDegenConicTolerance()).length;
         let maxNumCollPoints = -1;

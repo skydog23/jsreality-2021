@@ -191,7 +191,7 @@ export class ConicSection {
         logger.fine(-1, 'sylvester.inertia = ', newSylvester.inertia);
         logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
         centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
-        if (Math.abs(centerPoint[2]) < 1e-2) {
+        if (Math.abs(centerPoint[2]) < 1e-4) {
             logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
             centerPoint = [centerPoint[0], centerPoint[1], .1];
         }

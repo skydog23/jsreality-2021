@@ -37,7 +37,7 @@ export class PenroseCube extends JSRApp {
     return [true, true, false, true];
   }
   _colors = [Color.RED, Color.GREEN, Color.BLUE];
-  _SjColors = [Color.YELLOW, Color.CYAN, Color.MAGENTA];
+  _SjColors = [Color.YELLOW, Color.MAGENTA, Color.CYAN];
   _conic = null;
   _conicSGC = null;
   _numDoubleLines = 3;
@@ -221,8 +221,11 @@ export class PenroseCube extends JSRApp {
     super.setValueAtTime(time);
     logger.fine(-1, 'setValueAtTime', time);
     for (let i = 0; i < this._numDoubleLines; i++) {
-      this._dcParam[i] = time;
+      // this._dcParam[i] = time;
+      this._aijs[i] = this.#convert01ToR(time);
+   
     }
+    this._aijs[2] = this.#convert01ToR(time);
     this.updateDoubleContactPencils();
     this.getViewer().renderAsync();
   }
@@ -686,7 +689,7 @@ export class PenroseCube extends JSRApp {
                 {
                   type: DescriptorType.TOGGLE,
                   label: '',
-                  getValue: () => this._penroseCorners[0].isVisible(),
+                  getValue: () => this._penroseCorners[1].isVisible(),
                   setValue: (val) => {
                     const sgc = this._penroseCorners[1];
                     sgc.setVisible(val);
