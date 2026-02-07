@@ -8,6 +8,8 @@
  */
 
 
+import { KeyFrameAnimatedBean } from '../../anim/core/KeyFrameAnimatedBean.js';
+import { KeyFrameAnimatedDelegate } from '../../anim/core/KeyFrameAnimatedDelegate.js';
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
 import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
@@ -27,6 +29,7 @@ import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
+import { KeyFrameAnimatedDelegate } from '../../anim/core/KeyFrameAnimatedDelegate.js';
 
 const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -36,8 +39,8 @@ export class PenroseCube extends JSRApp {
   getShowPanels() {
     return [true, true, false, true];
   }
-  _colors = [Color.RED, Color.GREEN, Color.BLUE];
-  _SjColors = [Color.YELLOW, Color.MAGENTA, Color.CYAN];
+  _colors = [Color.RED, Color.YELLOW, Color.BLUE];
+  _SjColors = [Color.GREEN, Color.PURPLE, Color.ORANGE];
   _conic = null;
   _conicSGC = null;
   _numDoubleLines = 3;
@@ -67,7 +70,7 @@ export class PenroseCube extends JSRApp {
   _showCenterPoint = false;
   _showS0TiCC = true;
   _showTiSjCC = false;
-  _dcParam = [.5, .5, .5];
+  _dcParam = [.416,.416,.416];
   _aijs = [.5,.5,.5];
   _aijsRaw = new Array(3).fill(.5);
   _dis = [[1,1],[1,1],[1,1]];
@@ -193,6 +196,9 @@ export class PenroseCube extends JSRApp {
     cam.setFocus(4.5);
     const vc = this.getViewer().getViewingComponent();
     
+    const dd = new KeyFrameAnimatedDelegate() {
+      
+    }
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
     
