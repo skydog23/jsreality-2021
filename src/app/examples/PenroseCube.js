@@ -29,8 +29,8 @@ import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
-import { KeyFrameAnimatedDelegate } from '../../anim/core/KeyFrameAnimatedDelegate.js';
-
+import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
+import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
 const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
@@ -75,7 +75,7 @@ export class PenroseCube extends JSRApp {
   _aijsRaw = new Array(3).fill(.5);
   _dis = [[1,1],[1,1],[1,1]];
   _rParam = .25;
-  
+  _animDub = null;
   _penroseCorners = new Array(8);
 
   getContent() {
@@ -194,11 +194,11 @@ export class PenroseCube extends JSRApp {
    
     const cam = CameraUtility.getCamera(this.getViewer());
     cam.setFocus(4.5);
+    cam.setFieldOfView(35);
     const vc = this.getViewer().getViewingComponent();
     
-    const dd = new KeyFrameAnimatedDelegate() {
-      
-    }
+ 
+    
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
     
@@ -223,15 +223,14 @@ export class PenroseCube extends JSRApp {
   }
 
   setValueAtTime(time) {
-    // if (time === .5) time += 1e-8;
     super.setValueAtTime(time);
-    logger.fine(-1, 'setValueAtTime', time);
-    for (let i = 0; i < this._numDoubleLines; i++) {
-      // this._dcParam[i] = time;
-      this._aijs[i] = this.#convert01ToR(time);
-   
-    }
-    this._aijs[2] = this.#convert01ToR(time);
+    
+    logger.info(-1, 'setValueAtTime', time);
+   for (let i = 0; i < this._numDoubleLines; i++) {
+          this._aijsRaw[i] = time;
+   }
+    // }
+   this.updateAijs();
     this.updateDoubleContactPencils();
     this.getViewer().renderAsync();
   }

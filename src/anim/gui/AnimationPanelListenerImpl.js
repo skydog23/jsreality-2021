@@ -8,6 +8,10 @@
  */
 
 import { EventType } from './AnimationPanelEvent.js';
+import { getLogger, Category, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
+
+const logger = getLogger('jsreality.anim.gui.AnimationPanelListenerImpl');
+setModuleLevel(logger.getModuleName(), Level.FINE);
 
 /**
  * Port of charlesgunn.anim.gui.AnimationPanelListenerImpl.
@@ -101,10 +105,12 @@ export class AnimationPanelListenerImpl {
       case EventType.KEY_FRAME_CHANGED:
         this.#refreshAnimatedKF();
         for (const at of this.#animatedKF) at?.addKeyFrame?.(e.time);
+        this.#logKeyFrames('keyframe added/changed');
         break;
       case EventType.KEY_FRAME_DELETED:
         this.#refreshAnimatedKF();
         for (const at of this.#animatedKF) at?.deleteKeyFrame?.(e.time);
+        this.#logKeyFrames('keyframe deleted');
         break;
       case EventType.SET_VALUE_AT_TIME:
         for (const at of this.#animated) {
@@ -124,6 +130,31 @@ export class AnimationPanelListenerImpl {
       if (aa && typeof aa.addKeyFrame === 'function' && typeof aa.deleteKeyFrame === 'function') {
         this.#animatedKF.push(aa);
       }
+    }
+  }
+
+  #logKeyFrames(reason) {
+    for (const at of this.#animatedKF) {
+      const keyFrames = at?.keyFrames?.toArray?.()
+        ?? (at?.keyFrames && typeof at.keyFrames[Symbol.iterator] === 'function'
+          ? Array.from(at.keyFrames)
+          : null);
+      if (!keyFrames) continue;
+      const name = at?.name ?? at?.constructor?.name ?? 'Animated';
+      const pairs = keyFrames.map((kf) => {
+        const time = kf?.getTime?.();
+        const value = kf?.getValue?.();
+        let valueText;
+        if (Array.isArray(value)) {
+          valueText = JSON.stringify(value);
+        } else if (value && typeof value === 'object') {
+          valueText = value.toString ? value.toString() : '[object]';
+        } else {
+          valueText = String(value);
+        }
+        return `(${time}, ${valueText})`;
+      });
+      logger.fine(Category.ALL, `${name} keyframes [${reason}]: ${pairs.join(', ')}`);
     }
   }
 }

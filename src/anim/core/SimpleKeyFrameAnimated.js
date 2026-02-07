@@ -89,6 +89,9 @@ export class SimpleKeyFrameAnimated extends KeyFrameAnimated {
         
         /** @type {KeyFrameAnimatedDelegate<T>|null} */
         this.delegate = null;
+
+        /** @type {boolean} */
+        this._delegateExplicit = false;
         
         /** @type {boolean} */
         this.keyFramesChanged = true;
@@ -108,15 +111,18 @@ export class SimpleKeyFrameAnimated extends KeyFrameAnimated {
         // Handle constructor overloads
         if (delegateOrTarget instanceof KeyFrameAnimatedDelegate) {
             // Constructor with delegate
+            this._delegateExplicit = true;
             this.setDelegate(delegateOrTarget);
             this.target = this.currentValue = this.getNewInstance();
         } else if (delegateOrTarget != null) {
             // Constructor with target object
+            this._delegateExplicit = false;
             this.target = delegateOrTarget;
             this.currentValue = this.copyFromTo(delegateOrTarget, this.getNewInstance());
             this.setDelegate(this.getDefaultDelegate());
         } else {
             // Default constructor
+            this._delegateExplicit = false;
             this.currentValue = this.getNewInstance();
         }
     }
@@ -226,7 +232,7 @@ export class SimpleKeyFrameAnimated extends KeyFrameAnimated {
         // as "targets" in the simplified ports; gathering from them would ignore the
         // explicitly set `currentValue`.
         const hasMutableTarget = this.target !== null && typeof this.target === 'object';
-        if (hasMutableTarget && this.delegate && typeof this.delegate.gatherCurrentValue === 'function') {
+        if ((this._delegateExplicit || hasMutableTarget) && this.delegate && typeof this.delegate.gatherCurrentValue === 'function') {
             copy = this.delegate.gatherCurrentValue(copy) || copy;
         }
 
