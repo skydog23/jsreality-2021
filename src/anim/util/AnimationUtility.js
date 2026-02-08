@@ -123,7 +123,9 @@ export class AnimationUtility {
         if (t >= maxin) return maxout;
         const input = (t - minin) / (maxin - minin);
         const out = -2 * input * input * input + 3 * input * input;
-        return minout + out * (maxout - minout);
+        const result = minout + out * (maxout - minout);
+        // console.log('hermiteInterpolation', t, minin, maxin, minout, maxout, result);
+        return result;
     }
 
     /**

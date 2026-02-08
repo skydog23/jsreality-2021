@@ -31,6 +31,7 @@ import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
 import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
+import { AnimationUtility } from '../../anim/util/AnimationUtility.js';
 const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
@@ -40,7 +41,7 @@ export class PenroseCube extends JSRApp {
     return [true, true, false, true];
   }
   _colors = [Color.RED, Color.YELLOW, Color.BLUE];
-  _SjColors = [Color.GREEN, Color.PURPLE, Color.ORANGE];
+  _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
   _conic = null;
   _conicSGC = null;
   _numDoubleLines = 3;
@@ -69,6 +70,7 @@ export class PenroseCube extends JSRApp {
   _doDualCurve = false;
   _showCenterPoint = false;
   _showS0TiCC = true;
+  _showS0TiLines = true;
   _showTiSjCC = false;
   _dcParam = [.416,.416,.416];
   _aijs = [.5,.5,.5];
@@ -118,7 +120,7 @@ export class PenroseCube extends JSRApp {
 
     this.updateConic();
    
-    this.setValueAtTime(.66666);
+    // this.setValueAtTime(.416);
 
     this._fivePointPSF.getPointSet().addGeometryListener((event) => {
         let vertices = event.source.getVertexAttribute(GeometryAttribute.COORDINATES);
@@ -133,7 +135,7 @@ export class PenroseCube extends JSRApp {
     
       
     ap = this._worldSGC.getAppearance();
-    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
@@ -168,13 +170,7 @@ export class PenroseCube extends JSRApp {
     // const encompassTool = new EncompassTool();
     // encompassTool.setName("encompassTool");
     // this._worldSGC.addTool(encompassTool);
-    // this._TiSGCs[0].setVisible(false);
-    // this._SjSGCs[1].setVisible(false);
-    // this._SjSGCs[2].setVisible(false);
-    // this._SjTkDblLnConicsSGC[2].setVisible(false);
-    // this._SjTkDblLnConicsSGC[3].setVisible(false);
-    // this._SjTkDblLnConicsSGC[4].setVisible(false);
-    // this._SjTkDblLnConicsSGC[5].setVisible(false);
+  
     
     this._worldSGC.addChildren(this._conicSGC, 
       this._fivePointSGC, 
@@ -225,9 +221,12 @@ export class PenroseCube extends JSRApp {
   setValueAtTime(time) {
     super.setValueAtTime(time);
     
-    logger.info(-1, 'setValueAtTime', time);
-   for (let i = 0; i < this._numDoubleLines; i++) {
-          this._aijsRaw[i] = time;
+    // const val = AnimationUtility.hermiteInterpolation(time, 0.0, 1.0, .5, .475);
+    const val = AnimationUtility.hermiteInterpolation(time, 0.1, .9, .416, .584);
+    this._T0ConicSGC.setVisible(time > .115);
+    // logger.info(-1, 'time', time, 'val', val);
+    for (let i = 0; i < this._numDoubleLines; i++) {
+          this._aijsRaw[i] = val;
    }
     // }
    this.updateAijs();
@@ -898,6 +897,14 @@ export class PenroseCube extends JSRApp {
                 this._showS0TiCC = !this._showS0TiCC;
                 this._S0TiPtPairSGCs.map(sgc => sgc.setVisible(this._showS0TiCC));
                 this._S0TiDblLnSGCs.map(sgc => sgc.setVisible(this._showS0TiCC));
+                this.getViewer().renderAsync();
+              }
+            },{
+              type: DescriptorType.BUTTON,
+              label: 'S0-Ti Lines',
+              action: () => {
+                this._showS0TiLines = !this._showS0TiLines;
+                this._S0TiDblLnSGCs.map(sgc => sgc.setVisible(this._showS0TiLines));
                 this.getViewer().renderAsync();
               }
             },

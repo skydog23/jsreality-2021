@@ -39,7 +39,7 @@ export class SolveConicResult {
 
 export class ConicUtils {
     
-    static degenConicTolerance = 1e-4;    // singular value of Q had to be below this value
+    static degenConicTolerance = 1e-7;    // singular value of Q had to be below this value
 
     static getDegenConicTolerance() {
         return ConicUtils.degenConicTolerance;
