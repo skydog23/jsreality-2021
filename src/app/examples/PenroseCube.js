@@ -193,7 +193,22 @@ export class PenroseCube extends JSRApp {
     cam.setFieldOfView(35);
     const vc = this.getViewer().getViewingComponent();
     
- 
+    // const dd = new KeyFrameAnimatedDelegate (
+
+		// 	propagateCurrentValue(t) {
+		// 		alpha = t;
+				
+		// 		viewer.renderAsync();
+		// 	}
+
+		// 	gatherCurrentValue(t) {
+		// 		return alpha;
+		// 	}
+			
+    // }
+		// const animAlpha = new KeyFrameAnimatedDouble(dd );
+		// animAlpha.setName("animAlpha");
+		// animationPlugin.getAnimated().add(animAlpha);
     
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
