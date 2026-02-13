@@ -67,6 +67,7 @@ export class PenroseCube extends JSRApp {
    _whichMode = 0;
   _pointPairs = new Array(this._numDoubleLines).fill(null);
   _doDualCurve = false;
+  _show5Pts = false;
   _showCenterPoint = false;
   _showS0TiCC = true;
   _showS0TiLines = true;
@@ -87,6 +88,7 @@ export class PenroseCube extends JSRApp {
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
     this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
     this._centerSGC.setVisible(this._showCenterPoint);
+    this._fivePointSGC.setVisible(this._show5Pts);
 
     // set up point set factory for the five points
     this._fivePointPSF = new PointSetFactory();
@@ -239,11 +241,11 @@ export class PenroseCube extends JSRApp {
     // this app instance can be visited before the parameter object.
     this._animatedParameter?.setValueAtTime(time);
     const fromAnimatedParameter = this._animatedParameter.getCurrentValue();
-    console.log('fromAnimatedParameter = ', fromAnimatedParameter);
+    // console.log('fromAnimatedParameter = ', fromAnimatedParameter);
 
     // const val = AnimationUtility.hermiteInterpolation(time, 0.0, 1.0, .5, .475);
     const val = fromAnimatedParameter;
-    this._T0ConicSGC.setVisible(time > .115);
+    // this._T0ConicSGC.setVisible(time < .411 || time > 0.42);
     // logger.info(-1, 'time', time, 'val', val);
     for (let i = 0; i < this._numDoubleLines; i++) {
           this._aijsRaw[i] = val;
