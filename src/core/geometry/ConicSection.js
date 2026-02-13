@@ -100,9 +100,9 @@ export class ConicSection {
         // calculate the rand from SVD of Q
         this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
         // Determine rank (count non-zero singular values)
-        const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
+        // const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
 
-        this.rank = this.svdQ.S.filter(s => Math.abs(s) > tol).length;
+        // this.rank = this.svdQ.S.filter(s => Math.abs(s) > tol).length;
         this.setCoefficients(coefficients);
         this.updateGeomRepn();
     }
@@ -115,7 +115,8 @@ export class ConicSection {
         // if (this.isImaginary)    {
         //     console.log('Conic ', this.name, ' imaginary conic\n', Rn.matrixToString(this.Q));
         // }
-        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
+        const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
+this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
         this.rank = this.sylvester.getRank();
         this.dQ = P2.cofactor(null, this.Q);
         if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
@@ -166,9 +167,6 @@ export class ConicSection {
             // else we have a real line pair
             this.linePair = this.sylvester.factorRealRank2LinePair();
             logger.fine(-1, 'line pair = ', this.linePair);
-            // 
-            // if (this.roundOff) 
-            //     this.#updateQ(ConicUtils.buildQFromFactors(this.linePair[0], this.linePair[1]));
             let l1 = new PointRangeFactory();
             l1.set2DLine(this.linePair[0]);
             l1.update();
@@ -185,7 +183,9 @@ export class ConicSection {
     }
 
     #drawRegularConic() {
-
+        if (this.sylvester.isImaginary()) {
+            return null;
+        }
         let centerPoint = null;
         let C = null;
         let newSylvester = this.sylvester;
@@ -201,7 +201,7 @@ export class ConicSection {
         centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, sylvesterP, [0, 0, 1]), Pn.ELLIPTIC);
         if (Math.abs(centerPoint[2]) < 1e-4) {
             logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
-            centerPoint = [centerPoint[0], centerPoint[1], .1];
+            // centerPoint = [centerPoint[0], centerPoint[1], .1];
             centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, sylvesterP, [0, .5, 1]), Pn.ELLIPTIC);
         }
         C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
@@ -290,7 +290,8 @@ export class ConicSection {
     #updateQ(newQ) {
         if (this.normalize) this.Q = ConicUtils.normalizeQ(newQ);
         else this.Q = newQ;
-        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q);
+        const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
+        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
         this.coefficients = ConicUtils.convertQToArrayN(this.Q);
         this.dQ = P2.cofactor(null, this.Q);
         this.dcoefficients = ConicUtils.convertQToArrayN(this.dQ);
