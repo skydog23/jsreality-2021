@@ -25,6 +25,7 @@ import { GeometryMergeFactory } from './GeometryMergeFactory.js';
 import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
 import { LineUtility } from './projective/LineUtility.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
+import { Primitives } from './Primitives.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
