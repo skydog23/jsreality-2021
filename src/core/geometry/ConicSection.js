@@ -47,6 +47,7 @@ export class ConicSection {
     numPoints =100;
     useSylvParam = false;
     maxPixelError = .0003;  // have to compute this from the viewport and the canvas size
+    discFudgeFactor = 1e-7;
     degConTol = null;  // set this to override ConicUtils.degenConicTolerance.
     viewport = null;
     normalize = true;
@@ -190,10 +191,11 @@ export class ConicSection {
         logger.fine(-1, 'sylvester.signs = ', newSylvester.signs);
         logger.fine(-1, 'sylvester.inertia = ', newSylvester.inertia);
         logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.eigenvalues);
-        centerPoint =  Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]));
+        centerPoint =  Pn.normalize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, 0, 1]), Pn.ELLIPTIC);
         if (Math.abs(centerPoint[2]) < 1e-4) {
             logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
             centerPoint = [centerPoint[0], centerPoint[1], .1];
+            centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, newSylvester.P, [0, .5, 1]), Pn.ELLIPTIC);
         }
         C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
@@ -265,7 +267,7 @@ export class ConicSection {
         const A = Rn.bilinearForm(this.Q, V, V);
         const B = 2 * Rn.bilinearForm(this.Q, V, centerPoint);
         let d = (B * B - 4 * A * C);
-        if (d < -1e-8){
+        if (d < 0) { //-this.discFudgeFactor){
             logger.fine(-1, 'name = ', this.name);
             logger.fine(-1, 'centerPoint = ', centerPoint);
             logger.fine('#pointCenter: d < -1e-8', d);
