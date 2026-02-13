@@ -259,7 +259,11 @@ describe('Rn (Euclidean Vector Space)', () => {
     describe('sylvesterDiagonalize3x3', () => {
         const EPS = 1e-7;
         const checkDiagonalForm = (Q, expectedDiag = null) => {
-            const { P, D, signs, inertia } = Rn.sylvesterDiagonalize3x3(Q, EPS);
+            const sylvester = Rn.sylvesterDiagonalize3x3(Q, EPS);
+            const P = sylvester.getP();
+            const D = sylvester.getD();
+            const signs = sylvester.getSigns();
+            const inertia = sylvester.getInertia();
             const PT = Rn.transpose(null, P);
             const mid = Rn.timesMatrix(null, PT, Q);
             const diag = Rn.timesMatrix(null, mid, P);
