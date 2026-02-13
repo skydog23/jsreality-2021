@@ -107,11 +107,9 @@ export class ConicUtils {
         return Rn.congruenceTransform(null, Q, transform);
     }
 
-    static isImaginary(Q)   {
-        const popo = Rn.matrixTimesVector(null, Q, [0,0,1]);
-        const evl = Rn.innerProduct([0,0,1],popo);
+    static isImaginary( conic)   {
+        const syld = conic.sylvester;
         
-        return evl > 0;
     }
     
      static getVeroneseEmbedding([x,y,z]) {
@@ -259,7 +257,7 @@ export class ConicUtils {
     static findPointInsideConic(conic, factor = .5)  {
 
         logger.info(-1, 'conic.Q = ', conic.Q);
-        const sylvesterMatrix = conic.sylvester.P;
+        const sylvesterMatrix = conic.sylvester.getP();
         logger.info(-1, 'sylvesterMatrix = ', sylvesterMatrix);
         // find point on conic, construct tangent line,
         // find point on tangent line, construct polar line,
