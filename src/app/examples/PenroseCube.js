@@ -9,7 +9,6 @@
 
 
 import { KeyFrameAnimatedBean } from '../../anim/core/KeyFrameAnimatedBean.js';
-import { KeyFrameAnimatedDelegate } from '../../anim/core/KeyFrameAnimatedDelegate.js';
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
 import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
@@ -31,7 +30,7 @@ import { JSRApp } from '../JSRApp.js';
 import { DragPointTool } from './DragPointTool.js';
 import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
 import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
-import { AnimationUtility } from '../../anim/util/AnimationUtility.js';
+import { AnimationUtility, InterpolationTypes, BoundaryModes } from '../../anim/util/AnimationUtility.js';
 const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
@@ -184,6 +183,9 @@ export class PenroseCube extends JSRApp {
     return this._worldSGC;
   }
 
+  _animatedParameter = null;
+  
+
   display() {
     super.display();
     this.getViewer().getSceneRoot().getAppearance().setAttribute(CommonAttributes.BACKGROUND_COLOR, Color.BLACK);
@@ -193,23 +195,20 @@ export class PenroseCube extends JSRApp {
     cam.setFieldOfView(35);
     const vc = this.getViewer().getViewingComponent();
     
-    // const dd = new KeyFrameAnimatedDelegate (
-
-		// 	propagateCurrentValue(t) {
-		// 		alpha = t;
-				
-		// 		viewer.renderAsync();
-		// 	}
-
-		// 	gatherCurrentValue(t) {
-		// 		return alpha;
-		// 	}
-			
-    // }
-		// const animAlpha = new KeyFrameAnimatedDouble(dd );
-		// animAlpha.setName("animAlpha");
-		// animationPlugin.getAnimated().add(animAlpha);
-    
+    this._animatedParameter = new KeyFrameAnimatedDouble(0);
+    this._animatedParameter.setInterpolationType(InterpolationTypes.CUBIC_HERMITE);
+    this._animatedParameter.setBoundaryMode(BoundaryModes.CLAMP);
+    this._animatedParameter.setGivesWay(true);
+    this._animatedParameter.setWritable(true);
+    this._animatedParameter.setCurrentValue(0);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(0));
+    this._animatedParameter.setCurrentValue(.416);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(.416));
+    this._animatedParameter.setCurrentValue(.584);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(.584));
+    this._animatedParameter.setCurrentValue(1);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(1)); 
+    // this._animationPlugin.getAnimated().add(this._animatedParameter);
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
     
@@ -235,9 +234,15 @@ export class PenroseCube extends JSRApp {
 
   setValueAtTime(time) {
     super.setValueAtTime(time);
-    
+    // Ensure this keyframed parameter is evaluated before we read it.
+    // The animation plugin iterates a shared Set of Animated objects, and
+    // this app instance can be visited before the parameter object.
+    this._animatedParameter?.setValueAtTime(time);
+    const fromAnimatedParameter = this._animatedParameter.getCurrentValue();
+    console.log('fromAnimatedParameter = ', fromAnimatedParameter);
+
     // const val = AnimationUtility.hermiteInterpolation(time, 0.0, 1.0, .5, .475);
-    const val = AnimationUtility.hermiteInterpolation(time, 0.1, .9, .416, .584);
+    const val = fromAnimatedParameter;
     this._T0ConicSGC.setVisible(time > .115);
     // logger.info(-1, 'time', time, 'val', val);
     for (let i = 0; i < this._numDoubleLines; i++) {
