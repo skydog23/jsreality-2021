@@ -27,7 +27,7 @@ import { Color } from '../../core/util/Color.js';
 import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
-import { DragPointTool } from './DragPointTool.js';
+import { DragPointTool } from '../../core/tools/DragPointTool.js';
 import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
 import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
 import { AnimationUtility, InterpolationTypes, BoundaryModes } from '../../anim/util/AnimationUtility.js';

@@ -12,7 +12,6 @@ import * as P2 from '../math/P2.js';
 import * as Pn from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import { SVDUtil } from '../math/SVDUtil.js';
-import { SylvesterDecomposition } from '../math/SylvesterDecomposition.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
@@ -23,9 +22,9 @@ import { SceneGraphUtility } from '../util/SceneGraphUtility.js';
 import { ConicUtils } from './ConicUtils.js';
 import { GeometryMergeFactory } from './GeometryMergeFactory.js';
 import { IndexedLineSetFactory } from './IndexedLineSetFactory.js';
+import { Primitives } from './Primitives.js';
 import { LineUtility } from './projective/LineUtility.js';
 import { PointRangeFactory } from './projective/PointRangeFactory.js';
-import { Primitives } from './Primitives.js';
 
 const logger = getLogger('jsreality.core.geometry.ConicSection');
 setModuleLevel(logger.getModuleName(), Level.INFO);
@@ -111,12 +110,9 @@ export class ConicSection {
         this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
         if (this.normalize) this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
-        // this.isImaginary = ConicUtils.isImaginary(this.Q);
-        // if (this.isImaginary)    {
-        //     console.log('Conic ', this.name, ' imaginary conic\n', Rn.matrixToString(this.Q));
-        // }
+       
         const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
-this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
+        this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
         this.rank = this.sylvester.getRank();
         this.dQ = P2.cofactor(null, this.Q);
         if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
@@ -144,11 +140,6 @@ this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
 
 
         if (this.rank === 1) {
-            // this.doubleLine = ConicUtils.factorDoubleLine(this);
-            // // we now have exact rank-1, and should update the Q matrix
-            // if (this.normalize) this.#updateQ(ConicUtils.buildQFromFactors(this.doubleLine, this.doubleLine));
-            
-            // else we have a real line pair
             this.doubleLine = this.sylvester.factorRank1DoubleLine();
             let l1 = new PointRangeFactory();
             logger.fine("double line = ",Rn.toString(this.doubleLine));
