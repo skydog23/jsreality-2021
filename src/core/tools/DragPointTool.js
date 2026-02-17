@@ -7,23 +7,23 @@
  * Contributors retain copyright to their contributions.
  */
 
-import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
-import { InputSlot } from '../../core/scene/tool/InputSlot.js';
-import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
-import { PickResult } from '../../core/scene/pick/PickResult.js';
-import { PointSet } from '../../core/scene/PointSet.js';
-import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
-import { DataUtility, toDataList, fromDataList } from '../../core/scene/data/DataUtility.js'; 
-
+import { AbstractTool } from '../scene/tool/AbstractTool.js';
+import { InputSlot } from '../scene/tool/InputSlot.js';
+import { getLogger, setModuleLevel, Level, Category } from '../util/LoggingSystem.js';
+import { PickResult } from '../scene/pick/PickResult.js';
+import { PointSet } from '../scene/PointSet.js';
+import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { DataUtility, toDataList, fromDataList } from '../scene/data/DataUtility.js'; 
+import * as Rn from '../math/Rn.js';
 /**
- * @typedef {import('../../core/scene/tool/ToolContext.js').ToolContext} ToolContext
+ * @typedef {import('../scene/tool/ToolContext.js').ToolContext} ToolContext
  */
 
 const logger = getLogger('jsreality.app.examples.DragPointTool');
 
 // Configure logging for TestTool: enable FINER level but not FINEST
 // This will print logger.finer() calls but not logger.finest() calls
-setModuleLevel(logger.getModuleName(), Level.INFO);
+setModuleLevel(logger.getModuleName(), Level.FINE);
 
 /**
  * Test tool that prints mouse coordinates.
@@ -36,6 +36,7 @@ export class DragPointTool extends AbstractTool {
   _verts = null;
   _index = -1;
   _hit = null;
+  _scn2obj = null;
   _goodHit = false;
   /**
    * Create a new TestTool.
@@ -66,6 +67,7 @@ export class DragPointTool extends AbstractTool {
     this._index = this._hit.getIndex();
     if (this._verts == null || this._index == -1) return;
     this._goodHit = true;
+    
   }
 
    /**
@@ -74,13 +76,11 @@ export class DragPointTool extends AbstractTool {
    */
   perform(tc) {
     if (!this._goodHit) return;
-    // logger.finer(Category.ALL, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
-    // Get mouse position from POINTER_TRANSFORMATION slot
-    const pointerTrafo = tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION);
-    if (pointerTrafo == null) return;
-    
-    this._verts[this._index][0] = pointerTrafo[3];
-    this._verts[this._index][1] = pointerTrafo[7];
+    logger.finer(Category.ALL, `perform() called, tc: ${tc.toString()}, pick: ${tc.getCurrentPick()}`);
+    this._scn2obj = Rn.times(null, tc.getRootToLocal().getMatrix(null), tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION));
+    this._scn2obj = Rn.conjugateByMatrix(null, tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION), tc.getRootToLocal().getInverseMatrix(null));
+    this._verts[this._index][0] = this._scn2obj[3];
+    this._verts[this._index][1] = this._scn2obj[7];
     // this._verts[this._index][2] = this._mousePosition[2];
     this._pointset.setVertexAttribute(GeometryAttribute.COORDINATES, toDataList(this._verts));
     //this._pointset.update();
