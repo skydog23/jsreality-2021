@@ -139,10 +139,10 @@ export class PenroseCube extends JSRApp {
     ap = this._worldSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
-    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.005);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.004);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.005);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.003);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
@@ -150,13 +150,13 @@ export class PenroseCube extends JSRApp {
      
     ap = this._fivePointSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.015);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.RED);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
 
     ap = this._centerSGC.getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.03);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.015);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.GREEN);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
  
@@ -203,15 +203,24 @@ export class PenroseCube extends JSRApp {
     this._animatedParameter.setBoundaryMode(BoundaryModes.CLAMP);
     this._animatedParameter.setGivesWay(true);
     this._animatedParameter.setWritable(true);
-    this._animatedParameter.setCurrentValue(0);
-    this._animatedParameter.addKeyFrame(new TimeDescriptor(0));
+    // this._animatedParameter.setCurrentValue(0);
+    // this._animatedParameter.addKeyFrame(new TimeDescriptor(0));
+    this._animatedParameter.setCurrentValue(0.0);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(0.0));
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(0.05));
     this._animatedParameter.setCurrentValue(.416);
-    this._animatedParameter.addKeyFrame(new TimeDescriptor(.416));
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(0.4));
+     this._animatedParameter.addKeyFrame(new TimeDescriptor(0.43));
     this._animatedParameter.setCurrentValue(.584);
-    this._animatedParameter.addKeyFrame(new TimeDescriptor(.584));
-    this._animatedParameter.setCurrentValue(1);
-    this._animatedParameter.addKeyFrame(new TimeDescriptor(1)); 
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(.57));
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(.6));
+    this._animatedParameter.setCurrentValue(1.0);
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(.95));
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(1.0));
+    // this._animatedParameter.setCurrentValue(1);
+    // this._animatedParameter.addKeyFrame(new TimeDescriptor(1)); 
     // this._animationPlugin.getAnimated().add(this._animatedParameter);
+    this._animationPlugin.getAnimationPanel().setPlaybackFactor(.02);
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
     
@@ -237,24 +246,15 @@ export class PenroseCube extends JSRApp {
 
   setValueAtTime(time) {
     super.setValueAtTime(time);
-    // Ensure this keyframed parameter is evaluated before we read it.
-    // The animation plugin iterates a shared Set of Animated objects, and
-    // this app instance can be visited before the parameter object.
     this._animatedParameter?.setValueAtTime(time);
-    const fromAnimatedParameter = this._animatedParameter.getCurrentValue();
-    // console.log('fromAnimatedParameter = ', fromAnimatedParameter);
-
-    // const val = AnimationUtility.hermiteInterpolation(time, 0.0, 1.0, .5, .475);
-    const val = fromAnimatedParameter;
-    // this._T0ConicSGC.setVisible(time < .411 || time > 0.42);
-    // logger.info(-1, 'time', time, 'val', val);
+    const val = this._animatedParameter.getCurrentValue();
     for (let i = 0; i < this._numDoubleLines; i++) {
           this._aijsRaw[i] = val;
    }
     // }
    this.updateAijs();
-    this.updateDoubleContactPencils();
-    this.getViewer().renderAsync();
+   this.updateDoubleContactPencils();
+   this.getViewer().renderAsync();
   }
 
   initPenroseCorners() {
@@ -529,8 +529,8 @@ export class PenroseCube extends JSRApp {
     const fcolor = lcolor.toFloatArray();
 
     const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
-    const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
-    const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.50));
+    const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.35));
+    const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.35));
 
   
     this._TiConics[which] = new ConicSection(null, false);
@@ -546,10 +546,12 @@ export class PenroseCube extends JSRApp {
     ap = this._S0TiDblLnSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.003);
+    ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
     this._S0TiPtPairSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('twoPoints '+which); 
     ap = this._S0TiPtPairSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.02);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.015);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, twoPointColor);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     
