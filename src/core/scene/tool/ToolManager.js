@@ -122,9 +122,9 @@ export class ToolManager {
     const paths = this.#pathsForTool(tool);
     
     if (pickPath === null) {
-      if (paths.length !== 1) {
-        throw new IllegalStateException("ambiguous path without pick");
-      }
+      if (paths.length === 0) return null;
+      // Global activations (e.g., wheel slots) can legitimately have no pick path.
+      // If multiple registrations exist, use a deterministic fallback path.
       return paths[0];
     }
     

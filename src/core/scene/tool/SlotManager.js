@@ -114,7 +114,7 @@ export class SlotManager {
     const tools = new Set(this.#getSlot2activation(slot));
     const slotName = slot?.getName?.() || 'unknown';
     if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
-      logger.info(Category.ALL, `[SlotManager] activation slot=${slotName} tools=${tools.size}`);
+      logger.fine(Category.ALL, `[SlotManager] activation slot=${slotName} tools=${tools.size}`);
     }
     return tools;
   }

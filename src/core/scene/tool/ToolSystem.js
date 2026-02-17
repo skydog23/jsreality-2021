@@ -453,8 +453,8 @@ export class ToolSystem extends ToolEventReceiver {
       // A virtual device then converts (NDCToWorld, PointerNDC) -> POINTER_TRANSFORMATION.
       new RawMapping('Mouse', 'axes', InputSlot.POINTER_NDC),
         new RawMapping('Mouse', 'axesEvolution', InputSlot.POINTER_EVOLUTION),
-        new RawMapping('Mouse', 'wheel_up', InputSlot.getDevice('PrimaryUp')),
-        new RawMapping('Mouse', 'wheel_down', InputSlot.getDevice('PrimaryDown')),
+        new RawMapping('Mouse', 'wheel_up', InputSlot.WHEEL_UP),
+        new RawMapping('Mouse', 'wheel_down', InputSlot.WHEEL_DOWN),
         // Keyboard mappings (common keys)
         new RawMapping('Keyboard', 'VK_W', InputSlot.VK_W),
         new RawMapping('Keyboard', 'VK_A', InputSlot.VK_A),
@@ -840,9 +840,29 @@ export class ToolSystem extends ToolEventReceiver {
     while (this.#compQueue.length > 0) {
       const event = this.#compQueue.shift();
       this.#deviceManager.evaluateEvent(event, this.#compQueue);
-      
-      if (this.#isTrigger(event) && !event.isConsumed()) {
+
+      const slotName = event.getInputSlot()?.getName?.() || 'unknown';
+      const isWheelSlot =
+        slotName === 'PrimaryUp' ||
+        slotName === 'PrimaryDown' ||
+        slotName === 'WheelUp' ||
+        slotName === 'WheelDown';
+      const isTrigger = this.#isTrigger(event);
+      const isConsumed = event.isConsumed();
+      if (isWheelSlot) {
+        logger.fine(
+          Category.ALL,
+          `[ToolSystem] compQueue wheel: slot=${slotName}, isTrigger=${isTrigger}, isConsumed=${isConsumed}`
+        );
+      }
+
+      if (isTrigger && !isConsumed) {
         this.#triggerQueue.push(event);
+      } else if (isWheelSlot) {
+        logger.fine(
+          Category.ALL,
+          `[ToolSystem] wheel dropped before triggerQueue: slot=${slotName}, reason=${!isTrigger ? 'not-trigger' : 'consumed'}`
+        );
       }
     }
   }
@@ -880,7 +900,7 @@ export class ToolSystem extends ToolEventReceiver {
       const slotName = slot?.getName?.() || 'unknown';
       if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
         const axisState = this.#deviceManager.getAxisState(slot);
-        logger.info(
+        logger.fine(
           Category.ALL,
           `[ToolSystem] wheel trigger: slot=${slotName}, axis=${axisState ? axisState.toString() : 'null'}`
         );
@@ -895,7 +915,10 @@ export class ToolSystem extends ToolEventReceiver {
         // Possible activation
         const candidatesForPick = new Set(this.#slotManager.getToolsActivatedBySlot(slot));
         if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
-          logger.info(Category.ALL, `[ToolSystem] wheel activation candidates=${candidatesForPick.size}`);
+          logger.fine(
+            Category.ALL,
+            `[ToolSystem] wheel press: slot=${slotName}, axis=${axis.toString()}, activation candidates=${candidatesForPick.size}`
+          );
         }
         logger.finer(
           Category.ALL,
@@ -922,6 +945,12 @@ export class ToolSystem extends ToolEventReceiver {
             this.#activateToolSet(candidates);
             for (const tool of candidates) {
               activatedTools.add(tool);
+            }
+            if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
+              logger.fine(
+                Category.ALL,
+                `[ToolSystem] wheel global activation: activated tools=${Array.from(candidates).map(t => t.getName?.() || t.constructor?.name).join(', ') || '<none>'}`
+              );
             }
             noTrigger = candidates.size === 0;
             continue;
@@ -971,6 +1000,13 @@ export class ToolSystem extends ToolEventReceiver {
           }
           noTrigger = candidates.size === 0;
         }
+      }
+
+      if ((slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') && noTrigger) {
+        logger.fine(
+          Category.ALL,
+          `[ToolSystem] wheel no-trigger: slot=${slotName}, axis=${axis ? axis.toString() : 'null'}`
+        );
       }
 
       if (axis !== null && axis.isReleased()) {

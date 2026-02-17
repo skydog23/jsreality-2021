@@ -14,7 +14,7 @@ import { ToolEventQueue } from '../ToolEventQueue.js';
 import { InputSlot } from '../InputSlot.js';
 import { AxisState } from '../AxisState.js';
 import * as Rn from '../../../math/Rn.js';
-import { getLogger, Category } from '../../../util/LoggingSystem.js';
+import { getLogger, Category, Level, setModuleLevel } from '../../../util/LoggingSystem.js';
 import { ViewerSwitch } from '../../../viewers/ViewerSwitch.js';
 
 /**
@@ -24,6 +24,8 @@ import { ViewerSwitch } from '../../../viewers/ViewerSwitch.js';
 
 const MOUSE_GRAB_TOGGLE_KEY = 'F10';
 const MOUSE_GRAB_TOGGLE_ALTERNATIVE_KEY = 'c';
+const logger = getLogger('jsreality.core.scene.tool.raw.DeviceMouse');
+setModuleLevel(logger.getModuleName(), Level.INFO); 
 
 /**
  * Mouse device implementation for browser environment.
@@ -171,8 +173,15 @@ export class DeviceMouse extends AbstractDeviceMouse {
 
     if (deltaY > 0) {
       const slot = this.getUsedSources().get('wheel_up');
-      if (slot !== null) {
-        const count = Math.floor(Math.abs(deltaY) / 100); // Normalize wheel delta
+      logger.fine(-1,"slot = ", slot);
+      if (slot != null) {
+        // Emit a single pulse per browser wheel callback.
+        // Additional coalescing is handled in ToolEventQueue to avoid lag.
+        const count = 1;
+        logger.fine(
+          Category.ALL,
+          `[DeviceMouse] wheel event: deltaY=${deltaY}, direction=up, slot=${slot.getName?.() || 'wheel_up'}, count=${count}`
+        );
         for (let i = 0; i < count; i++) {
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.PRESSED));
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.ORIGIN));
@@ -180,8 +189,12 @@ export class DeviceMouse extends AbstractDeviceMouse {
       }
     } else if (deltaY < 0) {
       const slot = this.getUsedSources().get('wheel_down');
-      if (slot !== null) {
-        const count = Math.floor(Math.abs(deltaY) / 100);
+      if (slot != null) {
+        const count = 1;
+        logger.fine(
+          Category.ALL,
+          `[DeviceMouse] wheel event: deltaY=${deltaY}, direction=down, slot=${slot.getName?.() || 'wheel_down'}, count=${count}`
+        );
         for (let i = 0; i < count; i++) {
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.PRESSED));
           queue.addEvent(new ToolEvent(this, Date.now(), slot, AxisState.ORIGIN));

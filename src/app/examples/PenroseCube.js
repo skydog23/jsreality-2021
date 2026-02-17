@@ -165,9 +165,9 @@ export class PenroseCube extends JSRApp {
     this._fivePointSGC.addTool(tool);
 
    
-    // const clickWheelTool = new ClickWheelCameraZoomTool();
-    // clickWheelTool.setName("clickWheelTool");
-    // this._worldSGC.addTool(clickWheelTool);
+    const clickWheelTool = new ClickWheelCameraZoomTool();
+    clickWheelTool.setName("clickWheelTool");
+    this._worldSGC.addTool(clickWheelTool);
 
     // const encompassTool = new EncompassTool();
     // encompassTool.setName("encompassTool");

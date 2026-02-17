@@ -96,7 +96,7 @@ export class ToolEventQueue {
         try {
           const slotName = event.getInputSlot()?.getName?.() || 'unknown';
           if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
-            logger.info(Category.ALL, `[ToolEventQueue] dispatch slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
+            logger.fine(Category.ALL, `[ToolEventQueue] dispatch slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
           }
           this.#receiver.processToolEvent(event);
         } catch (error) {
@@ -124,7 +124,7 @@ export class ToolEventQueue {
     }
     const slotName = event.getInputSlot()?.getName?.() || 'unknown';
     if (slotName === 'PrimaryUp' || slotName === 'PrimaryDown' || slotName === 'WheelUp' || slotName === 'WheelDown') {
-      logger.info(Category.ALL, `[ToolEventQueue] enqueue slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
+      logger.fine(Category.ALL, `[ToolEventQueue] enqueue slot=${slotName} state=${event.getAxisState()?.toString?.() || 'null'}`);
     }
     return this.#placeEvent(event);
   }

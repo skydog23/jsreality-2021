@@ -111,8 +111,8 @@
     { "deviceID": "Mouse", "sourceSlot": "left", "targetSlot": "PrimaryAction" },
     { "deviceID": "Mouse", "sourceSlot": "right", "targetSlot": "PrimarySelection" },
     { "deviceID": "Mouse", "sourceSlot": "center", "targetSlot": "PrimaryMenu" },
-    { "deviceID": "Mouse", "sourceSlot": "wheel_up", "targetSlot": "PrimaryUp" },
-    { "deviceID": "Mouse", "sourceSlot": "wheel_down", "targetSlot": "PrimaryDown" },
+    { "deviceID": "Mouse", "sourceSlot": "wheel_up", "targetSlot": "WheelUp" },
+    { "deviceID": "Mouse", "sourceSlot": "wheel_down", "targetSlot": "WheelDown" },
     { "deviceID": "Mouse", "sourceSlot": "axes", "targetSlot": "PointerNDC" },
     { "deviceID": "Mouse", "sourceSlot": "axesEvolution", "targetSlot": "PointerNDCevolution" },
 

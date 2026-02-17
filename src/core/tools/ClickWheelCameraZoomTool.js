@@ -25,7 +25,7 @@ export class ClickWheelCameraZoomTool extends AbstractTool {
   wheel = 0;
 
   /** @type {number} */
-  speed = 1.05;
+  speed = 1.01;
 
   constructor() {
     super(
@@ -40,7 +40,7 @@ export class ClickWheelCameraZoomTool extends AbstractTool {
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
    */
   activate(tc) {
-    logger.info(-1, 'activate');
+    // logger.info(-1, 'activate');
     const source = tc.getSource();
     if (source === InputSlot.getDevice('PrimaryUp') ||
         source === InputSlot.getDevice('WheelUp')) {
@@ -52,6 +52,7 @@ export class ClickWheelCameraZoomTool extends AbstractTool {
     const cam = tc.getViewer().getCameraPath().getLastElement();
     const fov = cam.getFieldOfView();
     cam.setFieldOfView(fov * ((this.wheel > 0) ? this.speed : 1.0 / this.speed));
+    // logger.info(-1, 'fov = ', fov);
     tc.getViewer().renderAsync();
   }
 
