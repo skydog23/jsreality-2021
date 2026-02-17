@@ -30,8 +30,9 @@ import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { ToolUtility } from '../../core/scene/tool/ToolUtility.js';
 import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
+import { DragPointTool } from '../../core/tools/DragPointTool.js';
 const logger = getLogger('jsreality.app.examples.TestToolApp');
-setModuleLevel('jsreality.app.examples.TestToolApp', Level.FINER);
+setModuleLevel('jsreality.app.examples.TestToolApp', Level.INFO);
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.

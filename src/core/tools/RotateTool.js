@@ -154,56 +154,7 @@ export class RotateTool extends AbstractTool {
     this.addCurrentSlot(RotateTool.evolutionSlot);
   }
 
-  /**
-   * @private
-   * @param {number} dtMs
-   * @returns {number} alpha in [0,1]
-   */
-  #alphaFromHalfLife(dtMs) {
-    const halfLife = Number(this.smoothingHalfLifeMs);
-    if (!Number.isFinite(halfLife) || halfLife <= 0) return 1.0;
-    const dt = Math.max(0, Number(dtMs) || 0);
-    // alpha = 1 - 2^(-dt/halfLife)
-    const a = 1.0 - Math.pow(0.5, dt / halfLife);
-    return Math.max(0.0, Math.min(1.0, a));
-  }
-
-  /**
-   * @private
-   * @param {Quaternion} qIn
-   * @returns {{ axis: number[], angle: number }}
-   */
-  #quatToAxisAngle(qIn) {
-    // Java RotateTool uses FactoredMatrix.getRotationAngle/getRotationAxis.
-    // We approximate this from quaternion as axis-angle with angle in [0, 2π).
-    const w = Number(qIn.re) || 0;
-    const x = Number(qIn.x) || 0;
-    const y = Number(qIn.y) || 0;
-    const z = Number(qIn.z) || 0;
-
-    const v = Math.sqrt(x * x + y * y + z * z);
-    const angle = 2.0 * Math.atan2(v, w); // [0, 2π)
-
-    if (v < 1e-8 || angle < 1e-8) {
-      return { axis: [0, 0, 1], angle: 0.0 };
-    }
-    return { axis: [x / v, y / v, z / v], angle };
-  }
-
-  /**
-   * @private
-   */
-  #stopInertia() {
-    if (this.#animRafId !== null && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(this.#animRafId);
-    }
-    this.#animRafId = null;
-    this.#animRunning = false;
-    this.#animViewer = null;
-    this.#animComp = null;
-    this.#animCenter = null;
-    this.#animRotAngle = 0;
-  }
+  
 
   /**
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
@@ -224,6 +175,7 @@ export class RotateTool extends AbstractTool {
     if (this.comp && this.comp.getTransformation() === null) {
       this.comp.setTransformation(new Transformation());
     }
+    // console.log('comp:', this.comp.getName());
 
     if (!this.fixOrigin) {
       const currentPick = tc.getCurrentPick();
@@ -249,26 +201,43 @@ export class RotateTool extends AbstractTool {
     this.success = false;
     if (!this.comp) return;
 
-    const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
-    if (!path) return;
+    const root2toComp = new Matrix(tc.getRootToToolComponent().getInverseMatrix(null));
+    const array = new Matrix(root2toComp).getArray();		
+//		System.err.println("root2component "+Rn.toString(new Matrix(root2toComp).getColumn(3)));
+		if (array[15] < 0) root2toComp.times(-1);
+//		System.err.println("quad path"+Rn.matrixToString(P3.getTransformedAbsolute(array, metric)));
+//		System.err.println("quad select"+Rn.matrixToString(P3.getTransformedAbsolute(selectedComponent.getTransformation().getMatrix(), metric)));
+		root2toComp.assignFrom(P3.extractOrientationMatrix(null, root2toComp.getArray(), P3.originP3, this.metric));
+		// console.log('root2toComp:', Rn.matrixToString(root2toComp.getArray()));
+    this.evolution.assignFrom(tc.getTransformationMatrix(RotateTool.evolutionSlot));
+		this.evolution.conjugateBy(root2toComp);
+		this.result.assignFrom(this.comp.getTransformation().getMatrix(null));
+		this.result.multiplyOnRight(this.evolution);
+		this.comp.getTransformation().setMatrix(P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6,
+    this.metric)); //this.result.getArray());
+    this.success = true;
+		tc.getViewer().renderAsync();
 
-    // object2avatar: orientation-only inverse matrix of the component path.
-    const object2avatar = new Matrix(path.getInverseMatrix(null));
-    if (Rn.isNan(object2avatar.getArray())) return;
+    // const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
+    // if (!path) return;
 
-    try {
-      object2avatar.assignFrom(
-        P3.extractOrientationMatrix(null, object2avatar.getArray(), P3.originP3, this.metric)
-      );
-    } catch (e) {
-      // Set identity matrix
-      MatrixBuilder.euclidean().assignTo(object2avatar);
-    }
+    // // object2avatar: orientation-only inverse matrix of the component path.
+    // const object2avatar = new Matrix(path.getInverseMatrix(null));
+    // if (Rn.isNan(object2avatar.getArray())) return;
 
-    const evoArr = tc.getTransformationMatrix(RotateTool.evolutionSlot);
-    if (!evoArr) return;
-    this.evolution.assignFrom(evoArr);
-    this.evolution.conjugateBy(object2avatar);
+    // try {
+    //   object2avatar.assignFrom(
+    //     P3.extractOrientationMatrix(null, object2avatar.getArray(), P3.originP3, this.metric)
+    //   );
+    // } catch (e) {
+    //   // Set identity matrix
+    //   MatrixBuilder.euclidean().assignTo(object2avatar);
+    // }
+
+    // const evoArr = tc.getTransformationMatrix(RotateTool.evolutionSlot);
+    // if (!evoArr) return;
+    // this.evolution.assignFrom(evoArr);
+    // this.evolution.conjugateBy(object2avatar);
 
     // Track dt for inertia and smoothing.
     const now = tc.getTime();
@@ -327,17 +296,17 @@ export class RotateTool extends AbstractTool {
     }
     // console.log('evolution:', this.evolution);
     // result = currentTransformation * [center] * evolution * [center^-1]
-    const currentTrafo = this.comp.getTransformation();
-    if (!currentTrafo) return;
-    this.result.assignFrom(currentTrafo.getMatrix(null));
-    if (!this.fixOrigin) this.result.multiplyOnRight(this.center);
-    this.result.multiplyOnRight(this.evolution);
-    if (!this.fixOrigin) this.result.multiplyOnRight(this.center.getInverse());
-    if (Rn.isNan(this.result.getArray())) return;
+    // const currentTrafo = this.comp.getTransformation();
+    // if (!currentTrafo) return;
+    // this.result.assignFrom(currentTrafo.getMatrix(null));
+    // if (!this.fixOrigin) this.result.multiplyOnRight(this.center);
+    // this.result.multiplyOnRight(this.evolution);
+    // if (!this.fixOrigin) this.result.multiplyOnRight(this.center.getInverse());
+    // if (Rn.isNan(this.result.getArray())) return;
 
-    this.success = true;
-    currentTrafo.setMatrix(this.result.getArray());
-    tc.getViewer().renderAsync();
+    // this.success = true;
+    // currentTrafo.setMatrix(this.result.getArray());
+    // tc.getViewer().renderAsync();
   }
 
   /**
@@ -474,6 +443,56 @@ export class RotateTool extends AbstractTool {
     return centerTranslation;
   }
 
+  /**
+   * @private
+   * @param {number} dtMs
+   * @returns {number} alpha in [0,1]
+   */
+  #alphaFromHalfLife(dtMs) {
+    const halfLife = Number(this.smoothingHalfLifeMs);
+    if (!Number.isFinite(halfLife) || halfLife <= 0) return 1.0;
+    const dt = Math.max(0, Number(dtMs) || 0);
+    // alpha = 1 - 2^(-dt/halfLife)
+    const a = 1.0 - Math.pow(0.5, dt / halfLife);
+    return Math.max(0.0, Math.min(1.0, a));
+  }
+
+  /**
+   * @private
+   * @param {Quaternion} qIn
+   * @returns {{ axis: number[], angle: number }}
+   */
+  #quatToAxisAngle(qIn) {
+    // Java RotateTool uses FactoredMatrix.getRotationAngle/getRotationAxis.
+    // We approximate this from quaternion as axis-angle with angle in [0, 2π).
+    const w = Number(qIn.re) || 0;
+    const x = Number(qIn.x) || 0;
+    const y = Number(qIn.y) || 0;
+    const z = Number(qIn.z) || 0;
+
+    const v = Math.sqrt(x * x + y * y + z * z);
+    const angle = 2.0 * Math.atan2(v, w); // [0, 2π)
+
+    if (v < 1e-8 || angle < 1e-8) {
+      return { axis: [0, 0, 1], angle: 0.0 };
+    }
+    return { axis: [x / v, y / v, z / v], angle };
+  }
+
+  /**
+   * @private
+   */
+  #stopInertia() {
+    if (this.#animRafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.#animRafId);
+    }
+    this.#animRafId = null;
+    this.#animRunning = false;
+    this.#animViewer = null;
+    this.#animComp = null;
+    this.#animCenter = null;
+    this.#animRotAngle = 0;
+  }
   // ---------------------------------------------------------------------------
   // Java-style getters/setters (API parity)
   // ---------------------------------------------------------------------------
