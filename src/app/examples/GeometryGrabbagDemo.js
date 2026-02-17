@@ -17,11 +17,12 @@ import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.j
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { PolygonalTubeFactory } from '../../core/geometry/PolygonalTubeFactory.js';
 import { BallAndStickFactory } from '../../core/geometry/BallAndStickFactory.js';
+import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
 
 class TorusImmersion extends DefaultImmersion {
   evaluateUV(u, v) {
     // u,v in [0,1] -> angles
-    const U = 2 * Math.PI * u;
+    const U = -2 * Math.PI * u;
     const V = 2 * Math.PI * v;
 
     const R = 1.0;   // major radius
@@ -37,7 +38,7 @@ export class GeometryGrabbagDemo extends JSRApp {
     _ucount = 15;
     _vcount = 15;
     _psf = null;
-    _type = 2;
+    _type = 1;
 
     getContent() {
         const surfaceSGC = SceneGraphUtility.createFullSceneGraphComponent('surface');
@@ -57,6 +58,9 @@ export class GeometryGrabbagDemo extends JSRApp {
         rotateTool.setName("rotateTool");
         surfaceSGC.addTool(rotateTool);
 
+        const clickWheelCameraZoomTool = new ClickWheelCameraZoomTool();
+        clickWheelCameraZoomTool.setName("clickWheelCameraZoomTool");
+        surfaceSGC.addTool(clickWheelCameraZoomTool);
         
         return surfaceSGC;
     }

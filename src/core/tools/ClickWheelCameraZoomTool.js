@@ -15,7 +15,7 @@ import { InputSlot } from '../scene/tool/InputSlot.js';
 import { getLogger, Level, setModuleLevel } from '../util/LoggingSystem.js';
 
 const logger = getLogger('jsreality.core.tools.ClickWheelCameraZoomTool');
-setModuleLevel(logger.getModuleName(), Level.INFO);
+setModuleLevel(logger.getModuleName(), Level.FINE);
 /**
  * Uses the mouse wheel to implement a simple camera zoom tool.
  * Scrolling up zooms out, scrolling down zooms in.

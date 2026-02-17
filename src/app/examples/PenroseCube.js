@@ -8,7 +8,9 @@
  */
 
 
-import { KeyFrameAnimatedBean } from '../../anim/core/KeyFrameAnimatedBean.js';
+import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
+import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
+import { BoundaryModes, InterpolationTypes } from '../../anim/util/AnimationUtility.js';
 import { ConicSection } from '../../core/geometry/ConicSection.js';
 import { ConicUtils } from '../../core/geometry/ConicUtils.js';
 import { PointSetFactory } from '../../core/geometry/PointSetFactory.js';
@@ -22,15 +24,14 @@ import * as Rn from '../../core/math/Rn.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
+import { DragPointTool } from '../../core/tools/DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { Color } from '../../core/util/Color.js';
 import { getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
-import { DragPointTool } from '../../core/tools/DragPointTool.js';
-import { KeyFrameAnimatedDouble } from '../../anim/core/KeyFrameAnimatedDouble.js';
-import { TimeDescriptor } from '../../anim/core/TimeDescriptor.js';
-import { AnimationUtility, InterpolationTypes, BoundaryModes } from '../../anim/util/AnimationUtility.js';
+
 const logger = getLogger('jsreality.app.examples.PenroseCube'); 
 setModuleLevel(logger.getModuleName(), Level.INFO);
 
@@ -39,7 +40,7 @@ export class PenroseCube extends JSRApp {
   getShowPanels() {
     return [true, true, false, true];
   }
-  _colors = [Color.RED, Color.YELLOW, Color.BLUE];
+  _colors = [Color.RED, Color.YELLOW, new Color(75, 75, 255)];
   _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
   _conic = null;
   _conicSGC = null;
@@ -527,9 +528,9 @@ export class PenroseCube extends JSRApp {
     const lcolor = this._colors[which]; 
     const fcolor = lcolor.toFloatArray();
 
-    const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
-    const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.25));
-    const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
+    const conicColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
+    const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.5));
+    const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.50));
 
   
     this._TiConics[which] = new ConicSection(null, false);
