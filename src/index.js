@@ -9,3 +9,4 @@
 
 export { Rn } from './Rn.js';
 export { Pn } from './Pn.js'; 
+export * from './discretegroup/index.js';

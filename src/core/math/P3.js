@@ -797,6 +797,43 @@ export function lineIntersectPlane(dst, p1, p2, plane) {
 }
 
 /**
+ * Calculate the plane coordinates for the plane lying midway between two points.
+ * Mirrors P3.perpendicularBisector(dst, p1, p2, metric) in Java.
+ *
+ * For Euclidean metric this is the affine perpendicular bisector plane.
+ * For non-Euclidean metrics this uses midpoint + polarity construction.
+ *
+ * @param {number[]|null} dst - Destination plane array (4 elements) or null
+ * @param {number[]} p1 - First point (homogeneous 4-vector)
+ * @param {number[]} p2 - Second point (homogeneous 4-vector)
+ * @param {number} metric - Pn metric constant
+ * @returns {number[]} Bisector plane
+ */
+export function perpendicularBisector(dst, p1, p2, metric) {
+    if (p1.length !== 4 || p2.length !== 4) {
+        throw new Error("Input points must be homogeneous vectors");
+    }
+    if (dst == null) dst = new Array(4);
+
+    const midpoint = new Array(4);
+    if (metric === Pn.EUCLIDEAN) {
+        Rn.add(midpoint, p1, p2);
+        Rn.times(midpoint, 0.5, midpoint);
+        Pn.dehomogenize(midpoint, midpoint);
+        Rn.subtract(dst, p2, p1);
+        dst[3] = -Rn.innerProduct(dst, midpoint, 3);
+        return dst;
+    }
+
+    Pn.linearInterpolation(midpoint, p1, p2, 0.5, metric);
+    const polarM = Pn.polarize(null, midpoint, metric);
+    const pb = lineIntersectPlane(null, p1, p2, polarM);
+    Pn.polarize(dst, pb, metric);
+    if (Rn.innerProduct(dst, p1) > 0) Rn.times(dst, -1.0, dst);
+    return dst;
+}
+
+/**
  * Via duality, an alias for planeFromPoints.
  * Mirrors P3.pointFromPlanes(point, p1, p2, p3) in Java.
  * @param {number[]|null} point - Destination point array (4 elements) or null to create new
