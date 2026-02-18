@@ -191,8 +191,9 @@ export class ConicSection {
         logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.getEigenvalues());
         centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, sylvesterP, [0, 0, 1]), Pn.ELLIPTIC);
         if (Math.abs(centerPoint[2]) < 1e-4) {
-            logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
+            // logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
             // centerPoint = [centerPoint[0], centerPoint[1], .1];
+            // move it so that it's not "at infinity"
             centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, sylvesterP, [0, .5, 1]), Pn.ELLIPTIC);
         }
         C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);

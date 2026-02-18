@@ -23,10 +23,14 @@ export { getSceneGraphRepresentation, getXYZAxes } from './TubeFactorySceneGraph
 export { BoundingBoxTraversal } from './BoundingBoxTraversal.js';
 export { BoundingBoxUtility } from './BoundingBoxUtility.js';
 export { IndexedLineSetUtility } from './IndexedLineSetUtility.js'; 
+export { PointSetUtility } from './PointSetUtility.js';
+export { QuadMeshUtility } from './QuadMeshUtility.js';
+export { BezierPatchMesh } from './BezierPatchMesh.js';
 export { GeometryMergeFactory } from './GeometryMergeFactory.js';
 export { BallAndStickFactory } from './BallAndStickFactory.js';
 export { Snake } from './Snake.js';
 export { PointCollector } from './projective/PointCollector.js';
 export { LineUtility } from './projective/LineUtility.js';
 export { Abstract1DExtentFactory } from './projective/Abstract1DExtentFactory.js';
-export { PointRangeFactory } from './projective/PointRangeFactory.js';export { LinePencilFactory } from './projective/LinePencilFactory.js';
+export { PointRangeFactory } from './projective/PointRangeFactory.js';
+export { LinePencilFactory } from './projective/LinePencilFactory.js';
