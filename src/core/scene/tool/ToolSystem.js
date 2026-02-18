@@ -1079,13 +1079,15 @@ export class ToolSystem extends ToolEventReceiver {
    */
   performPick() {
     if (this.#pickSystem === null) {
-      return [];
+      this.#pickResults = [];
+      return this.#pickResults;
     }
 
     const pointerSlot = InputSlot.POINTER_TRANSFORMATION;
     const currentPointer = this.#deviceManager.getTransformationMatrix(pointerSlot);
     if (currentPointer === null) {
-      return [];
+      this.#pickResults = [];
+      return this.#pickResults;
     }
 
     // Copy pointer transformation
@@ -1129,12 +1131,12 @@ export class ToolSystem extends ToolEventReceiver {
    * @private
    */
   #calculatePickPath() {
-    this.performPick();
-    logger.fine(Category.ALL, `#calculatePickPath: pickResults: ${this.#pickResults.length}`);
-    if (this.#pickResults === null || this.#pickResults.length === 0) {
+    const pickResults = this.performPick();
+    logger.fine(Category.ALL, `#calculatePickPath: pickResults: ${pickResults.length}`);
+    if (pickResults.length === 0) {
       return this.#emptyPickPath;
     }
-    return this.#pickResults[0].getPickPath();
+    return pickResults[0].getPickPath();
   }
 
   /**

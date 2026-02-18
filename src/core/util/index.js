@@ -12,6 +12,8 @@
 export * as CameraUtility from './CameraUtility.js';
 export { Color } from './Color.js';
 export { SceneGraphUtility } from './SceneGraphUtility.js';
+export { CopyVisitor } from './CopyVisitor.js';
+export { DualizeSceneGraph } from './DualizeSceneGraph.js';
 export { DisposableCollection } from './Disposable.js';
 export { 
   getLogger, 

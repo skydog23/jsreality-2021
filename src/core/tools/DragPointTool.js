@@ -81,7 +81,6 @@ export class DragPointTool extends AbstractTool {
     this._scn2obj = Rn.conjugateByMatrix(null, tc.getTransformationMatrix(InputSlot.POINTER_TRANSFORMATION), tc.getRootToLocal().getInverseMatrix(null));
     this._verts[this._index][0] = this._scn2obj[3];
     this._verts[this._index][1] = this._scn2obj[7];
-    // this._verts[this._index][2] = this._mousePosition[2];
     this._pointset.setVertexAttribute(GeometryAttribute.COORDINATES, toDataList(this._verts));
     //this._pointset.update();
     tc.getViewer().renderAsync();
