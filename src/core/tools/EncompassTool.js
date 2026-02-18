@@ -12,6 +12,7 @@
 
 import { AbstractTool } from '../scene/tool/AbstractTool.js';
 import { InputSlot } from '../scene/tool/InputSlot.js';
+import { encompass } from '../util/CameraUtility.js';
 
 
 /** @typedef {import('../scene/tool/ToolContext.js').ToolContext} ToolContext */
@@ -25,13 +26,13 @@ export class EncompassTool extends AbstractTool {
 
   activate(tc) {
     console.log('EncompassTool.activate()', tc);
-    CameraUtility.encompass(tc.getViewer());
+    encompass(tc.getViewer());
     tc.getViewer().renderAsync();
   } 
 
   perform(tc) {
     console.log('EncompassTool.perform()', tc);
-    CameraUtility.encompass(tc.getViewer());
+    encompass(tc.getViewer());
     tc.getViewer().renderAsync();
   }
 

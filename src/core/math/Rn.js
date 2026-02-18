@@ -1090,7 +1090,7 @@ export function matrixToString(m, precision = 6) {
   const n = mysqrt(m.length);
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
-      sb.push(m[i * 3 + j].toFixed(precision));
+      sb.push(m[i * n + j].toFixed(precision));
       sb.push(j === (n - 1) ? '\n' : '\t');
     }
   }
@@ -1200,12 +1200,12 @@ export function transposeF2D(dst, src) {
 function _matrixTimesVectorSafe(dst, m, src) {
   const sl = src.length;
   const ml = mysqrt(m.length);
-  if (sl !== ml) throw new Error('Invalid dimensions in _matrixTimesVectorSafe');
+  if (sl !== ml && sl !== ml - 1) throw new Error('Invalid dimensions in _matrixTimesVectorSafe');
   let out = (dst == null) ? new Array(ml) : dst;
   for (let i = 0; i < ml; ++i) {
     out[i] = 0;
     for (let j = 0; j < ml; ++j) {
-      out[i] += m[i * ml + j] * src[j];
+      out[i] += m[i * ml + j] * (sl === ml - 1 ? 1 : src[j]);
     }
   }
   return out;

@@ -23,6 +23,8 @@ import { DescriptorUtility } from '../core/inspect/descriptors/DescriptorUtility
 import { JSRPlugin } from './plugin/JSRPlugin.js';
 import { AnimationPlugin } from '../anim/plugins/AnimationPlugin.js';
 import { PluginIds } from './plugin/PluginIds.js';
+import { ClickWheelCameraZoomTool } from '../core/tools/ClickWheelCameraZoomTool.js';
+import { EncompassTool } from '../core/tools/EncompassTool.js'; 
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -284,6 +286,9 @@ export class JSRApp extends JSRPlugin {
       throw new Error('getContent() must return a SceneGraphComponent');
     }
     this.#jsrViewer.setContent(content);
+
+    content.addTool(new ClickWheelCameraZoomTool());
+    content.addTool(new EncompassTool());
 
     // Ensure the tool system discovers tools in the newly set content.
     // Content (and its tools) may be created after the ToolSystem was initialized,

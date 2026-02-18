@@ -27,7 +27,7 @@ import { Level, Category, setModuleLevel } from '../../util/LoggingSystem.js';
 
 // Module-level logger shared by ToolSystem and helpers in this file
 const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
-setModuleLevel(logger.getModuleName(), Level.FINE);
+setModuleLevel(logger.getModuleName(), Level.INFO);
 
 // Slots that should activate tools without picking (global activation).
 const GLOBAL_ACTIVATION_SLOTS = new Set([

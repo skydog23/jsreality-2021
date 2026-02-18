@@ -61,6 +61,7 @@ export class BoundingBoxUtility {
       if (isNaN(bounds[0][0])) {
         throw new Error("NaN in calculateBoundingBox");
       }
+      console.log('bbox = ', bbox.toString());
       return bbox;
     }
     

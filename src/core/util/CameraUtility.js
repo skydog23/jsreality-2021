@@ -443,6 +443,7 @@ function _encompassViewer(viewer, sgc, setStereoParameters, metric) {
 
   /** @type {Rectangle3D} */
   const worldBox = BoundingBoxUtility.calculateBoundingBox(sgc);
+  console.log('worldBox = ', worldBox.toString());
   if (worldBox == null || worldBox.isEmpty()) {
     console.warn('encompass: empty bounding box');
     return;
@@ -478,6 +479,8 @@ function _encompassViewer(viewer, sgc, setStereoParameters, metric) {
   const camNode = getCameraNode(viewer);
   camNode.getTransformation().setMatrix(newCamToWorld);
 
+   console.log('newWorldToCam = ', Rn.matrixToString(newWorldToCam));
+  console.log('worldBox.getCenter() = ', worldBox.getCenter());
   const centerWorld = Rn.matrixTimesVector(null, newWorldToCam, worldBox.getCenter());
   if (setStereo) {
     cam.setFocus(Math.abs(centerWorld[2]));
