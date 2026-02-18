@@ -146,11 +146,16 @@ export class SceneGraphTreeModel {
     if (Array.isArray(tools) && tools.length > 0) {
       for (const tool of tools) {
         if (tool instanceof Tool || typeof tool === 'object') {
+          const toolName = tool.getName?.();
+          const hasCustomToolName =
+            typeof toolName === 'string' &&
+            toolName.trim().length > 0 &&
+            toolName !== 'Tool';
           descriptor.addChild(
             new InspectorTreeNode({
               data: tool,
               type: 'tool',
-              label: tool.getName?.() || tool.constructor?.name || 'Tool',
+              label: hasCustomToolName ? toolName : (tool.constructor?.name || 'Tool'),
               icon: '🔧'
             })
           );

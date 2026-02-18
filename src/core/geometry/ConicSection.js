@@ -53,6 +53,7 @@ export class ConicSection {
     viewport = null;
     normalize = true;
     roundOff = true;
+    metric = Pn.EUCLIDEAN;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1], normalize = true) {
         // console.log('ConicSection constructor called with initArray = ', initArray);
@@ -198,18 +199,10 @@ export class ConicSection {
         }
         C = Rn.bilinearForm(this.Q, centerPoint, centerPoint);
         const npts = this.numPoints;
-        const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-10, -10, 20, 20);
+        const myVP = this.viewport ? this.viewport.expand(.1) : new Rectangle2D(-2, -2, 4, 4);
         const tvals = new Array(npts).fill(0).map((_, i) => (2*Math.PI * i) / (npts-1));  // wrap around to 2*Pi.
         const edges = new Array(npts-1).fill(0).map((_, i) => [i, (i+1)]);
-        // let pts3 = null;
-        // if (this.useSylvParam) {
-        //     // all regular conics have this form in sylvester normal form
-        //     let Dpts3 = tvals.map(t => [Math.cos(t), Math.sin(t), 1]);
-        //     pts3 = Dpts3.map(pt => Pn.dehomogenize(null, Rn.matrixTimesVector(null, newSylvester.P, pt)));
-        // } else {
-        //     pts3 = tvals.map(t => this.#pointCenter(t, C, centerPoint));
-        // }
-
+       
         const pts3 = tvals.map(t => this.useSylvParam ? this.#pointSylvester(t, sylvesterP) : this.#pointCenter(t, C, centerPoint));
         const evals = pts3.map(pt => Math.abs(Rn.bilinearForm(this.Q, pt, pt))/Rn.innerProduct(pt, pt));
         const maxEval = Math.max(...evals);
@@ -228,8 +221,8 @@ export class ConicSection {
             const [p1, p2] = [pts3[i1], pts3[i2]];  // and its endpoints
             // This segment check against viewport should be more careful. 
             // It could still cut off the corner of the viewport
-            if (!myVP.contains(p1[0], p1[1]) && !myVP.contains(p2[0], p2[1])) {
-                continue;
+            if (this.metric === Pn.EUCLIDEAN && !myVP.contains(p1[0], p1[1]) && !myVP.contains(p2[0], p2[1])) {
+                    continue;
             }
             const [t1, t2] = [tvals[i1], tvals[i2]];   // the times of the endpoints
             const [mid, tm] = [Rn.linearCombination(null, .5, p1, .5, p2), (t1 + t2) / 2];
@@ -249,7 +242,7 @@ export class ConicSection {
         logger.fine(-1, '# points = ', pts3.length);
         const ifsf = new IndexedLineSetFactory();
         ifsf.setVertexCount(pts3.length);
-        ifsf.setVertexCoordinates(pts3.map(pt => Rn.convert3To4(null, pt)));
+        ifsf.setVertexCoordinates(pts3.map(pt => this.#processPoint(pt)));
         ifsf.setEdgeCount(newedges.length);
         ifsf.setEdgeIndices(newedges);
         ifsf.update();
@@ -275,6 +268,14 @@ export class ConicSection {
         return Pn.dehomogenize(null, Rn.add(null, 
                     Rn.times(null, 2*A, centerPoint),  
                     Rn.times(null, (-B + Math.sqrt(d)), V)));
+    }
+
+    // normalize either to elliptic or to euclidean metric
+    #processPoint(pt) {
+         if (this.metric === Pn.ELLIPTIC) {
+            return Pn.homogenize(null, Pn.normalize(null, pt, this.metric));
+         }
+        return  Rn.convert3To4(null, pt);
     }
 
     // internal function:
@@ -315,6 +316,14 @@ export class ConicSection {
 
     getViewport() {
         return this.viewport;
+    }
+
+    setMetric(metric) {
+        this.metric = metric;
+        this.updateGeomRepn();
+    }
+    getMetric() {
+        return this.metric;
     }
 
     #updateDualCurveSGC() {
