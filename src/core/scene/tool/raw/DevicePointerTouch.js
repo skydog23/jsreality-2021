@@ -209,6 +209,7 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
       this.#pinchAccumulator = 0;
       const [id, p] = this.#activeTouches.entries().next().value;
       this.#primaryPointerId = id;
+      this.#emitPrimaryPress();
       this.#debugLog('return to one-finger mode');
       this.mouseMoved(p.x, p.y);
     }
