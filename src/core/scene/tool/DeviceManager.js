@@ -18,6 +18,7 @@ import { Camera } from '../Camera.js';
 import { getLogger } from '../../util/LoggingSystem.js';
 import { Level, Category } from '../../util/LoggingSystem.js';
 import { DeviceMouse } from './raw/DeviceMouse.js';
+import { DevicePointerTouch } from './raw/DevicePointerTouch.js';
 import { DeviceKeyboard } from './raw/DeviceKeyboard.js';
 import { DeviceSystemTimer } from './raw/DeviceSystemTimer.js';
 import { PollingDevice } from './raw/PollingDevice.js';
@@ -156,6 +157,8 @@ export class DeviceManager {
     // Map class names to actual device classes
     if (className === 'DeviceMouse') {
       return new DeviceMouse();
+    } else if (className === 'DevicePointerTouch') {
+      return new DevicePointerTouch();
     } else if (className === 'DeviceKeyboard') {
       return new DeviceKeyboard();
     } else if (className === 'DeviceSystemTimer') {

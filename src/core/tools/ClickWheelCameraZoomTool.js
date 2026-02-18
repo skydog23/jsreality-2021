@@ -44,7 +44,7 @@ export class ClickWheelCameraZoomTool extends AbstractTool {
     const source = tc.getSource();
     if (source === InputSlot.getDevice('PrimaryUp') ||
         source === InputSlot.getDevice('WheelUp')) {
-      this.wheel = 1;
+        this.wheel = 1;
     } else if (source === InputSlot.getDevice('PrimaryDown') ||
                source === InputSlot.getDevice('WheelDown')) {
       this.wheel = -1;

@@ -176,7 +176,7 @@ export class DeviceMouse extends AbstractDeviceMouse {
       logger.fine(-1,"slot = ", slot);
       if (slot != null) {
         // Emit a single pulse per browser wheel callback.
-        // Additional coalescing is handled in ToolEventQueue to avoid lag.
+        // Queue replacement logic in ToolEventQueue helps prevent backlog.
         const count = 1;
         logger.fine(
           Category.ALL,

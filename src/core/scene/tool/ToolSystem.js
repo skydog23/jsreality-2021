@@ -441,6 +441,7 @@ export class ToolSystem extends ToolEventReceiver {
     return new ToolSystemConfiguration({
       rawConfigs: [
         new RawDeviceConfig('DeviceMouse', 'Mouse', {}),
+        new RawDeviceConfig('DevicePointerTouch', 'Touch', {}),
         new RawDeviceConfig('DeviceKeyboard', 'Keyboard', {}),
         new RawDeviceConfig('DeviceSystemTimer', 'Timer', {})
       ],
@@ -455,6 +456,12 @@ export class ToolSystem extends ToolEventReceiver {
         new RawMapping('Mouse', 'axesEvolution', InputSlot.POINTER_EVOLUTION),
         new RawMapping('Mouse', 'wheel_up', InputSlot.WHEEL_UP),
         new RawMapping('Mouse', 'wheel_down', InputSlot.WHEEL_DOWN),
+        // Touch mappings (V1): one-finger drag and two-finger pan share pointer axes.
+        new RawMapping('Touch', 'touch_primary', InputSlot.LEFT_BUTTON),
+        new RawMapping('Touch', 'touch_axes', InputSlot.POINTER_NDC),
+        new RawMapping('Touch', 'touch_axesEvolution', InputSlot.POINTER_EVOLUTION),
+        new RawMapping('Touch', 'touch_wheel_up', InputSlot.WHEEL_UP),
+        new RawMapping('Touch', 'touch_wheel_down', InputSlot.WHEEL_DOWN),
         // Keyboard mappings (common keys)
         new RawMapping('Keyboard', 'VK_W', InputSlot.VK_W),
         new RawMapping('Keyboard', 'VK_A', InputSlot.VK_A),

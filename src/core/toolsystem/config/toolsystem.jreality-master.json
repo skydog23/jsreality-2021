@@ -104,6 +104,7 @@
   ],
   "rawConfigs": [
     { "rawDevice": "DeviceMouse", "deviceID": "Mouse", "config": {} },
+    { "rawDevice": "DevicePointerTouch", "deviceID": "Touch", "config": {} },
     { "rawDevice": "DeviceKeyboard", "deviceID": "Keyboard", "config": {} },
     { "rawDevice": "DeviceSystemTimer", "deviceID": "SystemTimer", "config": {} }
   ],
@@ -115,6 +116,11 @@
     { "deviceID": "Mouse", "sourceSlot": "wheel_down", "targetSlot": "WheelDown" },
     { "deviceID": "Mouse", "sourceSlot": "axes", "targetSlot": "PointerNDC" },
     { "deviceID": "Mouse", "sourceSlot": "axesEvolution", "targetSlot": "PointerNDCevolution" },
+    { "deviceID": "Touch", "sourceSlot": "touch_primary", "targetSlot": "PrimaryAction" },
+    { "deviceID": "Touch", "sourceSlot": "touch_axes", "targetSlot": "PointerNDC" },
+    { "deviceID": "Touch", "sourceSlot": "touch_axesEvolution", "targetSlot": "PointerNDCevolution" },
+    { "deviceID": "Touch", "sourceSlot": "touch_wheel_up", "targetSlot": "WheelUp" },
+    { "deviceID": "Touch", "sourceSlot": "touch_wheel_down", "targetSlot": "WheelDown" },
 
     { "deviceID": "Keyboard", "sourceSlot": "VK_SPACE", "targetSlot": "JumpActivation" },
     { "deviceID": "Keyboard", "sourceSlot": "VK_SHIFT", "targetSlot": "Secondary" },
