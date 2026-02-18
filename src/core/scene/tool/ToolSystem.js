@@ -441,7 +441,7 @@ export class ToolSystem extends ToolEventReceiver {
     return new ToolSystemConfiguration({
       rawConfigs: [
         new RawDeviceConfig('DeviceMouse', 'Mouse', {}),
-        new RawDeviceConfig('DevicePointerTouch', 'Touch', {}),
+        new RawDeviceConfig('DevicePointerTouch', 'Touch', {debug: true}),
         new RawDeviceConfig('DeviceKeyboard', 'Keyboard', {}),
         new RawDeviceConfig('DeviceSystemTimer', 'Timer', {})
       ],
