@@ -27,7 +27,7 @@ import { Level, Category, setModuleLevel } from '../../util/LoggingSystem.js';
 
 // Module-level logger shared by ToolSystem and helpers in this file
 const logger = getLogger('jsreality.core.scene.tool.ToolSystem');
-setModuleLevel(logger.getModuleName(), Level.INFO);
+setModuleLevel(logger.getModuleName(), Level.FINE);
 
 // Slots that should activate tools without picking (global activation).
 const GLOBAL_ACTIVATION_SLOTS = new Set([
@@ -441,7 +441,10 @@ export class ToolSystem extends ToolEventReceiver {
     return new ToolSystemConfiguration({
       rawConfigs: [
         new RawDeviceConfig('DeviceMouse', 'Mouse', {}),
-        new RawDeviceConfig('DevicePointerTouch', 'Touch', {debug: true}),
+        new RawDeviceConfig('DevicePointerTouch', 'Touch', {
+          debug: true,
+          pinchPulseThresholdPx: 20
+        }),
         new RawDeviceConfig('DeviceKeyboard', 'Keyboard', {}),
         new RawDeviceConfig('DeviceSystemTimer', 'Timer', {})
       ],

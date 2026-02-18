@@ -104,7 +104,7 @@
   ],
   "rawConfigs": [
     { "rawDevice": "DeviceMouse", "deviceID": "Mouse", "config": {} },
-    { "rawDevice": "DevicePointerTouch", "deviceID": "Touch", "config": {"debug": true} },
+    { "rawDevice": "DevicePointerTouch", "deviceID": "Touch", "config": { "debug": true, "pinchPulseThresholdPx": 20 } },
     { "rawDevice": "DeviceKeyboard", "deviceID": "Keyboard", "config": {} },
     { "rawDevice": "DeviceSystemTimer", "deviceID": "SystemTimer", "config": {} }
   ],

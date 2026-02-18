@@ -31,7 +31,7 @@ const KNOWN_SOURCES = new Set([
   SOURCE_TOUCH_WHEEL_DOWN
 ]);
 
-const PINCH_PULSE_THRESHOLD_PX = 20;
+const DEFAULT_PINCH_PULSE_THRESHOLD_PX = 20;
 
 /**
  * Pointer/touch raw device for mobile and tablet input.
@@ -72,6 +72,9 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
   /** @type {boolean} */
   #debug = false;
 
+  /** @type {number} */
+  #pinchPulseThresholdPx = DEFAULT_PINCH_PULSE_THRESHOLD_PX;
+
   /**
    * Initialize touch device with viewer component.
    * @param {import('../../Viewer.js').Viewer} viewer
@@ -79,6 +82,7 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
    */
   initialize(viewer, config) {
     this.#debug = !!(config && config.debug === true);
+    this.#pinchPulseThresholdPx = this.#readPinchThreshold(config);
     if (!viewer.hasViewingComponent()) {
       throw new Error('Viewer must have a viewing component');
     }
@@ -97,7 +101,9 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
     if (!(component instanceof HTMLElement)) {
       throw new Error('Viewing component must be an HTMLElement');
     }
-    this.#debugLog(`initialize(debug=${this.#debug})`);
+    this.#debugLog(
+      `initialize(debug=${this.#debug}, pinchPulseThresholdPx=${this.#pinchPulseThresholdPx})`
+    );
     this.setElement(component);
   }
 
@@ -229,14 +235,14 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
     this.#lastPinchDistance = currentDistance;
     this.#pinchAccumulator += delta;
 
-    while (this.#pinchAccumulator >= PINCH_PULSE_THRESHOLD_PX) {
+    while (this.#pinchAccumulator >= this.#pinchPulseThresholdPx) {
       this.#emitWheelPulse(SOURCE_TOUCH_WHEEL_DOWN);
-      this.#pinchAccumulator -= PINCH_PULSE_THRESHOLD_PX;
+      this.#pinchAccumulator -= this.#pinchPulseThresholdPx;
       this.#debugLog('pinch pulse: wheel_down');
     }
-    while (this.#pinchAccumulator <= -PINCH_PULSE_THRESHOLD_PX) {
+    while (this.#pinchAccumulator <= -this.#pinchPulseThresholdPx) {
       this.#emitWheelPulse(SOURCE_TOUCH_WHEEL_UP);
-      this.#pinchAccumulator += PINCH_PULSE_THRESHOLD_PX;
+      this.#pinchAccumulator += this.#pinchPulseThresholdPx;
       this.#debugLog('pinch pulse: wheel_up');
     }
   }
@@ -312,6 +318,15 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
       throw new Error(`Unknown raw device: ${rawDeviceName}`);
     }
     this.getUsedSources().set(rawDeviceName, inputDevice);
+    // AbstractDeviceMouse.mouseMoved() looks up canonical keys "axes" and
+    // "axesEvolution". Mirror touch mappings so touch updates drive pointer
+    // transformation and evolution through the existing pipeline.
+    if (rawDeviceName === SOURCE_TOUCH_AXES) {
+      this.getUsedSources().set('axes', inputDevice);
+    }
+    if (rawDeviceName === SOURCE_TOUCH_AXES_EVOLUTION) {
+      this.getUsedSources().set('axesEvolution', inputDevice);
+    }
     if (rawDeviceName === SOURCE_TOUCH_AXES) {
       const matrix = Rn.identityMatrix(4);
       return ToolEvent.createWithTransformation(this, Date.now(), inputDevice, matrix);
@@ -372,6 +387,19 @@ export class DevicePointerTouch extends AbstractDeviceMouse {
   #debugLog(message) {
     if (!this.#debug) return;
     logger.info(Category.ALL, `[DevicePointerTouch] ${message}`);
+  }
+
+  /**
+   * Read pinch threshold from raw-device config.
+   * @param {Object} config
+   * @returns {number}
+   */
+  #readPinchThreshold(config) {
+    const value = config?.pinchPulseThresholdPx;
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+    return DEFAULT_PINCH_PULSE_THRESHOLD_PX;
   }
 }
 
