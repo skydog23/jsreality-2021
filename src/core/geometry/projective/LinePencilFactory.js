@@ -141,29 +141,45 @@ export class LinePencilFactory {
     for (let i = 0; i < this.numLines; i++) {
       indices[i] = new Array(this.numberJoints + (this.finiteSphere ? 0 : 1));
     }
-    const verts = new Array(this.numLines * this.numberJoints).fill(0).map(() => new Array(4));
+    // IMPORTANT: use Array.from to allocate actual rows (new Array(...).map keeps holes).
+    // PointRangeFactory writes into these rows via shared reference + offset.
+    const verts = Array.from(
+      { length: this.numLines * this.numberJoints },
+      () => new Array(4).fill(0)
+    );
     this.pluckerLines = new Array(this.numLines);
     if (this.pluckerLinesSet == null) this.computeLines();
     else this.pluckerLines = this.pluckerLinesSet;
     let foo = 0;
     for (let i = 0; i < this.numLines; ++i) {
       foo = i * this.numberJoints;
-      const lf = new PointRangeFactory();
-      lf.setNumberOfSamples(this.numberJoints);
-      lf.setOffset(foo);
-      lf.setVertices(verts);
-      // TODO figure out why I do the following: looks like I should set the pluecker line OR the two elements.
-      lf.setPluckerLine(this.pluckerLines[i]);
-      // lf.setElement0(point);
-      // lf.setElement1(samples[i]);
-      lf.setSphereRadius(this.sphereRadius);
-      lf.setCenter(this.point);
-      lf.setDoubled(!this.finiteSphere);
-      lf.setFiniteSphere(this.finiteSphere);
-      lf.update();
-      for (let j = 0; j <= this.numberJoints; ++j) {
-        if (j < this.numberJoints || !this.finiteSphere) indices[i][j] = foo + (j % this.numberJoints);
+      if (this.finiteSphere) {
+        // do it by hand
+        let dir = [this.pluckerLines[i][2], -this.pluckerLines[i][4], 0, 0];
+        dir = Pn.normalize(null, dir, Pn.ELLIPTIC);
+        dir = Rn.times(null, this.sphereRadius, dir);
+        verts[foo] = Rn.add(null, this.point, dir);
+        verts[foo + 1] = Rn.subtract(null, this.point, dir);
+        indices[i] = [foo, foo + 1];
+      } else {
+        const lf = new PointRangeFactory();
+        lf.setNumberOfSamples(this.numberJoints);
+        lf.setOffset(foo);
+        lf.setVertices(verts);
+        // TODO figure out why I do the following: looks like I should set the pluecker line OR the two elements.
+        lf.setPluckerLine(this.pluckerLines[i]);
+        // lf.setElement0(point);
+        // lf.setElement1(samples[i]);
+        lf.setSphereRadius(10*this.sphereRadius);
+        lf.setCenter(this.point);
+        lf.setDoubled(!this.finiteSphere);
+        lf.setFiniteSphere(this.finiteSphere);
+        lf.update();
+        for (let j = 0; j <= this.numberJoints; ++j) {
+          if (j < this.numberJoints || !this.finiteSphere) indices[i][j] = foo + (j % this.numberJoints);
+        }
       }
+
     }
     const ifsf = new IndexedLineSetFactory();
     ifsf.setVertexCount(verts.length);
@@ -224,7 +240,7 @@ export class LinePencilFactory {
     lpf.plane = intersectionPlane(lpf.plane, line0, line1);
     lpf.line0 = line0;
     lpf.line1 = line1;
-    // lpf.update();
+     // lpf.update();
     return lpf;
   }
 
@@ -254,8 +270,7 @@ export class LinePencilFactory {
     for (let i = 0; i < pts.length; ++i) {
       pts[i] = intersectionPoint(null, line, lpf.pluckerLines[i]);
       Pn.dehomogenize(pts[i], pts[i]);
-      console.log(`intersection = ${Rn.toString(pts[i])}`);
-    }
+     }
     return pts;
   }
 }

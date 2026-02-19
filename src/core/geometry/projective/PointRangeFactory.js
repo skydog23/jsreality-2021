@@ -116,7 +116,7 @@ export class PointRangeFactory extends Abstract1DExtentFactory {
       if (this.samples == null) {
         this.samples = new Array(this.numSegs).fill(0).map(() => new Array(4).fill(0));
       }
-      isValid = this.intersectLineWithSphere(this.cutpoints, 0, this.element0, this.element1, this.oldPoint, this.sphereRadius);
+      isValid = this.intersectLineWithSphere(this.cutpoints, 0, this.element0, this.element1, this.center, this.sphereRadius);
       if (isValid) {
         if (this.numSegs >= 2) {
           for (let i = 0; i < this.numSegs; ++i) {

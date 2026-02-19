@@ -579,7 +579,11 @@ export function dragTowards(dst, p0, p1, length, metric) {
             norm += dir[i] * dir[i];
         }
         norm = Math.sqrt(norm);
-        if (norm === 0) return null;
+        if (norm === 0) {
+            for (let i = 0; i < dp0.length; i++) dst[i] = dp0[i];
+            if (dst.length > 0) dst[dst.length - 1] = 1;
+            return dst;
+        }
         
         const scale = length / norm;
         for (let i = 0; i < dp0.length; i++) {
@@ -590,7 +594,10 @@ export function dragTowards(dst, p0, p1, length, metric) {
     }
     
     const angle = angleBetween(np0, np1, metric);
-    if (angle === 0) return null;
+    if (angle === 0) {
+        for (let i = 0; i < np0.length; i++) dst[i] = np0[i];
+        return dst;
+    }
     
     const t = length / angle;
     return linearInterpolation(dst, np0, np1, t, metric);

@@ -174,7 +174,7 @@ export class DualizeSceneGraph {
     const vals = [DualizeSceneGraph.metric * p3, 0, -pt[1], 0, -pt[0], 0];
     if (line == null) return vals;
     for (let i = 0; i < 6; i++) line[i] = vals[i];
-    return line;
+     return line;
   }
 
   isFiniteLines() {
@@ -323,8 +323,10 @@ class DualizeVisitor extends SceneGraphVisitor {
     const eColorDl = p.getEdgeAttribute(GeometryAttribute.COLORS);
     if (eColorDl) ecolors = fromDataList(eColorDl);
     const numEdges = edges.length;
+    console.log('#edges = ', numEdges, '#ecolors = ', ecolors?.length); 
     if (verts[0].length === 3) verts = Pn.homogenize(null, verts);
     const dualPoints = [];
+    const dualColors = [];
     const dualPointsSGC = new SceneGraphComponent('dual points');
     this.currentDualSGC.addChild(dualPointsSGC);
 
@@ -336,17 +338,21 @@ class DualizeVisitor extends SceneGraphVisitor {
       edgeSGC.setAppearance(new Appearance());
       this.currentDualSGC.addChild(edgeSGC);
       edgeSGC.getAppearance().setAttribute(VERTEX_DRAW, false);
+      let color = null;
       if (ecolors != null) {
         const j = i;
-        const color = DualizeVisitor.#toColor(ecolors[j]);
+        color = DualizeVisitor.#toColor(ecolors[j]);
         edgeSGC.getAppearance().setAttribute('lineShader.diffuseColor', color);
         edgeSGC.getAppearance().setAttribute('pointShader.diffuseColor', color);
       }
       const doFans = this.eap.getAttribute(DualizeSceneGraph.DO_FANS, true);
+     
       for (let j = 0; j < numFans; ++j) {
         dualPoints.push(
           intersectionPoint(null, this.dualLines[edge[j]], this.dualLines[edge[(j + 1) % edge.length]])
         );
+        if (color != null) dualColors.push(color);
+
         if (!doFans) continue;
         let lpf = null;
         lpf = LinePencilFactory.linePencilFactoryForIntersectingLines(
@@ -367,7 +373,9 @@ class DualizeVisitor extends SceneGraphVisitor {
     const dualPointA = dualPoints;
     psf.setVertexCount(dualPointA.length);
     psf.setVertexCoordinates(dualPointA);
-    if (ecolors != null && ecolors.length === dualPointA.length) psf.setVertexColors(ecolors);
+    if (dualColors.length === dualPointA.length) psf.setVertexColors(dualColors);
+    console.log('#dual pts = ', dualPointA.length, '#ecolors = ', ecolors?.length);
+    // if (ecolors != null && ecolors.length === dualPointA.length) psf.setVertexColors(ecolors);
     psf.update();
     dualPointsSGC.setGeometry(psf.getPointSet());
   }

@@ -150,6 +150,7 @@ export function intersectionPointUnchecked(dst, line0, line1) {
   dst[1] = mm[bestColumn + 4];
   dst[2] = mm[bestColumn + 8];
   dst[3] = mm[bestColumn + 12];
+  Pn.dehomogenize(dst, dst);
   return dst;
 }
 
