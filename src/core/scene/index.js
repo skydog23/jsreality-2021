@@ -26,6 +26,7 @@ export * from './SceneGraphVisitor.js';
 // Core scene graph
 export * from './SceneGraphComponent.js';
 export * from './SceneGraphPath.js';
+export * from './SelectionComponent.js';
 export * from './Transformation.js';
 export * from './Viewer.js';
 

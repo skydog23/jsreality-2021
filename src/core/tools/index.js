@@ -14,6 +14,10 @@
 
 export { RotateTool } from './RotateTool.js';
 export { TranslateTool } from './TranslateTool.js';
+export { RotateShapeTool } from './RotateShapeTool.js';
+export { TranslateShapeTool } from './TranslateShapeTool.js';
+export { FlyTool } from './FlyTool.js';
+export { AllroundTool } from './AllroundTool.js';
 export { DraggingTool } from './DraggingTool.js';
 export { ClickWheelCameraZoomTool } from './ClickWheelCameraZoomTool.js';
 

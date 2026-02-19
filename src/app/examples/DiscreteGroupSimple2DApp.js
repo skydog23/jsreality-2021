@@ -49,7 +49,7 @@ export class DiscreteGroupSimple2DApp extends JSRApp {
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(`polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(170, 210, 245));
-    ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(30, 30, 30));
+    ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(200, 50,50));
     ap.setAttribute(CommonAttributes.TRANSPARENCY_ENABLED, false);
 
     this._dgsgr = new DiscreteGroupSceneGraphRepresentation(group, false, 'Simple2D');

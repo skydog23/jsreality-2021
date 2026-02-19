@@ -10,6 +10,7 @@
 // Utility functions and classes
 
 export * as CameraUtility from './CameraUtility.js';
+export { CameraUtilityOverflow } from './CameraUtilityOverflow.js';
 export { Color } from './Color.js';
 export { SceneGraphUtility } from './SceneGraphUtility.js';
 export { CopyVisitor } from './CopyVisitor.js';

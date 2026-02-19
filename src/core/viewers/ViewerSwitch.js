@@ -274,6 +274,9 @@ export class ViewerSwitch extends Viewer {
     };
 
     const keyHandler = (event) => {
+      // Prevent the original keyboard event from also bubbling to the wrapper;
+      // we forward a cloned event explicitly to keep listener behavior stable.
+      event.stopPropagation();
       dispatcher.handleKeyEvent(event);
     };
 
