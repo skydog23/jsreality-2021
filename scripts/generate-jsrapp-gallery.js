@@ -15,6 +15,7 @@ import path from 'path';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const EXAMPLES_DIR = path.join(ROOT, 'src', 'app', 'examples');
 const OUTPUT_FILE = path.join(ROOT, 'test', 'jsrapp-gallery.html');
+const THUMBNAIL_DIR = path.join(ROOT, 'test', 'resources', 'gallery');
 
 const HTML_HEAD = `<!DOCTYPE html>
 <html lang="en">
@@ -78,6 +79,36 @@ const HTML_HEAD = `<!DOCTYPE html>
       font-size: 13px;
       color: #aaa;
       margin: 0;
+    }
+    .card-thumb {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #1b1b1b;
+      margin: 4px 0;
+    }
+    .card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .card-thumb-link {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .card-thumb-empty {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 12px;
+      letter-spacing: 0.3px;
     }
     .card-meta {
       font-size: 11px;
@@ -162,6 +193,34 @@ function extractReturnString(source, methodName) {
   return match ? match[1] : null;
 }
 
+function extractReturnBoolean(source, methodName) {
+  const re = new RegExp(`${methodName}\\s*\\(\\)\\s*\\{[\\s\\S]*?return\\s+(true|false)\\s*;?`, 'm');
+  const match = source.match(re);
+  if (!match) return null;
+  return match[1] === 'true';
+}
+
+function extractClassBlock(source, className) {
+  const classRe = new RegExp(`export\\s+class\\s+${className}\\s+extends\\s+JSRApp\\b`);
+  const startMatch = classRe.exec(source);
+  if (!startMatch) return null;
+  const startIdx = startMatch.index;
+  const braceStart = source.indexOf('{', startIdx);
+  if (braceStart < 0) return null;
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return source.slice(braceStart + 1, i);
+      }
+    }
+  }
+  return null;
+}
+
 function extractJsrAppClasses(source) {
   const classes = [];
   const re = /export\s+class\s+([A-Za-z0-9_]+)\s+extends\s+JSRApp\b/g;
@@ -172,10 +231,30 @@ function extractJsrAppClasses(source) {
   return classes;
 }
 
-const files = fs
-  .readdirSync(EXAMPLES_DIR)
-  .filter((name) => name.endsWith('.js'))
-  .sort((a, b) => a.localeCompare(b));
+function collectExampleFilesRecursive(baseDir) {
+  const results = [];
+
+  function walk(currentDir) {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith('.js')) continue;
+
+      const rel = path.relative(baseDir, fullPath).split(path.sep).join('/');
+      results.push(rel);
+    }
+  }
+
+  walk(baseDir);
+  results.sort((a, b) => a.localeCompare(b));
+  return results;
+}
+
+const files = collectExampleFilesRecursive(EXAMPLES_DIR);
 
 const cards = [];
 for (const file of files) {
@@ -187,17 +266,31 @@ for (const file of files) {
   if (classes.length === 0) continue;
 
   for (const className of classes) {
-    const helpTitle = extractReturnString(source, 'getHelpTitle') || className;
-    const helpSummary = extractReturnString(source, 'getHelpSummary') || 'Example app.';
+    const classBlock = extractClassBlock(source, className) || source;
+    const isDraft = extractReturnBoolean(classBlock, 'isDraft') === true;
+    if (isDraft) continue;
+
+    const helpTitle = extractReturnString(classBlock, 'getHelpTitle') || className;
+    const helpSummary = extractReturnString(classBlock, 'getHelpSummary') || 'Example app.';
+    const thumbnailPath = path.join(THUMBNAIL_DIR, `${className}.png`);
+    const hasThumbnail = fs.existsSync(thumbnailPath);
 
     const href = `./test-jsrapp-example.html?module=../${modulePath}`
       + `&class=${encodeURIComponent(className)}`
       + `&title=${encodeURIComponent(helpTitle)}`
       + `&subtitle=${encodeURIComponent(helpSummary)}`;
 
+    const thumbInner = hasThumbnail
+      ? `<img src="./resources/gallery/${encodeURIComponent(className)}.png" alt="${escapeHtml(helpTitle)} thumbnail" loading="lazy" />`
+      : `<div class="card-thumb-empty">No thumbnail</div>`;
+    const thumbHtml = `<a class="card-thumb-link" href="${href}" target="_blank">${thumbInner}</a>`;
+
     cards.push(`      <article class="card">
         <h2 class="card-title">${escapeHtml(helpTitle)}</h2>
         <p class="card-subtitle">${escapeHtml(helpSummary)}</p>
+        <div class="card-thumb">
+          ${thumbHtml}
+        </div>
         <div class="card-meta">
           Module: <code>${escapeHtml(modulePath)}</code>
         </div>

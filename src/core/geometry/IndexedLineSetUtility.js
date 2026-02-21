@@ -204,7 +204,6 @@ export class IndexedLineSetUtility {
     }
     if (occurrences === 0) return;
     
-    console.warn("removing # " + occurrences);
     const newedge = new Array(edges[edgeIndex].length - occurrences);
     let outcount = 0;
     for (let i = 0; i < edges[edgeIndex].length; ++i) {
@@ -251,10 +250,8 @@ export class IndexedLineSetUtility {
         euclideanAngle = Math.PI - euclideanAngle;
         angles[j][i] = euclideanAngle;
       }
-      console.warn("total = " + total);
-      for (let k = 0; k < angles[j].length; ++k) {
+       for (let k = 0; k < angles[j].length; ++k) {
         if (total < 0.0) angles[j][k] = Math.PI * 2.0 - angles[j][k];
-        console.warn("angle = " + angles[j][k]);
       }
     }
     
@@ -288,7 +285,6 @@ export class IndexedLineSetUtility {
       const which = thisEdge[j];
       output[j] = [...vertsArray[which]]; // Copy the vertex array
     }
-    console.log('output: ', output);
     return output;
   }
   

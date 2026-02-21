@@ -153,6 +153,10 @@ export class InputSlot {
   static VK_A = InputSlot.getDevice("VK_A");
   static VK_S = InputSlot.getDevice("VK_S");
   static VK_D = InputSlot.getDevice("VK_D");
+  static VK_UP = InputSlot.getDevice("VK_UP");
+  static VK_DOWN = InputSlot.getDevice("VK_DOWN");
+  static VK_LEFT = InputSlot.getDevice("VK_LEFT");
+  static VK_RIGHT = InputSlot.getDevice("VK_RIGHT");
   static VK_CONTROL = InputSlot.getDevice("VK_CONTROL");
   static VK_ALT = InputSlot.getDevice("VK_ALT");
   

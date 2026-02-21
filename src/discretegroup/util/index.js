@@ -1,11 +1,10 @@
 /**
- * JavaScript port/translation of jReality.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
- * Schmies, Steffen Weissmann.
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
+ * JavaScript port/translation of a Charles Gunn Java codebase.
+ *
+ * Copyright (c) 2008–2026, Charles Gunn
+ *
+ * Licensed under the BSD 3-Clause License. See LICENSE for details.
+ * Contributors retain copyright to their contributions.
  */
 
 export { TranslateTool } from './TranslateTool.js';

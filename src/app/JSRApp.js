@@ -25,6 +25,7 @@ import { AnimationPlugin } from '../anim/plugins/AnimationPlugin.js';
 import { PluginIds } from './plugin/PluginIds.js';
 import { ClickWheelCameraZoomTool } from '../core/tools/ClickWheelCameraZoomTool.js';
 import { EncompassTool } from '../core/tools/EncompassTool.js'; 
+import { FlyTool } from '../core/tools/FlyTool.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -134,18 +135,14 @@ export class JSRApp extends JSRPlugin {
     this.#inspectorConfig = inspector;
     this.#shrinkPanelConfig = shrinkPanel;
     
-    // Create JSRViewer immediately (JSRApp owns it)
-    // But defer getContent() call to install() method
-    this.#jsrViewer = new JSRViewer({
-      container,
-      viewerTypes
-    });
-    
-    // Register plugins (mirrors Assignment.java: subclasses can override the list).
-    // NOTE: This is asynchronous. Callers that need plugins installed (e.g. before
-    // calling display()) should await `whenReady()`.
+    // Create JSRViewer + register plugins asynchronously.
+    // NOTE: Callers that need plugins installed should await `whenReady()`.
     this.#readyPromise = Promise.resolve().then(async () => {
       try {
+        this.#jsrViewer = await JSRViewer.create({
+          container,
+          viewerTypes
+        });
         for (const plugin of this.getPluginsToRegister()) {
           await this.#jsrViewer.registerPlugin(plugin);
         }
@@ -223,6 +220,9 @@ export class JSRApp extends JSRPlugin {
     return '';
   }
 
+  isDraft() {
+    return false;
+  }
   /**
    * Link to documentation for this application.
    * May be:
@@ -267,7 +267,7 @@ export class JSRApp extends JSRPlugin {
     // Ensure we have a viewer (should be the one we created)
     if (!this.#jsrViewer) {
       // Create JSRViewer with stored options
-      this.#jsrViewer = new JSRViewer({
+      this.#jsrViewer = await JSRViewer.create({
         container: this.#container,
         viewerTypes: this.#viewerTypes
       });
@@ -294,6 +294,7 @@ export class JSRApp extends JSRPlugin {
     // Content (and its tools) may be created after the ToolSystem was initialized,
     // so we trigger a rediscovery pass here.
     const toolSystem = this.#jsrViewer.getToolSystem();
+    this._toolSystem = toolSystem || null;
     if (toolSystem && typeof toolSystem.rediscoverSceneTools === 'function') {
       toolSystem.rediscoverSceneTools();
     }
@@ -461,23 +462,23 @@ export class JSRApp extends JSRPlugin {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
     
+    const camNode =CameraUtility.getCameraNode(this.getViewer());
+    camNode.addTool(new FlyTool());
+    this.getToolSystem()?.rediscoverSceneTools?.();
+
+
     this.#jsrViewer.getViewer().render();
     
-    
-    // // Refresh inspector if it exists (plugin may have created it)
-    // const controller = this.#jsrViewer.getController?.();
-    // const inspectorPlugin = controller?.getPlugin?.(PluginIds.SCENE_GRAPH_INSPECTOR) || null;
-    // const inspector = inspectorPlugin?.getInspector?.() || null;
-    // inspector?.refresh?.();
+  
   }
 
   setup3DCamera() {
     const camera = CameraUtility.getCamera(this.getViewer());
      camera.setFieldOfView(30);
-    camera.setPerspective(true);
-    camera.setNear(0.1);
-    camera.setFar(100);
-    CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
+     camera.setPerspective(true);
+     camera.setNear(0.1);
+     camera.setFar(100);
+     CameraUtility.getCameraNode(this.getViewer()).getTransformation().setMatrix(
       MatrixBuilder.euclidean().translate(0, 0, 4).getArray());
   }
 

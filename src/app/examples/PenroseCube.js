@@ -1,10 +1,9 @@
 /**
- * JavaScript port/translation of a Charles Gunn Java codebase.
- *
- * Copyright (c) 2008–2026, Charles Gunn
- *
- * Licensed under the BSD 3-Clause License. See LICENSE for details.
- * Contributors retain copyright to their contributions.
+* 
+ * Copyright (c) 2025-2026, jsReality Contributors
+ 
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 
@@ -39,6 +38,10 @@ export class PenroseCube extends JSRApp {
  
   getShowPanels() {
     return [true, true, false, true];
+  }
+
+  getHelpSummary() {
+    return 'Explore the space of Penrose 8-conic cubes.'
   }
   _colors = [Color.RED, Color.YELLOW, new Color(75, 75, 255)];
   _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];

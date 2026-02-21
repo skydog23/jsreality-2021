@@ -55,8 +55,7 @@ export class PolygonalTubeFactory extends TubeFactory {
    * @returns {number[][]|null}
    */
   _makeTube(curve, radii, xsec, frameType, closed, metric, twists) {
-    console.log('makeTube', frameType);
-    if (!curve || curve.length === 0) return null;
+     if (!curve || curve.length === 0) return null;
     if (curve[0].length !== 4) {
       throw new Error('PolygonalTubeFactory: curve points must have dimension 4.');
     }
@@ -179,8 +178,7 @@ export class PolygonalTubeFactory extends TubeFactory {
       this._twists
     );
 
-    console.log('frame field type', this._frameFieldType);
-    if (this._theTubeVertices == null) return;
+     if (this._theTubeVertices == null) return;
 
     this._qmf = new QuadMeshFactory();
     this._qmf.setMetric(this._metric);

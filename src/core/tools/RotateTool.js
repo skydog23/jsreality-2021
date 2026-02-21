@@ -213,8 +213,7 @@ export class RotateTool extends AbstractTool {
 		this.evolution.conjugateBy(root2toComp);
 		this.result.assignFrom(this.comp.getTransformation().getMatrix(null));
 		this.result.multiplyOnRight(this.evolution);
-		this.comp.getTransformation().setMatrix(P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6,
-    this.metric)); //this.result.getArray());
+		this.comp.getTransformation().setMatrix(this.result.getArray()); //P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6, this.metric)); //this.result.getArray());
     this.success = true;
 		tc.getViewer().renderAsync();
 

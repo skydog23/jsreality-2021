@@ -61,6 +61,36 @@
       color: #aaa;
       margin: 0;
     }
+    .card-thumb {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #1b1b1b;
+      margin: 4px 0;
+    }
+    .card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .card-thumb-link {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .card-thumb-empty {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+    }
     .card-meta {
       font-size: 11px;
       color: #777;
@@ -118,13 +148,35 @@
       <article class="card">
         <h2 class="card-title">DiscreteGroupCell120App</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupCell120App.js&class=DiscreteGroupCell120App&title=DiscreteGroupCell120App&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/DiscreteGroupCell120App.png" alt="DiscreteGroupCell120App thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
-          Module: <code>src/app/examples/DiscreteGroupCell120App.js</code>
+          Module: <code>src/app/examples/discretegroup/DiscreteGroupCell120App.js</code>
         </div>
         <div class="card-actions">
           <a
             class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/DiscreteGroupCell120App.js&class=DiscreteGroupCell120App&title=DiscreteGroupCell120App&subtitle=Example%20app."
+            href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupCell120App.js&class=DiscreteGroupCell120App&title=DiscreteGroupCell120App&subtitle=Example%20app."
+            target="_blank"
+          >
+            Open example
+          </a>
+        </div>
+      </article>
+      <article class="card">
+        <h2 class="card-title">Discrete Group Cube</h2>
+        <p class="card-subtitle">Platycosm c1 cube replicated by a Euclidean discrete group.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupCubeApp.js&class=DiscreteGroupCubeApp&title=Discrete%20Group%20Cube&subtitle=Platycosm%20c1%20cube%20replicated%20by%20a%20Euclidean%20discrete%20group." target="_blank"><div class="card-thumb-empty">No thumbnail</div></a>
+        </div>
+        <div class="card-meta">
+          Module: <code>src/app/examples/discretegroup/DiscreteGroupCubeApp.js</code>
+        </div>
+        <div class="card-actions">
+          <a
+            class="primary"
+            href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupCubeApp.js&class=DiscreteGroupCubeApp&title=Discrete%20Group%20Cube&subtitle=Platycosm%20c1%20cube%20replicated%20by%20a%20Euclidean%20discrete%20group."
             target="_blank"
           >
             Open example
@@ -134,13 +186,16 @@
       <article class="card">
         <h2 class="card-title">DiscreteGroupSimple2DApp</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupSimple2DApp.js&class=DiscreteGroupSimple2DApp&title=DiscreteGroupSimple2DApp&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/DiscreteGroupSimple2DApp.png" alt="DiscreteGroupSimple2DApp thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
-          Module: <code>src/app/examples/DiscreteGroupSimple2DApp.js</code>
+          Module: <code>src/app/examples/discretegroup/DiscreteGroupSimple2DApp.js</code>
         </div>
         <div class="card-actions">
           <a
             class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/DiscreteGroupSimple2DApp.js&class=DiscreteGroupSimple2DApp&title=DiscreteGroupSimple2DApp&subtitle=Example%20app."
+            href="./test-jsrapp-example.html?module=../src/app/examples/discretegroup/DiscreteGroupSimple2DApp.js&class=DiscreteGroupSimple2DApp&title=DiscreteGroupSimple2DApp&subtitle=Example%20app."
             target="_blank"
           >
             Open example
@@ -150,6 +205,9 @@
       <article class="card">
         <h2 class="card-title">GeometryGrabbagDemo</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/GeometryGrabbagDemo.js&class=GeometryGrabbagDemo&title=GeometryGrabbagDemo&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/GeometryGrabbagDemo.png" alt="GeometryGrabbagDemo thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/GeometryGrabbagDemo.js</code>
         </div>
@@ -165,30 +223,17 @@
       </article>
       <article class="card">
         <h2 class="card-title">PenroseCube</h2>
-        <p class="card-subtitle">Example app.</p>
+        <p class="card-subtitle">Explore the space of Penrose 8-conic cubes.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/PenroseCube.js&class=PenroseCube&title=PenroseCube&subtitle=Explore%20the%20space%20of%20Penrose%208-conic%20cubes." target="_blank"><img src="./resources/gallery/PenroseCube.png" alt="PenroseCube thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/PenroseCube.js</code>
         </div>
         <div class="card-actions">
           <a
             class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/PenroseCube.js&class=PenroseCube&title=PenroseCube&subtitle=Example%20app."
-            target="_blank"
-          >
-            Open example
-          </a>
-        </div>
-      </article>
-      <article class="card">
-        <h2 class="card-title">PolygonHitTest</h2>
-        <p class="card-subtitle">Example app.</p>
-        <div class="card-meta">
-          Module: <code>src/app/examples/PolygonHitTest.js</code>
-        </div>
-        <div class="card-actions">
-          <a
-            class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/PolygonHitTest.js&class=PolygonHitTest&title=PolygonHitTest&subtitle=Example%20app."
+            href="./test-jsrapp-example.html?module=../src/app/examples/PenroseCube.js&class=PenroseCube&title=PenroseCube&subtitle=Explore%20the%20space%20of%20Penrose%208-conic%20cubes."
             target="_blank"
           >
             Open example
@@ -198,6 +243,9 @@
       <article class="card">
         <h2 class="card-title">TessellatedSphereDemo</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/TessellatedSphereDemo.js&class=TessellatedSphereDemo&title=TessellatedSphereDemo&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/TessellatedSphereDemo.png" alt="TessellatedSphereDemo thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/TessellatedSphereDemo.js</code>
         </div>
@@ -212,24 +260,11 @@
         </div>
       </article>
       <article class="card">
-        <h2 class="card-title">TestAnimApp</h2>
-        <p class="card-subtitle">Example app.</p>
-        <div class="card-meta">
-          Module: <code>src/app/examples/TestAnimApp.js</code>
-        </div>
-        <div class="card-actions">
-          <a
-            class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/TestAnimApp.js&class=TestAnimApp&title=TestAnimApp&subtitle=Example%20app."
-            target="_blank"
-          >
-            Open example
-          </a>
-        </div>
-      </article>
-      <article class="card">
         <h2 class="card-title">TestDualizeVisitorApp</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/TestDualizeVisitorApp.js&class=TestDualizeVisitorApp&title=TestDualizeVisitorApp&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/TestDualizeVisitorApp.png" alt="TestDualizeVisitorApp thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/TestDualizeVisitorApp.js</code>
         </div>
@@ -244,24 +279,11 @@
         </div>
       </article>
       <article class="card">
-        <h2 class="card-title">TestToolApp</h2>
-        <p class="card-subtitle">Example app.</p>
-        <div class="card-meta">
-          Module: <code>src/app/examples/TestToolApp.js</code>
-        </div>
-        <div class="card-actions">
-          <a
-            class="primary"
-            href="./test-jsrapp-example.html?module=../src/app/examples/TestToolApp.js&class=TestToolApp&title=TestToolApp&subtitle=Example%20app."
-            target="_blank"
-          >
-            Open example
-          </a>
-        </div>
-      </article>
-      <article class="card">
         <h2 class="card-title">TubedTorusKnotDemo</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/TubedTorusKnotDemo.js&class=TubedTorusKnotDemo&title=TubedTorusKnotDemo&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/TubedTorusKnotDemo.png" alt="TubedTorusKnotDemo thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/TubedTorusKnotDemo.js</code>
         </div>
@@ -278,6 +300,9 @@
       <article class="card">
         <h2 class="card-title">TwoDViewerDemo</h2>
         <p class="card-subtitle">Example app.</p>
+        <div class="card-thumb">
+          <a class="card-thumb-link" href="./test-jsrapp-example.html?module=../src/app/examples/TwoDViewerDemo.js&class=TwoDViewerDemo&title=TwoDViewerDemo&subtitle=Example%20app." target="_blank"><img src="./resources/gallery/TwoDViewerDemo.png" alt="TwoDViewerDemo thumbnail" loading="lazy" /></a>
+        </div>
         <div class="card-meta">
           Module: <code>src/app/examples/TwoDViewerDemo.js</code>
         </div>

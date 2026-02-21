@@ -1,12 +1,10 @@
 /**
- * JavaScript port/translation of a Charles Gunn Java codebase.
- *
- * Copyright (c) 2008–2026, Charles Gunn
- *
- * Licensed under the BSD 3-Clause License. See LICENSE for details.
- * Contributors retain copyright to their contributions.
+* 
+ * Copyright (c) 2025-2026, jsReality Contributors
+ 
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
-
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
@@ -28,11 +26,15 @@ export class TestAnimApp extends JSRApp {
   /** @type {import('../../anim/scenegraph/KeyFrameAnimatedTransformation.js').KeyFrameAnimatedTransformation|null} */
   #squareAnimator = null;
 
+  #tform = null;
+
   getShowPanels() {
     return [true, false, false, true];
   }
 
-  #tform = null;
+  isDraft() {
+    return true;
+  }
 
   _worldSGC = null;
   getContent() {

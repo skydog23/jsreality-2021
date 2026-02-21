@@ -74,12 +74,20 @@ export class JSRViewer {
    * @returns {Promise<JSRViewer>}
    */
   static async create(options) {
-    const { toolSystemConfigUrl = null, ...rest } = options || {};
-    if (toolSystemConfigUrl) {
+    const {
+      toolSystemConfigUrl = '/src/core/toolsystem/config/toolsystem.jreality-master.json',
+      ...rest
+    } = options || {};
+    if (!toolSystemConfigUrl) {
+      return new JSRViewer(rest);
+    }
+    try {
       const cfg = await ToolSystemConfiguration.loadFromURL(toolSystemConfigUrl);
       return new JSRViewer({ ...rest, toolSystemConfig: cfg });
+    } catch (error) {
+      logger.warn(`Failed to load ToolSystem config from URL (${toolSystemConfigUrl}), falling back to built-in defaults: ${error?.message || error}`);
+      return new JSRViewer(rest);
     }
-    return new JSRViewer(options);
   }
 
   // Core systems

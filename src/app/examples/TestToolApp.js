@@ -40,22 +40,15 @@ setModuleLevel('jsreality.app.examples.TestToolApp', Level.INFO);
  * @abstract
  */
 export class TestToolApp extends JSRApp {
-    constructor(options = {}) {
-        super(options);
-        // Enable detailed logging for tool system debugging
-        // This will help debug why TestTool's perform() method isn't being called
-        // setModuleLevel('ToolSystem', Level.FINE);
-        // setModuleLevel('SlotManager', Level.FINER);
-        // setModuleLevel('DeviceManager', Level.FINER);
-        // setModuleLevel('ToolEventQueue', Level.FINE);
-        // setModuleLevel('AbstractDeviceMouse', Level.FINER);
-        // setModuleLevel('AABBPickSystem', Level.FINER);
-     }
+    
 
     getShowPanels() {
         return [true, false, false, false];
     }
 
+    isDraft() {
+        return true;
+    }
     getContent() {
         const squareSGC = SceneGraphUtility.createFullSceneGraphComponent("world");
         squareSGC.setGeometry(Primitives.regularPolygon(4, 0));

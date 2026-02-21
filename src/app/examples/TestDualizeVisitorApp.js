@@ -1,10 +1,9 @@
 /**
- * JavaScript port/translation of a Charles Gunn Java codebase.
- *
- * Copyright (c) 2008–2026, Charles Gunn
- *
- * Licensed under the BSD 3-Clause License. See LICENSE for details.
- * Contributors retain copyright to their contributions.
+* 
+ * Copyright (c) 2025-2026, jsReality Contributors
+ 
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import { GeometryUtility } from '../../core/geometry/GeometryUtility.js';
@@ -222,7 +221,7 @@ export class TestDualizeVisitorApp extends JSRApp {
             console.log('  2: cycle dual');
             break;
           case 'Digit1':
-            this._which = (this._which + 1) % 7;
+            this._which = (this._which + 1);
             this._updateVisible();
             console.log('which', this._which);
             this.getViewer().renderAsync();
@@ -242,10 +241,11 @@ export class TestDualizeVisitorApp extends JSRApp {
 
   _updateVisible() {
     if (!this._standardSGC || !this._dualSGC) return;
-    for (const child of this._standardSGC.getChildComponents()) child.setVisible(false);
+    this._which = this._which % (this._standardSGC.getChildComponentCount()+1);
+    for (const child of this._standardSGC.getChildComponents()) child.setVisible(this._which === 7 ); 
     const dualTop = this._dualSGC.getChildComponent(0);
     if (dualTop) {
-      for (const child of dualTop.getChildComponents()) child.setVisible(false);
+      for (const child of dualTop.getChildComponents()) child.setVisible(this._which === 7);
       const dualChild = dualTop.getChildComponent(this._which);
       if (dualChild) dualChild.setVisible(true);
     }

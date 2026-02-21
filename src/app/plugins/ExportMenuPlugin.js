@@ -34,6 +34,10 @@ const logger = getLogger('jsreality.app.plugins.ExportMenuPlugin');
  * Plugin that adds export menu items to the File menu.
  */
 export class ExportMenuPlugin extends JSRPlugin {
+  static THUMBNAIL_WIDTH = 540;
+  static THUMBNAIL_HEIGHT = 360;
+  static THUMBNAIL_AA = 4;
+
   // Remember last used dimensions for advanced image export
   #lastExportWidth = null;
   #lastExportHeight = null;
@@ -73,35 +77,74 @@ export class ExportMenuPlugin extends JSRPlugin {
     return [
       {
         menu: 'File',
+        label: 'Save thumbnail',
+        action: () => this.#saveThumbnail(),
+        priority: 9
+      },
+      {
+        menu: 'File',
         label: 'Export Image…',
         action: () => this.#exportImageAdvanced(),
-        priority: 9
+        priority: 10
       },
       {
         menu: 'File',
         label: 'Export PNG',
         action: () => this.#exportImage('png'),
-        priority: 10
+        priority: 11
       },
       {
         menu: 'File',
         label: 'Export JPEG',
         action: () => this.#exportImage('jpeg', 0.95),
-        priority: 11
+        priority: 12
       },
       {
         menu: 'File',
         label: 'Export SVG',
         action: () => this.#exportSVG(),
-        priority: 12
+        priority: 13
       },
       {
         menu: 'File',
         label: 'Export WebGL',
         action: () => this.#exportWebGL(),
-        priority: 13
+        priority: 14
       }
     ];
+  }
+
+  /**
+   * Save a standard 3:2 thumbnail for gallery usage.
+   * Note: browser security model only allows download to user-selected location.
+   * @private
+   */
+  async #saveThumbnail() {
+    const filename = `${this.#getAppBaseName()}.png`;
+    await this.#exportViaRenderOffscreen(
+      ExportMenuPlugin.THUMBNAIL_WIDTH,
+      ExportMenuPlugin.THUMBNAIL_HEIGHT,
+      {
+        format: 'png',
+        antialias: ExportMenuPlugin.THUMBNAIL_AA,
+        includeAlpha: false,
+        filename
+      }
+    );
+  }
+
+  /**
+   * Determine app name used for thumbnail filename.
+   * @returns {string}
+   * @private
+   */
+  #getAppBaseName() {
+    const app = this.context?.getPlugin?.(PluginIds.JSRAPP);
+    const raw = app?.getInfo?.()?.name || app?.constructor?.name || 'JSRApp';
+    return String(raw)
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'JSRApp';
   }
 
   /**
@@ -324,11 +367,11 @@ export class ExportMenuPlugin extends JSRPlugin {
    *
    * @param {number} width
    * @param {number} height
-   * @param {{ format: 'png'|'jpeg', antialias?: number, includeAlpha?: boolean, quality?: number }} options
+   * @param {{ format: 'png'|'jpeg', antialias?: number, includeAlpha?: boolean, quality?: number, filename?: string }} options
    * @private
    */
   async #exportViaRenderOffscreen(width, height, options) {
-    const { format = 'png', antialias = 1, includeAlpha = true, quality = 0.95 } = options;
+    const { format = 'png', antialias = 1, includeAlpha = true, quality = 0.95, filename = null } = options;
     const viewer = this.context.getViewer();
     const currentViewer = viewer.getViewer().getCurrentViewer();
 
@@ -351,7 +394,7 @@ export class ExportMenuPlugin extends JSRPlugin {
           return;
         }
         const url = URL.createObjectURL(blob);
-        this.#downloadURL(url, `scene-export.${format === 'jpeg' ? 'jpg' : 'png'}`);
+        this.#downloadURL(url, filename || `scene-export.${format === 'jpeg' ? 'jpg' : 'png'}`);
         URL.revokeObjectURL(url);
         logger.info(`Exported image (${format.toUpperCase()}) via renderOffscreen`);
       }, mime, format === 'jpeg' ? quality : undefined);

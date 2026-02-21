@@ -1,10 +1,9 @@
 /**
- * JavaScript port/translation of a Charles Gunn Java codebase.
- *
- * Copyright (c) 2008–2026, Charles Gunn
- *
- * Licensed under the BSD 3-Clause License. See LICENSE for details.
- * Contributors retain copyright to their contributions.
+* 
+ * Copyright (c) 2025-2026, jsReality Contributors
+ 
+ * 
+ * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
 import { DefaultImmersion, ParametricSurfaceFactory } from '../../core/geometry/ParametricSurfaceFactory.js';
@@ -17,8 +16,7 @@ import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.j
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { PolygonalTubeFactory } from '../../core/geometry/PolygonalTubeFactory.js';
 import { BallAndStickFactory } from '../../core/geometry/BallAndStickFactory.js';
-import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
-
+import { SelectionComponent } from '../../core/scene/SelectionComponent.js';
 class TorusImmersion extends DefaultImmersion {
   evaluateUV(u, v) {
     // u,v in [0,1] -> angles
@@ -39,11 +37,20 @@ export class GeometryGrabbagDemo extends JSRApp {
     _vcount = 15;
     _psf = null;
     _type = 1;
+    _selectionSGC = null;
 
     getContent() {
         const surfaceSGC = SceneGraphUtility.createFullSceneGraphComponent('surface');
-        const geometrySGC = SceneGraphUtility.createFullSceneGraphComponent('geometry');
-        this.getGeometry(surfaceSGC);
+        this._selectionSGC = new SelectionComponent();
+        this._selectionSGC.setName("selection");
+        this._selectionSGC.setSelectedChild(this._type);
+        surfaceSGC.addChild(this._selectionSGC);
+        for (let i = 0; i < 3; i++) {
+          const geometrySGC = SceneGraphUtility.createFullSceneGraphComponent('geometry');
+          this.getGeometry(geometrySGC, i);
+          geometrySGC.setVisible(i === this._type);
+          this._selectionSGC.addChild(geometrySGC);
+        }
         const ap = surfaceSGC.getAppearance();
         ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, true);
         ap.setAttribute(CommonAttributes.TRANSPARENCY_ENABLED, false);
@@ -58,16 +65,11 @@ export class GeometryGrabbagDemo extends JSRApp {
         rotateTool.setName("rotateTool");
         surfaceSGC.addTool(rotateTool);
 
-        const clickWheelCameraZoomTool = new ClickWheelCameraZoomTool();
-        clickWheelCameraZoomTool.setName("clickWheelCameraZoomTool");
-        surfaceSGC.addTool(clickWheelCameraZoomTool);
-        
         return surfaceSGC;
     }
 
-    getGeometry(sgc) {
-        if (this._type === 0) {
-          const polygon = Primitives.regularPolygon(10); //Vertices(10);
+    getGeometry(sgc, type = 0) {
+        if (type === 0) {
           const torus1 = Primitives.discreteTorusKnot(1,.25, 2, 3, 50);
            const ptf = new PolygonalTubeFactory(torus1, 0);
 		   ptf.setClosed(true);
@@ -75,7 +77,7 @@ export class GeometryGrabbagDemo extends JSRApp {
 		   ptf.setGenerateEdges(true);
 		   ptf.update();
 		   sgc.setGeometry(ptf.getTube());
-        } else if (this._type === 1){
+        } else if (type === 1){
          // Build parametric surface
          this._psf = new ParametricSurfaceFactory(new TorusImmersion());
          this._psf.setUMin(0);
@@ -95,7 +97,7 @@ export class GeometryGrabbagDemo extends JSRApp {
          // build geometry
          this._psf.update();
          sgc.setGeometry(this._psf.getIndexedFaceSet());
-        } else if (this._type === 2){
+        } else if (type === 2){
            const ils = Primitives.icosahedron(4);
            const basf = new BallAndStickFactory(ils);
             basf.setBallRadius(.04);
@@ -110,10 +112,35 @@ export class GeometryGrabbagDemo extends JSRApp {
         }
     }
 
+
     display() {
         super.display();
         this.setup3DCamera();
-        this.getViewer().render();
+
+      const vc = this.getViewer().getViewingComponent();
+      if (!vc) return;
+      if (vc.tabIndex < 0) vc.tabIndex = 0;
+      vc.focus?.();
+      if (this._keyHandler == null) {
+        this._keyHandler = (e) => {
+          if (e.repeat) return;
+          switch (e.code) {
+            case 'KeyH':
+              console.log('  1: cycle selection');
+              break;
+            case 'Digit1':
+              this._type = (this._type + 1) % 3;
+              this._selectionSGC.setSelectedChild(this._type);
+              console.log('type', this._type);
+              this.getViewer().renderAsync();
+              break;
+            default:
+              break;
+          }
+        };
+        vc.addEventListener('keydown', this._keyHandler);
+      }
+        this.getViewer().renderAsync();
     }
 
     getInspectorDescriptors() {
