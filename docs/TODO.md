@@ -23,4 +23,4 @@ This is a private todo list for me (a person named Charlie Gunn)
 
 * Conics: render to a Rectangle2D if one is provided. 
 
-* Port DualizeSceneGraph.java
+* 
