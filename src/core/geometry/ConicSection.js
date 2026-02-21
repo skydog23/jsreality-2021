@@ -41,6 +41,7 @@ export class ConicSection {
     svdQ = null;
     sylvester = null;
     isImaginary = false;
+    isZero = false;
     linePair = null;
     fivePoints = null;
     pts5d = null;
@@ -54,6 +55,7 @@ export class ConicSection {
     normalize = true;
     roundOff = true;
     metric = Pn.EUCLIDEAN;
+    ilsf = null;
 
     constructor(initArray = [1, 0, 1, 0, 0, -1], normalize = true) {
         // console.log('ConicSection constructor called with initArray = ', initArray);
@@ -90,7 +92,6 @@ export class ConicSection {
             logger.warn(-1, 'Points are not exactly on the conic. Max eval = ', Math.max(...evals));
             return;
         }
-        this.updateGeomRepn();
     }
 
     // we can also set the conic from coefficients directly
@@ -98,31 +99,38 @@ export class ConicSection {
         logger.fine(-1,"\n Setting from coeffs \n", coefficients);
         this.pts5d = null;   // get rid of the five points data
         // calculate the rand from SVD of Q
-        this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
-        // Determine rank (count non-zero singular values)
-        // const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
-
-        // this.rank = this.svdQ.S.filter(s => Math.abs(s) > tol).length;
+        // this.svdQ = SVDUtil.svdDecomposition(ConicUtils.convertArrayToQ2D(...coefficients));
         this.setCoefficients(coefficients);
-        this.updateGeomRepn();
     }
 
     setCoefficients(coefficients) {
+        if (coefficients.every(c => c === 0)) {
+            logger.info(-1, 'setting conic to zero');
+            this.coefficients = [0,0,0,0,0,0];
+            this.isZero = true;
+            this.rank = 0;
+            this.curve = null;
+            this.ilsf = null;
+            this.dualConicSGC = null;
+            return;
+        }
         this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
         if (this.normalize) this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
        
         const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
+        if (this.Q[8] < 0) {Rn.times(this.Q, -1, this.Q);}
         this.rank = this.sylvester.getRank();
         this.dQ = P2.cofactor(null, this.Q);
         if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
         this.dcoefficients = ConicUtils.convertQToArrayN(this.dQ);
-        logger.fine(-1, 'Q singular values:', this.svdQ.S);
+        // logger.fine(-1, 'Q singular values:', this.svdQ.S);
         logger.fine(-1, 'rank = ', this.rank);
         logger.fine(-1, 'conic Q', this.Q);
         logger.fine(-1, 'conic dQ', this.dQ);
         logger.fine(-1, 'Q.dQ = ', Rn.times(null, this.Q, this.dQ));
+        this.updateGeomRepn();
     }
 
     #chooseContinuity(oldc, newc) {
@@ -139,7 +147,9 @@ export class ConicSection {
         logger.fine(-1, 'Updating conic section');
         logger.fine(-1, 'conic rank', this.rank);
 
-
+        if (this.isZero) {
+            return;
+        }
         if (this.rank === 1) {
             this.doubleLine = this.sylvester.factorRank1DoubleLine();
             let l1 = new PointRangeFactory();
@@ -240,13 +250,14 @@ export class ConicSection {
             }
         } while (edges.length > 0 && pts3.length < 10000);  // in case things go crazy
         logger.fine(-1, '# points = ', pts3.length);
-        const ifsf = new IndexedLineSetFactory();
-        ifsf.setVertexCount(pts3.length);
-        ifsf.setVertexCoordinates(pts3.map(pt => this.#processPoint(pt)));
-        ifsf.setEdgeCount(newedges.length);
-        ifsf.setEdgeIndices(newedges);
-        ifsf.update();
-        return ifsf.getIndexedLineSet();
+        // if (!this.ilsf) 
+        this.ilsf = new IndexedLineSetFactory();
+        this.ilsf.setVertexCount(pts3.length);
+        this.ilsf.setVertexCoordinates(pts3.map(pt => this.#processPoint(pt)));
+        this.ilsf.setEdgeCount(newedges.length);
+        this.ilsf.setEdgeIndices(newedges);
+        this.ilsf.update();
+        return this.ilsf.getIndexedLineSet();
     }
 
     #pointSylvester(t, Pm) {
@@ -311,8 +322,7 @@ export class ConicSection {
     setViewport(viewport) {
         this.viewport = viewport;
         this.updateGeomRepn();
-        // console.log('ConicSection viewport = ', this.viewport);
-    }
+     }
 
     getViewport() {
         return this.viewport;

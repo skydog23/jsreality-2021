@@ -43,6 +43,7 @@ export class PenroseCube extends JSRApp {
   _colors = [Color.RED, Color.YELLOW, new Color(75, 75, 255)];
   _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
   _conic = null;
+  _conics = new Array(8).fill(null);
   _conicSGC = null;
   _numDoubleLines = 3;
   _TiSGCs = new Array(this._numDoubleLines).fill(null);
@@ -225,20 +226,22 @@ export class PenroseCube extends JSRApp {
     // this.animationPlugin.setAnimateCamera(false);
     
 
+    const vc = this.getViewer().getViewingComponent();
     if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
         logger.fine(-1, 'size changed');
         logger.fine(-1, 'width = ', vc.clientWidth, 'height = ', vc.clientHeight);
         logger.fine(-1, 'viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
-        this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+        this._conics.map(conic => {
+          if (conic!==null) conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight))});
         this.getViewer().renderAsync();
       });
       this._resizeObserver.observe(vc);
     }
     // viewport can also change with changes to camera
     cam.addCameraListener((event) => {
-      logger.fine(-1, 'camera changed', event);
-      this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+      logger.info(-1, 'camera changed', event);
+      this._conics.map(conic => {if (conic!==null) conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight))});
       this.getViewer().renderAsync();
     });
    
@@ -258,6 +261,8 @@ export class PenroseCube extends JSRApp {
   }
 
   initPenroseCorners() {
+    this._conics = [this._conic, ...this._TiConics, ...this._SjConics, this._T0Conic];
+   
     this._penroseCorners = [
       this._conicSGC,
       this._TiCollectorSGCs[0],
