@@ -72,7 +72,7 @@ export class ConicUtils {
 
     static normalizeCoefficients(coefficients) {
         const mx = Rn.maxNorm(coefficients);
-        return Rn.times(null, 1.0/mx, coefficients);
+        return mx !== 0 ? Rn.times(null, 1.0/mx, coefficients) : coefficients;
     }
 
     static normalizeQ(Q, useDet=false) {

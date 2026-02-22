@@ -23,7 +23,6 @@ import * as Rn from '../../core/math/Rn.js';
 import { DataUtility } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
-import { ClickWheelCameraZoomTool } from '../../core/tools/ClickWheelCameraZoomTool.js';
 import { DragPointTool } from '../../core/tools/DragPointTool.js';
 import * as CameraUtility from '../../core/util/CameraUtility.js';
 import { Color } from '../../core/util/Color.js';
@@ -77,6 +76,7 @@ export class PenroseCube extends JSRApp {
   _showS0TiCC = true;
   _showS0TiLines = true;
   _showTiSjCC = false;
+  _normalizeConics = false;
   _dcParam = [.416,.416,.416];
   _aijs = [.5,.5,.5];
   _aijsRaw = new Array(3).fill(.5);
@@ -102,10 +102,10 @@ export class PenroseCube extends JSRApp {
     this._fivePointPSF.update();
     this._fivePointSGC.setGeometry(this._fivePointPSF.getPointSet());
 
-    this._conic = new ConicSection();
+    this._conic = new ConicSection(null, true);
     this._conic.name = 'S0 conic';
      
-    this._T0Conic = new ConicSection();
+    this._T0Conic = new ConicSection(null, true);
     this._T0Conic.name = 'T0 conic';
     this._T0ConicSGC = SceneGraphUtility.createFullSceneGraphComponent('T0 conic');
     this._T0ConicSGC.setGeometry(this._T0Conic.getIndexedLineSet());
@@ -144,11 +144,13 @@ export class PenroseCube extends JSRApp {
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.004);
+    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 2.0);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
-    ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, true);
+    ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.003);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 4.0);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
-    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
+    ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, false);
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     ap.setAttribute(CommonAttributes.FLIP_NORMALS, true);
      
@@ -232,7 +234,7 @@ export class PenroseCube extends JSRApp {
     }
     // viewport can also change with changes to camera
     cam.addCameraListener((event) => {
-      logger.info(-1, 'camera changed', event);
+      logger.fine(-1, 'camera changed', event);
       this._conics.map(conic => {if (conic!==null) conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight))});
       this.getViewer().renderAsync();
     });
@@ -280,7 +282,7 @@ export class PenroseCube extends JSRApp {
       return;
     }
     let fivePoints = this.initFivePoints();
-    logger.info(-1, 'fivePoints = ', fivePoints.length);
+    logger.fine(-1, 'fivePoints = ', fivePoints.length);
     this._fivePointPSF.setVertexCoordinates(fivePoints);
     this._fivePointPSF.update();
     
@@ -337,7 +339,7 @@ export class PenroseCube extends JSRApp {
     // the formula is Ti = di*S0 - pi*pi, or homogenized  dix*S0 - diy*pi*pi
     const pencilArray = Rn.linearCombination(null, x,this._conic.coefficients, -y, this._S0TiDblLnArrays[which]);
     logger.fine(-1, 'Ti which = ', which, 'time = ', x,  's = ', y, 'pencilArray = ', pencilArray);
-    logger.info(-1, 'conic coefficients = ', this._conic.coefficients);
+    logger.fine(-1, 'conic coefficients = ', this._conic.coefficients);
     logger.fine(-1, 'dblLineArrays = ', this._S0TiDblLnArrays[which]);
     this._TiConics[which].setFromCoefficients(pencilArray);
     this._TiSGCs[which].setGeometry(this._TiConics[which].getIndexedLineSet());
@@ -536,7 +538,7 @@ export class PenroseCube extends JSRApp {
     const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.35));
 
   
-    this._TiConics[which] = new ConicSection(null, false);
+    this._TiConics[which] = new ConicSection(null, this._normalizeConics);
     this._TiConics[which].name = 'pencil conic '+which;
     this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
     let ap = this._TiSGCs[which].getAppearance();
@@ -604,7 +606,7 @@ export class PenroseCube extends JSRApp {
     const doubleLineColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.25));
     const twoPointColor = Color.fromFloatArray(this.#saturateColor(fcolor, 0.0));
     
-    this._SjConics[which] = new ConicSection(null, false);
+    this._SjConics[which] = new ConicSection(null, this._normalizeConics);
     this._SjConics[which].name = 'S'+which;
     this._SjSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('Sj conic '+which);
     let ap = this._SjSGCs[which].getAppearance();
@@ -628,14 +630,14 @@ export class PenroseCube extends JSRApp {
     const doubleLineColork = Color.fromFloatArray(this.#saturateColor(fcolork, 0.5));
     
 
-    this._SjTkDblLnConics[2*which] = new ConicSection(null, false);
+    this._SjTkDblLnConics[2*which] = new ConicSection(null, true);
     this._SjTkDblLnConics[2*which].name = 'Sj-Tk DL '+li+'-'+lj;
     this._SjTkDblLnSGCs[2*which] = SceneGraphUtility.createFullSceneGraphComponent('Sj-Tk DL '+li+'-'+lj);
     let ap = this._SjTkDblLnSGCs[2*which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColorj);
     this._SjTkDblLnSGCs[2*which].setGeometry(this._SjTkDblLnConics[2*which].getIndexedLineSet());
-    this._SjTkDblLnConics[2*which+1] = new ConicSection(null, false);
+    this._SjTkDblLnConics[2*which+1] = new ConicSection(null, true);
     this._SjTkDblLnConics[2*which+1].name = 'Tk-Sj DL '+lk+'-'+li;
     this._SjTkDblLnSGCs[2*which+1] = SceneGraphUtility.createFullSceneGraphComponent('Sk-Tj DL '+lk+'-'+li);
     ap = this._SjTkDblLnSGCs[2*which+1].getAppearance();
