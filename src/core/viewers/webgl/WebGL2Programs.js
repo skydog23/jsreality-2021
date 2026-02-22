@@ -300,6 +300,13 @@ export function createUnifiedLitProgram(gl) {
       in vec3 a_p0;     // tube endpoint 0 (object space)
       in vec3 a_p1;     // tube endpoint 1 (object space)
 
+      // Per-instance model matrix (mode 3: instanced geometry)
+      in vec4 a_instRow0;
+      in vec4 a_instRow1;
+      in vec4 a_instRow2;
+      in vec4 a_instRow3;
+      in vec4 a_instColor;
+
       uniform mat4 u_transform;
       uniform mat4 u_modelView;
       uniform mat3 u_normalMatrix;
@@ -307,7 +314,7 @@ export function createUnifiedLitProgram(gl) {
       uniform float u_flipNormals;
       uniform float u_pointSize;
 
-      // 0 = polygon mesh, 1 = instanced sphere, 2 = instanced tube
+      // 0 = polygon mesh, 1 = instanced sphere, 2 = instanced tube, 3 = instanced geometry
       uniform int u_mode;
       uniform float u_pointRadius;
       uniform float u_tubeRadius;
@@ -349,10 +356,21 @@ export function createUnifiedLitProgram(gl) {
           }
         }
 
+        // Mode 3: instanced geometry with per-instance model matrix.
+        // u_transform = viewProj * ancestorTransforms; instance matrix is the child's local transform.
+        if (u_mode == 3) {
+          mat4 instMat = mat4(a_instRow0, a_instRow1, a_instRow2, a_instRow3);
+          position = instMat * position;
+          Nobj = mat3(instMat) * Nobj;
+          v_color = a_instColor;
+        }
+
         gl_Position = u_transform * position;
         gl_PointSize = u_pointSize;
 
-        v_color = a_color;
+        if (u_mode != 3) {
+          v_color = a_color;
+        }
         v_distance = a_distance;
 
         // Phong shading: pass view-space position + normal to fragment shader.

@@ -123,5 +123,11 @@ export class FiniteStateAutomaton {
   setNumStates(n) {
     this.numStates = n;
   }
+
+  static fromText(text) {
+    const fsa = new FiniteStateAutomaton();
+    fsa.initializeFromText(text);
+    return fsa;
+  }
 }
 

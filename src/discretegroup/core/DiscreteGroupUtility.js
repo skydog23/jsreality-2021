@@ -67,6 +67,8 @@ export class DiscreteGroupUtility {
     const metric = dg.getMetric();
     const fsa = dg.getFsa();
     const maxNumberElements = constraint.getMaxNumberElements();
+    const t0 = performance.now();
+    let fsaRejects = 0;
     const biglist = [];
     const identity = new DiscreteGroupElement(metric, Rn.identityMatrix(4), '');
     biglist.push(identity);
@@ -87,7 +89,7 @@ export class DiscreteGroupUtility {
           if (DiscreteGroupUtility.trivialDup(dge.getWord() || '', generators[j].getWord() || '')) continue;
           dgen.setWord(nextWord);
           dgen.setColorIndex(dge.getColorIndex() + generators[j].getColorIndex());
-          if (fsa && !fsa.accepts(nextWord)) continue;
+          if (fsa && !fsa.accepts(nextWord)) { fsaRejects++; continue; }
           Rn.times(mat, dge.getArray(), generators[j].getArray());
           dgen.setArray(mat);
           if (dg.isProjective() && mat[15] < 0) Rn.times(mat, -1, mat);
@@ -109,12 +111,12 @@ export class DiscreteGroupUtility {
         if (length >= maxNumberElements) break;
       }
       length = biglist.length;
-      if (length %10 === 0) {
-        console.log('DiscreteGroupUtility generateElements',length);
-      }
       old2Length = oldLength;
     }
 
+    const elapsed = (performance.now() - t0).toFixed(1);
+    console.log(`generateElements: ${biglist.length} elements in ${elapsed}ms` +
+      (fsa ? `, FSA rejected ${fsaRejects} candidates` : ', no FSA (brute force)'));
     dg.setHasChanged(false);
     return biglist;
   }

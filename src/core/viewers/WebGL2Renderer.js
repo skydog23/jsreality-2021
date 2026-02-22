@@ -117,6 +117,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   /** @type {number} */
   #tubeIndexCount = 0;
 
+  /** @type {WebGLBuffer|null} Per-instance mat4 row buffers for instanced geometry (mode 3) */
+  #instRow0Buffer = null;
+  #instRow1Buffer = null;
+  #instRow2Buffer = null;
+  #instRow3Buffer = null;
+  /** @type {WebGLBuffer|null} Per-instance color buffer for instanced geometry */
+  #instColorBuffer = null;
+
   /** @type {WeakMap<object, { coordsDL: any, colorsDL: any, centers: Float32Array, colors: Float32Array, count: number }>} */
   #pointInstanceCache = new WeakMap();
 
@@ -181,6 +189,15 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {number[]} Batched distances from centerline for edge smoothing */
   #batchedDistances = [];
+
+  /** @type {number} Depth counter for skipping children of instanced geometry nodes */
+  #instancedSkipDepth = 0;
+
+  /** @type {Object|null} Pending instanced render data (set during visitComponent, consumed in visitAppearance) */
+  #instancedRenderPending = null;
+
+  /** @type {number} Debug: counts instanced render calls to limit logging */
+  #instancedDebugCount = 0;
 
   /**
    * Create a new WebGL2 renderer
@@ -276,6 +293,13 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       this.#tubeP0Buffer = gl.createBuffer();
       this.#tubeP1Buffer = gl.createBuffer();
       this.#tubeColorInstBuffer = gl.createBuffer();
+
+      // Instanced geometry buffers (mode 3: per-instance model matrix + color)
+      this.#instRow0Buffer = gl.createBuffer();
+      this.#instRow1Buffer = gl.createBuffer();
+      this.#instRow2Buffer = gl.createBuffer();
+      this.#instRow3Buffer = gl.createBuffer();
+      this.#instColorBuffer = gl.createBuffer();
 
       // Base tube mesh (unit radius). Shader expands into world-space using p0/p1 and u_radius.
       const base = buildTubeBaseMesh(12);
@@ -401,6 +425,593 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    */
   #createInstancedTubeProgram() {
     return createInstancedTubeProgram(this.#gl);
+  }
+
+  /**
+   * Override visitComponent to detect instanced geometry (discrete group tessellations)
+   * and short-circuit to a single instanced draw call instead of traversing N children.
+   *
+   * Strategy: set a skip-depth counter so child components are skipped, schedule the
+   * instanced render data, then let super.visitComponent() handle the push/pop of
+   * transformation and appearance stacks correctly. The actual rendering is triggered
+   * from the visitAppearance hook once the effective appearance is set up.
+   *
+   * @param {import('../scene/SceneGraphComponent.js').SceneGraphComponent} component
+   */
+  visitComponent(component) {
+    if (!component.isVisible()) return;
+
+    if (this.#instancedSkipDepth > 0) return;
+
+    const appearance = component.getAppearance?.();
+    const instAttr = appearance?.getAttribute?.('instancedGeometry');
+    if (!appearance || instAttr !== true) {
+      return super.visitComponent(component);
+    }
+
+    const instanceTransforms = appearance.getAttribute('instanceTransforms');
+    const instanceColors = appearance.getAttribute('instanceColors');
+    const instanceCount = appearance.getAttribute('instanceCount');
+    const fundRegion = appearance.getAttribute('instanceFundamentalRegion');
+
+    const dbg = this.#instancedDebugCount < 3;
+    if (dbg) {
+      console.log('[INST visitComponent] DETECTED instancedGeometry on', component.getName?.());
+      console.log('  instanceCount:', instanceCount,
+        'hasTransforms:', !!instanceTransforms, 'transLen:', instanceTransforms?.length,
+        'hasColors:', !!instanceColors, 'colLen:', instanceColors?.length,
+        'hasFundRegion:', !!fundRegion, 'fundRegionName:', fundRegion?.getName?.());
+    }
+
+    if (!instanceTransforms || !instanceCount || instanceCount <= 0 || !fundRegion) {
+      if (dbg) console.warn('[INST visitComponent] BAIL: missing data, falling back to normal traversal');
+      return super.visitComponent(component);
+    }
+
+    if (dbg) console.log('[INST visitComponent] Scheduling instanced render, skipping children');
+    this.#instancedRenderPending = { instanceTransforms, instanceColors, instanceCount, fundRegion };
+    this.#instancedSkipDepth++;
+    super.visitComponent(component);
+    this.#instancedSkipDepth--;
+    if (this.#instancedRenderPending) {
+      if (dbg) console.warn('[INST visitComponent] WARNING: render was NOT consumed by visitAppearance!');
+    }
+    this.#instancedRenderPending = null;
+  }
+
+  /**
+   * Override visitAppearance to trigger instanced rendering once the effective
+   * appearance stack is correctly set up for the instanced parent node.
+   * @param {import('../scene/Appearance.js').Appearance} appearance
+   */
+  visitAppearance(appearance) {
+    super.visitAppearance(appearance);
+    if (this.#instancedRenderPending) {
+      const dbg = this.#instancedDebugCount < 3;
+      if (dbg) console.log('[INST visitAppearance] Triggering instanced render now');
+      const { instanceTransforms, instanceColors, instanceCount, fundRegion } = this.#instancedRenderPending;
+      this.#instancedRenderPending = null;
+      this.#renderInstancedGeometry(fundRegion, instanceTransforms, instanceColors, instanceCount);
+    }
+  }
+
+  /**
+   * Render all geometry in a fundamental region subtree using instanced drawing.
+   * Traverses the fundamental region's children to find geometry, then draws each
+   * geometry once with N instances.
+   * @private
+   */
+  #renderInstancedGeometry(fundRegion, instanceTransforms, instanceColors, instanceCount) {
+    const dbg = this.#instancedDebugCount < 3;
+    const geometries = [];
+    this.#collectGeometries(fundRegion, geometries, Rn.identityMatrix(4));
+
+    if (dbg) {
+      console.log('[INST renderInstancedGeometry] fundRegion:', fundRegion.getName?.(),
+        'childCount:', fundRegion.getChildComponentCount?.(),
+        'hasGeometry:', !!fundRegion.getGeometry?.(),
+        'collected geometries:', geometries.length);
+      for (let gi = 0; gi < geometries.length; gi++) {
+        const g = geometries[gi].geometry;
+        console.log(`  geom[${gi}]: faces=`, !!g.getFaceIndices?.(), 'edges=', !!g.getEdgeIndices?.(),
+          'verts=', g.getVertexCoordinates?.()?.shape);
+      }
+    }
+
+    if (geometries.length === 0 && dbg) {
+      console.warn('[INST renderInstancedGeometry] NO geometries found in fundamental region!');
+    }
+
+    for (const { geometry, localTransform } of geometries) {
+      if (geometry.getFaceIndices?.()) {
+        this.#renderInstancedFaces(geometry, localTransform, instanceTransforms, instanceColors, instanceCount);
+      }
+      if (geometry.getEdgeIndices?.()) {
+        this.#renderInstancedEdges(geometry, localTransform, instanceTransforms, instanceColors, instanceCount);
+      }
+    }
+    this.#instancedDebugCount++;
+  }
+
+  /**
+   * Recursively collect geometries with their accumulated local transforms
+   * relative to the fundamental region root.
+   * @private
+   */
+  #collectGeometries(sgc, results, parentTransform, depth = 0) {
+    const dbg = this.#instancedDebugCount < 3;
+    let localTransform = parentTransform;
+    const t = sgc.getTransformation?.();
+    if (t) {
+      localTransform = Rn.times(null, parentTransform, t.getMatrix());
+    }
+
+    const geom = sgc.getGeometry?.();
+    if (geom) {
+      if (dbg) console.log(`${'  '.repeat(depth)}[INST collect] Found geometry on '${sgc.getName?.()}'`);
+      results.push({ geometry: geom, localTransform });
+    }
+
+    const childCount = sgc.getChildComponentCount?.() ?? 0;
+    if (dbg && childCount > 0) console.log(`${'  '.repeat(depth)}[INST collect] '${sgc.getName?.()}' has ${childCount} children`);
+    for (let i = 0; i < childCount; i++) {
+      const child = sgc.getChildComponent(i);
+      if (child?.isVisible?.()) {
+        this.#collectGeometries(child, results, localTransform, depth + 1);
+      } else if (dbg) {
+        console.log(`${'  '.repeat(depth + 1)}[INST collect] child '${child?.getName?.()}' not visible, skipping`);
+      }
+    }
+  }
+
+  /**
+   * Render an IndexedFaceSet with N instanced transforms in a single draw call.
+   * @private
+   */
+  #renderInstancedFaces(geometry, localTransform, instanceTransforms, instanceColors, instanceCount) {
+    const gl = this.#gl;
+    const program = this.#unifiedProgram;
+    const dbg = this.#instancedDebugCount < 3;
+    if (!program) { if (dbg) console.warn('[INST faces] BAIL: no unified program'); return; }
+
+    const showFaces = this.getBooleanAttribute?.(CommonAttributes.FACE_DRAW, true);
+    if (!showFaces) { if (dbg) console.warn('[INST faces] BAIL: FACE_DRAW=false'); return; }
+
+    const vertsDL = geometry.getVertexCoordinates?.();
+    const facesDL = geometry.getFaceIndices?.();
+    if (!vertsDL || !facesDL) { if (dbg) console.warn('[INST faces] BAIL: no vertsDL or facesDL'); return; }
+
+    const shape = vertsDL.shape;
+    const fiber = Array.isArray(shape) && shape.length >= 2 ? shape[shape.length - 1] : 0;
+    const positionSize = Math.min(Math.max(fiber || 3, 2), 4);
+    const vertsFlat = typeof vertsDL.getFlatData === 'function' ? vertsDL.getFlatData() : null;
+    if (!vertsFlat || !fiber) { if (dbg) console.warn('[INST faces] BAIL: no vertsFlat, fiber=', fiber); return; }
+
+    const faceRows = Array.isArray(facesDL.rows) ? facesDL.rows : (typeof facesDL.toNestedArray === 'function' ? facesDL.toNestedArray() : null);
+    if (!faceRows || faceRows.length === 0) { if (dbg) console.warn('[INST faces] BAIL: no faceRows'); return; }
+
+    if (dbg) {
+      console.log('[INST faces] positionSize:', positionSize, 'fiber:', fiber,
+        'nVerts:', vertsFlat.length / fiber, 'nFaces:', faceRows.length,
+        'instanceCount:', instanceCount);
+      console.log('  first 3 verts:', Array.from(vertsFlat.subarray(0, Math.min(12, vertsFlat.length))));
+      console.log('  first face:', faceRows[0]);
+      console.log('  first instance matrix:', Array.from(instanceTransforms.subarray(0, 16)));
+      console.log('  currentTransform:', this.getCurrentTransformation());
+    }
+
+    const faceNormalsDL = geometry.getFaceAttribute?.(GeometryAttribute.NORMALS) || null;
+    const faceNormalsFlat = faceNormalsDL?.getFlatData?.() ?? null;
+    const faceNormalsShape = faceNormalsDL?.shape;
+    const faceNormalFiber = Array.isArray(faceNormalsShape) && faceNormalsShape.length >= 2 ? faceNormalsShape[faceNormalsShape.length - 1] : 0;
+
+    const vertexNormalsDL = geometry.getVertexAttribute?.(GeometryAttribute.NORMALS) || null;
+    const vertexNormalsFlat = vertexNormalsDL?.getFlatData?.() ?? null;
+    const vertexNormalsShape = vertexNormalsDL?.shape;
+    const vertexNormalFiber = Array.isArray(vertexNormalsShape) && vertexNormalsShape.length >= 2 ? vertexNormalsShape[vertexNormalsShape.length - 1] : 0;
+
+    const smoothShadingEnabled = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.POLYGON_SHADER, CommonAttributes.SMOOTH_SHADING, CommonAttributes.SMOOTH_SHADING_DEFAULT
+    ));
+    const hasFaceNormals = Boolean(faceNormalsFlat && faceNormalFiber >= 3);
+    const hasVertexNormals = Boolean(vertexNormalsFlat && vertexNormalFiber >= 3);
+
+    this._beginPrimitiveGroup(CommonAttributes.POLYGON);
+    const defaultColor = this.#currentColor;
+
+    let batchVerts = 0;
+    let batchTris = 0;
+    for (const row of faceRows) {
+      const len = row?.length ?? 0;
+      if (len >= 3) { batchVerts += len; batchTris += (len - 2); }
+    }
+    if (batchVerts === 0) { this._endPrimitiveGroup(); return; }
+
+    const vertexArray = new Float32Array(batchVerts * positionSize);
+    const colorArray = new Float32Array(batchVerts * 4);
+    const normalArray = (hasFaceNormals || hasVertexNormals) ? new Float32Array(batchVerts * 3) : null;
+    const supportsUint32 = Boolean(this.#capabilities?.supportsUint32Indices);
+    const indexArray = supportsUint32 ? new Uint32Array(batchTris * 3) : new Uint16Array(batchTris * 3);
+
+    let vOut = 0, vFloat = 0, cFloat = 0, nFloat = 0, iOut = 0;
+    for (let f = 0; f < faceRows.length; f++) {
+      const row = faceRows[f];
+      const len = row?.length ?? 0;
+      if (len < 3) continue;
+
+      const faceNormalBase = hasFaceNormals ? (f * faceNormalFiber) : -1;
+      const fnx = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase] ?? 0) : 0;
+      const fny = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 1] ?? 0) : 0;
+      const fnz = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 2] ?? 1) : 1;
+      const startVertex = vOut;
+
+      for (let j = 0; j < len; j++) {
+        const vid = row[j] | 0;
+        const srcBase = vid * fiber;
+        for (let k = 0; k < positionSize; k++) {
+          vertexArray[vFloat++] = Number(k < fiber ? vertsFlat[srcBase + k] : (k === 3 ? 1.0 : 0.0)) || 0.0;
+        }
+        colorArray[cFloat++] = defaultColor[0];
+        colorArray[cFloat++] = defaultColor[1];
+        colorArray[cFloat++] = defaultColor[2];
+        colorArray[cFloat++] = defaultColor[3];
+
+        if (normalArray) {
+          if (smoothShadingEnabled && hasVertexNormals) {
+            const nb = vid * vertexNormalFiber;
+            normalArray[nFloat++] = Number(vertexNormalsFlat[nb] ?? 0);
+            normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 1] ?? 0);
+            normalArray[nFloat++] = Number(vertexNormalsFlat[nb + 2] ?? 1);
+          } else if (hasFaceNormals) {
+            normalArray[nFloat++] = fnx; normalArray[nFloat++] = fny; normalArray[nFloat++] = fnz;
+          } else {
+            normalArray[nFloat++] = 0; normalArray[nFloat++] = 0; normalArray[nFloat++] = 1;
+          }
+        }
+        vOut++;
+      }
+      for (let j = 1; j < len - 1; j++) {
+        indexArray[iOut++] = startVertex;
+        indexArray[iOut++] = startVertex + j;
+        indexArray[iOut++] = startVertex + j + 1;
+      }
+    }
+
+    // Build per-instance row buffers from the flat instanceTransforms array.
+    // The instanceTransforms is row-major: [m00..m03, m10..m13, m20..m23, m30..m33] per instance.
+    // The shader's mat4 constructor mat4(col0, col1, col2, col3) expects column vectors,
+    // but our matrices are row-major, so we pass rows and the shader constructs by columns.
+    // Since u_transform is uploaded with transpose=true (row-major convention throughout),
+    // we need to transpose the instance matrix too. We pass the 4 columns of the row-major
+    // matrix as 4 vec4 attributes: effectively transposing in the upload.
+    const row0 = new Float32Array(instanceCount * 4);
+    const row1 = new Float32Array(instanceCount * 4);
+    const row2 = new Float32Array(instanceCount * 4);
+    const row3 = new Float32Array(instanceCount * 4);
+
+    const isIdentityLocal = localTransform.every((v, i) => Math.abs(v - (i % 5 === 0 ? 1 : 0)) < 1e-10);
+
+    for (let inst = 0; inst < instanceCount; inst++) {
+      const base = inst * 16;
+      let m;
+      if (isIdentityLocal) {
+        m = instanceTransforms.subarray(base, base + 16);
+      } else {
+        // Rn.times uses Array.isArray() which fails on Float32Array subarrays
+        m = Rn.times(null, Array.from(instanceTransforms.subarray(base, base + 16)), localTransform);
+      }
+      // Transpose: pass columns of the row-major matrix as vec4 rows for GLSL mat4(col0,col1,col2,col3)
+      row0[inst * 4]     = m[0];  row0[inst * 4 + 1] = m[4];  row0[inst * 4 + 2] = m[8];  row0[inst * 4 + 3] = m[12];
+      row1[inst * 4]     = m[1];  row1[inst * 4 + 1] = m[5];  row1[inst * 4 + 2] = m[9];  row1[inst * 4 + 3] = m[13];
+      row2[inst * 4]     = m[2];  row2[inst * 4 + 1] = m[6];  row2[inst * 4 + 2] = m[10]; row2[inst * 4 + 3] = m[14];
+      row3[inst * 4]     = m[3];  row3[inst * 4 + 1] = m[7];  row3[inst * 4 + 2] = m[11]; row3[inst * 4 + 3] = m[15];
+    }
+
+    gl.useProgram(program);
+
+    const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+    const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+    this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+
+    const modeLoc = gl.getUniformLocation(program, 'u_mode');
+    if (modeLoc !== null) gl.uniform1i(modeLoc, 3);
+
+    const posLoc = gl.getAttribLocation(program, 'a_position');
+    const colorLoc = gl.getAttribLocation(program, 'a_color');
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+    const distLoc = gl.getAttribLocation(program, 'a_distance');
+    const centerLoc = gl.getAttribLocation(program, 'a_center');
+    const p0Loc = gl.getAttribLocation(program, 'a_p0');
+    const p1Loc = gl.getAttribLocation(program, 'a_p1');
+    const instRow0Loc = gl.getAttribLocation(program, 'a_instRow0');
+    const instRow1Loc = gl.getAttribLocation(program, 'a_instRow1');
+    const instRow2Loc = gl.getAttribLocation(program, 'a_instRow2');
+    const instRow3Loc = gl.getAttribLocation(program, 'a_instRow3');
+    const instColorLoc = gl.getAttribLocation(program, 'a_instColor');
+
+    // Per-vertex: position
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, positionSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(posLoc, 0);
+
+    // Per-vertex: color (used as fallback; instanced color overrides in shader)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, colorArray, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(colorLoc);
+    gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(colorLoc, 0);
+
+    // Per-vertex: normals
+    if (normalLoc !== -1) {
+      if (normalArray) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, normalArray, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(normalLoc);
+        gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
+      } else {
+        gl.disableVertexAttribArray(normalLoc);
+        gl.vertexAttrib3f(normalLoc, 0.0, 0.0, 1.0);
+      }
+      gl.vertexAttribDivisor(normalLoc, 0);
+    }
+
+    // Disable unused per-vertex attributes
+    if (distLoc !== -1) { gl.disableVertexAttribArray(distLoc); gl.vertexAttrib1f(distLoc, 0.0); gl.vertexAttribDivisor(distLoc, 0); }
+    if (centerLoc !== -1) { gl.disableVertexAttribArray(centerLoc); gl.vertexAttrib3f(centerLoc, 0, 0, 0); gl.vertexAttribDivisor(centerLoc, 0); }
+    if (p0Loc !== -1) { gl.disableVertexAttribArray(p0Loc); gl.vertexAttrib3f(p0Loc, 0, 0, 0); gl.vertexAttribDivisor(p0Loc, 0); }
+    if (p1Loc !== -1) { gl.disableVertexAttribArray(p1Loc); gl.vertexAttrib3f(p1Loc, 0, 0, 0); gl.vertexAttribDivisor(p1Loc, 0); }
+
+    // Per-instance: mat4 rows
+    if (instRow0Loc !== -1) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#instRow0Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, row0, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(instRow0Loc);
+      gl.vertexAttribPointer(instRow0Loc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(instRow0Loc, 1);
+    }
+    if (instRow1Loc !== -1) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#instRow1Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, row1, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(instRow1Loc);
+      gl.vertexAttribPointer(instRow1Loc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(instRow1Loc, 1);
+    }
+    if (instRow2Loc !== -1) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#instRow2Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, row2, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(instRow2Loc);
+      gl.vertexAttribPointer(instRow2Loc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(instRow2Loc, 1);
+    }
+    if (instRow3Loc !== -1) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#instRow3Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, row3, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(instRow3Loc);
+      gl.vertexAttribPointer(instRow3Loc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(instRow3Loc, 1);
+    }
+
+    // Per-instance: color
+    if (instColorLoc !== -1) {
+      if (instanceColors instanceof Float32Array) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#instColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, instanceColors, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(instColorLoc);
+        gl.vertexAttribPointer(instColorLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(instColorLoc, 1);
+      } else {
+        gl.disableVertexAttribArray(instColorLoc);
+        gl.vertexAttrib4f(instColorLoc, defaultColor[0], defaultColor[1], defaultColor[2], defaultColor[3]);
+      }
+    }
+
+    // Index buffer + instanced draw
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexArray, gl.DYNAMIC_DRAW);
+    const indexType = supportsUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+
+    if (dbg) {
+      console.log('[INST faces] DRAW: iOut=', iOut, 'instanceCount=', instanceCount,
+        'posLoc=', posLoc, 'instRow0Loc=', instRow0Loc, 'instColorLoc=', instColorLoc,
+        'u_mode set to 3, indexType=', indexType === gl.UNSIGNED_INT ? 'UINT32' : 'UINT16');
+      console.log('  row0[0..3]:', Array.from(row0.subarray(0, 4)));
+      console.log('  row1[0..3]:', Array.from(row1.subarray(0, 4)));
+      console.log('  row2[0..3]:', Array.from(row2.subarray(0, 4)));
+      console.log('  row3[0..3]:', Array.from(row3.subarray(0, 4)));
+      console.log('  instColors:', instanceColors instanceof Float32Array ? Array.from(instanceColors.subarray(0, 4)) : 'using effective color ' + Array.from(defaultColor));
+      const err = gl.getError();
+      if (err !== gl.NO_ERROR) console.error('[INST faces] GL error BEFORE draw:', err);
+    }
+
+    gl.drawElementsInstanced(gl.TRIANGLES, iOut, indexType, 0, instanceCount);
+    if (this.#debugGL) this.#debugGL.drawElements++;
+
+    if (dbg) {
+      const err = gl.getError();
+      if (err !== gl.NO_ERROR) console.error('[INST faces] GL error AFTER draw:', err);
+      else console.log('[INST faces] draw call completed (no GL error)');
+    }
+
+    // Reset divisors to avoid polluting subsequent non-instanced draws
+    if (instRow0Loc !== -1) gl.vertexAttribDivisor(instRow0Loc, 0);
+    if (instRow1Loc !== -1) gl.vertexAttribDivisor(instRow1Loc, 0);
+    if (instRow2Loc !== -1) gl.vertexAttribDivisor(instRow2Loc, 0);
+    if (instRow3Loc !== -1) gl.vertexAttribDivisor(instRow3Loc, 0);
+    if (instColorLoc !== -1 && instanceColors instanceof Float32Array) gl.vertexAttribDivisor(instColorLoc, 0);
+
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * Render edges of a geometry with N instanced transforms. Uses screen-space quads
+   * (the same approach as the batched non-tube path) but expanded per instance on the CPU
+   * for simplicity. This avoids N separate draw calls for edge rendering.
+   * @private
+   */
+  #renderInstancedEdges(geometry, localTransform, instanceTransforms, instanceColors, instanceCount) {
+    const showEdges = this.getBooleanAttribute?.(CommonAttributes.EDGE_DRAW, true);
+    if (!showEdges) return;
+
+    const vertices = this._cacheGetVertexCoordsArray(geometry);
+    if (!vertices) return;
+    const indices = this._cacheGetEdgeIndicesArray(geometry);
+    if (!indices || indices.length === 0) return;
+
+    const tubeDraw = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER, CommonAttributes.TUBES_DRAW, CommonAttributes.TUBES_DRAW_DEFAULT
+    ));
+    if (tubeDraw) {
+      // For tube mode, use the same instanced face path for tube segments but with
+      // per-instance transforms applied. For now, fall through to non-instanced rendering
+      // as tube instancing requires additional shader work.
+    }
+
+    // For non-tube edges: expand all edges for all instances into one batched screen-space quad draw.
+    const lineWidth = this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, CommonAttributes.LINE_WIDTH_DEFAULT
+    );
+
+    let totalSegs = 0;
+    for (const poly of indices) {
+      if (poly && poly.length >= 2) totalSegs += (poly.length - 1);
+    }
+    if (totalSegs === 0) return;
+    const totalSegsAll = totalSegs * instanceCount;
+
+    const gl = this.#gl;
+    const program = this.#unifiedProgram || this.#program;
+    if (!program) return;
+
+    const wPx = this.#canvas?.width ?? 0;
+    const hPx = this.#canvas?.height ?? 0;
+    if (!(wPx > 0 && hPx > 0)) return;
+
+    const halfWidthPx = Math.max(0.5, Number(lineWidth) * 0.5);
+    const T = this.getCurrentTransformation();
+    const invWPx2 = 2.0 / wPx;
+    const invHPx2 = 2.0 / hPx;
+    const isIdentityLocal = localTransform.every((v, i) => Math.abs(v - (i % 5 === 0 ? 1 : 0)) < 1e-10);
+
+    this._beginPrimitiveGroup(CommonAttributes.LINE);
+    const defaultEdgeColor = this.#currentColor;
+
+    const MAX_VERTS = 60000;
+    const batchSegCap = Math.min(totalSegsAll, Math.floor(MAX_VERTS / 4));
+    const pos = new Float32Array(batchSegCap * 16);
+    const col = new Float32Array(batchSegCap * 16);
+    const distArr = new Float32Array(batchSegCap * 4);
+    const idx = new Uint16Array(batchSegCap * 6);
+
+    gl.useProgram(program);
+    this.#updateUniforms(program, halfWidthPx, 1.0, false, false);
+    const transformLoc = gl.getUniformLocation(program, 'u_transform');
+    if (transformLoc !== null) gl.uniformMatrix4fv(transformLoc, true, Rn.identityMatrix(4));
+    if (program === this.#unifiedProgram) {
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+    }
+
+    const posLoc = gl.getAttribLocation(program, 'a_position');
+    const colorLoc = gl.getAttribLocation(program, 'a_color');
+    const distLoc = gl.getAttribLocation(program, 'a_distance');
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+
+    let v = 0, ii = 0;
+
+    const flushBatch = () => {
+      if (v === 0) return;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, v * 4), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(posLoc, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, col.subarray(0, v * 4), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(colorLoc, 0);
+      if (distLoc !== -1) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, distArr.subarray(0, v), gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(distLoc);
+        gl.vertexAttribPointer(distLoc, 1, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(distLoc, 0);
+      }
+      if (normalLoc !== -1) { gl.disableVertexAttribArray(normalLoc); gl.vertexAttrib3f(normalLoc, 0, 0, 1); gl.vertexAttribDivisor(normalLoc, 0); }
+      // Disable instancing attrs
+      const ir0 = gl.getAttribLocation(program, 'a_instRow0');
+      if (ir0 !== -1) { gl.disableVertexAttribArray(ir0); gl.vertexAttrib4f(ir0, 1, 0, 0, 0); gl.vertexAttribDivisor(ir0, 0); }
+      const ir1 = gl.getAttribLocation(program, 'a_instRow1');
+      if (ir1 !== -1) { gl.disableVertexAttribArray(ir1); gl.vertexAttrib4f(ir1, 0, 1, 0, 0); gl.vertexAttribDivisor(ir1, 0); }
+      const ir2 = gl.getAttribLocation(program, 'a_instRow2');
+      if (ir2 !== -1) { gl.disableVertexAttribArray(ir2); gl.vertexAttrib4f(ir2, 0, 0, 1, 0); gl.vertexAttribDivisor(ir2, 0); }
+      const ir3 = gl.getAttribLocation(program, 'a_instRow3');
+      if (ir3 !== -1) { gl.disableVertexAttribArray(ir3); gl.vertexAttrib4f(ir3, 0, 0, 0, 1); gl.vertexAttribDivisor(ir3, 0); }
+      const icLoc = gl.getAttribLocation(program, 'a_instColor');
+      if (icLoc !== -1) { gl.disableVertexAttribArray(icLoc); gl.vertexAttrib4f(icLoc, 1, 1, 1, 1); gl.vertexAttribDivisor(icLoc, 0); }
+      const ctrLoc = gl.getAttribLocation(program, 'a_center');
+      if (ctrLoc !== -1) { gl.disableVertexAttribArray(ctrLoc); gl.vertexAttrib3f(ctrLoc, 0, 0, 0); gl.vertexAttribDivisor(ctrLoc, 0); }
+      const ap0 = gl.getAttribLocation(program, 'a_p0');
+      if (ap0 !== -1) { gl.disableVertexAttribArray(ap0); gl.vertexAttrib3f(ap0, 0, 0, 0); gl.vertexAttribDivisor(ap0, 0); }
+      const ap1 = gl.getAttribLocation(program, 'a_p1');
+      if (ap1 !== -1) { gl.disableVertexAttribArray(ap1); gl.vertexAttrib3f(ap1, 0, 0, 0); gl.vertexAttribDivisor(ap1, 0); }
+
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx.subarray(0, ii), gl.DYNAMIC_DRAW);
+      gl.drawElements(gl.TRIANGLES, ii, gl.UNSIGNED_SHORT, 0);
+      if (this.#debugGL) this.#debugGL.drawElements++;
+      v = 0; ii = 0;
+    };
+
+    for (let inst = 0; inst < instanceCount; inst++) {
+      const instBase = inst * 16;
+      let instMat;
+      if (isIdentityLocal) {
+        instMat = Array.from(instanceTransforms.subarray(instBase, instBase + 16));
+      } else {
+        instMat = Rn.times(null, Array.from(instanceTransforms.subarray(instBase, instBase + 16)), localTransform);
+      }
+      const fullT = Rn.times(null, T, instMat);
+      const er = instanceColors?.[inst * 4] ?? defaultEdgeColor[0];
+      const eg = instanceColors?.[inst * 4 + 1] ?? defaultEdgeColor[1];
+      const eb = instanceColors?.[inst * 4 + 2] ?? defaultEdgeColor[2];
+      const ea = instanceColors?.[inst * 4 + 3] ?? defaultEdgeColor[3];
+
+      for (const poly of indices) {
+        if (!poly || poly.length < 2) continue;
+        for (let s = 0; s < poly.length - 1; s++) {
+          if (v + 4 > MAX_VERTS) flushBatch();
+          const p0 = this._extractPoint(vertices[poly[s]]);
+          const p1 = this._extractPoint(vertices[poly[s + 1]]);
+          const c0 = Rn.matrixTimesVector(null, fullT, [p0[0] ?? 0, p0[1] ?? 0, p0[2] ?? 0, p0[3] ?? 1]);
+          const c1 = Rn.matrixTimesVector(null, fullT, [p1[0] ?? 0, p1[1] ?? 0, p1[2] ?? 0, p1[3] ?? 1]);
+          const w0 = c0[3] === 0 ? 1 : c0[3];
+          const w1 = c1[3] === 0 ? 1 : c1[3];
+          const ndc0x = c0[0]/w0, ndc0y = c0[1]/w0, ndc0z = c0[2]/w0;
+          const ndc1x = c1[0]/w1, ndc1y = c1[1]/w1, ndc1z = c1[2]/w1;
+          const sx0 = (ndc0x*0.5+0.5)*wPx, sy0 = (ndc0y*0.5+0.5)*hPx;
+          const sx1 = (ndc1x*0.5+0.5)*wPx, sy1 = (ndc1y*0.5+0.5)*hPx;
+          const dx = sx1-sx0, dy = sy1-sy0;
+          const len = Math.sqrt(dx*dx+dy*dy);
+          if (len === 0) continue;
+          const nx = (-dy/len)*halfWidthPx, ny = (dx/len)*halfWidthPx;
+
+          const base = v * 4;
+          pos[base]     = (sx0+nx)*invWPx2-1; pos[base+1]  = (sy0+ny)*invHPx2-1; pos[base+2]  = ndc0z; pos[base+3]  = 1;
+          pos[base+4]   = (sx0-nx)*invWPx2-1; pos[base+5]  = (sy0-ny)*invHPx2-1; pos[base+6]  = ndc0z; pos[base+7]  = 1;
+          pos[base+8]   = (sx1+nx)*invWPx2-1; pos[base+9]  = (sy1+ny)*invHPx2-1; pos[base+10] = ndc1z; pos[base+11] = 1;
+          pos[base+12]  = (sx1-nx)*invWPx2-1; pos[base+13] = (sy1-ny)*invHPx2-1; pos[base+14] = ndc1z; pos[base+15] = 1;
+          for (let k = 0; k < 4; k++) { const cb = (v+k)*4; col[cb]=er; col[cb+1]=eg; col[cb+2]=eb; col[cb+3]=ea; }
+          distArr[v]=-halfWidthPx; distArr[v+1]=halfWidthPx; distArr[v+2]=-halfWidthPx; distArr[v+3]=halfWidthPx;
+          idx[ii++]=v; idx[ii++]=v+1; idx[ii++]=v+2; idx[ii++]=v+1; idx[ii++]=v+3; idx[ii++]=v+2;
+          v += 4;
+        }
+      }
+    }
+    flushBatch();
+    this._endPrimitiveGroup();
   }
 
   /**

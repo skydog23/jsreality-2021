@@ -14,7 +14,9 @@ import * as Pn from '../../core/math/Pn.js';
 import * as Rn from '../../core/math/Rn.js';
 import { DiscreteGroupElement } from '../core/DiscreteGroupElement.js';
 import { DiscreteGroupUtility } from '../core/DiscreteGroupUtility.js';
+import { FiniteStateAutomaton } from '../core/FiniteStateAutomaton.js';
 import { EuclideanGroup } from './EuclideanGroup.js';
+import { platycosmWaData } from './PlatycosmWaData.js';
 
 export class Platycosm extends EuclideanGroup {
   static names = ['c1', 'c2', 'c3', 'c4', 'c6', 'c22', '+a1', '-a1', '+a2', '-a2'];
@@ -174,6 +176,12 @@ export class Platycosm extends EuclideanGroup {
     const g = new Platycosm();
     g.setGenerators(generators);
     g.setName(Platycosm.names[which]);
+
+    const waText = platycosmWaData.get(Platycosm.names[which]);
+    if (waText) {
+      g.setFsa(FiniteStateAutomaton.fromText(waText));
+    }
+
     return g;
   }
 

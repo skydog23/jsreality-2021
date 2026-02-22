@@ -7,7 +7,7 @@
  * Contributors retain copyright to their contributions.
  */
 
-import { Appearance } from '../../core/scene/Appearance.js';
+import { Appearance, INHERITED} from '../../core/scene/Appearance.js';
 import { SceneGraphComponent } from '../../core/scene/SceneGraphComponent.js';
 import { Transformation } from '../../core/scene/Transformation.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
@@ -90,6 +90,11 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
       const theNewSGR = SceneGraphUtility.createFullSceneGraphComponent(`${this.name} DG Parent`);
       const showTheWorld = this.officialElementList == null ? this.elementList : this.officialElementList;
       const n = showTheWorld?.length ?? 0;
+
+      const instanceTransforms = new Float32Array(n * 16);
+      const hasAppList = this.appList != null && this.appList.length > 0;
+      const instanceColors = hasAppList ? new Float32Array(n * 4) : null;
+
       for (let i = 0; i < n; ++i) {
         const dge = showTheWorld[i];
         const tmp = new SceneGraphComponent();
@@ -97,13 +102,42 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
         newTrans.setName(dge.getWord());
         tmp.setName(`dge ${dge.getWord()}`);
         tmp.setTransformation(newTrans);
-        if (this.appList != null && this.appList.length > 0) {
+        if (hasAppList) {
           const index = ((dge.getColorIndex() % this.appList.length) + this.appList.length) % this.appList.length;
           tmp.setAppearance(this.appList[index]);
         }
         tmp.addChild(this.fundamentalRegion);
         theNewSGR.addChild(tmp);
+
+        instanceTransforms.set(dge.getArray(), i * 16);
+
+        if (hasAppList) {
+          const index = ((dge.getColorIndex() % this.appList.length) + this.appList.length) % this.appList.length;
+          const app = this.appList[index];
+          const dc = app?.getAttribute?.('polygonShader.diffuseColor');
+          if (dc && typeof dc.getRed === 'function') {
+            instanceColors[i * 4]     = dc.getRed();
+            instanceColors[i * 4 + 1] = dc.getGreen();
+            instanceColors[i * 4 + 2] = dc.getBlue();
+            instanceColors[i * 4 + 3] = dc.getAlpha();
+          } else if (Array.isArray(dc)) {
+            instanceColors[i * 4]     = dc[0] ?? 1;
+            instanceColors[i * 4 + 1] = dc[1] ?? 1;
+            instanceColors[i * 4 + 2] = dc[2] ?? 1;
+            instanceColors[i * 4 + 3] = dc[3] ?? 1;
+          } else {
+            instanceColors[i * 4] = instanceColors[i * 4 + 1] = instanceColors[i * 4 + 2] = instanceColors[i * 4 + 3] = 1;
+          }
+        }
       }
+
+      const parentApp = theNewSGR.getAppearance() || new Appearance();
+      parentApp.setAttribute('instancedGeometry', this.copyCat);
+      parentApp.setAttribute('instanceTransforms', instanceTransforms);
+      if (hasAppList) parentApp.setAttribute('instanceColors', instanceColors);
+      parentApp.setAttribute('instanceCount', n);
+      parentApp.setAttribute('instanceFundamentalRegion', this.fundamentalRegion);
+      if (!theNewSGR.getAppearance()) theNewSGR.setAppearance(parentApp);
 
       this.newAppList = false;
       const old = this.theSceneGraphRepn;
