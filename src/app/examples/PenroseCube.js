@@ -46,7 +46,7 @@ export class PenroseCube extends JSRApp {
   _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
   _conic = null;
   _conics = new Array(8).fill(null);
-  _conicSGC = null;
+  _S0ConicSGC = null;
   _numDoubleLines = 3;
   _TiSGCs = new Array(this._numDoubleLines).fill(null);
   _S0TiDblLnSGCs = new Array(this._numDoubleLines).fill(null);
@@ -54,7 +54,7 @@ export class PenroseCube extends JSRApp {
   _S0TiDblLnArrays = new Array(this._numDoubleLines).fill([1,0,0,0,0,0]);
   _S0TiDblLnEqArrays = new Array(this._numDoubleLines).fill(null);
   _TiConics = new Array(this._numDoubleLines).fill(null);
-  _TiCollectorSGCs = new Array(this._numDoubleLines).fill(null);
+  _TiSGCs = new Array(this._numDoubleLines).fill(null);
   _S0TiPtPairPSFs =  new Array(this._numDoubleLines).fill(null);
   _S0TiDblLnPRFs = new Array(this._numDoubleLines).fill(null);
   _SjSGCs = new Array(this._numDoubleLines).fill(null);
@@ -88,7 +88,7 @@ export class PenroseCube extends JSRApp {
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('wold');
 
-    this._conicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
+    this._S0ConicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
     this._T0ConicSGC = SceneGraphUtility.createFullSceneGraphComponent('T0 conic');
     this._fivePointSGC = SceneGraphUtility.createFullSceneGraphComponent('fivePoints');
     this._centerSGC = SceneGraphUtility.createFullSceneGraphComponent('center');
@@ -134,7 +134,7 @@ export class PenroseCube extends JSRApp {
         if (fivePoints == null || fivePoints.length !== 5) { return; }
         this._conic.setFromFivePoints(fivePoints);
         if (this._doDualCurve) this._conic.getDualCurveSGC();
-        this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+        this._S0ConicSGC.setGeometry(this._conic.getIndexedLineSet());
         this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
         this.updateDoubleContactPencils();
     });
@@ -170,10 +170,10 @@ export class PenroseCube extends JSRApp {
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
     
-    this._worldSGC.addChildren(this._conicSGC, 
+    this._worldSGC.addChildren(this._S0ConicSGC, 
       this._fivePointSGC, 
       this._centerSGC, 
-      ...this._TiCollectorSGCs,
+      ...this._TiSGCs,
       ...this._SjSGCs,
       ...this._SjTkDblLnSGCs,
       this._T0ConicSGC);
@@ -258,10 +258,10 @@ export class PenroseCube extends JSRApp {
     this._conics = [this._conic, ...this._TiConics, ...this._SjConics, this._T0Conic];
    
     this._penroseCorners = [
-      this._conicSGC,
-      this._TiCollectorSGCs[0],
-      this._TiCollectorSGCs[1],
-      this._TiCollectorSGCs[2],
+      this._S0ConicSGC,
+      this._TiSGCs[0],
+      this._TiSGCs[1],
+      this._TiSGCs[2],
       this._SjSGCs[0],
       this._SjSGCs[1],
       this._SjSGCs[2],
@@ -277,7 +277,7 @@ export class PenroseCube extends JSRApp {
   updateConic() {
     if (this._whichMode === -1) {
       this._conic.setFromCoefficients([0,0,0,0,0,0]);
-      this._conicSGC.setGeometry(null);
+      this._S0ConicSGC.setGeometry(null);
       this.updateDoubleContactPencils();
       return;
     }
@@ -287,7 +287,7 @@ export class PenroseCube extends JSRApp {
     this._fivePointPSF.update();
     
     this._conic.setFromFivePoints(fivePoints);
-    this._conicSGC.setGeometry(this._conic.getIndexedLineSet());
+    this._S0ConicSGC.setGeometry(this._conic.getIndexedLineSet());
 
     this._centerSGC.setVisible(this._showCenterPoint && this._conic.rank === 3);
     this._centerSGC.setGeometry(Primitives.point(ConicUtils.getCenterPoint(this._conic)));
@@ -545,7 +545,7 @@ export class PenroseCube extends JSRApp {
     
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
-    this._TiCollectorSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('child '+which);
+    this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('child '+which);
     const ppr4 = this._pointPairs[which];
     this._S0TiDblLnSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('p'+which);
     ap = this._S0TiDblLnSGCs[which].getAppearance();
@@ -560,7 +560,7 @@ export class PenroseCube extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, twoPointColor);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     
-    this._TiCollectorSGCs[which].addChildren(this._TiSGCs[which], this._S0TiDblLnSGCs[which], this._S0TiPtPairSGCs[which]); 
+    this._TiSGCs[which].addChildren(this._TiSGCs[which], this._S0TiDblLnSGCs[which], this._S0TiPtPairSGCs[which]); 
    
     this._S0TiPtPairPSFs[which] = new PointSetFactory();
     this._S0TiPtPairPSFs[which].setVertexCount(2);
