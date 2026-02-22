@@ -46,6 +46,7 @@ export class PenroseCube extends JSRApp {
   _colors = [Color.RED, Color.YELLOW, new Color(75, 75, 255)];
   _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
   _conic = null;
+  _conics = new Array(8).fill(null);
   _conicSGC = null;
   _numDoubleLines = 3;
   _TiSGCs = new Array(this._numDoubleLines).fill(null);
@@ -166,16 +167,6 @@ export class PenroseCube extends JSRApp {
     const tool = new DragPointTool();
     tool.setName("dragPointTool");
     this._fivePointSGC.addTool(tool);
-
-   
-    // const clickWheelTool = new ClickWheelCameraZoomTool();
-    // clickWheelTool.setName("clickWheelTool");
-    // this._worldSGC.addTool(clickWheelTool);
-
-    // // const encompassTool = new EncompassTool();
-    // encompassTool.setName("encompassTool");
-    // this._worldSGC.addTool(encompassTool);
-  
     
     this._worldSGC.addChildren(this._conicSGC, 
       this._fivePointSGC, 
@@ -199,7 +190,6 @@ export class PenroseCube extends JSRApp {
     const cam = CameraUtility.getCamera(this.getViewer());
     cam.setFocus(4.5);
     cam.setFieldOfView(35);
-    const vc = this.getViewer().getViewingComponent();
     
     this._animatedParameter = new KeyFrameAnimatedDouble(0);
     this._animatedParameter.setInterpolationType(InterpolationTypes.CUBIC_HERMITE);
@@ -213,7 +203,7 @@ export class PenroseCube extends JSRApp {
     this._animatedParameter.addKeyFrame(new TimeDescriptor(0.05));
     this._animatedParameter.setCurrentValue(.416);
     this._animatedParameter.addKeyFrame(new TimeDescriptor(0.4));
-     this._animatedParameter.addKeyFrame(new TimeDescriptor(0.43));
+    this._animatedParameter.addKeyFrame(new TimeDescriptor(0.43));
     this._animatedParameter.setCurrentValue(.584);
     this._animatedParameter.addKeyFrame(new TimeDescriptor(.57));
     this._animatedParameter.addKeyFrame(new TimeDescriptor(.6));
@@ -228,20 +218,22 @@ export class PenroseCube extends JSRApp {
     // this.animationPlugin.setAnimateCamera(false);
     
 
-    if (vc) {
+    const vc = this.getViewer().getViewingComponent();
+     if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
         logger.fine(-1, 'size changed');
         logger.fine(-1, 'width = ', vc.clientWidth, 'height = ', vc.clientHeight);
         logger.fine(-1, 'viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
-        this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+        this._conics.map(conic => {
+          if (conic!==null) conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight))});
         this.getViewer().renderAsync();
       });
       this._resizeObserver.observe(vc);
     }
     // viewport can also change with changes to camera
     cam.addCameraListener((event) => {
-      logger.fine(-1, 'camera changed', event);
-      this._conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
+      logger.info(-1, 'camera changed', event);
+      this._conics.map(conic => {if (conic!==null) conic.setViewport(CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight))});
       this.getViewer().renderAsync();
     });
    
@@ -261,6 +253,8 @@ export class PenroseCube extends JSRApp {
   }
 
   initPenroseCorners() {
+    this._conics = [this._conic, ...this._TiConics, ...this._SjConics, this._T0Conic];
+   
     this._penroseCorners = [
       this._conicSGC,
       this._TiCollectorSGCs[0],
@@ -279,9 +273,14 @@ export class PenroseCube extends JSRApp {
   } 
 
   updateConic() {
-    
+    if (this._whichMode === -1) {
+      this._conic.setFromCoefficients([0,0,0,0,0,0]);
+      this._conicSGC.setGeometry(null);
+      this.updateDoubleContactPencils();
+      return;
+    }
     let fivePoints = this.initFivePoints();
-    logger.fine(-1, 'fivePoints = ', fivePoints.length);
+    logger.info(-1, 'fivePoints = ', fivePoints.length);
     this._fivePointPSF.setVertexCoordinates(fivePoints);
     this._fivePointPSF.update();
     
@@ -338,7 +337,7 @@ export class PenroseCube extends JSRApp {
     // the formula is Ti = di*S0 - pi*pi, or homogenized  dix*S0 - diy*pi*pi
     const pencilArray = Rn.linearCombination(null, x,this._conic.coefficients, -y, this._S0TiDblLnArrays[which]);
     logger.fine(-1, 'Ti which = ', which, 'time = ', x,  's = ', y, 'pencilArray = ', pencilArray);
-    logger.fine(-1, 'conic coefficients = ', this._conic.coefficients);
+    logger.info(-1, 'conic coefficients = ', this._conic.coefficients);
     logger.fine(-1, 'dblLineArrays = ', this._S0TiDblLnArrays[which]);
     this._TiConics[which].setFromCoefficients(pencilArray);
     this._TiSGCs[which].setGeometry(this._TiConics[which].getIndexedLineSet());
@@ -665,6 +664,13 @@ export class PenroseCube extends JSRApp {
           containerLabel: '# Collinear points',
           direction: 'row',
           items: [
+            {
+              type: DescriptorType.BUTTON,
+              label: '0',
+              action: () => {
+                this._whichMode = -1; this.updateConic();
+                this.getViewer().renderAsync();}
+            },
             {
               type: DescriptorType.BUTTON,
               label: '\u2299',
