@@ -23,7 +23,7 @@ import { RotateTool } from '../../../core/tools/RotateTool.js';
 /**
  * Port of de.jtem.discretegroup.tutorial.CubeExample.
  */
-export class DiscreteGroupCubeApp extends JSRApp {
+export class CubeDemo extends JSRApp {
   _flatten = false;
   _group = null;   // DiscreteGroup
   _representation = null; // DiscreteGroupSceneGraphRepresentation
@@ -75,7 +75,7 @@ export class DiscreteGroupCubeApp extends JSRApp {
   }
 
   getHelpTitle() {
-    return 'Discrete Group Cube';
+    return 'Box Tessellation Demo';
   }
 
   getHelpSummary() {

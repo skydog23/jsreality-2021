@@ -429,6 +429,7 @@ export class PenroseCube extends JSRApp {
       acc[i] = k0 * S0[i] + k1 * p1[i] + k2 * p2[i] + k3 * p3[i] + k23 * u1[i] + k13 * u2[i] + k12 * u3[i];
     }
     this._T0Conic.setFromCoefficients(acc); 
+    logger.fine(-1, 'T0 conic = ', this._T0Conic.coefficients);
     // console.log('T0 conic = ', Rn.matrixToString(this._T0Conic.Q));
     this._T0ConicSGC.setGeometry(this._T0Conic.getIndexedLineSet());
    }

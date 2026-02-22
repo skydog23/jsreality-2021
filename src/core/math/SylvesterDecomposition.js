@@ -149,6 +149,8 @@ export class SylvesterDecomposition {
   /** @returns {boolean} */
   isRank1() { return this.getRank() === 1; }
   /** @returns {boolean} */
+  isRealOval() { return this.isRank3() && (this.#inertia.pos === 1 || this.#inertia.neg === 1); }
+  /** @returns {boolean} */
   isImaginary() {
     return this.getRank() === 3 && (this.#inertia.pos === 3 || this.#inertia.neg === 3);
   }

@@ -28,7 +28,7 @@ import { WallpaperGroup } from '../../../discretegroup/groups/WallpaperGroup.js'
  * It follows the logical setup of `discretegroup/tutorial/SimpleExample2D`
  * and visualizes one Dirichlet fundamental region under the group action.
  */
-export class DiscreteGroupSimple2DApp extends JSRApp {
+export class Simple2DDemo extends JSRApp {
   _maxElements = 50;
   _skewit = true;
 
@@ -106,6 +106,14 @@ export class DiscreteGroupSimple2DApp extends JSRApp {
     super.display();
     this.setup3DCamera();
     this.getViewer().render();
+  }
+
+  getHelpTitle() {
+    return '2D Wallpaper Group';
+  }
+
+  getHelpSummary() {
+    return 'Euclidean wallpaper group with Dirichlet fundamental domain.';
   }
 }
 

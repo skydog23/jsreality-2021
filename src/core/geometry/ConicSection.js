@@ -42,6 +42,7 @@ export class ConicSection {
     sylvester = null;
     isImaginary = false;
     isZero = false;
+    force210 = false;
     linePair = null;
     fivePoints = null;
     pts5d = null;
@@ -63,9 +64,9 @@ export class ConicSection {
             if (Array.isArray(initArray)) {
                 if (Array.isArray(initArray[0]))
                     this.setFromFivePoints(initArray);
-                else if (initArray.length == 6) this.setFromCoefficients(initArray);
+                else if (initArray.length == 6) this.setCoefficients(initArray);
                 else if (initArray.length == 9) {
-                    this.setFromCoefficients(ConicUtils.convertQToArray(initArray));
+                    this.setCoefficients(ConicUtils.convertQToArray(initArray));
                 }
             }
             else throw new Error('Argument must be an array of arrays or a single array');
@@ -104,23 +105,33 @@ export class ConicSection {
     }
 
     setCoefficients(coefficients) {
-        if (coefficients.every(c => c === 0)) {
-            logger.info(-1, 'setting conic to zero');
-            this.coefficients = [0,0,0,0,0,0];
-            this.isZero = true;
-            this.rank = 0;
-            this.curve = null;
-            this.ilsf = null;
-            this.dualConicSGC = null;
-            return;
+        logger.info(-1, 'setCoefficients called with coefficients = ', coefficients);
+        if (coefficients.some(c => isNaN(c))) {
+            coefficients = [0,0,0,0,0,0];
+            logger.info(-1, 'coefficients contains NaN, setting to zero');
         }
+        // if (coefficients.every(c => c === 0)) {
+        //     logger.info(-1, 'setting conic to zero');
+        //     this.coefficients = [0,0,0,0,0,0];
+        //     this.isZero = true;
+        //     this.rank = 0;
+        //     this.curve = null;
+        //     this.ilsf = null;
+        //     this.dualConicSGC = null;
+        //     return;
+        // }
+        
         this.coefficients = this.#chooseContinuity(this.coefficients, coefficients);
         if (this.normalize) this.coefficients = ConicUtils.normalizeCoefficients(this.coefficients);
         this.Q = ConicUtils.convertArrayToQ(...this.coefficients);
        
         const tol = (this.degConTol !== null) ? this.degConTol : ConicUtils.degenConicTolerance;
         this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
-        if (this.Q[8] < 0) {Rn.times(this.Q, -1, this.Q);}
+        if (this.force210 && this.sylvester.isRealOval() && this.sylvester.getInertia().pos === 1) {
+            this.Q = Rn.times(null, -1, this.Q);
+            this.coefficients = ConicUtils.convertQToArray(...this.Q);
+            this.sylvester = Rn.sylvesterDiagonalize3x3(this.Q, tol);
+        }
         this.rank = this.sylvester.getRank();
         this.dQ = P2.cofactor(null, this.Q);
         if (this.normalize) this.dQ = ConicUtils.normalizeQ(this.dQ);
@@ -134,7 +145,7 @@ export class ConicSection {
     }
 
     #chooseContinuity(oldc, newc) {
-        if (oldc == null) return newc;
+        if (oldc === null || oldc.some(c => isNaN(c))) return newc;
         const d1 = Rn.linearCombination(null, .5, oldc, .5, newc);   // (oldc + newc)/2
         const d2 = Rn.linearCombination(null, .5, oldc, -.5, newc);   // (oldc - newc)/2
         // choose the smaller norm
@@ -147,7 +158,7 @@ export class ConicSection {
         logger.fine(-1, 'Updating conic section');
         logger.fine(-1, 'conic rank', this.rank);
 
-        if (this.isZero) {
+        if (this.rank === 0) {
             return;
         }
         if (this.rank === 1) {

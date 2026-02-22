@@ -26,7 +26,7 @@ import {
  * Loading is asynchronous (resource fetch), so `getContent()` returns a stable
  * placeholder node immediately and populates it when ready.
  */
-export class DiscreteGroupCell120App extends JSRApp {
+export class Cell120Demo extends JSRApp {
   _root = null;
   _loaded = false;
 
@@ -81,6 +81,14 @@ export class DiscreteGroupCell120App extends JSRApp {
     super.display();
     this.setup3DCamera();
     this.getViewer().render();
+  }
+
+  getHelpTitle() {
+    return '120-Cell';
+  }
+
+  getHelpSummary() {
+    return 'Elliptic 120-cell tessellation from a .gens resource file.';
   }
 }
 
