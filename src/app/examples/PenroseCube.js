@@ -48,7 +48,7 @@ export class PenroseCube extends JSRApp {
   _conics = new Array(8).fill(null);
   _S0ConicSGC = null;
   _numDoubleLines = 3;
-  _TiSGCs = new Array(this._numDoubleLines).fill(null);
+  _TiCollectorSGCs = new Array(this._numDoubleLines).fill(null);
   _S0TiDblLnSGCs = new Array(this._numDoubleLines).fill(null);
   _S0TiPtPairSGCs = new Array(this._numDoubleLines).fill(null);
   _S0TiDblLnArrays = new Array(this._numDoubleLines).fill([1,0,0,0,0,0]);
@@ -173,7 +173,7 @@ export class PenroseCube extends JSRApp {
     this._worldSGC.addChildren(this._S0ConicSGC, 
       this._fivePointSGC, 
       this._centerSGC, 
-      ...this._TiSGCs,
+      ...this._TiCollectorSGCs,
       ...this._SjSGCs,
       ...this._SjTkDblLnSGCs,
       this._T0ConicSGC);
@@ -259,9 +259,9 @@ export class PenroseCube extends JSRApp {
    
     this._penroseCorners = [
       this._S0ConicSGC,
-      this._TiSGCs[0],
-      this._TiSGCs[1],
-      this._TiSGCs[2],
+      this._TiCollectorSGCs[0],
+      this._TiCollectorSGCs[1],
+      this._TiCollectorSGCs[2],
       this._SjSGCs[0],
       this._SjSGCs[1],
       this._SjSGCs[2],
@@ -540,8 +540,8 @@ export class PenroseCube extends JSRApp {
   
     this._TiConics[which] = new ConicSection(null, this._normalizeConics);
     this._TiConics[which].name = 'pencil conic '+which;
-    this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
-    let ap = this._TiSGCs[which].getAppearance();
+    this._TiCollectorSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
+    let ap = this._TiCollectorSGCs[which].getAppearance();
     
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
@@ -560,7 +560,7 @@ export class PenroseCube extends JSRApp {
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, twoPointColor);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, true);
     
-    this._TiSGCs[which].addChildren(this._TiSGCs[which], this._S0TiDblLnSGCs[which], this._S0TiPtPairSGCs[which]); 
+    this._TiCollectorSGCs[which].addChildren(this._TiSGCs[which], this._S0TiDblLnSGCs[which], this._S0TiPtPairSGCs[which]); 
    
     this._S0TiPtPairPSFs[which] = new PointSetFactory();
     this._S0TiPtPairPSFs[which].setVertexCount(2);
