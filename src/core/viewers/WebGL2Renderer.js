@@ -679,7 +679,6 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       }
       // Flush happens in _endPrimitiveGroup()
     } else {
-      // Fallback: still per-polyline line strips.
       const lineWidth = this.getAppearanceAttribute(
         CommonAttributes.LINE_SHADER,
         CommonAttributes.LINE_WIDTH,
@@ -690,15 +689,11 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         CommonAttributes.EDGE_FADE,
         CommonAttributes.EDGE_FADE_DEFAULT
       ));
-      for (let i = 0; i < indices.length; i++) {
-        const c = edgeColors ? edgeColors[i] : null;
-        // Edge colors coming from geometry attributes should already be float RGBA in [0,1].
-        const edgeColor = c ?? this.#currentColor;
-        // If the platform doesn't support wide hardware lines (very common), render screen-space quads
-        // so `lineWidth` behaves as pixel width. Also use quads when edgeFade is requested.
-        if (!this.#capabilities?.supportsWideLines || lineWidth > 1.0 || edgeFade > 0.0) {
-          this.#drawPolylineAsScreenSpaceQuads(vertices, edgeColor, indices[i], lineWidth);
-        } else {
+      if (!this.#capabilities?.supportsWideLines || lineWidth > 1.0 || edgeFade > 0.0) {
+        this.#drawAllEdgesAsScreenSpaceQuads(vertices, indices, edgeColors, lineWidth);
+      } else {
+        for (let i = 0; i < indices.length; i++) {
+          const c = edgeColors ? edgeColors[i] : null;
           this.#drawPolylineAsLineStrip(vertices, c, indices[i], lineWidth);
         }
       }
@@ -2075,6 +2070,174 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // Note: We need sequential indices since vertexArray is compacted
     const sequentialIndices = this.#getSequentialIndices(indices.length);
     this.#drawGeometry(vertexArray, colorArray, null, sequentialIndices, this.#capabilities.LINE_STRIP, null, 0, positionSize);
+  }
+
+  /**
+   * Batched screen-space quad rendering for ALL edges of a geometry in one (or few) draw calls.
+   * Replaces the former per-polyline loop that called #drawPolylineAsScreenSpaceQuads individually.
+   *
+   * @private
+   * @param {*} vertices - Vertex coordinate data
+   * @param {number[][]} allIndices - Array of polyline index arrays
+   * @param {number[][]|null} edgeColors - Per-polyline edge colors (or null for uniform color)
+   * @param {number} lineWidthPx - Line width in pixels
+   */
+  #drawAllEdgesAsScreenSpaceQuads(vertices, allIndices, edgeColors, lineWidthPx) {
+    const gl = this.#gl;
+    const program = this.#getMainProgramForDraw();
+
+    const wPx = this.#canvas?.width ?? 0;
+    const hPx = this.#canvas?.height ?? 0;
+    if (!(wPx > 0 && hPx > 0)) return;
+
+    let totalSegments = 0;
+    for (let i = 0; i < allIndices.length; i++) {
+      const poly = allIndices[i];
+      if (poly && poly.length >= 2) totalSegments += (poly.length - 1);
+    }
+    if (totalSegments === 0) return;
+
+    const halfWidthPx = Math.max(0.5, Number(lineWidthPx) * 0.5);
+    const T = this.getCurrentTransformation();
+    const defaultColor = this.#currentColor;
+    const invWPx2 = 2.0 / wPx;
+    const invHPx2 = 2.0 / hPx;
+
+    const MAX_VERTS = 60000;
+    const batchSegCap = Math.min(totalSegments, Math.floor(MAX_VERTS / 4));
+    const pos = new Float32Array(batchSegCap * 16);
+    const col = new Float32Array(batchSegCap * 16);
+    const distArr = new Float32Array(batchSegCap * 4);
+    const idx = new Uint16Array(batchSegCap * 6);
+
+    gl.useProgram(program);
+    this.#updateUniforms(program, halfWidthPx, 1.0, false, false);
+    const transformLoc = gl.getUniformLocation(program, 'u_transform');
+    if (transformLoc !== null) gl.uniformMatrix4fv(transformLoc, true, Rn.identityMatrix(4));
+
+    if (program === this.#unifiedProgram) {
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+      const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+      if (prLoc !== null) gl.uniform1f(prLoc, 0.0);
+      const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+      if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+    }
+
+    const posLoc = gl.getAttribLocation(program, 'a_position');
+    const colorLoc = gl.getAttribLocation(program, 'a_color');
+    const distLoc = gl.getAttribLocation(program, 'a_distance');
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+    let centerLoc = -1, uP0Loc = -1, uP1Loc = -1;
+    if (program === this.#unifiedProgram) {
+      centerLoc = gl.getAttribLocation(program, 'a_center');
+      uP0Loc = gl.getAttribLocation(program, 'a_p0');
+      uP1Loc = gl.getAttribLocation(program, 'a_p1');
+    }
+
+    let v = 0;
+    let ii = 0;
+
+    const flushBatch = () => {
+      if (v === 0) return;
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, pos.subarray(0, v * 4), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 4, gl.FLOAT, false, 0, 0);
+      if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(posLoc, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, col.subarray(0, v * 4), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(colorLoc, 0);
+
+      if (distLoc !== -1) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#distanceBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, distArr.subarray(0, v), gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(distLoc);
+        gl.vertexAttribPointer(distLoc, 1, gl.FLOAT, false, 0, 0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(distLoc, 0);
+      }
+
+      if (normalLoc !== -1) {
+        gl.disableVertexAttribArray(normalLoc);
+        gl.vertexAttrib3f(normalLoc, 0.0, 0.0, 1.0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(normalLoc, 0);
+      }
+      if (centerLoc !== -1) { gl.disableVertexAttribArray(centerLoc); gl.vertexAttrib3f(centerLoc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(centerLoc, 0); }
+      if (uP0Loc !== -1) { gl.disableVertexAttribArray(uP0Loc); gl.vertexAttrib3f(uP0Loc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(uP0Loc, 0); }
+      if (uP1Loc !== -1) { gl.disableVertexAttribArray(uP1Loc); gl.vertexAttrib3f(uP1Loc, 0, 0, 0); if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(uP1Loc, 0); }
+
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx.subarray(0, ii), gl.DYNAMIC_DRAW);
+      gl.drawElements(gl.TRIANGLES, ii, gl.UNSIGNED_SHORT, 0);
+      if (this.#debugGL) this.#debugGL.drawElements++;
+
+      v = 0;
+      ii = 0;
+    };
+
+    for (let pi = 0; pi < allIndices.length; pi++) {
+      const poly = allIndices[pi];
+      if (!poly || poly.length < 2) continue;
+
+      const c = edgeColors ? edgeColors[pi] : null;
+      const edgeColor = c ?? defaultColor;
+      const er = edgeColor[0], eg = edgeColor[1], eb = edgeColor[2], ea = edgeColor[3];
+
+      for (let s = 0; s < poly.length - 1; s++) {
+        if (v + 4 > MAX_VERTS) flushBatch();
+
+        const i0 = poly[s] | 0;
+        const i1 = poly[s + 1] | 0;
+        const p0 = this._extractPoint(vertices[i0]);
+        const p1 = this._extractPoint(vertices[i1]);
+
+        const c0 = Rn.matrixTimesVector(null, T, [p0[0] ?? 0, p0[1] ?? 0, p0[2] ?? 0, p0[3] ?? 1]);
+        const c1 = Rn.matrixTimesVector(null, T, [p1[0] ?? 0, p1[1] ?? 0, p1[2] ?? 0, p1[3] ?? 1]);
+        const w0 = (c0[3] === 0 ? 1.0 : c0[3]);
+        const w1 = (c1[3] === 0 ? 1.0 : c1[3]);
+        const ndc0x = c0[0] / w0, ndc0y = c0[1] / w0, ndc0z = c0[2] / w0;
+        const ndc1x = c1[0] / w1, ndc1y = c1[1] / w1, ndc1z = c1[2] / w1;
+
+        const sx0 = (ndc0x * 0.5 + 0.5) * wPx;
+        const sy0 = (ndc0y * 0.5 + 0.5) * hPx;
+        const sx1 = (ndc1x * 0.5 + 0.5) * wPx;
+        const sy1 = (ndc1y * 0.5 + 0.5) * hPx;
+
+        const dx = sx1 - sx0;
+        const dy = sy1 - sy0;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) continue;
+        const nx = (-dy / len) * halfWidthPx;
+        const ny = (dx / len) * halfWidthPx;
+
+        const base = v * 4;
+        pos[base]      = (sx0 + nx) * invWPx2 - 1.0; pos[base + 1]  = (sy0 + ny) * invHPx2 - 1.0; pos[base + 2]  = ndc0z; pos[base + 3]  = 1.0;
+        pos[base + 4]  = (sx0 - nx) * invWPx2 - 1.0; pos[base + 5]  = (sy0 - ny) * invHPx2 - 1.0; pos[base + 6]  = ndc0z; pos[base + 7]  = 1.0;
+        pos[base + 8]  = (sx1 + nx) * invWPx2 - 1.0; pos[base + 9]  = (sy1 + ny) * invHPx2 - 1.0; pos[base + 10] = ndc1z; pos[base + 11] = 1.0;
+        pos[base + 12] = (sx1 - nx) * invWPx2 - 1.0; pos[base + 13] = (sy1 - ny) * invHPx2 - 1.0; pos[base + 14] = ndc1z; pos[base + 15] = 1.0;
+
+        const cb0 = v * 4;
+        col[cb0]      = er; col[cb0 + 1]  = eg; col[cb0 + 2]  = eb; col[cb0 + 3]  = ea;
+        col[cb0 + 4]  = er; col[cb0 + 5]  = eg; col[cb0 + 6]  = eb; col[cb0 + 7]  = ea;
+        col[cb0 + 8]  = er; col[cb0 + 9]  = eg; col[cb0 + 10] = eb; col[cb0 + 11] = ea;
+        col[cb0 + 12] = er; col[cb0 + 13] = eg; col[cb0 + 14] = eb; col[cb0 + 15] = ea;
+
+        distArr[v]     = -halfWidthPx;
+        distArr[v + 1] =  halfWidthPx;
+        distArr[v + 2] = -halfWidthPx;
+        distArr[v + 3] =  halfWidthPx;
+
+        idx[ii++] = v;     idx[ii++] = v + 1; idx[ii++] = v + 2;
+        idx[ii++] = v + 1; idx[ii++] = v + 3; idx[ii++] = v + 2;
+        v += 4;
+      }
+    }
+
+    flushBatch();
   }
 
   /**
