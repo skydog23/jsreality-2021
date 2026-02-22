@@ -20,6 +20,7 @@ import {
 } from '../../../discretegroup/core/index.js';
 import { Platycosm } from '../../../discretegroup/groups/Platycosm.js';
 import { RotateTool } from '../../../core/tools/RotateTool.js';
+import { Color } from '../../../core/util/Color.js';
 /**
  * Port of de.jtem.discretegroup.tutorial.CubeExample.
  */
@@ -58,6 +59,7 @@ export class CubeDemo extends JSRApp {
     ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.SMOOTH_SHADING, false);
+    ap.setAttribute("polygonShader."+CommonAttributes.DIFFUSE_COLOR, new Color(255, 0, 0));
     console.log('DiscreteGroupCubeApp getContent');
     return this._root;
   }
