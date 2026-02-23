@@ -65,7 +65,6 @@ export class CubeDemo extends JSRApp {
     // Match Java tutorial camera offset (avatar translated along +z).
     MatrixBuilder.euclidean().translate(0, 0, 60).assignTo(CameraUtility.getCameraNode(viewer));
     CameraUtility.encompass(viewer);
-    viewer.render();
   }
 
   getHelpTitle() {

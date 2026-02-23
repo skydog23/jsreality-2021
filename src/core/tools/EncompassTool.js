@@ -27,13 +27,11 @@ export class EncompassTool extends AbstractTool {
   activate(tc) {
     console.log('EncompassTool.activate()', tc);
     encompass(tc.getViewer());
-    tc.getViewer().renderAsync();
   } 
 
   perform(tc) {
     console.log('EncompassTool.perform()', tc);
     encompass(tc.getViewer());
-    tc.getViewer().renderAsync();
   }
 
 }

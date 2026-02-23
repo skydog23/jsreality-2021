@@ -59,6 +59,14 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     this.newCameraRepn = false;
     this.flatten = false;
     this.active = true;
+
+    this.clipToCamera = false;
+    this.followsCamera = false;
+    this.clipDelay = 500;
+    this.followDelay = 500;
+    this.viewportConstraint = null;
+    this._viewer = null;
+    this._pathToWorld = null;
   }
 
   setConstraint(c) {
@@ -282,15 +290,61 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     this.#updateFlatten();
   }
 
+  setClipToCamera(b) {
+    this.clipToCamera = !!b;
+  }
+
+  isClipToCamera() {
+    return this.clipToCamera;
+  }
+
+  setFollowsCamera(b) {
+    this.followsCamera = !!b;
+  }
+
+  isFollowsCamera() {
+    return this.followsCamera;
+  }
+
+  setClipDelay(ms) {
+    this.clipDelay = ms;
+  }
+
+  getClipDelay() {
+    return this.clipDelay;
+  }
+
+  setFollowDelay(ms) {
+    this.followDelay = ms;
+  }
+
+  getFollowDelay() {
+    return this.followDelay;
+  }
+
+  setViewportConstraint(vc) {
+    this.viewportConstraint = vc;
+  }
+
+  getViewportConstraint() {
+    return this.viewportConstraint;
+  }
+
+  getCopyCatCount() {
+    return this.theSceneGraphRepn?.getChildComponentCount() ?? 0;
+  }
+
   /**
-   * Optional helper for compatibility.
+   * Store the viewer and path-to-world for viewport constraint updates.
    */
-  attachToViewer(_viewer, _path = null) {
-    // No-op in this first pass; users can add getRepresentationRoot() directly to scene root.
+  attachToViewer(viewer, path = null) {
+    this._viewer = viewer;
+    this._pathToWorld = path;
   }
 
   detachFromViewer() {
-    // No-op for now.
+    this._viewer = null;
+    this._pathToWorld = null;
   }
 
   dispose() {

@@ -80,9 +80,7 @@ export class TessellatedContentDemo extends TessellatedApp {
 
     super.display();
 
-    const viewer = this.getViewer();
-    CameraUtility.encompass(viewer);
-    viewer.render();
+    CameraUtility.encompass(this.getViewer());
   }
 
   getHelpTitle() {

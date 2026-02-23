@@ -215,7 +215,6 @@ export class RotateTool extends AbstractTool {
 		this.result.multiplyOnRight(this.evolution);
 		this.comp.getTransformation().setMatrix(this.result.getArray()); //P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6, this.metric)); //this.result.getArray());
     this.success = true;
-		tc.getViewer().renderAsync();
 
     // const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     // if (!path) return;
@@ -396,7 +395,6 @@ export class RotateTool extends AbstractTool {
         currentTrafo.setMatrix(this.result.getArray());
       }
 
-      this.#animViewer.renderAsync();
       this.#animRafId = requestAnimationFrame(step);
     };
 

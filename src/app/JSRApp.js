@@ -380,7 +380,7 @@ export class JSRApp extends JSRPlugin {
         id: pluginInfo.id,
         icon: '⚙️',
         collapsed: false,
-        onPropertyChange: () => this.getViewer().render()
+        onPropertyChange: () => {}
       }
     );
 
@@ -465,11 +465,6 @@ export class JSRApp extends JSRPlugin {
     const camNode =CameraUtility.getCameraNode(this.getViewer());
     camNode.addTool(new FlyTool());
     this.getToolSystem()?.rediscoverSceneTools?.();
-
-
-    this.#jsrViewer.getViewer().render();
-    
-  
   }
 
   setup3DCamera() {

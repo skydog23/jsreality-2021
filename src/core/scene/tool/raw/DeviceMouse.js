@@ -276,20 +276,16 @@ export class DeviceMouse extends AbstractDeviceMouse {
    * @private
    */
   #getRealButton(e) {
-    let button = e.button;
-    
-    // Handle Mac trackpad and Linux quirks
-    if (button === 0 && e.buttons !== undefined) {
-      // Linux: use buttons mask
-      if (e.buttons & 1) button = 0; // Left
-      else if (e.buttons & 4) button = 1; // Middle
-      else if (e.buttons & 2) button = 2; // Right
-    } else if (button === 0) {
-      // Mac OS X: check modifiers
-      if (e.altKey && e.buttons === 1) button = 1; // Middle (Alt+click)
-      else if (e.ctrlKey && e.buttons === 1) button = 2; // Right (Ctrl+click)
+    const button = e.button;
+
+    if (button === 0) {
+      // Modifier+click emulation for single-button trackpads:
+      //   Option/Alt + click → middle button
+      //   Control     + click → right button
+      if (e.altKey) return 1;
+      if (e.ctrlKey) return 2;
     }
-    
+
     return button;
   }
 

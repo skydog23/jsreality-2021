@@ -97,8 +97,6 @@ export class DragPointTool extends AbstractTool {
     this._verts[this._index][0] = this._pickpoint[0] + newpoint[0];
     this._verts[this._index][1] = this._pickpoint[1] + newpoint[1];
     this._pointset.setVertexAttribute(GeometryAttribute.COORDINATES, toDataList(this._verts));
-    //this._pointset.update();
-    tc.getViewer().renderAsync();
   }
 
   /**

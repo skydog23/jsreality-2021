@@ -365,6 +365,35 @@ export class SceneGraphComponent extends SceneGraphNode {
   }
 
   /**
+   * Set the light
+   * @param {import('./Light.js').Light|null} newLight - The new light
+   */
+  setLight(newLight) {
+    this.checkReadOnly();
+    this.startWriter();
+    try {
+      const old = this.#light;
+      this.#light = newLight;
+      this.#fireSceneGraphElementSet(old, newLight, SceneGraphComponentChildType.LIGHT);
+    } finally {
+      this.finishWriter();
+    }
+  }
+
+  /**
+   * Get the light
+   * @returns {import('./Light.js').Light|null}
+   */
+  getLight() {
+    this.startReader();
+    try {
+      return this.#light;
+    } finally {
+      this.finishReader();
+    }
+  }
+
+  /**
    * Set the geometry
    * @param {Geometry|null} g - The new geometry
    */
