@@ -520,6 +520,22 @@ export class JSRViewer {
   }
 
   /**
+   * Get the avatar component (the last component on the avatar path).
+   * @returns {SceneGraphComponent|null}
+   */
+  getAvatarComponent() {
+    return this.#avatarComponent;
+  }
+
+  /**
+   * Get the content component.
+   * @returns {SceneGraphComponent|null}
+   */
+  getContentComponent() {
+    return this.#contentComponent;
+  }
+
+  /**
    * Get the empty pick path.
    * @returns {SceneGraphPath} The empty pick path
    */

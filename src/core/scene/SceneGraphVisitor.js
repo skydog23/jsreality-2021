@@ -157,4 +157,28 @@ export class SceneGraphVisitor {
   visitClippingPlane(clippingPlane) {
     this.visitGeometry(clippingPlane);
   }
+
+  /**
+   * Visit a Light node
+   * @param {import('./Light.js').Light} light
+   */
+  visitLight(light) {
+    this.visit(light);
+  }
+
+  /**
+   * Visit a DirectionalLight node
+   * @param {import('./DirectionalLight.js').DirectionalLight} light
+   */
+  visitDirectionalLight(light) {
+    this.visitLight(light);
+  }
+
+  /**
+   * Visit a PointLight node
+   * @param {import('./PointLight.js').PointLight} light
+   */
+  visitPointLight(light) {
+    this.visitLight(light);
+  }
 }
