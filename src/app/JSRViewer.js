@@ -43,6 +43,7 @@ import { PluginManager } from './plugin/PluginManager.js';
 import { ViewerEventBridge } from './plugin/ViewerEventBridge.js';
 import { PluginLayoutManager } from './plugin/PluginLayoutManager.js';
 import { PluginController } from './plugin/PluginController.js';
+import { RenderTrigger } from '../core/util/RenderTrigger.js';
 // Ensure shaders are registered (side effect import - triggers registerDefaultShaders)
 import '../core/shader/index.js';
 
@@ -117,6 +118,9 @@ export class JSRViewer {
 
   /** @type {ToolSystem|null} */
   #toolSystem = null;
+
+  /** @type {RenderTrigger} */
+  #renderTrigger;
 
   /** @type {ContentManager|null} */
   #contentManager = null;
@@ -202,6 +206,7 @@ export class JSRViewer {
     // Initialize core systems
     this.#initializeViewers(this.#layoutManager.getViewerHostElement(), viewerTypes, viewers, viewerNames);
     this.#initializeScene(sceneRoot);
+    this.#initializeRenderTrigger();
     this.#initializeToolSystem(toolSystemConfig);
     this.#initializeContentManager();
     this.#registerDefaults();
@@ -392,6 +397,18 @@ export class JSRViewer {
   }
 
   /**
+   * Initialize the RenderTrigger: watches the scene graph for changes and
+   * calls renderAsync() on the viewer so manual render() calls become optional.
+   * @private
+   */
+  #initializeRenderTrigger() {
+    this.#renderTrigger = new RenderTrigger();
+    this.#renderTrigger.addViewer(this.#viewerSwitch);
+    this.#renderTrigger.addSceneGraphComponent(this.#sceneRoot);
+    logger.info('RenderTrigger initialized');
+  }
+
+  /**
    * Initialize tool system.
    * @param {Object|null} toolSystemConfig - Tool system configuration
    * @private
@@ -406,7 +423,7 @@ export class JSRViewer {
     this.#toolSystem = new ToolSystem(
       this.#viewerSwitch,
       config,
-      null // No render trigger for now
+      this.#renderTrigger
     );
 
     // Set tool system on viewer switch
@@ -549,6 +566,14 @@ export class JSRViewer {
    */
   getToolSystem() {
     return this.#toolSystem;
+  }
+
+  /**
+   * Get the RenderTrigger that watches this viewer's scene graph.
+   * @returns {RenderTrigger}
+   */
+  getRenderTrigger() {
+    return this.#renderTrigger;
   }
 
   /**
@@ -1010,7 +1035,6 @@ export class JSRViewer {
     }
 
     this.#emit('cameraChanged', {});
-    this.render();
   }
 
 

@@ -52,7 +52,6 @@ export class TranslateShapeTool extends AbstractTool {
     next[3] = this._startMatrix[3] + dx;
     next[7] = this._startMatrix[7] + dy;
     this._target.getTransformation().setMatrix(next);
-    tc.getViewer().renderAsync();
   }
 }
 

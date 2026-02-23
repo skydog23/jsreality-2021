@@ -34,6 +34,7 @@ export class Light extends SceneGraphNode {
 
   setColor(color) {
     this.#color = color;
+    this.#fireLightChanged();
   }
 
   /**
@@ -54,6 +55,7 @@ export class Light extends SceneGraphNode {
 
   setIntensity(intensity) {
     this.#intensity = intensity;
+    this.#fireLightChanged();
   }
 
   isGlobal() {
@@ -62,6 +64,7 @@ export class Light extends SceneGraphNode {
 
   setGlobal(global) {
     this.#global = global;
+    this.#fireLightChanged();
   }
 
   isAmbientFake() {
@@ -70,6 +73,11 @@ export class Light extends SceneGraphNode {
 
   setAmbientFake(b) {
     this.#ambientFake = b;
+    this.#fireLightChanged();
+  }
+
+  #fireLightChanged() {
+    this.dispatchEvent(new Event('lightChanged'));
   }
 
   accept(v) {

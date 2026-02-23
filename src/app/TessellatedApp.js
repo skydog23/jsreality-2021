@@ -233,7 +233,6 @@ export class TessellatedApp extends JSRApp {
       ap.setAttribute('backgroundColor', new Color(200, 175, 150));
     }
     this._instrumentSceneGraph();
-    this.getViewer()?.render?.();
   }
 
   _instrumentSceneGraph() {
@@ -243,9 +242,6 @@ export class TessellatedApp extends JSRApp {
 
     this._flyTool = new FlyTool();
     this._flyTool.setGain(this._flySpeed);
-    this._flyTool.addChangeListener(() => {
-      this.getViewer()?.render?.();
-    });
     if (this._group) {
       this._flyTool.setMetric(this._group.getMetric());
     }
@@ -415,7 +411,6 @@ export class TessellatedApp extends JSRApp {
   setScale(s) {
     this._scale = s;
     MatrixBuilder.euclidean().scale(s).assignTo(this._fundDomSGC);
-    this.getViewer()?.renderAsync();
   }
 
   // ---- GroupChangedListener -------------------------------------------------

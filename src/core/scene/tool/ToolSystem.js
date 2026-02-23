@@ -311,6 +311,9 @@ export class ToolSystem extends ToolEventReceiver {
   /** @type {Viewer} Viewer */
   #viewer;
 
+  /** @type {import('../../util/RenderTrigger.js').RenderTrigger|null} */
+  #renderTrigger = null;
+
   /** @type {ToolSystemConfiguration} Configuration */
   #config;
 
@@ -534,6 +537,7 @@ export class ToolSystem extends ToolEventReceiver {
   constructor(viewer, config, renderTrigger) {
     super();
     this.#viewer = viewer;
+    this.#renderTrigger = renderTrigger;
     // If config is null, use default configuration
     if (config === null) {
       this.#config = ToolSystem.getDefaultToolSystemConfiguration();
@@ -809,6 +813,7 @@ export class ToolSystem extends ToolEventReceiver {
   processToolEvent(event) {
     if (this.#disposed) return;
     this.#executing = true;
+    this.#renderTrigger?.startCollect();
     
     this.#compQueue.push(event);
     let iterCnt = 0;
@@ -840,6 +845,7 @@ export class ToolSystem extends ToolEventReceiver {
     }
     
     this.#executing = false;
+    this.#renderTrigger?.finishCollect();
     
     if (event.getInputSlot() === InputSlot.SYSTEM_TIME) {
       this.#deviceManager.setSystemTime(event.getTimeStamp());

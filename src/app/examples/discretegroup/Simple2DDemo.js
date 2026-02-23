@@ -105,7 +105,6 @@ export class Simple2DDemo extends JSRApp {
   display() {
     super.display();
     this.setup3DCamera();
-    this.getViewer().render();
   }
 
   getHelpTitle() {

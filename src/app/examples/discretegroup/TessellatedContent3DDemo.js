@@ -19,6 +19,7 @@ import { SceneGraphUtility } from '../../../core/util/SceneGraphUtility.js';
 import { SpaceGroup } from '../../../discretegroup/groups/SpaceGroup.js';
 import { DirichletDomain } from '../../../discretegroup/core/DirichletDomain.js';
 import { DiscreteGroupSimpleConstraint } from '../../../discretegroup/core/DiscreteGroupSimpleConstraint.js';
+import { RotateTool } from '../../../core/tools/RotateTool.js';
 
 export class TessellatedContent3DDemo extends TessellatedApp {
 
@@ -84,7 +85,7 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     this._wrapper.getAppearance().setAttribute(
       `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 255));
     repnRoot.addChild(this._wrapper);
-
+      repnRoot.addTool(new RotateTool());
     return repnRoot;
   }
 
@@ -108,7 +109,6 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     super.display();
 
     CameraUtility.encompass(viewer);
-    viewer.render();
   }
 
   getHelpTitle() {
