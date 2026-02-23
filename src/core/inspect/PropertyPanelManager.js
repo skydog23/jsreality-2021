@@ -405,7 +405,7 @@ export class PropertyPanelManager {
   }
   
   #buildTransformationDescriptors(transform) {
-    const fm = new FactoredMatrix(Pn.EUCLIDEAN, transform.getMatrix());
+    const fm = new FactoredMatrix(transform.getMatrix());
     const EPS = 1e-8;
 
     const normalizeAxis = (axis) => {

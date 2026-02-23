@@ -158,8 +158,8 @@ describe('AnimationUtility FactoredMatrix Interpolation', () => {
         });
 
         test('should preserve matrix metric', () => {
-            const hyperbolicMatrix1 = new FactoredMatrix(3); // Hyperbolic metric
-            const hyperbolicMatrix2 = new FactoredMatrix(3);
+            const hyperbolicMatrix1 = new FactoredMatrix(null, 3); // Hyperbolic metric
+            const hyperbolicMatrix2 = new FactoredMatrix(null, 3);
             
             hyperbolicMatrix1.setTranslation(0, 0, 0);
             hyperbolicMatrix2.setTranslation(1, 1, 1);

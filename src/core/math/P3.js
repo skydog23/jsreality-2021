@@ -11,6 +11,7 @@
 // @ts-check
 import * as Pn from './Pn.js';
 import * as Rn from './Rn.js';
+import { rotationMatrixToQuaternion as _quatFromRotMatrix } from './Quaternion.js';
 import { Rectangle2D } from '../util/Rectangle2D.js';
 // Constants
 export const p3involution = [-1, -1, -1, -1];
@@ -1093,8 +1094,8 @@ export function factorMatrix(m, transV, rotQ, stretchRotQ, stretchV, isFlipped, 
     stretchV[1] = S3[4];    // S3[1,1]  
     stretchV[2] = S3[8];    // S3[2,2]
     
-    // Convert rotation matrix to quaternion
-    rotationMatrixToQuaternion(rotQ, Q3);
+    // Convert rotation matrix to quaternion (use Quaternion.js Shepperd method to match Java)
+    _quatFromRotMatrix(rotQ, Q3);
     
     // Set the stretch rotation to identity
     stretchRotQ.setValue(1.0, 0.0, 0.0, 0.0);
@@ -1102,44 +1103,6 @@ export function factorMatrix(m, transV, rotQ, stretchRotQ, stretchV, isFlipped, 
     return m;
 }
 
-/**
- * Convert a 3x3 rotation matrix to a quaternion.
- * This is a helper function for factorMatrix.
- * 
- * @param {import('./Quaternion.js').Quaternion} quat - Output quaternion
- * @param {number[]} rotMatrix - 3x3 rotation matrix (9 elements)
- */
-function rotationMatrixToQuaternion(quat, rotMatrix) {
-    // This is a simplified implementation of the Shepperd's method
-    // for converting rotation matrix to quaternion
-    const trace = rotMatrix[0] + rotMatrix[4] + rotMatrix[8]; // m00 + m11 + m22
-    
-    if (trace > 0) {
-        const s = Math.sqrt(trace + 1.0) * 2; // s = 4 * qw
-        quat.re = 0.25 * s;
-        quat.x = (rotMatrix[7] - rotMatrix[5]) / s; // (m21 - m12) / s
-        quat.y = (rotMatrix[2] - rotMatrix[6]) / s; // (m02 - m20) / s
-        quat.z = (rotMatrix[3] - rotMatrix[1]) / s; // (m10 - m01) / s
-    } else if ((rotMatrix[0] > rotMatrix[4]) && (rotMatrix[0] > rotMatrix[8])) {
-        const s = Math.sqrt(1.0 + rotMatrix[0] - rotMatrix[4] - rotMatrix[8]) * 2; // s = 4 * qx
-        quat.re = (rotMatrix[7] - rotMatrix[5]) / s;
-        quat.x = 0.25 * s;
-        quat.y = (rotMatrix[1] + rotMatrix[3]) / s;
-        quat.z = (rotMatrix[2] + rotMatrix[6]) / s;
-    } else if (rotMatrix[4] > rotMatrix[8]) {
-        const s = Math.sqrt(1.0 + rotMatrix[4] - rotMatrix[0] - rotMatrix[8]) * 2; // s = 4 * qy
-        quat.re = (rotMatrix[2] - rotMatrix[6]) / s;
-        quat.x = (rotMatrix[1] + rotMatrix[3]) / s;
-        quat.y = 0.25 * s;
-        quat.z = (rotMatrix[5] + rotMatrix[7]) / s;
-    } else {
-        const s = Math.sqrt(1.0 + rotMatrix[8] - rotMatrix[0] - rotMatrix[4]) * 2; // s = 4 * qz
-        quat.re = (rotMatrix[3] - rotMatrix[1]) / s;
-        quat.x = (rotMatrix[2] + rotMatrix[6]) / s;
-        quat.y = (rotMatrix[5] + rotMatrix[7]) / s;
-        quat.z = 0.25 * s;
-    }
-}
 
 /**
  * Compose a 4x4 transformation matrix from translation, rotation, and scaling components.

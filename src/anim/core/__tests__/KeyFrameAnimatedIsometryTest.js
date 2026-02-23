@@ -222,7 +222,7 @@ describe('KeyFrameAnimatedIsometry', () => {
         });
 
         test('should handle different metrics', () => {
-            const hyperbolicMatrix = new FactoredMatrix(Pn.HYPERBOLIC);
+            const hyperbolicMatrix = new FactoredMatrix(null, Pn.HYPERBOLIC);
             const anim = KeyFrameAnimatedIsometry.withMatrix(hyperbolicMatrix);
             
             expect(anim.target.getMetric()).toBe(Pn.HYPERBOLIC);

@@ -144,11 +144,11 @@ export class FactoredMatrix extends Matrix {
   #metric;
 
   /**
-   * Generate a new transform with given metric and matrix
-   * @param {number} [metric=Pn.EUCLIDEAN] - The metric to use
+   * Generate a new transform with given matrix and metric
    * @param {number[]|Matrix|null} [m] - Initial matrix data, if null uses identity
+   * @param {number} [metric=Pn.EUCLIDEAN] - The metric to use
    */
-  constructor(metric = Pn.EUCLIDEAN, m = null) {
+  constructor(m = null, metric = Pn.EUCLIDEAN) {
     super(m);
     this.#metric = metric;
     this.#translationVector = new Array(4);
@@ -168,7 +168,7 @@ export class FactoredMatrix extends Matrix {
    * @returns {FactoredMatrix}
    */
   static fromMatrix(m, metric) {
-    return new FactoredMatrix(metric, m.getArray().slice());
+    return new FactoredMatrix(m.getArray().slice(), metric);
   }
 
   /**
@@ -410,7 +410,7 @@ export class FactoredMatrix extends Matrix {
    * @returns {number}
    */
   getRotationAngle() {
-    const angle = 2.0 * Math.acos(Math.abs(this.#rotationQ.re));
+    const angle = 2.0 * Math.acos(this.#rotationQ.re);
     return angle;
   }
 
@@ -510,7 +510,7 @@ export class FactoredMatrix extends Matrix {
    * @returns {FactoredMatrix}
    */
   getInverseFactored() {
-    return new FactoredMatrix(this.getMetric(), Rn.inverse(null, this.getArray()));
+    return new FactoredMatrix(Rn.inverse(null, this.getArray()), this.getMetric());
   }
 
   /**

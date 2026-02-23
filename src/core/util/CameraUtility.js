@@ -22,6 +22,8 @@ import { Rectangle2D } from '../scene/Camera.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import * as P3 from '../math/P3.js';
+import { Matrix } from '../math/Matrix.js';
+import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import { BoundingBoxUtility } from '../geometry/BoundingBoxUtility.js';
 import { Rectangle3D } from './Rectangle3D.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
@@ -496,5 +498,46 @@ function _encompassViewer(viewer, sgc, setStereoParameters, metric) {
   // be generous but not too generous: openGL rendering quality depends on somewhat tight bounds here.
   if (zmax < 0.0) cam.setNear(-0.5 * zmax);
   if (zmin < 0.0) cam.setFar(-2.0 * zmin);
+}
+
+// Columns of standardFrame are the standard xyz axes + origin in homogeneous coordinates.
+// This is Rn.transpose of [[1,0,0,1],[0,1,0,1],[0,0,1,1],[0,0,0,1]].
+const standardFrame = [
+  1, 0, 0, 0,
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  1, 1, 1, 1
+];
+
+/**
+ * Compute the maximum xy extent in NDC coordinates of the three unit vectors in object space.
+ * @param {number[]} o2ndc - object to normalized device coordinate transformation (4x4)
+ * @returns {number}
+ */
+export function getNDCExtent(o2ndc) {
+  const imageFrame = new Matrix(Rn.times(null, o2ndc, standardFrame));
+  const images = [];
+  for (let i = 0; i < 4; i++) {
+    images[i] = Pn.dehomogenize(null, imageFrame.getColumn(i));
+  }
+  let d = 0.0;
+  for (let i = 0; i < 3; i++) {
+    const tmp = Rn.subtract(null, images[3], images[i]);
+    const t = Math.sqrt(Rn.innerProductN(tmp, tmp, 2));
+    if (t > d) d = t;
+  }
+  return d;
+}
+
+/**
+ * Extract the average scaling factor from a 4x4 transformation matrix.
+ * @param {number[]} o2w - 4x4 transformation matrix
+ * @param {number} metric - the metric type (Pn.EUCLIDEAN, etc.)
+ * @returns {number}
+ */
+export function getScalingFactor(o2w, metric) {
+  const fm = new FactoredMatrix(o2w, metric);
+  const sv = fm.getStretch();
+  return (sv[0] + sv[1] + sv[2]) / 3.0;
 }
 

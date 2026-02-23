@@ -372,7 +372,7 @@ export class BallAndStickFactory {
 
           if (this.drawArrows) {
             const arrow = new SceneGraphComponent('Arrow');
-            const arrowM = new FactoredMatrix(this.metric);
+            const arrowM = new FactoredMatrix(null, this.metric);
             const d = Pn.distanceBetween(p1, p2, this.metric);
             const flatten = this.arrowSlope / d;
             const stretch = this.arrowScale / this.stickRadius;

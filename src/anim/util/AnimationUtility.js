@@ -334,7 +334,7 @@ export class AnimationUtility {
         
         // Create destination matrix if not provided
         if (!dst) {
-            dst = new FactoredMatrix(m1.getMetric());
+            dst = new FactoredMatrix(null, m1.getMetric());
         }
 
         // Interpolate translation

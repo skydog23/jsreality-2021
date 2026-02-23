@@ -51,8 +51,8 @@ export class KeyFrameAnimatedTransformation extends KeyFrameAnimatedIsometry {
         instance.#tform = t;
         
         // Initialize with the transformation's current matrix
-        instance.target = new FactoredMatrix(metric, t.getMatrix());
-        instance.currentValue = new FactoredMatrix(metric);
+        instance.target = new FactoredMatrix(t.getMatrix(), metric);
+        instance.currentValue = new FactoredMatrix(null, metric);
         instance.currentValue.assignFrom(t.getMatrix());
         
         // Set up the default delegate
@@ -90,12 +90,12 @@ export class KeyFrameAnimatedTransformation extends KeyFrameAnimatedIsometry {
         if (tform) {
             // Update target and current value
             if (!this.target) {
-                this.target = new FactoredMatrix(metric);
+                this.target = new FactoredMatrix(null, metric);
             }
             this.target.assignFrom(tform.getMatrix());
             
             if (!this.currentValue) {
-                this.currentValue = new FactoredMatrix(metric);
+                this.currentValue = new FactoredMatrix(null, metric);
             }
             this.currentValue.assignFrom(tform.getMatrix());
             

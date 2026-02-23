@@ -45,7 +45,7 @@ export class KeyFrameAnimatedIsometry extends SimpleKeyFrameAnimated {
     static withMatrix(t) {
         const instance = new KeyFrameAnimatedIsometry();
         instance.target = t;
-        instance.currentValue = new FactoredMatrix(t.getMetric());
+        instance.currentValue = new FactoredMatrix(null, t.getMetric());
         instance.currentValue.assignFrom(t.getArray());
         return instance;
     }
@@ -77,7 +77,7 @@ export class KeyFrameAnimatedIsometry extends SimpleKeyFrameAnimated {
      * @returns {FactoredMatrix} A new FactoredMatrix instance.
      */
     getNewInstance() {
-        if (this.target != null) return new FactoredMatrix(this.target.getMetric());
+        if (this.target != null) return new FactoredMatrix(null, this.target.getMetric());
         return new FactoredMatrix();
     }
 
