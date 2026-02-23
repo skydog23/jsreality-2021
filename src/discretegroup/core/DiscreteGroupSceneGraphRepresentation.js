@@ -148,8 +148,8 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
       this.newAppList = false;
       const old = this.theSceneGraphRepn;
       this.theSceneGraphRepn = theNewSGR;
-      this.changeOfBasisNode.addChild(this.theSceneGraphRepn);
       this.changeOfBasisNode.removeChild(old);
+      this.changeOfBasisNode.addChild(this.theSceneGraphRepn);
       this.newElementList = false;
     }
 
