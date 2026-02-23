@@ -437,82 +437,95 @@ export class TessellatedApp extends JSRApp {
 
   getInspectorDescriptors() {
     const baseDescriptors = [
-      {type: DescriptorType.CONTAINER,
+      {
+        type: DescriptorType.CONTAINER,
         containerLabel: 'Master constraint',
         items: [
-      {
-        type: DescriptorType.TEXT_SLIDER,
-        valueType: 'int',
-        label: 'Max word length',
-        getValue: () => this._masterConstraint.getMaxWordLength(),
-        setValue: (val) => {
-          this._masterConstraint.setMaxWordLength(val);
-          this.updateMasterConstraint();
-        },
-        min: 1,
-        max: 30,
-        step: 1,
+          {
+            type: DescriptorType.TEXT_SLIDER,
+            valueType: 'int',
+            label: 'Max word length',
+            getValue: () => this._masterConstraint.getMaxWordLength(),
+            setValue: (val) => {
+              this._masterConstraint.setMaxWordLength(val);
+              this.updateMasterConstraint();
+            },
+            min: 1,
+            max: 30,
+            step: 1,
+          },
+          {
+            type: DescriptorType.TEXT_SLIDER,
+            valueType: 'float',
+            label: 'Max distance',
+            getValue: () => this._masterConstraint.getMaxDistance(),
+            setValue: (val) => {
+              this._masterConstraint.setMaxDistance(val);
+              this.updateMasterConstraint();
+            },
+            min: 0.1,
+            max: 100,
+          },
+          {
+            type: DescriptorType.TEXT_SLIDER,
+            valueType: 'int',
+            label: 'Max elements',
+            getValue: () => this._masterConstraint.getMaxNumberElements(),
+            setValue: (val) => {
+              this._masterConstraint.setMaxNumberElements(val);
+              this.updateMasterConstraint();
+            },
+            min: 1,
+            max: 5000,
+            step: 1,
+          },
+          {
+            type: DescriptorType.TEXT_SLIDER,
+            valueType: 'float',
+            label: 'Scale',
+            getValue: () => this._scale,
+            setValue: (val) => { this.setScale(val); },
+            min: 0.01,
+            max: 2.0,
+          },
+        ]
       },
       {
-        type: DescriptorType.TEXT_SLIDER,
-        valueType: 'float',
-        label: 'Max distance',
-        getValue: () => this._masterConstraint.getMaxDistance(),
-        setValue: (val) => {
-          this._masterConstraint.setMaxDistance(val);
-          this.updateMasterConstraint();
-        },
-        min: 0.1,
-        max: 100,
+        type: DescriptorType.CONTAINER,
+        containerLabel: 'Camera / Navigation',
+        direction: 'column',
+        items: [
+          {
+            type: DescriptorType.CONTAINER,
+            direction: 'row',
+            items: [
+              {
+                type: DescriptorType.TOGGLE,
+                label: 'Follow camera',
+                getValue: () => this._followsCamera,
+                setValue: (val) => { this.setFollowsCamera(val); },
+              },
+              {
+                type: DescriptorType.TOGGLE,
+                label: 'Clip to camera',
+                getValue: () => this._clipToCamera,
+                setValue: (val) => { this.setClipToCamera(val); }
+
+              }
+            ],
+          },
+
+          {
+            type: DescriptorType.TEXT_SLIDER,
+            valueType: 'float',
+            label: 'Fly speed',
+            getValue: () => this._flySpeed,
+            setValue: (val) => { this.setFlySpeed(val); },
+            min: 0.01,
+            max: 2.0,
+          },
+        ]
       },
-      {
-        type: DescriptorType.TEXT_SLIDER,
-        valueType: 'int',
-        label: 'Max elements',
-        getValue: () => this._masterConstraint.getMaxNumberElements(),
-        setValue: (val) => {
-          this._masterConstraint.setMaxNumberElements(val);
-          this.updateMasterConstraint();
-        },
-        min: 1,
-        max: 50000,
-        step: 1,
-      },
-      {
-        type: DescriptorType.TEXT_SLIDER,
-        valueType: 'float',
-        label: 'Scale',
-        getValue: () => this._scale,
-        setValue: (val) => { this.setScale(val); },
-        min: 0.01,
-        max: 2.0,
-      },
-    ]},
-    {type: DescriptorType.CONTAINER,
-      containerLabel: 'Camera / Navigation',
-      items: [
-      {
-        type: DescriptorType.TOGGLE,
-        label: 'Follow camera',
-        getValue: () => this._followsCamera,
-        setValue: (val) => { this.setFollowsCamera(val); },
-      },
-      {
-        type: DescriptorType.TOGGLE,
-        label: 'Clip to camera',
-        getValue: () => this._clipToCamera,
-        setValue: (val) => { this.setClipToCamera(val); },
-      },
-      {
-        type: DescriptorType.TEXT_SLIDER,
-        valueType: 'float',
-        label: 'Fly speed',
-        getValue: () => this._flySpeed,
-        setValue: (val) => { this.setFlySpeed(val); },
-        min: 0.01,
-        max: 2.0,
-      },
-    ]},
     {type: DescriptorType.CONTAINER,
       containerLabel: 'Viewport constraint',
       items: [
