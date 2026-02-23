@@ -50,7 +50,6 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     this.cameraRepn = null;
 
     this.elementList = null;
-    this.officialElementList = null;
     this.appList = null;
     this.constraint = null;
 
@@ -83,20 +82,19 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
         this.elementList = this.theGroup.getElementList();
       }
       const cp = this.theGroup.getColorPicker?.();
-      if (cp && this.elementList?.[0] != null && typeof cp.assignColorIndices === 'function') {
+      if (cp && this.elementList?.length > 0) {
         cp.assignColorIndices(this.elementList);
       }
 
       const theNewSGR = SceneGraphUtility.createFullSceneGraphComponent(`${this.name} DG Parent`);
-      const showTheWorld = this.officialElementList == null ? this.elementList : this.officialElementList;
-      const n = showTheWorld?.length ?? 0;
+      const n = this.elementList?.length ?? 0;
 
       const instanceTransforms = new Float32Array(n * 16);
       const hasAppList = this.appList != null && this.appList.length > 0;
       const instanceColors = hasAppList ? new Float32Array(n * 4) : null;
 
       for (let i = 0; i < n; ++i) {
-        const dge = showTheWorld[i];
+        const dge = this.elementList[i];
         const tmp = new SceneGraphComponent();
         const newTrans = new Transformation(dge.getArray());
         newTrans.setName(dge.getWord());
@@ -214,14 +212,7 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     }
   }
 
-  getOfficialElementList() {
-    return this.officialElementList;
-  }
 
-  setOfficialElementList(officialElementList) {
-    this.officialElementList = officialElementList;
-    this.newElementList = true;
-  }
 
   getElementListFromSGC() {
     const n = this.theSceneGraphRepn.getChildComponentCount();

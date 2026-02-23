@@ -15,8 +15,6 @@ import * as Pn from '../../../core/math/Pn.js';
 import { Primitives } from '../../../core/geometry/Primitives.js';
 import {
   DiscreteGroupSceneGraphRepresentation,
-  DiscreteGroupSimpleConstraint,
-  DiscreteGroupUtility,
 } from '../../../discretegroup/core/index.js';
 import { Platycosm } from '../../../discretegroup/groups/Platycosm.js';
 import { RotateTool } from '../../../core/tools/RotateTool.js';
@@ -33,15 +31,9 @@ export class CubeDemo extends JSRApp {
   getContent() {
     console.log('DiscreteGroupCubeApp getContent 1');
     this._group = Platycosm.instanceOfGroup('c1');
-    this._group.setConstraint(new DiscreteGroupSimpleConstraint(-1, -1, 100));
-    this._group.update();
-
+    
     console.log('DiscreteGroupCubeApp getContent 2',this._group.getElementList().length);
     this._representation = new DiscreteGroupSceneGraphRepresentation(this._group, true, 'Cube');
-    // Keep a smaller "official" list for scenegraph-heavy operations (e.g. picking), like Java.
-    const officialConstraint = new DiscreteGroupSimpleConstraint(-1, -1, 10000);
-    this._representation.setOfficialElementList(DiscreteGroupUtility.generateElements(this._group, officialConstraint));
-
     const fundDom = SceneGraphUtility.createFullSceneGraphComponent('fundDomSGC');
     fundDom.setGeometry(Primitives.boxWithMetric(0.5, 0.6, 0.4, true, Pn.EUCLIDEAN));
     MatrixBuilder.euclidean().translate(0.1, 0.2, 0.3).assignTo(fundDom);
