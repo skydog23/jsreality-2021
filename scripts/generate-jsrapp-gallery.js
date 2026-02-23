@@ -200,8 +200,46 @@ function extractReturnBoolean(source, methodName) {
   return match[1] === 'true';
 }
 
+/**
+ * Scan all .js files under a directory tree and build the transitive set of
+ * class names that (directly or indirectly) extend JSRApp.
+ */
+function buildJSRAppDescendants(rootDir) {
+  const known = new Set(['JSRApp']);
+  const pairs = []; // [{child, parent}]
+
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith('.js')) continue;
+      const src = fs.readFileSync(full, 'utf8');
+      const re = /export\s+class\s+([A-Za-z0-9_]+)\s+extends\s+([A-Za-z0-9_]+)\b/g;
+      let m;
+      while ((m = re.exec(src)) !== null) pairs.push({ child: m[1], parent: m[2] });
+    }
+  }
+  walk(rootDir);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const { child, parent } of pairs) {
+      if (known.has(parent) && !known.has(child)) {
+        known.add(child);
+        changed = true;
+      }
+    }
+  }
+  return known;
+}
+
+const APP_DIR = path.join(ROOT, 'src', 'app');
+const jsrAppDescendants = buildJSRAppDescendants(APP_DIR);
+
 function extractClassBlock(source, className) {
-  const classRe = new RegExp(`export\\s+class\\s+${className}\\s+extends\\s+JSRApp\\b`);
+  const parentPattern = [...jsrAppDescendants].map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const classRe = new RegExp(`export\\s+class\\s+${className}\\s+extends\\s+(?:${parentPattern})\\b`);
   const startMatch = classRe.exec(source);
   if (!startMatch) return null;
   const startIdx = startMatch.index;
@@ -223,7 +261,8 @@ function extractClassBlock(source, className) {
 
 function extractJsrAppClasses(source) {
   const classes = [];
-  const re = /export\s+class\s+([A-Za-z0-9_]+)\s+extends\s+JSRApp\b/g;
+  const parentPattern = [...jsrAppDescendants].map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(`export\\s+class\\s+([A-Za-z0-9_]+)\\s+extends\\s+(?:${parentPattern})\\b`, 'g');
   let match;
   while ((match = re.exec(source)) !== null) {
     classes.push(match[1]);
