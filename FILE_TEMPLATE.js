@@ -1,9 +1,9 @@
 /**
- * JavaScript port/translation of jReality.
  * 
- * Copyright (c) 2024, jsReality Contributors
- * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
- * Schmies, Steffen Weissmann.
+ * Copyright (c) 2025-2026, Charles Gunn and other jsReality Contributors
+ * 
+ * Partly a translation of jReality, a Java-based 3D visualization library.
+ * https://www3.math.tu-berlin.de/jreality/jrealityStatic/index.php
  * 
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
