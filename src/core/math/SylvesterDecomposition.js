@@ -8,6 +8,10 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
+import * as Rn from './Rn.js';
+import * as Pn from './Pn.js';
+import { normalizeLine } from './P2.js';
+
 /**
  * Immutable Sylvester decomposition for a symmetric 3x3 quadratic form.
  * Stores P and D such that P^T Q P = D, where D has entries in {+1,-1,0}.
@@ -68,7 +72,7 @@ export class SylvesterDecomposition {
       else zero++;
       diag.push(sign);
       const scale = abs > eps ? (1.0 / Math.sqrt(abs)) : 1.0;
-      cols.push(_times(scale, vec));
+      cols.push(Rn.times(null, scale, vec));
     }
 
     const perm = _canonicalSylvesterPermutation(signs);
@@ -78,7 +82,7 @@ export class SylvesterDecomposition {
       cols[perm[2]]
     );
     const orderedSigns = perm.map(i => signs[i]);
-    const D = _diagonalMatrix(orderedSigns);
+    const D = Rn.diagonalMatrix(null, orderedSigns);
     const eigenvalues = perm.map(i => values[i]);
     const inertia = { pos, neg, zero };
 
@@ -177,11 +181,13 @@ export class SylvesterDecomposition {
    */
   factorRealRank2LinePair() {
     if (!this.isRank2RealLinePair()) return null;
-    const pinvT = _transpose3(_inverse3x3(this.#P));
+    const pinv = Rn.inverse(null, this.#P);
+    if (!pinv) throw new Error('SylvesterDecomposition: singular P in line-pair factorization');
+    const pinvT = Rn.transpose(null, pinv);
     const lCanonical0 = [1, -1, 0];
     const lCanonical1 = [1, 1, 0];
-    const l0 = _normalizeLine3(_matVec3(pinvT, lCanonical0));
-    const l1 = _normalizeLine3(_matVec3(pinvT, lCanonical1));
+    const l0 = normalizeLine(Rn.matrixTimesVector(null, pinvT, lCanonical0));
+    const l1 = normalizeLine(Rn.matrixTimesVector(null, pinvT, lCanonical1));
     return [l0, l1];
   }
 
@@ -193,7 +199,7 @@ export class SylvesterDecomposition {
   imaginaryRank2IntersectionPoint() {
     if (!this.isRank2ImaginaryLinePair()) return null;
     const p = [this.#P[2], this.#P[5], this.#P[8]];
-    return _normalizePoint3(p);
+    return Pn.dehomogenize(null, p);
   }
 
   /**
@@ -203,9 +209,11 @@ export class SylvesterDecomposition {
    */
   factorRank1DoubleLine() {
     if (!this.isRank1()) return null;
-    const pinvT = _transpose3(_inverse3x3(this.#P));
+    const pinv = Rn.inverse(null, this.#P);
+    if (!pinv) throw new Error('SylvesterDecomposition: singular P in double-line factorization');
+    const pinvT = Rn.transpose(null, pinv);
     const lCanonical = [0, 0, 1];
-    return _normalizeLine3(_matVec3(pinvT, lCanonical));
+    return normalizeLine(Rn.matrixTimesVector(null, pinvT, lCanonical));
   }
 
   /**
@@ -222,10 +230,6 @@ export class SylvesterDecomposition {
       permutation: this.getPermutation()
     };
   }
-}
-
-function _times(scale, v) {
-  return [scale * v[0], scale * v[1], scale * v[2]];
 }
 
 function _toFlat3x3(Q) {
@@ -321,14 +325,6 @@ function _columnsToMatrix3(c0, c1, c2) {
   ];
 }
 
-function _diagonalMatrix(entries) {
-  return [
-    entries[0], 0, 0,
-    0, entries[1], 0,
-    0, 0, entries[2]
-  ];
-}
-
 function _canonicalSylvesterPermutation(signs) {
   const pos = [];
   const neg = [];
@@ -347,67 +343,4 @@ function _canonicalSylvesterPermutation(signs) {
   if (pos.length === 1 && zero.length === 2) return [zero[0], zero[1], pos[0]];
   if (neg.length === 1 && zero.length === 2) return [zero[0], zero[1], neg[0]];
   return [0, 1, 2];
-}
-
-function _matVec3(m, v) {
-  return [
-    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
-    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
-    m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
-  ];
-}
-
-function _transpose3(m) {
-  return [
-    m[0], m[3], m[6],
-    m[1], m[4], m[7],
-    m[2], m[5], m[8]
-  ];
-}
-
-function _inverse3x3(m) {
-  const a = m[0], b = m[1], c = m[2];
-  const d = m[3], e = m[4], f = m[5];
-  const g = m[6], h = m[7], i = m[8];
-
-  const A = e * i - f * h;
-  const B = -(d * i - f * g);
-  const C = d * h - e * g;
-  const D = -(b * i - c * h);
-  const E = a * i - c * g;
-  const F = -(a * h - b * g);
-  const G = b * f - c * e;
-  const H = -(a * f - c * d);
-  const I = a * e - b * d;
-
-  const det = a * A + b * B + c * C;
-  if (Math.abs(det) < 1e-14) throw new Error('SylvesterDecomposition: singular P in line-pair factorization');
-  const invDet = 1 / det;
-  return [
-    A * invDet, D * invDet, G * invDet,
-    B * invDet, E * invDet, H * invDet,
-    C * invDet, F * invDet, I * invDet
-  ];
-}
-
-function _normalizeLine3(line) {
-  const nxy = Math.hypot(line[0], line[1]);
-  if (nxy > 1e-14) return [line[0] / nxy, line[1] / nxy, line[2] / nxy];
-  const n = Math.hypot(line[0], line[1], line[2]);
-  if (n > 1e-14) return [line[0] / n, line[1] / n, line[2] / n];
-  return line.slice();
-}
-
-function _normalizePoint3(point) {
-  const out = point.slice();
-  const z = out[2];
-  if (Math.abs(z) > 1e-14) {
-    out[0] /= z;
-    out[1] /= z;
-    out[2] = 1;
-    return out;
-  }
-  const n = Math.hypot(out[0], out[1], out[2]);
-  if (n > 1e-14) return [out[0] / n, out[1] / n, out[2] / n];
-  return out;
 }
