@@ -22,6 +22,8 @@ import { Geometry } from '../Geometry.js';
 import { AABBPickSystem } from '../pick/AABBPickSystem.js';
 import { PosWHitFilter } from '../pick/PosWHitFilter.js';
 import * as Rn from '../../math/Rn.js';
+import * as Pn from '../../math/Pn.js';
+import { EffectiveAppearance } from '../../shader/EffectiveAppearance.js';
 import { getLogger } from '../../util/LoggingSystem.js';
 import { Level, Category, setModuleLevel } from '../../util/LoggingSystem.js';
 
@@ -86,6 +88,12 @@ class ToolContextImpl {
   /** @type {PickResult[]|null} Cached pick results */
   #pickResults = null;
 
+  /** @type {number|null} Cached metric at tool (lazily resolved from EffectiveAppearance) */
+  #metricAtTool = null;
+
+  /** @type {EffectiveAppearance|null} Cached EffectiveAppearance for the root-to-tool path */
+  #eap = null;
+
   /**
    * Create a new ToolContextImpl.
    * @param {Viewer} viewer - The viewer
@@ -124,7 +132,8 @@ class ToolContextImpl {
    */
   setCurrentTool(tool) {
     this.#currentTool = tool;
-    this.#rootToToolComponent = null; // Invalidate cached path
+    this.#rootToToolComponent = null;
+    this.#metricAtTool = null;
   }
 
   /**
@@ -133,7 +142,8 @@ class ToolContextImpl {
    */
   setRootToLocal(path) {
     this.#rootToLocal = path;
-    this.#rootToToolComponent = null; // Invalidate cached path
+    this.#rootToToolComponent = null;
+    this.#metricAtTool = null;
   }
 
   /**
@@ -193,19 +203,11 @@ class ToolContextImpl {
   getRootToToolComponent() {
     if (this.#rootToToolComponent === null && this.#rootToLocal !== null) {
       const list = [];
-      // Iterate backwards through path to find component with tool
-      for (const node of this.#rootToLocal.reverseIterator()) {
-        if (node instanceof SceneGraphComponent) {
-          if (node.getTools().includes(this.#currentTool)) {
-            list.unshift(node);
-            // Add remaining nodes
-            for (const remainingNode of this.#rootToLocal.reverseIterator()) {
-              if (remainingNode !== node) {
-                list.unshift(remainingNode);
-              }
-            }
-            break;
-          }
+      for (const node of this.#rootToLocal.iterator()) {
+        list.push(node);
+        if (node instanceof SceneGraphComponent &&
+            node.getTools().includes(this.#currentTool)) {
+          break;
         }
       }
       this.#rootToToolComponent = SceneGraphPath.fromList(list);
@@ -242,6 +244,24 @@ class ToolContextImpl {
    */
   getAvatarPath() {
     return this.#toolSystem.getAvatarPath();
+  }
+
+  /**
+   * Get the metric at the tool's attachment point, lazily resolved from the
+   * EffectiveAppearance along the root-to-tool path.
+   * @returns {number} Pn.EUCLIDEAN, Pn.HYPERBOLIC, or Pn.ELLIPTIC
+   */
+  getMetricAtTool() {
+    if (this.#metricAtTool === null) {
+      const path = this.getRootToToolComponent();
+      if (path && (!this.#eap || !EffectiveAppearance.matches(this.#eap, path))) {
+        this.#eap = EffectiveAppearance.createFromPath(path);
+      }
+      this.#metricAtTool = this.#eap
+        ? this.#eap.getAttribute('metric', Pn.EUCLIDEAN)
+        : Pn.EUCLIDEAN;
+    }
+    return this.#metricAtTool;
   }
 
   /**

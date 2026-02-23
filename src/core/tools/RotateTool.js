@@ -20,7 +20,7 @@ import { Quaternion, convert44To33, rotationMatrixToQuaternion, quaternionToRota
 import { Transformation } from '../scene/Transformation.js';
 import { AbstractTool } from '../scene/tool/AbstractTool.js';
 import { InputSlot } from '../scene/tool/InputSlot.js';
-import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
+
 
 /**
  * RotateTool applies a trackball-style rotation to the transformation of the
@@ -74,9 +74,6 @@ export class RotateTool extends AbstractTool {
   /** @type {Matrix} */
   center = new Matrix();
 
-  /** @type {EffectiveAppearance|null} */
-  eap = null;
-
   /** @type {number} */
   metric = Pn.EUCLIDEAN;
 
@@ -91,6 +88,9 @@ export class RotateTool extends AbstractTool {
 
   /** @type {boolean} */
   success = false;
+
+   /** @type {number} */
+  #performCount = 0;
 
   /** @type {number} */
   #lastPerformTimeMs = 0;
@@ -161,6 +161,7 @@ export class RotateTool extends AbstractTool {
    */
   activate(tc) {
     // User grabbed again -> stop inertial rotation immediately.
+    this.#performCount = 0
     this.#stopInertia();
     this.startTime = tc.getTime();
     this.#lastPerformTimeMs = this.startTime;
@@ -186,11 +187,7 @@ export class RotateTool extends AbstractTool {
       }
     }
 
-    const rootToTool = tc.getRootToToolComponent();
-    if (rootToTool && (this.eap === null || !EffectiveAppearance.matches(this.eap, rootToTool))) {
-      this.eap = EffectiveAppearance.createFromPath(rootToTool);
-    }
-    this.metric = this.eap ? this.eap.getAttribute('metric', Pn.EUCLIDEAN) : Pn.EUCLIDEAN;
+    this.metric = tc.getMetricAtTool();
   }
 
   /**
@@ -201,21 +198,26 @@ export class RotateTool extends AbstractTool {
     this.success = false;
     if (!this.comp) return;
 
-    const root2toComp = new Matrix(tc.getRootToToolComponent().getInverseMatrix(null));
-    const array = new Matrix(root2toComp).getArray();		
+    const tool2root = new Matrix(tc.getRootToToolComponent().getInverseMatrix(null));
+    const array = new Matrix(tool2root).getArray();		
 //		System.err.println("root2component "+Rn.toString(new Matrix(root2toComp).getColumn(3)));
-		if (array[15] < 0) root2toComp.times(-1);
+		if (array[15] < 0) tool2root.times(-1);
 //		System.err.println("quad path"+Rn.matrixToString(P3.getTransformedAbsolute(array, metric)));
 //		System.err.println("quad select"+Rn.matrixToString(P3.getTransformedAbsolute(selectedComponent.getTransformation().getMatrix(), metric)));
-		root2toComp.assignFrom(P3.extractOrientationMatrix(null, root2toComp.getArray(), P3.originP3, this.metric));
-		// console.log('root2toComp:', Rn.matrixToString(root2toComp.getArray()));
-    this.evolution.assignFrom(tc.getTransformationMatrix(RotateTool.evolutionSlot));
-		this.evolution.conjugateBy(root2toComp);
-		this.result.assignFrom(this.comp.getTransformation().getMatrix(null));
+		const tool2root3x3 = new Matrix(P3.extractOrientationMatrix(null, tool2root.getArray(), P3.originP3, this.metric));
+		 this.evolution.assignFrom(tc.getTransformationMatrix(RotateTool.evolutionSlot));
+		this.evolution.conjugateBy(tool2root3x3);
+	// 	if (this.#performCount % 100 === 0) {
+  //     console.log('root2tool path:', tc.getRootToToolComponent().toString());
+  //     console.log('tool2root:', Rn.matrixToString(tool2root.getArray()));
+  //     console.log('tool2root3x3:', Rn.matrixToString(tool2root3x3.getArray()));
+  //     console.log('evolution:', Rn.matrixToString(this.evolution.getArray()));
+  //   }
+  //  this.result.assignFrom(this.comp.getTransformation().getMatrix(null));
 		this.result.multiplyOnRight(this.evolution);
 		this.comp.getTransformation().setMatrix(this.result.getArray()); //P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6, this.metric)); //this.result.getArray());
     this.success = true;
-
+    this.#performCount++;
     // const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     // if (!path) return;
 

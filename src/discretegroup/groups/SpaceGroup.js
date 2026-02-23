@@ -39,7 +39,7 @@ export class SpaceGroup extends EuclideanGroup {
 
   static instanceOfGroup(num) {
     const sg = new SpaceGroup();
-    sg.setMetric(Pn.EUCLIDEAN);
+    sg.setName(SpaceGroup.basenames[num] ?? `space-${num}`);
     sg.setDimension(3);
     sg.setFinite(false);
 

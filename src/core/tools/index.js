@@ -20,5 +20,6 @@ export { FlyTool } from './FlyTool.js';
 export { AllroundTool } from './AllroundTool.js';
 export { DraggingTool } from './DraggingTool.js';
 export { ClickWheelCameraZoomTool } from './ClickWheelCameraZoomTool.js';
+export { PanCameraTool } from './PanCameraTool.js';
 
 

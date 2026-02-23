@@ -155,7 +155,7 @@ export class TessellatedApp extends JSRApp {
     }
 
     this._repn = new DiscreteGroupSceneGraphRepresentation(
-      group, this._copycat, this.constructor.name
+      group, this._copycat, group.getName() ?? ''
     );
     this._repn.setWorldNode(this._contentNode ?? this._fundDomSGC);
     this._repn.setClipDelay(500);

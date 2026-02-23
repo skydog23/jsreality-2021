@@ -127,6 +127,16 @@ export class ToolContext {
   }
   
   /**
+   * Get the metric (Pn constant) in effect at the tool's attachment point,
+   * resolved from the EffectiveAppearance along the root-to-tool path.
+   * Defaults to Pn.EUCLIDEAN when no metric attribute is found.
+   * @returns {number} The metric (Pn.EUCLIDEAN, Pn.HYPERBOLIC, or Pn.ELLIPTIC)
+   */
+  getMetricAtTool() {
+    throw new Error('Method not implemented');
+  }
+
+  /**
    * Get a key object for this tool context (used for tool instance management)
    * @returns {*} The key object
    */

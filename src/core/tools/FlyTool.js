@@ -11,7 +11,6 @@
 import { AbstractTool } from '../scene/tool/AbstractTool.js';
 import { InputSlot } from '../scene/tool/InputSlot.js';
 import { ToolUtility } from '../scene/tool/ToolUtility.js';
-import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { Matrix } from '../math/Matrix.js';
 import { MatrixBuilder } from '../math/MatrixBuilder.js';
 import * as Pn from '../math/Pn.js';
@@ -45,7 +44,6 @@ export class FlyTool extends AbstractTool {
 
   metric = Pn.EUCLIDEAN;
   readFromAp = true;
-  eap = null;
   shiftIsRotate = true;
 
   pointerMatrix = null;
@@ -94,13 +92,7 @@ export class FlyTool extends AbstractTool {
     if (!this.flying) return;
 
     if (this.readFromAp) {
-      const rootToTool = tc.getRootToToolComponent();
-      if (rootToTool && (this.eap === null || !EffectiveAppearance.matches(this.eap, rootToTool))) {
-        this.eap = EffectiveAppearance.createFromPath(rootToTool);
-      }
-      if (this.eap) {
-        this.metric = this.eap.getAttribute('metric', Pn.EUCLIDEAN);
-      }
+      this.metric = tc.getMetricAtTool();
     }
 
     const rootToTool = tc.getRootToToolComponent();

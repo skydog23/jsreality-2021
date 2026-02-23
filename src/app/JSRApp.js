@@ -26,6 +26,7 @@ import { PluginIds } from './plugin/PluginIds.js';
 import { ClickWheelCameraZoomTool } from '../core/tools/ClickWheelCameraZoomTool.js';
 import { EncompassTool } from '../core/tools/EncompassTool.js'; 
 import { FlyTool } from '../core/tools/FlyTool.js';
+import { PanCameraTool } from '../core/tools/PanCameraTool.js';
 /** @typedef {import('../core/scene/Viewer.js').Viewer} Viewer */
 /** @typedef {import('../core/scene/SceneGraphComponent.js').SceneGraphComponent} SceneGraphComponent */
 
@@ -289,6 +290,9 @@ export class JSRApp extends JSRPlugin {
 
     content.addTool(new ClickWheelCameraZoomTool());
     content.addTool(new EncompassTool());
+
+    const sceneRoot = this.#jsrViewer.getViewer().getSceneRoot();
+    sceneRoot.addTool(new PanCameraTool());
 
     // Ensure the tool system discovers tools in the newly set content.
     // Content (and its tools) may be created after the ToolSystem was initialized,
