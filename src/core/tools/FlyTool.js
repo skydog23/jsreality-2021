@@ -148,7 +148,7 @@ export class FlyTool extends AbstractTool {
     } else if (this.currentKeySlot === this.altLeftRightSlot) {
       this.#moveShipInDirection(0);
     }
-
+    tc.getViewer()?.renderAsync();
     this.broadcastChange();
   }
 
