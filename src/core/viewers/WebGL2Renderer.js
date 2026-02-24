@@ -531,6 +531,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       if (geometry.getEdgeIndices?.()) {
         this.#renderInstancedEdges(geometry, localTransform, instanceTransforms, instanceColors, instanceCount);
       }
+      if (geometry.getVertexCoordinates?.()) {
+        this.#renderInstancedPoints(geometry, localTransform, instanceTransforms, instanceColors, instanceCount);
+      }
     }
     this.#instancedDebugCount++;
   }
@@ -600,6 +603,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       console.log('  first face:', faceRows[0]);
       console.log('  first instance matrix:', Array.from(instanceTransforms.subarray(0, 16)));
       console.log('  currentTransform:', this.getCurrentTransformation());
+      console.log('  hasFaceColors:', Boolean(geometry?.getFaceAttribute?.(GeometryAttribute.COLORS)),
+        'hasVertexColors:', Boolean(geometry?.getVertexAttribute?.(GeometryAttribute.COLORS)));
     }
 
     const faceNormalsDL = geometry.getFaceAttribute?.(GeometryAttribute.NORMALS) || null;
@@ -618,7 +623,59 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const hasFaceNormals = Boolean(faceNormalsFlat && faceNormalFiber >= 3);
     const hasVertexNormals = Boolean(vertexNormalsFlat && vertexNormalFiber >= 3);
 
+    // ── Per-face / per-vertex colors from the geometry ──
+    // In instanced mode the shader computes: v_color = a_color * a_instColor.
+    //   a_color  = per-vertex color from the fundamental region geometry
+    //   a_instColor = per-instance tint (from DiscreteGroupColorPicker or appearance diffuseColor)
+    // When the geometry has no face/vertex colors, a_color is white (1,1,1,1) so the
+    // instance color comes through unchanged.  When face colors are present they are
+    // preserved and modulated by the instance tint.
+    const faceColorsDL = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS) || null;
+    const faceColorsFlat = faceColorsDL?.getFlatData?.() ?? null;
+    const faceColorsShape = faceColorsDL?.shape;
+    const faceColorChannels = Array.isArray(faceColorsShape) && faceColorsShape.length >= 2
+      ? faceColorsShape[faceColorsShape.length - 1] : 0;
+
+    const vertexColorsDL = geometry?.getVertexAttribute?.(GeometryAttribute.COLORS) || null;
+    const vertexColorsFlat = vertexColorsDL?.getFlatData?.() ?? null;
+    const vertexColorsShape = vertexColorsDL?.shape;
+    const vertexColorChannels = Array.isArray(vertexColorsShape) && vertexColorsShape.length >= 2
+      ? vertexColorsShape[vertexColorsShape.length - 1] : 0;
+
+    const hasFaceColors = Boolean(faceColorsFlat && faceColorChannels >= 3);
+    const hasVertexColors = Boolean(vertexColorsFlat && vertexColorChannels >= 3);
+
+    const WHITE = [1, 1, 1, 1];
+    const getFaceColor = (faceIdx) => {
+      if (hasFaceColors) {
+        const base = faceIdx * faceColorChannels;
+        return [
+          Number(faceColorsFlat[base] ?? 1),
+          Number(faceColorsFlat[base + 1] ?? 1),
+          Number(faceColorsFlat[base + 2] ?? 1),
+          faceColorChannels >= 4 ? Number(faceColorsFlat[base + 3] ?? 1) : 1.0
+        ];
+      }
+      return WHITE;
+    };
+    const getVertexColor = (vid) => {
+      if (hasVertexColors) {
+        const base = vid * vertexColorChannels;
+        return [
+          Number(vertexColorsFlat[base] ?? 1),
+          Number(vertexColorsFlat[base + 1] ?? 1),
+          Number(vertexColorsFlat[base + 2] ?? 1),
+          vertexColorChannels >= 4 ? Number(vertexColorsFlat[base + 3] ?? 1) : 1.0
+        ];
+      }
+      return null;
+    };
+
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
+    // defaultColor is the effective appearance diffuseColor.  In the instanced path it is
+    // used as the a_instColor fallback when no per-instance color array is provided (i.e.
+    // no DiscreteGroupColorPicker).  It is NOT used as the per-vertex a_color; that comes
+    // from the geometry's face/vertex color attributes or white.
     const defaultColor = this.#currentColor;
 
     let batchVerts = 0;
@@ -646,6 +703,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const fny = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 1] ?? 0) : 0;
       const fnz = faceNormalBase >= 0 ? Number(faceNormalsFlat[faceNormalBase + 2] ?? 1) : 1;
       const startVertex = vOut;
+      const fc = getFaceColor(f);
 
       for (let j = 0; j < len; j++) {
         const vid = row[j] | 0;
@@ -653,10 +711,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         for (let k = 0; k < positionSize; k++) {
           vertexArray[vFloat++] = Number(k < fiber ? vertsFlat[srcBase + k] : (k === 3 ? 1.0 : 0.0)) || 0.0;
         }
-        colorArray[cFloat++] = defaultColor[0];
-        colorArray[cFloat++] = defaultColor[1];
-        colorArray[cFloat++] = defaultColor[2];
-        colorArray[cFloat++] = defaultColor[3];
+        // Per-vertex color: prefer vertex colors > face colors > white.
+        // White is correct here because the instance color (a_instColor) provides the
+        // base tint; geometry colors modulate that in the shader via multiplication.
+        const vc = getVertexColor(vid) ?? fc;
+        colorArray[cFloat++] = vc[0];
+        colorArray[cFloat++] = vc[1];
+        colorArray[cFloat++] = vc[2];
+        colorArray[cFloat++] = vc[3];
 
         if (normalArray) {
           if (smoothShadingEnabled && hasVertexNormals) {
@@ -795,7 +857,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       gl.vertexAttribDivisor(instRow3Loc, 1);
     }
 
-    // Per-instance: color
+    // Per-instance: color (a_instColor).
+    // The shader computes v_color = a_color * a_instColor.
+    // When a color picker supplies per-instance colors, use them directly.
+    // When no color picker is active (instanceColors is null):
+    //   - If the geometry has face/vertex colors, a_instColor must be WHITE so
+    //     the multiplicative blend is neutral and geometry colors pass through.
+    //   - If the geometry has NO face/vertex colors, a_color is already WHITE,
+    //     so a_instColor carries the appearance diffuseColor (defaultColor).
     if (instColorLoc !== -1) {
       if (instanceColors instanceof Float32Array) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.#instColorBuffer);
@@ -805,7 +874,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         gl.vertexAttribDivisor(instColorLoc, 1);
       } else {
         gl.disableVertexAttribArray(instColorLoc);
-        gl.vertexAttrib4f(instColorLoc, defaultColor[0], defaultColor[1], defaultColor[2], defaultColor[3]);
+        const hasGeomColors = hasFaceColors || hasVertexColors;
+        const instC = hasGeomColors ? WHITE : defaultColor;
+        gl.vertexAttrib4f(instColorLoc, instC[0], instC[1], instC[2], instC[3]);
       }
     }
 
@@ -836,20 +907,39 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       else console.log('[INST faces] draw call completed (no GL error)');
     }
 
-    // Reset divisors to avoid polluting subsequent non-instanced draws
-    if (instRow0Loc !== -1) gl.vertexAttribDivisor(instRow0Loc, 0);
-    if (instRow1Loc !== -1) gl.vertexAttribDivisor(instRow1Loc, 0);
-    if (instRow2Loc !== -1) gl.vertexAttribDivisor(instRow2Loc, 0);
-    if (instRow3Loc !== -1) gl.vertexAttribDivisor(instRow3Loc, 0);
-    if (instColorLoc !== -1 && instanceColors instanceof Float32Array) gl.vertexAttribDivisor(instColorLoc, 0);
+    // Reset divisors AND disable instancing-specific attribute arrays.
+    // Leaving a_instRow0..3 enabled (even with divisor=0) causes WebGL validation
+    // failures in subsequent draws (e.g. instanced spheres) if those draws reference
+    // more vertices than the row buffers have elements.
+    if (instRow0Loc !== -1) { gl.vertexAttribDivisor(instRow0Loc, 0); gl.disableVertexAttribArray(instRow0Loc); }
+    if (instRow1Loc !== -1) { gl.vertexAttribDivisor(instRow1Loc, 0); gl.disableVertexAttribArray(instRow1Loc); }
+    if (instRow2Loc !== -1) { gl.vertexAttribDivisor(instRow2Loc, 0); gl.disableVertexAttribArray(instRow2Loc); }
+    if (instRow3Loc !== -1) { gl.vertexAttribDivisor(instRow3Loc, 0); gl.disableVertexAttribArray(instRow3Loc); }
+    if (instColorLoc !== -1) { gl.vertexAttribDivisor(instColorLoc, 0); gl.disableVertexAttribArray(instColorLoc); }
 
     this._endPrimitiveGroup();
   }
 
   /**
-   * Render edges of a geometry with N instanced transforms. Uses screen-space quads
-   * (the same approach as the batched non-tube path) but expanded per instance on the CPU
-   * for simplicity. This avoids N separate draw calls for edge rendering.
+   * Render edges of a geometry with N instanced transforms.
+   *
+   * Two rendering strategies are supported, selected by the TUBES_DRAW appearance attribute:
+   *
+   * **Tube mode (TUBES_DRAW=true):**
+   *   Uses the unified lit shader in mode 2 (instanced tubes).  For each edge segment in
+   *   the fundamental region, N tube instances are created (one per group element) by
+   *   pre-transforming the segment endpoints with the per-instance matrix.  This gives
+   *   true 3-D lit tubes identical to the non-instanced tube path, but with far fewer
+   *   draw calls (one drawElementsInstanced per geometry instead of one per element).
+   *
+   * **Quad mode (TUBES_DRAW=false):**
+   *   CPU-expanded screen-space quads with anti-aliased edges.  All N×E segments are
+   *   projected into NDC, expanded into oriented quads on the CPU, and drawn in batched
+   *   drawElements calls.  This is the same technique as the non-instanced quad-line path.
+   *
+   * Both paths respect the per-instance color array when provided by a color picker;
+   * otherwise they fall back to the effective lineShader.diffuseColor.
+   *
    * @private
    */
   #renderInstancedEdges(geometry, localTransform, instanceTransforms, instanceColors, instanceCount) {
@@ -861,28 +951,130 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const indices = this._cacheGetEdgeIndicesArray(geometry);
     if (!indices || indices.length === 0) return;
 
-    const tubeDraw = Boolean(this.getAppearanceAttribute(
-      CommonAttributes.LINE_SHADER, CommonAttributes.TUBES_DRAW, CommonAttributes.TUBES_DRAW_DEFAULT
-    ));
-    if (tubeDraw) {
-      // For tube mode, use the same instanced face path for tube segments but with
-      // per-instance transforms applied. For now, fall through to non-instanced rendering
-      // as tube instancing requires additional shader work.
-    }
-
-    // For non-tube edges: expand all edges for all instances into one batched screen-space quad draw.
-    const lineWidth = this.getAppearanceAttribute(
-      CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, CommonAttributes.LINE_WIDTH_DEFAULT
-    );
-
     let totalSegs = 0;
     for (const poly of indices) {
       if (poly && poly.length >= 2) totalSegs += (poly.length - 1);
     }
     if (totalSegs === 0) return;
-    const totalSegsAll = totalSegs * instanceCount;
 
     const gl = this.#gl;
+    const isIdentityLocal = localTransform.every((v, i) => Math.abs(v - (i % 5 === 0 ? 1 : 0)) < 1e-10);
+
+    const tubeDraw = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER, CommonAttributes.TUBES_DRAW, CommonAttributes.TUBES_DRAW_DEFAULT
+    ));
+
+    // ── Tube mode: instanced 3-D tubes via unified shader (mode 2) ──
+    if (tubeDraw && this.#unifiedProgram && this.#tubeVertexBuffer && this.#tubeIndexBuffer
+        && this.#tubeP0Buffer && this.#tubeP1Buffer && this.#tubeColorInstBuffer && this.#tubeIndexCount > 0) {
+      const tubeRadius = this.getAppearanceAttribute(
+        CommonAttributes.LINE_SHADER, CommonAttributes.TUBE_RADIUS, CommonAttributes.TUBE_RADIUS_DEFAULT
+      );
+      this._beginPrimitiveGroup(CommonAttributes.LINE);
+      const defaultEdgeColor = this.#currentColor;
+
+      const totalInstSegs = totalSegs * instanceCount;
+      const p0s = new Float32Array(totalInstSegs * 3);
+      const p1s = new Float32Array(totalInstSegs * 3);
+      const cols = new Float32Array(totalInstSegs * 4);
+
+      let s = 0;
+      for (let inst = 0; inst < instanceCount; inst++) {
+        const instBase = inst * 16;
+        let instMat;
+        if (isIdentityLocal) {
+          instMat = Array.from(instanceTransforms.subarray(instBase, instBase + 16));
+        } else {
+          instMat = Rn.times(null, Array.from(instanceTransforms.subarray(instBase, instBase + 16)), localTransform);
+        }
+        const er = instanceColors?.[inst * 4] ?? defaultEdgeColor[0];
+        const eg = instanceColors?.[inst * 4 + 1] ?? defaultEdgeColor[1];
+        const eb = instanceColors?.[inst * 4 + 2] ?? defaultEdgeColor[2];
+        const ea = instanceColors?.[inst * 4 + 3] ?? defaultEdgeColor[3];
+
+        for (const poly of indices) {
+          if (!poly || poly.length < 2) continue;
+          for (let j = 0; j < poly.length - 1; j++) {
+            const v0 = this._extractPoint(vertices[poly[j]]);
+            const v1 = this._extractPoint(vertices[poly[j + 1]]);
+            const tp0 = Rn.matrixTimesVector(null, instMat, [v0[0] ?? 0, v0[1] ?? 0, v0[2] ?? 0, v0[3] ?? 1]);
+            const tp1 = Rn.matrixTimesVector(null, instMat, [v1[0] ?? 0, v1[1] ?? 0, v1[2] ?? 0, v1[3] ?? 1]);
+            const dp0 = tp0.length === 4 ? Pn.dehomogenize(null, tp0) : tp0;
+            const dp1 = tp1.length === 4 ? Pn.dehomogenize(null, tp1) : tp1;
+            const o = s * 3;
+            const oc = s * 4;
+            p0s[o] = Number(dp0[0] ?? 0); p0s[o + 1] = Number(dp0[1] ?? 0); p0s[o + 2] = Number(dp0[2] ?? 0);
+            p1s[o] = Number(dp1[0] ?? 0); p1s[o + 1] = Number(dp1[1] ?? 0); p1s[o + 2] = Number(dp1[2] ?? 0);
+            cols[oc] = er; cols[oc + 1] = eg; cols[oc + 2] = eb; cols[oc + 3] = ea;
+            s++;
+          }
+        }
+      }
+
+      const program = this.#unifiedProgram;
+      gl.useProgram(program);
+      const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+      const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+      this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 2);
+      const tubeRadiusLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+      if (tubeRadiusLoc !== null) gl.uniform1f(tubeRadiusLoc, tubeRadius);
+
+      const posLoc = gl.getAttribLocation(program, 'a_position');
+      const colorLoc = gl.getAttribLocation(program, 'a_color');
+      const p0Loc = gl.getAttribLocation(program, 'a_p0');
+      const p1Loc = gl.getAttribLocation(program, 'a_p1');
+      const centerLoc = gl.getAttribLocation(program, 'a_center');
+      const normalLoc = gl.getAttribLocation(program, 'a_normal');
+      const distLoc = gl.getAttribLocation(program, 'a_distance');
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeVertexBuffer);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(posLoc, 0);
+
+      if (normalLoc !== -1) { gl.disableVertexAttribArray(normalLoc); gl.vertexAttrib3f(normalLoc, 0, 0, 1); gl.vertexAttribDivisor(normalLoc, 0); }
+      if (distLoc !== -1) { gl.disableVertexAttribArray(distLoc); gl.vertexAttrib1f(distLoc, 0); gl.vertexAttribDivisor(distLoc, 0); }
+      if (centerLoc !== -1) { gl.disableVertexAttribArray(centerLoc); gl.vertexAttrib3f(centerLoc, 0, 0, 0); gl.vertexAttribDivisor(centerLoc, 0); }
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP0Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, p0s, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(p0Loc);
+      gl.vertexAttribPointer(p0Loc, 3, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(p0Loc, 1);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeP1Buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, p1s, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(p1Loc);
+      gl.vertexAttribPointer(p1Loc, 3, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(p1Loc, 1);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.#tubeColorInstBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, cols, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(colorLoc);
+      gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(colorLoc, 1);
+
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#tubeIndexBuffer);
+      gl.drawElementsInstanced(gl.TRIANGLES, this.#tubeIndexCount, gl.UNSIGNED_SHORT, 0, totalInstSegs);
+      if (this.#debugGL) this.#debugGL.drawElements++;
+
+      // Reset per-instance divisors and disable per-instance attribute arrays
+      // to avoid polluting subsequent instanced draws (e.g. spheres).
+      if (p0Loc !== -1) { gl.vertexAttribDivisor(p0Loc, 0); gl.disableVertexAttribArray(p0Loc); }
+      if (p1Loc !== -1) { gl.vertexAttribDivisor(p1Loc, 0); gl.disableVertexAttribArray(p1Loc); }
+      if (colorLoc !== -1) { gl.vertexAttribDivisor(colorLoc, 0); gl.disableVertexAttribArray(colorLoc); }
+
+      this._endPrimitiveGroup();
+      return;
+    }
+
+    // ── Quad mode: CPU-expanded screen-space quads with anti-aliased edges ──
+    const lineWidth = this.getAppearanceAttribute(
+      CommonAttributes.LINE_SHADER, CommonAttributes.LINE_WIDTH, CommonAttributes.LINE_WIDTH_DEFAULT
+    );
     const program = this.#unifiedProgram || this.#program;
     if (!program) return;
 
@@ -894,11 +1086,11 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const T = this.getCurrentTransformation();
     const invWPx2 = 2.0 / wPx;
     const invHPx2 = 2.0 / hPx;
-    const isIdentityLocal = localTransform.every((v, i) => Math.abs(v - (i % 5 === 0 ? 1 : 0)) < 1e-10);
 
     this._beginPrimitiveGroup(CommonAttributes.LINE);
     const defaultEdgeColor = this.#currentColor;
 
+    const totalSegsAll = totalSegs * instanceCount;
     const MAX_VERTS = 60000;
     const batchSegCap = Math.min(totalSegsAll, Math.floor(MAX_VERTS / 4));
     const pos = new Float32Array(batchSegCap * 16);
@@ -942,7 +1134,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         gl.vertexAttribDivisor(distLoc, 0);
       }
       if (normalLoc !== -1) { gl.disableVertexAttribArray(normalLoc); gl.vertexAttrib3f(normalLoc, 0, 0, 1); gl.vertexAttribDivisor(normalLoc, 0); }
-      // Disable instancing attrs
+      // Disable instancing attrs that are not used in quad mode (mode 0).
       const ir0 = gl.getAttribLocation(program, 'a_instRow0');
       if (ir0 !== -1) { gl.disableVertexAttribArray(ir0); gl.vertexAttrib4f(ir0, 1, 0, 0, 0); gl.vertexAttribDivisor(ir0, 0); }
       const ir1 = gl.getAttribLocation(program, 'a_instRow1');
@@ -1013,6 +1205,292 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       }
     }
     flushBatch();
+    this._endPrimitiveGroup();
+  }
+
+  /**
+   * Render vertices/points of a geometry with N instanced transforms.
+   *
+   * Two rendering strategies are supported, selected by the SPHERES_DRAW appearance attribute:
+   *
+   * **Sphere mode (SPHERES_DRAW=true):**
+   *   Uses the unified lit shader in mode 1 (instanced spheres).  For each vertex in the
+   *   fundamental region, N sphere instances are created (one per group element) by
+   *   pre-transforming the vertex center with the per-instance matrix.  This reuses the
+   *   same icosphere mesh and instancing buffers as the non-instanced sphere path.
+   *
+   * **Sprite / GL_POINTS mode (SPHERES_DRAW=false):**
+   *   Emits all N×V points as a single batched GL_POINTS draw using gl_PointSize for
+   *   sizing and the point-sprite shader for optional round/AA rendering.
+   *
+   * Both paths respect the per-instance color array when provided by a color picker;
+   * otherwise they fall back to the effective pointShader.diffuseColor.
+   *
+   * @private
+   */
+  #renderInstancedPoints(geometry, localTransform, instanceTransforms, instanceColors, instanceCount) {
+    const showPoints = this.getBooleanAttribute?.(CommonAttributes.VERTEX_DRAW, true);
+    if (!showPoints) return;
+
+    const vertsDL = geometry?.getVertexCoordinates?.() || null;
+    if (!vertsDL) return;
+
+    const shape = vertsDL.shape;
+    const fiber = Array.isArray(shape) && shape.length >= 2 ? shape[shape.length - 1] : 0;
+    const positionFiber = fiber || 3;
+    const vertsFlat = typeof vertsDL.getFlatData === 'function' ? vertsDL.getFlatData() : null;
+    if (!vertsFlat) return;
+
+    const numPoints = typeof geometry.getNumPoints === 'function' ? geometry.getNumPoints() : (shape?.[0] ?? 0);
+    if (!numPoints) return;
+
+    const gl = this.#gl;
+    const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && gl instanceof WebGL2RenderingContext;
+    const isIdentityLocal = localTransform.every((v, i) => Math.abs(v - (i % 5 === 0 ? 1 : 0)) < 1e-10);
+
+    this._beginPrimitiveGroup(CommonAttributes.POINT);
+    const defaultPointColor = this.#currentColor;
+
+    const spheresDraw = Boolean(this.getAppearanceAttribute(
+      CommonAttributes.POINT_SHADER, CommonAttributes.SPHERES_DRAW, CommonAttributes.SPHERES_DRAW_DEFAULT
+    ));
+
+    // ── Sphere mode: instanced icospheres via unified shader (mode 1) ──
+    if (spheresDraw && isWebGL2 && this.#unifiedProgram && this.#sphereCenterBuffer && this.#sphereColorInstBuffer) {
+      const pointRadius = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER, CommonAttributes.POINT_RADIUS, CommonAttributes.POINT_RADIUS_DEFAULT
+      );
+      const sphereRes = this.getAppearanceAttribute(
+        CommonAttributes.POINT_SHADER, CommonAttributes.SPHERE_RESOLUTION, 2
+      );
+      const sphereLevel = Math.max(0, Math.min(4, (sphereRes == null ? 2 : sphereRes) | 0));
+      const sphereMesh = this.#getOrCreateSphereMesh(sphereLevel);
+
+      if (sphereMesh) {
+        const totalPts = numPoints * instanceCount;
+        const centers = new Float32Array(totalPts * 3);
+        const colors = new Float32Array(totalPts * 4);
+
+        // Per-vertex colors from the geometry (if any)
+        const vertexColorsDL = geometry?.getVertexColors?.() || null;
+        const vcFlat = vertexColorsDL?.getFlatData?.() ?? null;
+        const vcShape = vertexColorsDL?.shape;
+        const vcFiber = Array.isArray(vcShape) && vcShape.length >= 2 ? vcShape[vcShape.length - 1] : 0;
+
+        let idx = 0;
+        for (let inst = 0; inst < instanceCount; inst++) {
+          const instBase = inst * 16;
+          let instMat;
+          if (isIdentityLocal) {
+            instMat = Array.from(instanceTransforms.subarray(instBase, instBase + 16));
+          } else {
+            instMat = Rn.times(null, Array.from(instanceTransforms.subarray(instBase, instBase + 16)), localTransform);
+          }
+          // Per-instance color (from color picker) or default point color
+          const ir = instanceColors?.[inst * 4] ?? defaultPointColor[0];
+          const ig = instanceColors?.[inst * 4 + 1] ?? defaultPointColor[1];
+          const ib = instanceColors?.[inst * 4 + 2] ?? defaultPointColor[2];
+          const ia = instanceColors?.[inst * 4 + 3] ?? defaultPointColor[3];
+
+          for (let p = 0; p < numPoints; p++) {
+            const src = p * positionFiber;
+            const pt = [
+              Number(vertsFlat[src] ?? 0),
+              Number(vertsFlat[src + 1] ?? 0),
+              Number(vertsFlat[src + 2] ?? 0),
+              positionFiber >= 4 ? Number(vertsFlat[src + 3] ?? 1) : 1
+            ];
+            const tp = Rn.matrixTimesVector(null, instMat, pt);
+            const dp = tp[3] !== 0 && tp[3] !== 1 ? Pn.dehomogenize(null, tp) : tp;
+            const co = idx * 3;
+            centers[co] = Number(dp[0] ?? 0);
+            centers[co + 1] = Number(dp[1] ?? 0);
+            centers[co + 2] = Number(dp[2] ?? 0);
+
+            // Color: per-vertex geometry color modulated by instance color.
+            // If no vertex colors, use white so the instance color comes through as-is.
+            let vr = 1, vg = 1, vb = 1, va = 1;
+            if (vcFlat && vcFiber >= 3) {
+              const vcBase = p * vcFiber;
+              vr = Number(vcFlat[vcBase] ?? 1);
+              vg = Number(vcFlat[vcBase + 1] ?? 1);
+              vb = Number(vcFlat[vcBase + 2] ?? 1);
+              va = vcFiber >= 4 ? Number(vcFlat[vcBase + 3] ?? 1) : 1;
+            }
+            const cc = idx * 4;
+            colors[cc] = vr * ir;
+            colors[cc + 1] = vg * ig;
+            colors[cc + 2] = vb * ib;
+            colors[cc + 3] = va * ia;
+            idx++;
+          }
+        }
+
+        const program = this.#unifiedProgram;
+        gl.useProgram(program);
+        const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+        const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+        this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+
+        const modeLoc = gl.getUniformLocation(program, 'u_mode');
+        if (modeLoc !== null) gl.uniform1i(modeLoc, 1);
+        const prLoc = gl.getUniformLocation(program, 'u_pointRadius');
+        if (prLoc !== null) gl.uniform1f(prLoc, pointRadius);
+        const trLoc = gl.getUniformLocation(program, 'u_tubeRadius');
+        if (trLoc !== null) gl.uniform1f(trLoc, 0.0);
+
+        const posLoc = gl.getAttribLocation(program, 'a_position');
+        const normLoc = gl.getAttribLocation(program, 'a_normal');
+        const centerLoc = gl.getAttribLocation(program, 'a_center');
+        const colorLoc = gl.getAttribLocation(program, 'a_color');
+        const p0Loc = gl.getAttribLocation(program, 'a_p0');
+        const p1Loc = gl.getAttribLocation(program, 'a_p1');
+        const distLoc = gl.getAttribLocation(program, 'a_distance');
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, sphereMesh.vbo);
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(posLoc, 0);
+        if (normLoc !== -1) {
+          gl.enableVertexAttribArray(normLoc);
+          gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
+          gl.vertexAttribDivisor(normLoc, 0);
+        }
+
+        if (p0Loc !== -1) { gl.disableVertexAttribArray(p0Loc); gl.vertexAttrib3f(p0Loc, 0, 0, 0); gl.vertexAttribDivisor(p0Loc, 0); }
+        if (p1Loc !== -1) { gl.disableVertexAttribArray(p1Loc); gl.vertexAttrib3f(p1Loc, 0, 0, 0); gl.vertexAttribDivisor(p1Loc, 0); }
+        if (distLoc !== -1) { gl.disableVertexAttribArray(distLoc); gl.vertexAttrib1f(distLoc, 0); gl.vertexAttribDivisor(distLoc, 0); }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereCenterBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, centers, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(centerLoc);
+        gl.vertexAttribPointer(centerLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(centerLoc, 1);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#sphereColorInstBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(colorLoc);
+        gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(colorLoc, 1);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
+        gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, totalPts);
+        if (this.#debugGL) this.#debugGL.drawElements++;
+
+        // Reset per-instance divisors and disable per-instance attribute arrays.
+        if (centerLoc !== -1) { gl.vertexAttribDivisor(centerLoc, 0); gl.disableVertexAttribArray(centerLoc); }
+        if (colorLoc !== -1) { gl.vertexAttribDivisor(colorLoc, 0); gl.disableVertexAttribArray(colorLoc); }
+
+        this._endPrimitiveGroup();
+        return;
+      }
+    }
+
+    // ── Sprite / GL_POINTS mode: batched point draw ──
+    // Project all N×V points and emit them as a single GL_POINTS draw call with
+    // per-vertex colors pre-multiplied by instance colors on the CPU.
+    const pointSizePx = this.getAppearanceAttribute(
+      CommonAttributes.POINT_SHADER, CommonAttributes.POINT_SIZE, CommonAttributes.POINT_SIZE_DEFAULT
+    );
+    const program = this.#unifiedProgram || this.#program;
+    if (!program) { this._endPrimitiveGroup(); return; }
+
+    const totalPts = numPoints * instanceCount;
+    const posArr = new Float32Array(totalPts * 4);
+    const colArr = new Float32Array(totalPts * 4);
+
+    const vertexColorsDL = geometry?.getVertexColors?.() || null;
+    const vcFlat = vertexColorsDL?.getFlatData?.() ?? null;
+    const vcShape = vertexColorsDL?.shape;
+    const vcFiber = Array.isArray(vcShape) && vcShape.length >= 2 ? vcShape[vcShape.length - 1] : 0;
+
+    let idx = 0;
+    for (let inst = 0; inst < instanceCount; inst++) {
+      const instBase = inst * 16;
+      let instMat;
+      if (isIdentityLocal) {
+        instMat = Array.from(instanceTransforms.subarray(instBase, instBase + 16));
+      } else {
+        instMat = Rn.times(null, Array.from(instanceTransforms.subarray(instBase, instBase + 16)), localTransform);
+      }
+      const ir = instanceColors?.[inst * 4] ?? defaultPointColor[0];
+      const ig = instanceColors?.[inst * 4 + 1] ?? defaultPointColor[1];
+      const ib = instanceColors?.[inst * 4 + 2] ?? defaultPointColor[2];
+      const ia = instanceColors?.[inst * 4 + 3] ?? defaultPointColor[3];
+
+      for (let p = 0; p < numPoints; p++) {
+        const src = p * positionFiber;
+        const pt = [
+          Number(vertsFlat[src] ?? 0),
+          Number(vertsFlat[src + 1] ?? 0),
+          Number(vertsFlat[src + 2] ?? 0),
+          positionFiber >= 4 ? Number(vertsFlat[src + 3] ?? 1) : 1
+        ];
+        const tp = Rn.matrixTimesVector(null, instMat, pt);
+        const po = idx * 4;
+        posArr[po] = tp[0]; posArr[po + 1] = tp[1]; posArr[po + 2] = tp[2]; posArr[po + 3] = tp[3] || 1;
+
+        let vr = 1, vg = 1, vb = 1, va = 1;
+        if (vcFlat && vcFiber >= 3) {
+          const vcBase = p * vcFiber;
+          vr = Number(vcFlat[vcBase] ?? 1);
+          vg = Number(vcFlat[vcBase + 1] ?? 1);
+          vb = Number(vcFlat[vcBase + 2] ?? 1);
+          va = vcFiber >= 4 ? Number(vcFlat[vcBase + 3] ?? 1) : 1;
+        }
+        const cc = idx * 4;
+        colArr[cc] = vr * ir; colArr[cc + 1] = vg * ig; colArr[cc + 2] = vb * ib; colArr[cc + 3] = va * ia;
+        idx++;
+      }
+    }
+
+    gl.useProgram(program);
+    const lightingHint = this.getBooleanAttribute?.(CommonAttributes.LIGHTING_ENABLED, CommonAttributes.LIGHTING_ENABLED_DEFAULT);
+    const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
+    this.#updateUniforms(program, 0, 1.0, Boolean(lightingHint), Boolean(flipNormals));
+    if (program === this.#unifiedProgram) {
+      const modeLoc = gl.getUniformLocation(program, 'u_mode');
+      if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
+    }
+    const pszLoc = gl.getUniformLocation(program, 'u_pointSize');
+    if (pszLoc !== null) gl.uniform1f(pszLoc, pointSizePx);
+
+    const posLoc = gl.getAttribLocation(program, 'a_position');
+    const colorLoc = gl.getAttribLocation(program, 'a_color');
+    const normalLoc = gl.getAttribLocation(program, 'a_normal');
+    const distLoc = gl.getAttribLocation(program, 'a_distance');
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, posArr, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(posLoc, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.#colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, colArr, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(colorLoc);
+    gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(colorLoc, 0);
+
+    if (normalLoc !== -1) { gl.disableVertexAttribArray(normalLoc); gl.vertexAttrib3f(normalLoc, 0, 0, 1); gl.vertexAttribDivisor(normalLoc, 0); }
+    if (distLoc !== -1) { gl.disableVertexAttribArray(distLoc); gl.vertexAttrib1f(distLoc, 0); gl.vertexAttribDivisor(distLoc, 0); }
+    // Disable instancing attributes for plain GL_POINTS draw
+    const ir0 = gl.getAttribLocation(program, 'a_instRow0');
+    if (ir0 !== -1) { gl.disableVertexAttribArray(ir0); gl.vertexAttrib4f(ir0, 1, 0, 0, 0); gl.vertexAttribDivisor(ir0, 0); }
+    const ir1 = gl.getAttribLocation(program, 'a_instRow1');
+    if (ir1 !== -1) { gl.disableVertexAttribArray(ir1); gl.vertexAttrib4f(ir1, 0, 1, 0, 0); gl.vertexAttribDivisor(ir1, 0); }
+    const ir2 = gl.getAttribLocation(program, 'a_instRow2');
+    if (ir2 !== -1) { gl.disableVertexAttribArray(ir2); gl.vertexAttrib4f(ir2, 0, 0, 1, 0); gl.vertexAttribDivisor(ir2, 0); }
+    const ir3 = gl.getAttribLocation(program, 'a_instRow3');
+    if (ir3 !== -1) { gl.disableVertexAttribArray(ir3); gl.vertexAttrib4f(ir3, 0, 0, 0, 1); gl.vertexAttribDivisor(ir3, 0); }
+    const icLoc = gl.getAttribLocation(program, 'a_instColor');
+    if (icLoc !== -1) { gl.disableVertexAttribArray(icLoc); gl.vertexAttrib4f(icLoc, 1, 1, 1, 1); gl.vertexAttribDivisor(icLoc, 0); }
+    const ctrLoc = gl.getAttribLocation(program, 'a_center');
+    if (ctrLoc !== -1) { gl.disableVertexAttribArray(ctrLoc); gl.vertexAttrib3f(ctrLoc, 0, 0, 0); gl.vertexAttribDivisor(ctrLoc, 0); }
+
+    gl.drawArrays(gl.POINTS, 0, totalPts);
+    if (this.#debugGL) this.#debugGL.drawArrays++;
+
     this._endPrimitiveGroup();
   }
 

@@ -24,7 +24,7 @@ export class DiscreteGroupSimpleConstraint extends DiscreteGroupConstraint {
     this.centerPoint = [0, 0, 0, 1];
     this.manhattan = false;
     this.accepted = 0;
-    this.countAccepted = false;
+    this.countAccepted = true;
     this.listeners = new Set();
     this.tmp = [0, 0, 0, 1];
   }
@@ -35,7 +35,10 @@ export class DiscreteGroupSimpleConstraint extends DiscreteGroupConstraint {
 
   acceptElement(dge) {
     if (this.accepted >= this.maxNumberElements) return false;
-    if (this.maxDistance < 0 && this.maxWordLength < 0) return true;
+     if (this.maxDistance < 0 && this.maxWordLength < 0) {
+      this.accepted++;
+      return true;
+     }
 
     if (this.maxWordLength >= 0) {
       if ((dge.getWord() || '').length > this.maxWordLength) return false;
@@ -56,6 +59,7 @@ export class DiscreteGroupSimpleConstraint extends DiscreteGroupConstraint {
     }
 
     if (this.countAccepted) this.accepted += 1;
+    // if (this.accepted %10 === 0) console.log('acceptElement', this.accepted);
     return true;
   }
 
@@ -86,7 +90,7 @@ export class DiscreteGroupSimpleConstraint extends DiscreteGroupConstraint {
     this.broadcastChange();
   }
 
-  update() {}
+  update() {this.accepted = 0;}
 
   getMaxDistance() {
     return this.maxDistance;

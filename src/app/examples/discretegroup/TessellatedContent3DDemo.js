@@ -36,6 +36,7 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     constraint.setManhattan(true);
     dg.setConstraint(constraint);
     dg.update();
+    console.log('TessellatedContent3DDemo.createGroup', dg.getElementList().length);
     return dg;
   }
 
@@ -44,54 +45,34 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     dd.update();
 
     this._fundDomSGC.setGeometry(dd.getDirichletDomain());
-    const ap = this._fundDomSGC.getAppearance();
-    if (ap) {
-      ap.setAttribute(`pointShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-    }
+    
   }
-
-  getAppList() {
-    const red = new Appearance();
-    red.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 0, 0));
-    red.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-
-    const blue = new Appearance();
-    blue.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
-    blue.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-
-    const green = new Appearance();
-    green.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 255, 0));
-    green.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-
-    return [red, blue, green];
-  }
-
   getContent() {
-    const group = this.createGroup();
-    this._group = group;
+    this._copycat = true;
+    this.setGroup(this.createGroup());
     this.setupFundamentalDomain();
-    this.setGroup(group);
-
+    
     const repnRoot = this.getRepresentationRoot();
+    const ap = repnRoot.getAppearance();
+    ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
+    ap.setAttribute(`pointShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
+    ap.setAttribute("pointShader."+CommonAttributes.POINT_RADIUS, 0.025);
+    ap.setAttribute("lineShader."+CommonAttributes.TUBE_RADIUS, 0.025);
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+    ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
 
     this._wrapper.setGeometry(Primitives.cube());
     this._wrapper.getAppearance().setAttribute(CommonAttributes.FACE_DRAW, false);
     this._wrapper.getAppearance().setAttribute(
       `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 255));
     repnRoot.addChild(this._wrapper);
-      repnRoot.addTool(new RotateTool());
+    repnRoot.addTool(new RotateTool());
     return repnRoot;
   }
 
   display() {
-    this.setup3DCamera();
-
+   
+    super.display();
     const viewer = this.getViewer();
     const camera = CameraUtility.getCamera(viewer);
     camera.setFar(30);
@@ -105,8 +86,6 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     this.setScale(1.0);
     this.setFollowsCamera(false);
     this.setClipToCamera(false);
-
-    super.display();
 
     CameraUtility.encompass(viewer);
   }

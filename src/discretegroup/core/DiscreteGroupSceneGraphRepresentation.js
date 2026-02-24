@@ -11,8 +11,13 @@ import { Appearance, INHERITED} from '../../core/scene/Appearance.js';
 import { SceneGraphComponent } from '../../core/scene/SceneGraphComponent.js';
 import { Transformation } from '../../core/scene/Transformation.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { getLogger } from '../../core/util/LoggingSystem.js';
 import { AbstractDGSGR } from './AbstractDGSGR.js';
 import { DiscreteGroupElement } from './DiscreteGroupElement.js';
+import { DiscreteGroupViewportConstraint } from './DiscreteGroupViewportConstraint.js';
+import { DiscreteGroupUtility } from './DiscreteGroupUtility.js';
+import { DiscreteGroupSimpleConstraint } from './DiscreteGroupSimpleConstraint.js';
+const logger = getLogger('discretegroup.DGSGR');
 
 /**
  * Port of de.jtem.discretegroup.core.DiscreteGroupSceneGraphRepresentation.
@@ -52,6 +57,7 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     this.elementList = null;
     this.appList = null;
     this.constraint = null;
+    this.pickConstraint = null;
 
     this.newElementList = true;
     this.newAppList = true;
@@ -83,12 +89,44 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
     return this.constraint;
   }
 
+  /**
+   * Set a constraint that controls which group elements get a SceneGraphComponent
+   * allocated (and are therefore pickable).  When copyCat is true, all elements
+   * are still rendered via instancing regardless of this constraint; only the SGC
+   * allocation is affected.  When copyCat is false, all elements get SGCs but the
+   * pickable flag is set according to this constraint.
+   *
+   * NOTE: instance-buffer indices and SGC child indices will not be 1:1 aligned
+   * when a pickConstraint is active in copyCat mode.  The element's word (stored
+   * in the SGC/Transformation name) can be used to identify the group element.
+   *
+   * Using a DiscreteGroupViewportConstraint as pickConstraint is discouraged
+   * because the pick set should be small and stable, not viewport-dependent.
+   * A warning is logged if one is supplied.
+   *
+   * @param {import('./DiscreteGroupConstraint.js').DiscreteGroupConstraint|null} c
+   */
+  setPickConstraint(c) {
+    if (c instanceof DiscreteGroupViewportConstraint) {
+      logger.warning?.('setPickConstraint: using a viewport constraint as pick constraint '
+        + 'is discouraged; the pick set should be small and viewport-independent.');
+    }
+    this.pickConstraint = c;
+  }
+
+  getPickConstraint() {
+    return this.pickConstraint;
+  }
+
+  #pickcount=0;
   update() {
     if (this.newAppList || this.newElementList || this.elementList == null) {
       if (this.elementList == null) {
-        this.theGroup.generateElements();
+        this.theGroup.update();
         this.elementList = this.theGroup.getElementList();
       }
+      console.log('DiscreteGroupSceneGraphRepresentation.update elementList', this.elementList.length);
+      console.log('DiscreteGroupSceneGraphRepresentation.update constraint', this.theGroup.getConstraint());
       const cp = this.theGroup.getColorPicker?.();
       if (cp && this.elementList?.length > 0) {
         cp.assignColorIndices(this.elementList);
@@ -96,53 +134,72 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
 
       const theNewSGR = SceneGraphUtility.createFullSceneGraphComponent(`${this.name} DG Parent`);
       const n = this.elementList?.length ?? 0;
-
-      const instanceTransforms = new Float32Array(n * 16);
       const hasAppList = this.appList != null && this.appList.length > 0;
+     
+      const instanceTransforms = new Float32Array(n * 16);
       const instanceColors = hasAppList ? new Float32Array(n * 4) : null;
 
-      for (let i = 0; i < n; ++i) {
-        const dge = this.elementList[i];
-        const tmp = new SceneGraphComponent();
+      // prepare the instanced buffers for the copyCat mode
+      if (this.copyCat) {
+     
+        for (let i = 0; i < n; ++i) {
+          const dge = this.elementList[i];
+
+          // Instance buffers always include every element (rendering is complete).
+          instanceTransforms.set(dge.getArray(), i * 16);
+          if (hasAppList) {
+            const index = ((dge.getColorIndex() % this.appList.length) + this.appList.length) % this.appList.length;
+            const app = this.appList[index];
+            const dc = app?.getAttribute?.('polygonShader.diffuseColor');
+            if (dc && typeof dc.getRed === 'function') {
+              instanceColors[i * 4] = dc.getRed();
+              instanceColors[i * 4 + 1] = dc.getGreen();
+              instanceColors[i * 4 + 2] = dc.getBlue();
+              instanceColors[i * 4 + 3] = dc.getAlpha();
+            } else if (Array.isArray(dc)) {
+              instanceColors[i * 4] = dc[0] ?? 1;
+              instanceColors[i * 4 + 1] = dc[1] ?? 1;
+              instanceColors[i * 4 + 2] = dc[2] ?? 1;
+              instanceColors[i * 4 + 3] = dc[3] ?? 1;
+            } else {
+              instanceColors[i * 4] = instanceColors[i * 4 + 1] = instanceColors[i * 4 + 2] = instanceColors[i * 4 + 3] = 1;
+            }
+          }
+        }
+      }
+
+      const pc = this.copyCat ?  null : 
+           (this.pickConstraint ? this.pickConstraint : new DiscreteGroupSimpleConstraint(-1, -1, 500)) ;
+      // console.log('DiscreteGroupSceneGraphRepresentation.update pickConstraint', pc);
+
+      // now process the visible elements.
+      // It either comes from the full group, or when copyCat is true, from the pick constraint
+      const ellist= this.copyCat ? DiscreteGroupUtility.generateElements(this.theGroup, pc) : this.theGroup.getElementList();
+      for (let i = 0; i < ellist.length; ++i) {
+        const dge = ellist[i];
+      
+        const tmp = new SceneGraphComponent(`dge ${dge.getWord()}`);
         const newTrans = new Transformation(dge.getArray());
         newTrans.setName(dge.getWord());
-        tmp.setName(`dge ${dge.getWord()}`);
         tmp.setTransformation(newTrans);
         if (hasAppList) {
           const index = ((dge.getColorIndex() % this.appList.length) + this.appList.length) % this.appList.length;
           tmp.setAppearance(this.appList[index]);
         }
         tmp.addChild(this.fundamentalRegion);
+
         theNewSGR.addChild(tmp);
-
-        instanceTransforms.set(dge.getArray(), i * 16);
-
-        if (hasAppList) {
-          const index = ((dge.getColorIndex() % this.appList.length) + this.appList.length) % this.appList.length;
-          const app = this.appList[index];
-          const dc = app?.getAttribute?.('polygonShader.diffuseColor');
-          if (dc && typeof dc.getRed === 'function') {
-            instanceColors[i * 4]     = dc.getRed();
-            instanceColors[i * 4 + 1] = dc.getGreen();
-            instanceColors[i * 4 + 2] = dc.getBlue();
-            instanceColors[i * 4 + 3] = dc.getAlpha();
-          } else if (Array.isArray(dc)) {
-            instanceColors[i * 4]     = dc[0] ?? 1;
-            instanceColors[i * 4 + 1] = dc[1] ?? 1;
-            instanceColors[i * 4 + 2] = dc[2] ?? 1;
-            instanceColors[i * 4 + 3] = dc[3] ?? 1;
-          } else {
-            instanceColors[i * 4] = instanceColors[i * 4 + 1] = instanceColors[i * 4 + 2] = instanceColors[i * 4 + 3] = 1;
-          }
-        }
       }
 
       const parentApp = theNewSGR.getAppearance() || new Appearance();
+      // write out the instanced geometry attributes if copyCat is true
       parentApp.setAttribute('instancedGeometry', this.copyCat);
-      parentApp.setAttribute('instanceTransforms', instanceTransforms);
-      if (hasAppList) parentApp.setAttribute('instanceColors', instanceColors);
-      parentApp.setAttribute('instanceCount', n);
-      parentApp.setAttribute('instanceFundamentalRegion', this.fundamentalRegion);
+      if (this.copyCat) {
+        parentApp.setAttribute('instanceTransforms', instanceTransforms);
+        if (hasAppList) parentApp.setAttribute('instanceColors', instanceColors);
+        parentApp.setAttribute('instanceCount', n);
+        parentApp.setAttribute('instanceFundamentalRegion', this.fundamentalRegion);
+      }
       if (!theNewSGR.getAppearance()) theNewSGR.setAppearance(parentApp);
 
       this.newAppList = false;

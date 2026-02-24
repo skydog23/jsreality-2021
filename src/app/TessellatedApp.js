@@ -47,7 +47,7 @@ export class TessellatedApp extends JSRApp {
   _fundDomSGC = SceneGraphUtility.createFullSceneGraphComponent('fundDomSGC');
   _contentNode = null;
   _rootSGC = null;
-  _copycat = true;
+  _copycat = false;
   _scale = 1.0;
 
   _masterConstraint = new DiscreteGroupSimpleConstraint(18.0, 16, 5000);
@@ -228,6 +228,7 @@ export class TessellatedApp extends JSRApp {
    * Subclasses should call super.display().
    */
   display() {
+    this.setup3DCamera();
     const ap = this.getViewer()?.getSceneRoot()?.getAppearance();
     if (ap) {
       ap.setAttribute('backgroundColor', new Color(200, 175, 150));

@@ -62,7 +62,7 @@ export class DiscreteGroupUtility {
       return dg.elementList;
     }
     if (constraint == null) constraint = DiscreteGroupSimpleConstraint.defaultConstraint;
-    else constraint.update();
+    constraint.update();
 
     const metric = dg.getMetric();
     const fsa = dg.getFsa();

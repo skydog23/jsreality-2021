@@ -358,11 +358,15 @@ export function createUnifiedLitProgram(gl) {
 
         // Mode 3: instanced geometry with per-instance model matrix.
         // u_transform = viewProj * ancestorTransforms; instance matrix is the child's local transform.
+        // Color is a_color (per-vertex, from geometry face/vertex colors or white) multiplied
+        // by a_instColor (per-instance tint from DiscreteGroupColorPicker or diffuseColor).
+        // This allows per-face colors on the fundamental region to be preserved and tinted
+        // independently per instance.
         if (u_mode == 3) {
           mat4 instMat = mat4(a_instRow0, a_instRow1, a_instRow2, a_instRow3);
           position = instMat * position;
           Nobj = mat3(instMat) * Nobj;
-          v_color = a_instColor;
+          v_color = a_color * a_instColor;
         }
 
         gl_Position = u_transform * position;

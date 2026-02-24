@@ -55,6 +55,26 @@ export class ReflectionColorPicker extends DiscreteGroupColorPicker {
   }
 }
 
+export class TranslationColorPicker extends DiscreteGroupColorPicker {
+  constructor(c = 4) {
+    super();
+    this.cycleSize = c;
+  }
+  #count=0;
+  calculateColorIndexForElement(dge) {
+    let m = dge.getArray();
+    let sum = ((m[3] + m[7] + m[11])/2);
+    sum = sum < 0 ? Math.floor(0.005 - sum) : Math.floor(sum + 0.005);
+    sum = sum % this.cycleSize;
+    sum = sum < 0 ? -sum : sum;
+    this.#count++;
+    if (this.#count < 20) {
+      console.log('TranslationColorPicker.calculateColorIndexForElement', sum);
+     }
+    return sum;
+  }
+}
+
 export class RotationColorPicker extends DiscreteGroupColorPicker {
   constructor(c = 2) {
     super();
@@ -116,4 +136,5 @@ DiscreteGroupColorPicker.ReflectionColorPicker = ReflectionColorPicker;
 DiscreteGroupColorPicker.RotationColorPicker = RotationColorPicker;
 DiscreteGroupColorPicker.RotationReflectionColorPicker = RotationReflectionColorPicker;
 DiscreteGroupColorPicker.LinearFunctionColorPicker = LinearFunctionColorPicker;
+DiscreteGroupColorPicker.TranslationColorPicker = TranslationColorPicker;
 
