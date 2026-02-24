@@ -8,7 +8,7 @@
 import { IndexedFaceSetUtility } from '../../core/geometry/IndexedFaceSetUtility.js';
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
-import { toDataList } from '../../core/scene/data/DataUtility.js';
+import { toDataList, fromDataList } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { RotateTool } from '../../core/tools/RotateTool.js';
@@ -16,7 +16,6 @@ import { TranslateTool } from '../../core/tools/TranslateTool.js';
 import { Color } from '../../core/util/Color.js';
 import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
 import { JSRApp } from '../JSRApp.js';
-import { fromDataList } from '../../core/scene/data/DataUtility.js';
 /**
  * Abstract base class for jsReality applications.
  * Subclasses must implement getContent() to provide the scene graph content.

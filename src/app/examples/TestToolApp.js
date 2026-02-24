@@ -17,20 +17,15 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-import { JSRApp } from '../JSRApp.js';
-import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
-import { SphereUtility } from '../../core/geometry/SphereUtility.js';
-import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
-import { Color } from '../../core/util/Color.js';
-import { TestTool } from './TestTool.js';
 import { Primitives } from '../../core/geometry/Primitives.js';
 import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
-import { Appearance } from '../../core/scene/Appearance.js';
-import { AbstractTool } from '../../core/scene/tool/AbstractTool.js';
 import { ToolUtility } from '../../core/scene/tool/ToolUtility.js';
-import { getLogger, setModuleLevel, Level, Category } from '../../core/util/LoggingSystem.js';
-import * as CameraUtility from '../../core/util/CameraUtility.js';
-import { DragPointTool } from '../../core/tools/DragPointTool.js';
+import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
+import { Color } from '../../core/util/Color.js';
+import { Category, getLogger, Level, setModuleLevel } from '../../core/util/LoggingSystem.js';
+import { SceneGraphUtility } from '../../core/util/SceneGraphUtility.js';
+import { JSRApp } from '../JSRApp.js';
+import { TestTool } from './TestTool.js';
 const logger = getLogger('jsreality.app.examples.TestToolApp');
 setModuleLevel('jsreality.app.examples.TestToolApp', Level.INFO);
 /**

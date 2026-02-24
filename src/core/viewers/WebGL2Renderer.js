@@ -2934,8 +2934,15 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         CommonAttributes.TEXTURE_2D,
         null
       );
+      if (this.#debugFrame <= 3) {
+        console.log('[Texture2D resolve]', 'tex=', tex, 'instanceof=', tex instanceof Texture2D,
+          'hasImageSource=', tex?.hasImageSource?.(), 'image=', tex?.getImage?.(),
+          'extSrc=', tex?.getExternalSource?.());
+      }
       if (tex instanceof Texture2D && tex.hasImageSource()) return tex;
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[Texture2D resolve] error:', e);
+    }
     return null;
   }
 
@@ -2965,10 +2972,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     }
     if (!img) return null;
 
-    // Create GL texture if needed.
+    // Create GL texture if needed.  The cache entry may already exist
+    // (created by #loadExternalTexture with glTex=null) before the image
+    // has loaded, so we also check for a missing glTex.
     if (!entry) {
       entry = { glTex: gl.createTexture(), version: -1, url: null };
       this.#textureCache.set(tex2d, entry);
+    } else if (!entry.glTex) {
+      entry.glTex = gl.createTexture();
     }
 
     gl.bindTexture(gl.TEXTURE_2D, entry.glTex);
@@ -3013,6 +3024,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const entry = this.#textureCache.get(tex2d);
     if (entry?.url === url) return;
 
+    console.log('[Texture2D] loading external source:', url);
+
     if (!entry) {
       this.#textureCache.set(tex2d, { glTex: null, version: -1, url });
     } else {
@@ -3022,9 +3035,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const image = new Image();
     image.crossOrigin = 'anonymous';
     image.onload = () => {
+      console.log('[Texture2D] image loaded:', url, image.width, 'x', image.height);
       tex2d.setImage(image);
+      this._getViewer()?.renderAsync?.();
     };
-    image.onerror = () => {
+    image.onerror = (e) => {
+      console.error('[Texture2D] failed to load image:', url, e);
       logger.warning(Category.ALL, `Texture2D: failed to load image from ${url}`);
     };
     image.src = url;

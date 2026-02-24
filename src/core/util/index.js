@@ -27,3 +27,4 @@ export {
 } from './LoggingSystem.js';
 
 export { Dimension } from './Dimension.js';
+export { SimpleTextureFactory, TextureType } from './SimpleTextureFactory.js';
