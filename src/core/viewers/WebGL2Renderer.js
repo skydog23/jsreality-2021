@@ -165,6 +165,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {boolean|null} */
   #blendEnabled = null;
+  /** @type {boolean|null|undefined} - saved blend state for line group override */
+  #savedBlendEnabled = undefined;
 
   /** @type {boolean|null} */
   #blendAdditive = null;
@@ -2174,6 +2176,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       this.#batchedVertexOffset = 0;
       this.#currentBatchedLineColor = null;
       this.#currentBatchedHalfWidth = 0;
+
+      // Screen-space quad lines always need blending for edge anti-aliasing,
+      // independent of the transparencyEnabled flag (which controls polygon transparency).
+      this.#savedBlendEnabled = this.#blendEnabled;
+      if (!this.#blendEnabled) {
+        gl.enable(gl.BLEND);
+        this.#blendEnabled = true;
+      }
     }
   }
 
@@ -2185,6 +2195,17 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // Flush any batched line data before ending the group
     if (this.#currentPrimitiveType === CommonAttributes.LINE && this.#batchedVertices.length > 0) {
       this.#flushBatchedLines();
+    }
+
+    // Restore blend state that was overridden for quad-line drawing
+    if (this.#currentPrimitiveType === CommonAttributes.LINE && this.#savedBlendEnabled !== undefined) {
+      const gl = this.#gl;
+      if (this.#savedBlendEnabled !== this.#blendEnabled) {
+        this.#blendEnabled = this.#savedBlendEnabled;
+        if (this.#blendEnabled) gl.enable(gl.BLEND);
+        else gl.disable(gl.BLEND);
+      }
+      this.#savedBlendEnabled = undefined;
     }
   }
 

@@ -86,7 +86,7 @@ export class PenroseCube extends JSRApp {
   _penroseCorners = new Array(8);
 
   getContent() {
-    this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('wold');
+    this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('penrose cube');
 
     this._S0ConicSGC = SceneGraphUtility.createFullSceneGraphComponent('conic');
     this._T0ConicSGC = SceneGraphUtility.createFullSceneGraphComponent('T0 conic');
@@ -119,7 +119,7 @@ export class PenroseCube extends JSRApp {
     }
 
     this.initPenroseCorners();
-
+  
     this.updatePipjs();
     this.updateDoubleContactPencils();
     this.updateT0Conic();
@@ -144,11 +144,12 @@ export class PenroseCube extends JSRApp {
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.004);
-    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 2.0);
+    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 6.0);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, false);
+    ap.setAttribute("lineShader." + CommonAttributes.EDGE_FADE, 0.25);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.003);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 4.0);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 6.0);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, false);
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
@@ -539,21 +540,21 @@ export class PenroseCube extends JSRApp {
 
   
     this._TiConics[which] = new ConicSection(null, this._normalizeConics);
-    this._TiConics[which].name = 'pencil conic '+which;
-    this._TiCollectorSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('dblCntPncl '+which);
+    this._TiConics[which].name = 'pencil conic T'+(which+1);
+    this._TiCollectorSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('DC Pencil S0-T'+(which+1));
     let ap = this._TiCollectorSGCs[which].getAppearance();
     
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, conicColor);
-    this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('child '+which);
+    this._TiSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('T'+(which+1));
     const ppr4 = this._pointPairs[which];
-    this._S0TiDblLnSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('p'+which);
+    this._S0TiDblLnSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('DoubleLine S0-T'+(which+1));
     ap = this._S0TiDblLnSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.003);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, doubleLineColor);
-    this._S0TiPtPairSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('twoPoints '+which); 
+    this._S0TiPtPairSGCs[which] = SceneGraphUtility.createFullSceneGraphComponent('PointPair S0-T'+(which+1)); 
     ap = this._S0TiPtPairSGCs[which].getAppearance();
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.015);
