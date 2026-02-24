@@ -63,14 +63,11 @@ export class TranslationColorPicker extends DiscreteGroupColorPicker {
   #count=0;
   calculateColorIndexForElement(dge) {
     let m = dge.getArray();
-    let sum = ((m[3] + m[7] + m[11])/2);
-    sum = sum < 0 ? Math.floor(0.005 - sum) : Math.floor(sum + 0.005);
+    let sum = ((4*m[3] + 2*m[7] + m[11])/2);
+    sum = sum < 0 ? Math.floor(sum - .005) : Math.floor(sum + 0.005);
     sum = sum % this.cycleSize;
     sum = sum < 0 ? -sum : sum;
-    this.#count++;
-    if (this.#count < 20) {
-      console.log('TranslationColorPicker.calculateColorIndexForElement', sum);
-     }
+    
     return sum;
   }
 }

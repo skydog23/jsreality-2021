@@ -39,3 +39,4 @@ export { DefaultPolygonShader } from './DefaultPolygonShader.js';
 export { DefaultRenderingHintsShader } from './DefaultRenderingHintsShader.js';
 export { DefaultRootAppearance } from './DefaultRootAppearance.js';
 export { ImplodePolygonShader } from './ImplodePolygonShader.js';
+export { Texture2D, ApplyMode, WrapMode, FilterMode } from './Texture2D.js';

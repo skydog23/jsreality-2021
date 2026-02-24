@@ -25,6 +25,7 @@ import { getLogger, Category } from '../util/LoggingSystem.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
 import { DefaultRenderingHintsShader } from '../shader/DefaultRenderingHintsShader.js';
+import { Texture2D, ApplyMode } from '../shader/Texture2D.js';
 import {
   compileShader as compileShaderUtil,
   queryWebGLCapabilities,
@@ -143,6 +144,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   /** @type {WebGLBuffer|null} */
   #distanceBuffer = null;
 
+  /** @type {WebGLBuffer|null} Texture coordinate buffer for faces */
+  #texCoordBuffer = null;
+
+  /** @type {Map<Texture2D, { glTex: WebGLTexture, version: number, url: string|null }>} */
+  #textureCache = new Map();
+
   /** @type {number} Current primitive type being rendered */
   #currentPrimitiveType = null;
 
@@ -255,6 +262,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     this.#normalBuffer = gl.createBuffer();
     this.#indexBuffer = gl.createBuffer();
     this.#distanceBuffer = gl.createBuffer();
+    this.#texCoordBuffer = gl.createBuffer();
 
     // Create instanced point resources (WebGL2 only).
     if (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext) {
@@ -918,6 +926,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (instColorLoc !== -1) { gl.vertexAttribDivisor(instColorLoc, 0); gl.disableVertexAttribArray(instColorLoc); }
 
     this._endPrimitiveGroup();
+    this._getViewer()?._incrementFacesRendered?.(faceRows.length * instanceCount);
   }
 
   /**
@@ -1068,6 +1077,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       if (colorLoc !== -1) { gl.vertexAttribDivisor(colorLoc, 0); gl.disableVertexAttribArray(colorLoc); }
 
       this._endPrimitiveGroup();
+      this._getViewer()?._incrementEdgesRendered?.(totalSegs * instanceCount);
       return;
     }
 
@@ -1206,6 +1216,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     }
     flushBatch();
     this._endPrimitiveGroup();
+    this._getViewer()?._incrementEdgesRendered?.(totalSegs * instanceCount);
   }
 
   /**
@@ -1382,6 +1393,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         if (colorLoc !== -1) { gl.vertexAttribDivisor(colorLoc, 0); gl.disableVertexAttribArray(colorLoc); }
 
         this._endPrimitiveGroup();
+        this._getViewer()?._incrementPointsRendered?.(numPoints * instanceCount);
         return;
       }
     }
@@ -1492,6 +1504,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (this.#debugGL) this.#debugGL.drawArrays++;
 
     this._endPrimitiveGroup();
+    this._getViewer()?._incrementPointsRendered?.(totalPts);
   }
 
   /**
@@ -2422,6 +2435,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const hasFaceNormals = Boolean(faceNormalsFlat && faceNormalFiber >= 3);
     const hasVertexNormals = Boolean(vertexNormalsFlat && vertexNormalFiber >= 3);
 
+    // Texture coordinates (optional): per-vertex UV data from geometry.
+    const texCoordDL = geometry?.getVertexAttribute?.(GeometryAttribute.TEXTURE_COORDINATES) || null;
+    const texCoordFlat = texCoordDL && typeof texCoordDL.getFlatData === 'function' ? texCoordDL.getFlatData() : null;
+    const texCoordShape = texCoordDL?.shape;
+    const texCoordFiber = Array.isArray(texCoordShape) && texCoordShape.length >= 2
+      ? texCoordShape[texCoordShape.length - 1] : 0;
+    const hasTexCoords = Boolean(texCoordFlat && texCoordFiber >= 2);
+
     // Important: begin the polygon primitive group *before* capturing defaultColor.
     // Otherwise, the fallback defaultColor can accidentally come from the previous primitive
     // group (e.g., green point color), which makes faces render with the wrong color when
@@ -2439,6 +2460,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const a = faceColorChannels >= 4 ? Number(faceColorsFlat[base + 3] ?? defaultColor[3]) : 1.0;
       return [r, g, b, a];
     };
+
+    // Resolve Texture2D from appearance (for this polygon group).
+    const tex2d = this.#resolveTexture2D();
+    const useTexture = hasTexCoords && tex2d;
 
     // Batch faces. If we can use 32-bit indices, we can draw the whole expanded mesh in one go.
     // Otherwise, chunk into <=65535 expanded vertices per draw (still only a few draw calls).
@@ -2475,11 +2500,13 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const normalArray = hasFaceNormals || hasVertexNormals
         ? new Float32Array(batchVerts * 3)
         : null;
+      const texCoordArray = useTexture ? new Float32Array(batchVerts * 2) : null;
 
       let vOut = 0; // vertex index within this batch
       let vFloat = 0;
       let cFloat = 0;
       let nFloat = 0;
+      let tFloat = 0;
       let iOut = 0;
 
       // Second pass: fill
@@ -2552,6 +2579,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             }
           }
 
+          if (texCoordArray) {
+            const tb = vid * texCoordFiber;
+            texCoordArray[tFloat++] = Number(texCoordFlat[tb + 0] ?? 0);
+            texCoordArray[tFloat++] = Number(texCoordFlat[tb + 1] ?? 0);
+          }
+
           vOut++;
         }
 
@@ -2562,7 +2595,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         }
       }
 
-      this.#drawGeometry(vertexArray, colorArray, normalArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize);
+      this.#drawGeometry(vertexArray, colorArray, normalArray, indexArray, this.#capabilities.TRIANGLES, null, 0, positionSize, texCoordArray, tex2d);
       f0 = f1;
     }
     this._endPrimitiveGroup();
@@ -2876,6 +2909,176 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const lineHalfWidthLoc = gl.getUniformLocation(program, 'u_lineHalfWidth');
     if (lineHalfWidthLoc !== null) {
       gl.uniform1f(lineHalfWidthLoc, lineHalfWidth);
+    }
+
+    // Texture matrix: identity by default (set per-draw in #bindTexture2D).
+    const texMatLoc = gl.getUniformLocation(program, 'u_texMatrix');
+    if (texMatLoc !== null) {
+      gl.uniformMatrix4fv(texMatLoc, true, Rn.identityMatrix(4));
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Texture2D management
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Resolve the active Texture2D from the current effective appearance, if any.
+   * Returns `null` when no texture is configured on polygonShader.texture2d.
+   * @returns {Texture2D|null}
+   */
+  #resolveTexture2D() {
+    try {
+      const tex = this.getAppearanceAttribute(
+        CommonAttributes.POLYGON_SHADER,
+        CommonAttributes.TEXTURE_2D,
+        null
+      );
+      if (tex instanceof Texture2D && tex.hasImageSource()) return tex;
+    } catch { /* ignore */ }
+    return null;
+  }
+
+  /**
+   * Ensure a Texture2D's GL texture object is created and up-to-date.
+   * Handles both inline images and external URL sources.
+   * Returns the WebGLTexture or null if the image is not yet available.
+   * @param {Texture2D} tex2d
+   * @returns {WebGLTexture|null}
+   */
+  #getOrUploadTexture(tex2d) {
+    const gl = this.#gl;
+    let entry = this.#textureCache.get(tex2d);
+
+    const needsUpload = !entry
+      || entry.version !== tex2d.version
+      || (tex2d.getAnimated() && tex2d.getImage());
+
+    if (!needsUpload && entry) return entry.glTex;
+
+    // Resolve image source.
+    let img = tex2d.getImage();
+    if (!img && tex2d.getExternalSource()) {
+      this.#loadExternalTexture(tex2d);
+      img = tex2d.getImage();
+      if (!img) return entry?.glTex ?? null;
+    }
+    if (!img) return null;
+
+    // Create GL texture if needed.
+    if (!entry) {
+      entry = { glTex: gl.createTexture(), version: -1, url: null };
+      this.#textureCache.set(tex2d, entry);
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, entry.glTex);
+
+    // Upload image data.
+    // texImage2D accepts: HTMLImageElement, HTMLCanvasElement, ImageBitmap,
+    // ImageData, HTMLVideoElement — all directly.
+    // For plain {data, width, height} objects we use the ArrayBufferView overload.
+    if (img.data && img.width && img.height && !(img instanceof ImageData)) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, img.width, img.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, img.data);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    }
+
+    // Wrap modes.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, tex2d.getRepeatS());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, tex2d.getRepeatT());
+
+    // Filter modes.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, tex2d.getMagFilter());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, tex2d.getMinFilter());
+
+    // Mipmaps.
+    if (tex2d.getMipmapMode()) {
+      gl.generateMipmap(gl.TEXTURE_2D);
+    }
+
+    entry.version = tex2d.version;
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return entry.glTex;
+  }
+
+  /**
+   * Kick off an async image fetch for a Texture2D's externalSource URL.
+   * Once loaded, the image is stored on the Texture2D via setImage().
+   * @param {Texture2D} tex2d
+   */
+  #loadExternalTexture(tex2d) {
+    const url = tex2d.getExternalSource();
+    if (!url) return;
+
+    const entry = this.#textureCache.get(tex2d);
+    if (entry?.url === url) return;
+
+    if (!entry) {
+      this.#textureCache.set(tex2d, { glTex: null, version: -1, url });
+    } else {
+      entry.url = url;
+    }
+
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      tex2d.setImage(image);
+    };
+    image.onerror = () => {
+      logger.warning(Category.ALL, `Texture2D: failed to load image from ${url}`);
+    };
+    image.src = url;
+  }
+
+  /**
+   * Bind a Texture2D to texture unit 0 and set the shader uniforms for the
+   * active program.  Call with `null` to unbind.
+   *
+   * @param {WebGLProgram} program
+   * @param {Texture2D|null} tex2d
+   */
+  #bindTexture2D(program, tex2d) {
+    const gl = this.#gl;
+
+    const hasTexLoc = gl.getUniformLocation(program, 'u_hasTexture');
+    if (!tex2d) {
+      if (hasTexLoc !== null) gl.uniform1i(hasTexLoc, 0);
+      return;
+    }
+
+    const glTex = this.#getOrUploadTexture(tex2d);
+    if (!glTex) {
+      if (hasTexLoc !== null) gl.uniform1i(hasTexLoc, 0);
+      return;
+    }
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glTex);
+
+    const texLoc = gl.getUniformLocation(program, 'u_texture');
+    if (texLoc !== null) gl.uniform1i(texLoc, 0);
+
+    if (hasTexLoc !== null) gl.uniform1i(hasTexLoc, 1);
+
+    // Apply mode → integer.
+    const applyModeLoc = gl.getUniformLocation(program, 'u_texApplyMode');
+    if (applyModeLoc !== null) {
+      const modeMap = { [ApplyMode.MODULATE]: 0, [ApplyMode.REPLACE]: 1, [ApplyMode.DECAL]: 2, [ApplyMode.BLEND]: 3, [ApplyMode.ADD]: 4 };
+      gl.uniform1i(applyModeLoc, modeMap[tex2d.getApplyMode()] ?? 0);
+    }
+
+    // Blend color (for BLEND mode).
+    const blendLoc = gl.getUniformLocation(program, 'u_texBlendColor');
+    if (blendLoc !== null) {
+      const bc = tex2d.getBlendColor();
+      gl.uniform4f(blendLoc, bc[0], bc[1], bc[2], bc[3]);
+    }
+
+    // Texture matrix.
+    const texMatLoc = gl.getUniformLocation(program, 'u_texMatrix');
+    if (texMatLoc !== null) {
+      const tm = tex2d.getTextureMatrix();
+      gl.uniformMatrix4fv(texMatLoc, true, tm ?? Rn.identityMatrix(4));
     }
   }
 
@@ -3694,7 +3897,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @param {number} [lineHalfWidth=0] - Half width of line for edge smoothing (0 for non-lines)
    * @param {number} [positionSize=2] - Number of components per vertex position (2, 3, or 4)
    */
-  #drawGeometry(vertices, colors, normals, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2) {
+  #drawGeometry(vertices, colors, normals, indices, mode, distances = null, lineHalfWidth = 0, positionSize = 2, texCoords = null, texture2d = null) {
     const gl = this.#gl;
     const program = this.#getMainProgramForDraw();
     
@@ -3836,6 +4039,27 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // Texture coordinate buffer + texture binding (optional)
+    // -----------------------------------------------------------------------
+    const texCoordLoc = gl.getAttribLocation(program, 'a_texCoord');
+    if (texCoordLoc !== -1) {
+      if (texCoords && texCoords.length > 0 && texture2d) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#texCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.DYNAMIC_DRAW);
+        if (this.#debugGL) this.#debugGL.bufferDataArray++;
+        gl.enableVertexAttribArray(texCoordLoc);
+        gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(texCoordLoc, 0);
+        this.#bindTexture2D(program, texture2d);
+      } else {
+        gl.disableVertexAttribArray(texCoordLoc);
+        gl.vertexAttrib2f(texCoordLoc, 0.0, 0.0);
+        if (typeof gl.vertexAttribDivisor === 'function') gl.vertexAttribDivisor(texCoordLoc, 0);
+        this.#bindTexture2D(program, null);
+      }
+    }
+
     // Unified program extra attributes: ensure they don't leak divisors/state from instanced draws.
     if (program === this.#unifiedProgram) {
       const centerLoc = gl.getAttribLocation(program, 'a_center');
@@ -3891,6 +4115,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       
       gl.drawArrays(drawMode, 0, vertexCount);
       if (this.#debugGL) this.#debugGL.drawArrays++;
+    }
+
+    // Unbind texture after draw to avoid interference with subsequent draws.
+    if (texture2d) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, null);
     }
     
     // Check for WebGL errors immediately after draw call

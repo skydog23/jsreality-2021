@@ -23,4 +23,8 @@ This is a private todo list for me (a person named Charlie Gunn)
 
 * Conics: render to a Rectangle2D if one is provided. 
 
-* 
+* Add textures to appearances.  
+
+* Test the viewport constraint
+
+* clean up the TessellatedApp; rename TessellatedContentApp

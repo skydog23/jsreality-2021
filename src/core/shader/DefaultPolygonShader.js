@@ -111,7 +111,12 @@ export const DefaultPolygonShader = {
     // Shading mode
     'smoothShading',
     // Transparency
-    'transparency'
+    'transparency',
+    // Texture maps (Texture2D instances)
+    'texture2d',
+    'texture2d[1]',
+    'texture2d[2]',
+    'texture2d[3]',
   ],
   
   // ============================================================================

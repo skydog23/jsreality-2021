@@ -294,6 +294,7 @@ export function createUnifiedLitProgram(gl) {
       in vec4 a_color;
       in vec3 a_normal;
       in float a_distance;
+      in vec2 a_texCoord;
 
       // Instancing attributes (used for sphere/tube modes; set to 0 for polygon mode)
       in vec3 a_center; // sphere center (object space)
@@ -313,6 +314,7 @@ export function createUnifiedLitProgram(gl) {
       uniform float u_lightingEnabled;
       uniform float u_flipNormals;
       uniform float u_pointSize;
+      uniform mat4 u_texMatrix;
 
       // 0 = polygon mesh, 1 = instanced sphere, 2 = instanced tube, 3 = instanced geometry
       uniform int u_mode;
@@ -323,6 +325,7 @@ export function createUnifiedLitProgram(gl) {
       out float v_distance;
       out vec3 v_viewPos;
       out vec3 v_viewNormal;
+      out vec2 v_texCoord;
 
       void main() {
         vec4 position = a_position;
@@ -381,6 +384,9 @@ export function createUnifiedLitProgram(gl) {
         vec4 pv = u_modelView * vec4(position.xyz, 1.0);
         v_viewPos = pv.xyz;
         v_viewNormal = u_normalMatrix * Nobj;
+
+        // Texture coordinate: apply optional texture matrix.
+        v_texCoord = (u_texMatrix * vec4(a_texCoord, 0.0, 1.0)).xy;
       }
     `;
 
@@ -391,6 +397,7 @@ export function createUnifiedLitProgram(gl) {
       in float v_distance;
       in vec3 v_viewPos;
       in vec3 v_viewNormal;
+      in vec2 v_texCoord;
 
       uniform float u_lineHalfWidth;
       uniform float u_ambientCoefficient;
@@ -407,6 +414,12 @@ export function createUnifiedLitProgram(gl) {
       uniform float u_pointSprite;
       uniform float u_pointEdgeFade;
       uniform float u_pointSize;
+
+      // Texture2D uniforms
+      uniform sampler2D u_texture;
+      uniform int u_hasTexture;       // 0 = no texture, 1 = texture active
+      uniform int u_texApplyMode;     // 0=MODULATE, 1=REPLACE, 2=DECAL, 3=BLEND, 4=ADD
+      uniform vec4 u_texBlendColor;   // blend color for BLEND mode
 
       out vec4 outColor;
 
@@ -449,7 +462,30 @@ export function createUnifiedLitProgram(gl) {
         vec3 ambient = u_ambientCoefficient * u_ambientColor;
         vec3 diffuse = u_diffuseCoefficient * lit * v_color.rgb;
         vec3 specular = spec * u_specularColor;
-        outColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
+        vec4 surfaceColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
+
+        // Apply texture if present.
+        // Texture apply modes correspond to Texture2D.ApplyMode:
+        //   0 = MODULATE: texColor * surfaceColor
+        //   1 = REPLACE:  texColor replaces surfaceColor entirely
+        //   2 = DECAL:    blend surface and texture using texture alpha
+        //   3 = BLEND:    mix surface with u_texBlendColor using texture as weight
+        //   4 = ADD:      surfaceColor + texColor (clamped)
+        if (u_hasTexture > 0) {
+          vec4 texColor = texture(u_texture, v_texCoord);
+          if (u_texApplyMode == 0) {
+            surfaceColor = texColor * surfaceColor;
+          } else if (u_texApplyMode == 1) {
+            surfaceColor = texColor;
+          } else if (u_texApplyMode == 2) {
+            surfaceColor.rgb = mix(surfaceColor.rgb, texColor.rgb, texColor.a);
+          } else if (u_texApplyMode == 3) {
+            surfaceColor = mix(surfaceColor, u_texBlendColor, texColor);
+          } else if (u_texApplyMode == 4) {
+            surfaceColor = clamp(surfaceColor + texColor, 0.0, 1.0);
+          }
+        }
+        outColor = surfaceColor;
       }
     `;
 

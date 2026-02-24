@@ -200,24 +200,10 @@ export class RotateTool extends AbstractTool {
 
     const tool2root = new Matrix(tc.getRootToToolComponent().getInverseMatrix(null));
     const array = new Matrix(tool2root).getArray();		
-//		System.err.println("root2component "+Rn.toString(new Matrix(root2toComp).getColumn(3)));
 		if (array[15] < 0) tool2root.times(-1);
-//		System.err.println("quad path"+Rn.matrixToString(P3.getTransformedAbsolute(array, metric)));
-//		System.err.println("quad select"+Rn.matrixToString(P3.getTransformedAbsolute(selectedComponent.getTransformation().getMatrix(), metric)));
 		const tool2root3x3 = new Matrix(P3.extractOrientationMatrix(null, tool2root.getArray(), P3.originP3, this.metric));
-		 this.evolution.assignFrom(tc.getTransformationMatrix(RotateTool.evolutionSlot));
-		this.evolution.conjugateBy(tool2root3x3);
-	// 	if (this.#performCount % 100 === 0) {
-  //     console.log('root2tool path:', tc.getRootToToolComponent().toString());
-  //     console.log('tool2root:', Rn.matrixToString(tool2root.getArray()));
-  //     console.log('tool2root3x3:', Rn.matrixToString(tool2root3x3.getArray()));
-  //     console.log('evolution:', Rn.matrixToString(this.evolution.getArray()));
-  //   }
-  //  this.result.assignFrom(this.comp.getTransformation().getMatrix(null));
-		this.result.multiplyOnRight(this.evolution);
-		this.comp.getTransformation().setMatrix(this.result.getArray()); //P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6, this.metric)); //this.result.getArray());
-    this.success = true;
-    this.#performCount++;
+    this.evolution.assignFrom(tc.getTransformationMatrix(RotateTool.evolutionSlot));
+
     // const path = this.moveChildren ? tc.getRootToLocal() : tc.getRootToToolComponent();
     // if (!path) return;
 
@@ -247,11 +233,9 @@ export class RotateTool extends AbstractTool {
 
     // Always capture the *raw* delta (pre-smoothing) for Java-style inertia scheduling.
     // This mirrors Java, where `evolution` is used directly (no smoothing).
-    {
-      const rot3Raw = convert44To33(this.evolution.getArray());
-      rotationMatrixToQuaternion(this.#tmpDeltaQ, rot3Raw);
-      this.#lastRawDeltaQ.setValue(this.#tmpDeltaQ.re, this.#tmpDeltaQ.x, this.#tmpDeltaQ.y, this.#tmpDeltaQ.z);
-    }
+    const rot3Raw = convert44To33(this.evolution.getArray());
+    rotationMatrixToQuaternion(this.#tmpDeltaQ, rot3Raw);
+    this.#lastRawDeltaQ.setValue(this.#tmpDeltaQ.re, this.#tmpDeltaQ.x, this.#tmpDeltaQ.y, this.#tmpDeltaQ.z);
 
     // Optional damping/smoothing: filter the delta rotation in quaternion space.
     // This avoids jerky motion from uneven event timing and prevents matrix-averaging artifacts.
@@ -274,7 +258,7 @@ export class RotateTool extends AbstractTool {
       // Convert filtered quaternion back to a pure rotation 4x4 and replace evolution.
       quaternionToRotationMatrix(this.#tmpRot16, this.#smoothedDeltaQ);
       this.evolution.assignFrom(this.#tmpRot16);
-    }
+    } 
 
     // Capture last applied delta as axis-angle for inertial animation.
     // Use the actual evolution matrix being applied (after smoothing).
@@ -294,6 +278,13 @@ export class RotateTool extends AbstractTool {
     if (this.metric !== Pn.EUCLIDEAN) {
       P3.orthonormalizeMatrix(this.evolution.getArray(), this.evolution.getArray(), 1e-7, this.metric);
     }
+
+   
+		this.evolution.conjugateBy(tool2root3x3);
+		this.result.multiplyOnRight(this.evolution);
+		this.comp.getTransformation().setMatrix(this.result.getArray()); //P3.orthonormalizeMatrix(null, this.result.getArray(), 10 ^ -6, this.metric)); //this.result.getArray());
+    this.success = true;
+    this.#performCount++;
     // console.log('evolution:', this.evolution);
     // result = currentTransformation * [center] * evolution * [center^-1]
     // const currentTrafo = this.comp.getTransformation();
