@@ -14,6 +14,8 @@
 
 import { DescriptorType, normalizeDescriptor } from './DescriptorTypes.js';
 import { textSliderWidgetFactory } from './widgets/TextSliderWidget.js';
+import { matrixWidgetFactory } from './widgets/MatrixWidget.js';
+import { inheritableWidgetFactory } from './widgets/InheritableWidget.js';
 
 /**
  * @typedef {(descriptor: import('./DescriptorTypes.js').InspectorDescriptor, context: WidgetContext) => HTMLElement} WidgetFactoryFn
@@ -81,6 +83,12 @@ export class WidgetCatalog {
     );
     catalog.register(DescriptorType.VECTOR, vectorFactory);
     catalog.register(DescriptorType.CONTAINER, containerFactory);
+    catalog.register(DescriptorType.MATRIX, (descriptor, context) =>
+      matrixWidgetFactory(descriptor, context, createRow, formatNumber, normalizeDecimalString)
+    );
+    catalog.register(DescriptorType.INHERITABLE, (descriptor, context) =>
+      inheritableWidgetFactory(descriptor, context, createRow)
+    );
     return catalog;
   }
 }
@@ -235,15 +243,58 @@ function toggleFactory(descriptor) {
 
 function colorFactory(descriptor) {
   const wrapper = createRow(descriptor);
-  const input = document.createElement('input');
-  input.type = 'color';
-  input.value = descriptor.getValue?.() ?? '#ffffff';
-  input.disabled = descriptor.readonly || descriptor.disabled || !descriptor.setValue;
-  input.addEventListener('input', () => {
+  const isDisabled = descriptor.readonly || descriptor.disabled || !descriptor.setValue;
+  const val = descriptor.getValue?.() ?? { hex: '#ffffff', alpha: 255 };
+
+  const container = document.createElement('div');
+  container.className = 'sg-color-picker-container-horizontal';
+
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.className = 'sg-color-input';
+  colorInput.value = val.hex;
+  colorInput.disabled = isDisabled;
+
+  const alphaButton = document.createElement('button');
+  alphaButton.type = 'button';
+  alphaButton.className = 'sg-alpha-button';
+  alphaButton.textContent = '\u03B1';
+  alphaButton.disabled = isDisabled;
+
+  const popup = document.createElement('div');
+  popup.className = 'sg-alpha-slider-popup';
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'sg-alpha-slider';
+  slider.min = '0';
+  slider.max = '255';
+  slider.step = '1';
+  slider.value = String(val.alpha);
+
+  const valueDisplay = document.createElement('span');
+  valueDisplay.className = 'sg-alpha-value';
+  valueDisplay.textContent = String(val.alpha);
+
+  popup.appendChild(slider);
+  popup.appendChild(valueDisplay);
+
+  container.appendChild(colorInput);
+  container.appendChild(alphaButton);
+  container.appendChild(popup);
+
+  const commit = () => {
     if (!descriptor.setValue) return;
-    descriptor.setValue(input.value);
+    descriptor.setValue({ hex: colorInput.value, alpha: parseInt(slider.value, 10) });
+  };
+  colorInput.addEventListener('input', commit);
+  colorInput.addEventListener('change', commit);
+  slider.addEventListener('input', () => {
+    valueDisplay.textContent = slider.value;
   });
-  wrapper.value.appendChild(input);
+  slider.addEventListener('change', commit);
+
+  wrapper.value.appendChild(container);
   return wrapper.root;
 }
 

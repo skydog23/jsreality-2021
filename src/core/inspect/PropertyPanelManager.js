@@ -14,7 +14,6 @@ import { Transformation } from '../scene/Transformation.js';
 import { Appearance } from '../scene/Appearance.js';
 import { Geometry } from '../scene/Geometry.js';
 import { Camera } from '../scene/Camera.js';
-import { FactoredMatrix } from '../math/FactoredMatrix.js';
 import * as Pn from '../math/Pn.js';
 import { formatValue } from './PropertyFormatters.js';
 import { ShaderTreeNode } from './TreeViewManager.js';
@@ -78,17 +77,6 @@ export class PropertyPanelManager {
   #liveRefreshPending = false;
 
   /**
-   * Preferred rotation axis per Transformation.
-   *
-   * Axis-angle is underdetermined at the identity rotation (angle = 0),
-   * so if the user edits the axis while the rotation is identity, we store
-   * that axis here and use it when the user later sets a non-zero angle.
-   *
-   * @type {WeakMap<Transformation, [number, number, number]>}
-   */
-  #preferredRotationAxis = new WeakMap();
-
-  /**
    * KeyFrameAnimatedBean instances per Camera.
    *
    * This provides a JS analogue of Java's KeyFrameAnimatedBean<Camera> without
@@ -99,16 +87,24 @@ export class PropertyPanelManager {
   #cameraBean = new WeakMap();
   
   /**
+   * Getter for the scene-wide metric from the root appearance.
+   * @type {() => number}
+   */
+  #getMetric;
+
+  /**
    * @param {HTMLElement} propertyPanel - The property panel DOM element
    * @param {ShaderPropertyManager} shaderPropertyManager - Shader property manager instance
    * @param {Function} onPropertyChange - Callback when a property changes
    * @param {Function} onRefreshPropertyPanel - Callback to refresh property panel
+   * @param {() => number} getMetric - Getter for the scene-wide metric (Pn constant)
    */
-  constructor(propertyPanel, shaderPropertyManager, onPropertyChange, onRefreshPropertyPanel) {
+  constructor(propertyPanel, shaderPropertyManager, onPropertyChange, onRefreshPropertyPanel, getMetric) {
     this.#propertyPanel = propertyPanel;
     this.#shaderPropertyManager = shaderPropertyManager;
     this.#onPropertyChange = onPropertyChange;
     this.#onRefreshPropertyPanel = onRefreshPropertyPanel;
+    this.#getMetric = getMetric;
     this.#descriptorRenderer = new DescriptorRenderer(propertyPanel);
   }
 
@@ -234,9 +230,12 @@ export class PropertyPanelManager {
       this.#liveRefreshPending = false;
       this.#liveRefreshRafId = null;
 
-      // Re-render only the property panel for the selected node (no tree rebuild).
       const node = this.#selectedNode;
-      if (node) {
+      if (!node) return;
+
+      if (node instanceof Transformation) {
+        this.#descriptorRenderer.update();
+      } else {
         this.#renderNode(node);
       }
     });
@@ -356,8 +355,7 @@ export class PropertyPanelManager {
     } else if (node instanceof Camera) {
       this.#renderDescriptorGroups(this.#buildCameraDescriptors(node));
     } else if (node instanceof ShaderTreeNode) {
-      this.#descriptorRenderer.render([]);
-      this.#shaderPropertyManager.addShaderProperties(node, this.#propertyPanel);
+      this.#renderDescriptorGroups(this.#shaderPropertyManager.getDescriptors(node));
     }
   }
   
@@ -405,129 +403,24 @@ export class PropertyPanelManager {
   }
   
   #buildTransformationDescriptors(transform) {
-    const fm = new FactoredMatrix(transform.getMatrix());
-    const EPS = 1e-8;
-
-    const normalizeAxis = (axis) => {
-      const [x = 0, y = 0, z = 0] = axis || [];
-      const n = Math.sqrt(x * x + y * y + z * z);
-      if (n < EPS) return null;
-      return /** @type {[number, number, number]} */ ([x / n, y / n, z / n]);
-    };
-
-    const getPreferredAxis = () => {
-      return this.#preferredRotationAxis.get(transform) || /** @type {[number, number, number]} */ ([0, 0, 1]);
-    };
-
-    const setPreferredAxis = (axis) => {
-      const normalized = normalizeAxis(axis) || /** @type {[number, number, number]} */ ([0, 0, 1]);
-      this.#preferredRotationAxis.set(transform, normalized);
-      return normalized;
-    };
-
-    const isIdentityRotation = () => Math.abs(fm.getRotationAngle()) < EPS;
-
-    const updateTransform = () => {
-      transform.setMatrix(fm.getArray());
-      this.#onPropertyChange();
-      this.#onRefreshPropertyPanel(transform);
-    };
-    
-    const translationDescriptor = {
-      id: 'translation',
-      type: DescriptorType.VECTOR,
-      label: 'Position',
-      getValue: () => {
-        const t = fm.getTranslation();
-        return [t[0], t[1], t[2]];
-      },
-      setValue: (vector) => {
-        const [x = 0, y = 0, z = 0] = vector || [];
-        fm.setTranslation(x, y, z);
-        updateTransform();
-      }
-    };
-    
-    const rotationAngleDescriptor = {
-      id: 'rotation-angle',
-      type: DescriptorType.FLOAT,
-      label: 'Rot. Angle',
-      min: -360,
-      max: 360,
-      step: 1,
-      getValue: () => (fm.getRotationAngle() * 180) / Math.PI,
-      setValue: (degrees) => {
-        const radians = Number(degrees) * Math.PI / 180;
-        let axis = fm.getRotationAxis();
-        const normalized = normalizeAxis(axis);
-
-        if (!normalized) {
-          // Identity rotation (axis undefined): use the stored preference.
-          axis = getPreferredAxis();
-        } else {
-          // Keep preference in sync with meaningful rotations.
-          setPreferredAxis(normalized);
-        }
-
-        // If radians is ~0, this still sets identity (fine); axis may be ignored internally.
-        fm.setRotation(radians, axis);
-        updateTransform();
-      }
-    };
-    
-    const rotationAxisDescriptor = {
-      id: 'rotation-axis',
-      type: DescriptorType.VECTOR,
-      label: 'Rot. Axis',
-      getValue: () => {
-        const axis = normalizeAxis(fm.getRotationAxis()) || getPreferredAxis();
-        return [axis[0], axis[1], axis[2]];
-      },
-      setValue: (axis) => {
-        const preferred = setPreferredAxis(axis);
-        const angle = fm.getRotationAngle();
-
-        if (isIdentityRotation()) {
-          // Rotation is identity: store preference only, do not change matrix yet.
-          this.#onRefreshPropertyPanel(transform);
-          return;
-        }
-
-        fm.setRotation(angle, preferred);
-        updateTransform();
-      }
-    };
-    
-    const scaleDescriptor = {
-      id: 'scale',
-      type: DescriptorType.VECTOR,
-      label: 'Scale',
-      getValue: () => {
-        const s = fm.getStretch();
-        return [s[0], s[1], s[2]];
-      },
-      setValue: (scale) => {
-        const [sx = 1, sy = 1, sz = 1] = scale || [];
-        fm.setStretchComponents(sx, sy, sz);
-        updateTransform();
-      }
-    };
-    
     return [
       {
-        id: 'transform-position',
+        id: 'transform-matrix',
         title: '',
-        items: [translationDescriptor]
-      },
-      {
-        id: 'transform-rotation',
-        title: '',
-        items: [rotationAngleDescriptor, rotationAxisDescriptor]
-      },
-      {
-        id: 'transform-scale',
-        title: '',
-        items: [scaleDescriptor]
+        items: [
+          {
+            id: 'matrix',
+            type: DescriptorType.MATRIX,
+            label: '',
+            getValue: () => transform.getMatrix().slice(),
+            setValue: (matrix) => {
+              transform.setMatrix(matrix);
+              this.#onPropertyChange();
+            },
+            metric: () => this.#getMetric(),
+            containerLabel: 'Transformation'
+          }
+        ]
       }
     ];
   }

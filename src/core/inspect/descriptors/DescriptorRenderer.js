@@ -39,18 +39,34 @@ export class DescriptorRenderer {
   /** @type {Set<Function>} */
   #cleanupCallbacks;
 
+  /** @type {Set<Function>} */
+  #refreshCallbacks = new Set();
+
   /**
    * Replace the renderer contents with the provided descriptor groups.
    * @param {import('./DescriptorTypes.js').DescriptorGroup[]} groups
    */
   render(groups) {
     this.#runCleanup();
+    this.#refreshCallbacks.clear();
     this.#container.innerHTML = '';
     if (!Array.isArray(groups) || groups.length === 0) {
       return;
     }
     for (const group of groups) {
       this.#container.appendChild(this.#renderGroup(group));
+    }
+  }
+
+  /**
+   * In-place refresh: ask all widgets that support it to re-read their
+   * getValue() and update their displayed values without rebuilding the DOM.
+   * This is the lightweight alternative to render() for high-frequency
+   * external updates (e.g. TransformationChanged during tool drag).
+   */
+  update() {
+    for (const fn of this.#refreshCallbacks) {
+      try { fn(); } catch (e) { /* widget refresh should not break others */ }
     }
   }
 
@@ -65,11 +81,23 @@ export class DescriptorRenderer {
   }
 
   /**
+   * Register a refresh callback for in-place widget updates.
+   * Called by widget factories that support non-destructive value refresh.
+   * @param {Function} callback
+   */
+  registerRefresh(callback) {
+    if (typeof callback === 'function') {
+      this.#refreshCallbacks.add(callback);
+    }
+  }
+
+  /**
    * Destroy the renderer and release DOM references.
    */
   dispose() {
     this.#runCleanup();
     this.#cleanupCallbacks.clear();
+    this.#refreshCallbacks.clear();
     this.#container.innerHTML = '';
   }
 
@@ -105,6 +133,7 @@ export class DescriptorRenderer {
     for (const descriptor of group.items) {
       const element = this.#widgetCatalog.create(descriptor, {
         registerCleanup: (callback) => this.registerCleanup(callback),
+        registerRefresh: (callback) => this.registerRefresh(callback),
         widgetCatalog: this.#widgetCatalog
       });
       body.appendChild(element);

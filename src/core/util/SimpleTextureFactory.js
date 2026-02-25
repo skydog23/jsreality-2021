@@ -15,6 +15,7 @@
 
 import { Color } from './Color.js';
 import { Texture2D } from '../shader/Texture2D.js';
+import { DescriptorType } from '../inspect/descriptors/DescriptorTypes.js';
 
 /**
  * @enum {string}
@@ -428,6 +429,69 @@ export class SimpleTextureFactory {
         for (let k = 0; k < 4; k++) im[I + k] = Math.round(255 * bcf[k]);
       }
     }
+  }
+
+  // ── inspector descriptors ──────────────────────────────────────────────
+
+  /**
+   * Returns inspector descriptors for interactive control of the factory.
+   * @param {function(): void} [updateCallback] Called after every parameter
+   *   change so the caller can regenerate the texture (call update(), re-apply
+   *   the ImageData to a Texture2D, etc.).
+   * @returns {import('../inspect/descriptors/DescriptorTypes.js').InspectorDescriptor[]}
+   */
+  getInspectorDescriptors(updateCallback) {
+    const typeOptions = Object.keys(TextureType).map(k => ({
+      value: TextureType[k], label: k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' '),
+    }));
+
+    const colorDesc = (index, label) => ({
+      type: DescriptorType.COLOR,
+      label,
+      getValue: () => {
+        const c = this.#colors[index];
+        return { hex: c?.toHexString?.() ?? '#000000', alpha: c?.a ?? 255 };
+      },
+      setValue: ({ hex, alpha }) => {
+        const rgb = Color.fromHex(hex);
+        this.setColor(index, new Color(rgb.r, rgb.g, rgb.b, alpha));
+        updateCallback?.();
+      },
+    });
+
+    return [{
+      type: DescriptorType.CONTAINER,
+      containerLabel: 'Texture Factory',
+      items: [
+        {
+          type: DescriptorType.ENUM,
+          label: 'Type',
+          options: typeOptions,
+          getValue: () => this.getType(),
+          setValue: (v) => { this.setType(v); updateCallback?.(); },
+        },
+        {
+          type: DescriptorType.TEXT_SLIDER,
+          valueType: 'int',
+          label: 'Size',
+          getValue: () => this.getSize(),
+          setValue: (v) => { this.setSize(v); updateCallback?.(); },
+          min: 16,
+          max: 512,
+          step: 16,
+        },
+        colorDesc(0, 'Color 0'),
+        colorDesc(1, 'Color 1'),
+        colorDesc(2, 'Color 2'),
+        colorDesc(3, 'Color 3'),
+        {
+          type: DescriptorType.TOGGLE,
+          label: 'Opaque',
+          getValue: () => this.isOpaqueTexture(),
+          setValue: (v) => { this.setOpaqueTexture(v); updateCallback?.(); },
+        },
+      ],
+    }];
   }
 
   // ── static utilities ──────────────────────────────────────────────────

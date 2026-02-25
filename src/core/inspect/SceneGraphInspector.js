@@ -15,10 +15,10 @@ import { UIManager } from './UIManager.js';
 import { TreeViewManager, ShaderTreeNode } from './TreeViewManager.js';
 import { PropertyPanelManager } from './PropertyPanelManager.js';
 import { ShaderPropertyManager } from './ShaderPropertyManager.js';
-import { WidgetFactory } from './WidgetFactory.js';
 import { SceneGraphTreeModel } from './SceneGraphTreeModel.js';
 import { CompositeTreeModel } from './CompositeTreeModel.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
+import * as Pn from '../math/Pn.js';
 
 const logger = getLogger('jsreality.core.inspect.SceneGraphInspector');
 
@@ -56,10 +56,6 @@ export class SceneGraphInspector {
    */
   #shaderPropertyManager;
 
-  /**
-   * @type {WidgetFactory}
-   */
-  #widgetFactory;
 
   /**
    * @type {number|null} Pending refresh timeout ID for debouncing
@@ -112,8 +108,6 @@ export class SceneGraphInspector {
     this.#uiManager = new UIManager(container);
     const { treeView, propertyPanel } = this.#uiManager.initializeUI(options.title ?? 'Scene Graph');
     
-    this.#widgetFactory = new WidgetFactory();
-    
     // Create callbacks for property changes
     const onPropertyChange = () => {
       // Use the render callback if provided, otherwise fall back to global (deprecated)
@@ -131,16 +125,21 @@ export class SceneGraphInspector {
     };
     
     this.#shaderPropertyManager = new ShaderPropertyManager(
-      this.#widgetFactory,
       onPropertyChange,
       onRefreshPropertyPanel
     );
     
+    const getMetric = () => {
+      const app = this.#root?.getAppearance?.();
+      return app?.getAttribute?.('metric') ?? Pn.EUCLIDEAN;
+    };
+
     this.#propertyPanelManager = new PropertyPanelManager(
       propertyPanel,
       this.#shaderPropertyManager,
       onPropertyChange,
-      onRefreshPropertyPanel
+      onRefreshPropertyPanel,
+      getMetric
     );
     
     // Create tree view manager with callbacks

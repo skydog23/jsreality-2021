@@ -18,6 +18,7 @@
 // with a small ApplyMode enum whose semantics are implemented in the shader.
 
 import * as Rn from '../math/Rn.js';
+import { DescriptorType } from '../inspect/descriptors/DescriptorTypes.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Apply mode enum — how the texture color is combined with the surface color.
@@ -300,6 +301,76 @@ export class Texture2D {
       externalSource: this.#externalSource,
       animated:       this.#animated,
     });
+  }
+
+  // ── inspector descriptors ─────────────────────────────────────────────
+
+  /**
+   * Returns inspector descriptors for interactive control of this texture.
+   * @returns {import('../inspect/descriptors/DescriptorTypes.js').InspectorDescriptor[]}
+   */
+  getInspectorDescriptors(updateCallback) {
+    const applyOptions = Object.entries(ApplyMode).map(([k, v]) => ({
+      value: v, label: k.charAt(0) + k.slice(1).toLowerCase(),
+    }));
+
+    const wrapOptions = Object.entries(WrapMode).map(([k, v]) => ({
+      value: v, label: k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' '),
+    }));
+
+    return [{
+      type: DescriptorType.CONTAINER,
+      containerLabel: 'Texture 2D',
+      items: [
+        {
+          type: DescriptorType.ENUM,
+          label: 'Apply mode',
+          options: applyOptions,
+          getValue: () => this.getApplyMode(),
+          setValue: (v) => { this.setApplyMode(v); updateCallback?.(); },
+        },
+        {
+          type: DescriptorType.ENUM,
+          label: 'Wrap S',
+          options: wrapOptions,
+          getValue: () => this.getRepeatS(),
+          setValue: (v) => { this.setRepeatS(v); updateCallback?.(); },
+        },
+        {
+          type: DescriptorType.ENUM,
+          label: 'Wrap T',
+          options: wrapOptions,
+          getValue: () => this.getRepeatT(),
+          setValue: (v) => { this.setRepeatT(v); updateCallback?.(); },
+        },
+        {
+          type: DescriptorType.TOGGLE,
+          label: 'Mipmap',
+          getValue: () => this.getMipmapMode(),
+          setValue: (v) => { this.setMipmapMode(v); updateCallback?.(); },
+        },
+        {
+          type: DescriptorType.TEXT_SLIDER,
+          valueType: 'float',
+          label: 'Texture scale',
+          getValue: () => {
+            const m = this.getTextureMatrix();
+            return m ? m[0] : 1.0;
+          },
+          setValue: (v) => {
+            let m = this.getTextureMatrix();
+            if (!m) m = Rn.identityMatrix(4);
+            m[0] = v;
+            m[5] = v;
+            this.setTextureMatrix(m);
+            updateCallback?.();
+          },
+          min: 0.1,
+          max: 50,
+          step: 0.1,
+        },
+      ],
+    }];
   }
 
   toString() {

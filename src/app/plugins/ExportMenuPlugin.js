@@ -173,7 +173,7 @@ export class ExportMenuPlugin extends JSRPlugin {
    * using renderOffscreen().
    *
    * The dialog is rendered into a lightweight modal overlay and uses the
-   * shared descriptor/WidgetFactory infrastructure for a consistent look.
+   * shared descriptor/WidgetCatalog infrastructure for a consistent look.
    *
    * @private
    */

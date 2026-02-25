@@ -40,7 +40,22 @@ export const DescriptorType = Object.freeze({
    * Layout-only container for nested descriptors.
    * Renderers can use this to arrange child descriptors in rows/columns.
    */
-  CONTAINER: 'container'
+  CONTAINER: 'container',
+  /**
+   * Composite widget for editing a 4x4 homogeneous matrix through its
+   * FactoredMatrix decomposition (Translation, Rotation angle+axis, Scale).
+   * The widget manages decomposition/recomposition internally; callers
+   * supply only getValue/setValue for the raw 16-element matrix array and
+   * a metric (static or dynamic).
+   */
+  MATRIX: 'matrix',
+  /**
+   * Wraps another descriptor to add appearance-attribute "inherited" semantics.
+   * When the attribute value is INHERITED, the widget shows an "Inherited" button
+   * that sets a default value. When explicit, the inner descriptor's widget is
+   * shown alongside a "Clear" button that resets to INHERITED.
+   */
+  INHERITABLE: 'inheritable'
 });
 
 /**
@@ -69,6 +84,14 @@ export const DescriptorType = Object.freeze({
  *   getValue: () => string,
  *   setValue?: (value: string) => void
  * }} TextDescriptor
+ */
+
+/**
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.COLOR,
+ *   getValue: () => { hex: string, alpha: number },
+ *   setValue?: (value: { hex: string, alpha: number }) => void
+ * }} ColorDescriptor
  */
 
 /**
@@ -151,7 +174,38 @@ export const DescriptorType = Object.freeze({
  */
 
 /**
- * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | TextSliderDescriptor | ButtonDescriptor | LiveLabelDescriptor | ContainerDescriptor | DescriptorCommon} InspectorDescriptor
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.MATRIX,
+ *   getValue: () => number[],
+ *   setValue?: (matrix: number[]) => void,
+ *   // Metric constant (Pn.EUCLIDEAN etc.) or a getter for dynamic metric.
+ *   // When PROJECTIVE, the widget shows a raw 4x4 grid instead of T-R-S decomposition.
+ *   metric?: number | (() => number),
+ *   // Optional titled border around the widget (same convention as ContainerDescriptor).
+ *   border?: boolean,
+ *   containerLabel?: string
+ * }} MatrixDescriptor
+ */
+
+/**
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.INHERITABLE,
+ *   // The attribute key in the Appearance (e.g. 'polygonShader.diffuseColor').
+ *   attributeKey: string,
+ *   // The Appearance instance that owns this attribute.
+ *   appearance: import('../../scene/Appearance.js').Appearance,
+ *   // The shader schema object (e.g. DefaultPolygonShader) for default-value lookup.
+ *   schema: Object,
+ *   // Factory that returns the inner descriptor for the *current* explicit value.
+ *   // Called each time the widget needs to (re-)render the value editor.
+ *   innerDescriptorFactory: () => InspectorDescriptor,
+ *   // Called after toggling between inherited and explicit so the panel can rebuild.
+ *   onToggle?: () => void
+ * }} InheritableDescriptor
+ */
+
+/**
+ * @typedef {NumericDescriptor | TextDescriptor | EnumDescriptor | TextSliderDescriptor | ButtonDescriptor | LiveLabelDescriptor | ContainerDescriptor | MatrixDescriptor | InheritableDescriptor | DescriptorCommon} InspectorDescriptor
  */
 
 /**

@@ -140,6 +140,18 @@ export class Color {
     }
 
     /**
+     * Parse a hex color string like '#ff0064' or '#f06' into a Color.
+     * @param {string} hex
+     * @returns {Color}
+     */
+    static fromHex(hex) {
+        let h = hex.replace(/^#/, '');
+        if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+        const n = parseInt(h, 16);
+        return new Color((n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff);
+    }
+
+    /**
      * Test for equality
      * @param {Color} other
      * @returns {boolean}
