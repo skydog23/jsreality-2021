@@ -66,10 +66,11 @@ export class CubeDemo extends JSRApp {
 
   update() {
     this._colorpicker = new DiscreteGroupColorPicker.TranslationColorPicker(this._numColors);
-    this._group.setColorPicker(this.colorpicker);
-    this._colorpicker.assignColorIndices(this._group.getElementList());
+    this._group.setColorPicker(this._colorpicker);
+    this._colorPicker.assignColorIndices(this._group.getElementList());
+    this._representation.setAppList(this.getAppList());
     this._representation.update();
-    
+    console.log('DiscreteGroupCubeApp update', this._numColors);
   }
 
   getAppList() {
@@ -98,11 +99,13 @@ export class CubeDemo extends JSRApp {
     console.log('DiscreteGroupCubeApp display',this._group.getElementList().length);
     const viewer = this.getViewer();
     const ap = viewer.getSceneRoot().getAppearance();
-    ap.setAttribute(CommonAttributes.FOG_ENABLED, false);
-    ap.setAttribute(CommonAttributes.FOG_DENSITY, 0.05);
+    ap.setAttribute(CommonAttributes.FOG_ENABLED, true);
+    ap.setAttribute(CommonAttributes.FOG_DENSITY, 0.04);
     ap.setAttribute(CommonAttributes.FOG_COLOR, Color.WHITE);
+    ap.setAttribute(CommonAttributes.FOG_FAR_COLOR, ap.getAttribute(CommonAttributes.BACKGROUND_COLOR, Color.WHITE));
     ap.setAttribute(CommonAttributes.FOG_BEGIN, 10.0);
-    ap.setAttribute(CommonAttributes.FOG_END, 50.0);
+    ap.setAttribute(CommonAttributes.FOG_END, 30.0);
+    ap.setAttribute(CommonAttributes.FOG_MODE, 3);
     
     // Match Java tutorial camera offset (avatar translated along +z).
     // MatrixBuilder.euclidean().translate(0, 0, 20).assignTo(CameraUtility.getCameraNode(viewer));

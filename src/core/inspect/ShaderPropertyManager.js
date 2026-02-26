@@ -319,9 +319,13 @@ export class ShaderPropertyManager {
    * @returns {import('./descriptors/DescriptorTypes.js').InspectorDescriptor}
    */
   #createInnerDescriptor(fullKey, appearance, shaderNode) {
-    const value = appearance.getAttribute(fullKey);
     const attrName = fullKey.split('.').pop();
+    const schemaDefault = shaderNode.schema?.getDefault?.(attrName);
+    const effective = EffectiveAppearance.create().createChild(appearance);
+    const value = effective.getAttribute(fullKey, schemaDefault);
     
+    const resolve = () => effective.getAttribute(fullKey, schemaDefault);
+
     const onChange = (newValue) => {
       appearance.setAttribute(fullKey, newValue);
       this.#onPropertyChange();
@@ -333,7 +337,7 @@ export class ShaderPropertyManager {
         type: DescriptorType.COLOR,
         label: '',
         getValue: () => {
-          const c = appearance.getAttribute(fullKey);
+          const c = resolve();
           return { hex: c?.toHexString?.() ?? '#ffffff', alpha: c?.a ?? 255 };
         },
         setValue: ({ hex, alpha }) => {
@@ -349,7 +353,7 @@ export class ShaderPropertyManager {
         type: DescriptorType.COLOR,
         label: '',
         getValue: () => {
-          const c = appearance.getAttribute(fullKey);
+          const c = resolve();
           if (c instanceof Color) return { hex: c.toHexString(), alpha: c.a };
           if (Array.isArray(c)) {
             const [r = 0, g = 0, b = 0, a = 1] = c;
@@ -372,7 +376,7 @@ export class ShaderPropertyManager {
         key: `val-${fullKey}`,
         type: DescriptorType.TOGGLE,
         label: '',
-        getValue: () => Boolean(appearance.getAttribute(fullKey)),
+        getValue: () => Boolean(resolve()),
         setValue: (v) => onChange(Boolean(v))
       };
     }
@@ -391,13 +395,13 @@ export class ShaderPropertyManager {
             { value: PROJECTIVE, label: 'Projective' }
           ],
           getValue: () => {
-            const v = appearance.getAttribute(fullKey);
+            const v = resolve();
             return typeof v === 'number' ? v : EUCLIDEAN;
           },
           setValue: (v) => onChange(Number(v))
         };
       }
-      if (attrName === 'curve') {
+      if (attrName === CommonAttributes.FOG_CURVE || attrName === 'curve') {
         return {
           key: `val-${fullKey}`,
           type: DescriptorType.ENUM,
@@ -409,13 +413,13 @@ export class ShaderPropertyManager {
             { value: 3, label: 'Exp2' }
           ],
           getValue: () => {
-            const v = appearance.getAttribute(fullKey);
+            const v = resolve();
             return typeof v === 'number' ? v : 1;
           },
           setValue: (v) => onChange(Number(v))
         };
       }
-      if (attrName === 'distanceMetric') {
+      if (attrName === CommonAttributes.FOG_DISTANCE_METRIC || attrName === 'distanceMetric') {
         return {
           key: `val-${fullKey}`,
           type: DescriptorType.ENUM,
@@ -425,7 +429,7 @@ export class ShaderPropertyManager {
             { value: 1, label: 'Planar' }
           ],
           getValue: () => {
-            const v = appearance.getAttribute(fullKey);
+            const v = resolve();
             return typeof v === 'number' ? v : 0;
           },
           setValue: (v) => onChange(Number(v))
@@ -436,7 +440,7 @@ export class ShaderPropertyManager {
         type: DescriptorType.FLOAT,
         label: '',
         getValue: () => {
-          const v = appearance.getAttribute(fullKey);
+          const v = resolve();
           return typeof v === 'number' ? v : 0;
         },
         setValue: (v) => onChange(Number(v))
@@ -448,7 +452,7 @@ export class ShaderPropertyManager {
         key: `val-${fullKey}`,
         type: DescriptorType.TEXT,
         label: '',
-        getValue: () => String(appearance.getAttribute(fullKey) ?? ''),
+        getValue: () => String(resolve() ?? ''),
         setValue: (v) => onChange(String(v))
       };
     }
@@ -459,7 +463,7 @@ export class ShaderPropertyManager {
         type: DescriptorType.VECTOR,
         label: '',
         getValue: () => {
-          const v = appearance.getAttribute(fullKey);
+          const v = resolve();
           return Array.isArray(v) ? [...v] : [];
         },
         setValue: (v) => onChange(v)

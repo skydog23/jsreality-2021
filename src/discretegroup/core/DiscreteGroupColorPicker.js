@@ -66,7 +66,7 @@ export class TranslationColorPicker extends DiscreteGroupColorPicker {
     let sum = ((m[3] + m[7] + m[11])/2);
     sum = sum < 0 ? Math.floor(sum - .005) : Math.floor(sum + 0.005);
     sum = (sum + this.cycleSize) % this.cycleSize;
-    
+    while (sum < 0) sum += this.cycleSize;
     return sum;
   }
 }

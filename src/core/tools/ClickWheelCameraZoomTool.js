@@ -51,7 +51,9 @@ export class ClickWheelCameraZoomTool extends AbstractTool {
     }
     const cam = tc.getViewer().getCameraPath().getLastElement();
     const fov = cam.getFieldOfView();
-    cam.setFieldOfView(fov * ((this.wheel > 0) ? this.speed : 1.0 / this.speed));
+    const tan2 = Math.tan((fov/2) * Math.PI / 180),
+      fovNew = (180/Math.PI) * 2 * Math.atan(tan2 * ((this.wheel > 0) ? this.speed : 1.0 / this.speed));
+    cam.setFieldOfView(fovNew);
     // logger.info(-1, 'fov = ', fov);
     tc.getViewer().renderAsync();
   }

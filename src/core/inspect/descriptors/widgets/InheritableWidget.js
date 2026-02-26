@@ -24,6 +24,7 @@ import { INHERITED } from '../../../scene/Appearance.js';
 import { Color } from '../../../util/Color.js';
 import { DefaultGeometryShader } from '../../../shader/DefaultGeometryShader.js';
 import * as CommonAttributes from '../../../shader/CommonAttributes.js';
+import { EffectiveAppearance } from '../../../shader/EffectiveAppearance.js';
 
 /**
  * Resolve the default value for an attribute from the shader schema.
@@ -75,7 +76,8 @@ export function inheritableWidgetFactory(descriptor, context, createRow) {
   const { attributeKey, appearance, schema, innerDescriptorFactory, onToggle } = descriptor;
 
   const wrapper = createRow(descriptor);
-  const value = appearance.getAttribute(attributeKey);
+  const effective = EffectiveAppearance.create().createChild(appearance);
+  const value = effective.getAttribute(attributeKey, INHERITED);
   const isInherited = value === INHERITED;
 
   const container = document.createElement('div');

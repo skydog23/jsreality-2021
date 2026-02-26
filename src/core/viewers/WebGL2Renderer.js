@@ -22,6 +22,7 @@ import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { Color } from '../util/Color.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
+import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { getLogger, Category } from '../util/LoggingSystem.js';
 import * as Rn from '../math/Rn.js';
 import * as Pn from '../math/Pn.js';
@@ -2915,11 +2916,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const rootApp = sceneRoot?.getAppearance?.();
     if (!rootApp) return;
 
+    const ea = EffectiveAppearance.create().createChild(rootApp);
     const ns = CommonAttributes.FOG_SHADER;
-    const attr = (name, fallback) => {
-      const v = rootApp.getAttribute(ns + '.' + name);
-      return (v !== undefined && v !== null && v !== INHERITED) ? v : fallback;
-    };
+    const attr = (name, fallback) => ea.getAttribute(`${ns}.${name}`, fallback);
 
     this.#fogEnabled = Boolean(attr(CommonAttributes.FOG_ENABLED, false));
     if (!this.#fogEnabled) return;
