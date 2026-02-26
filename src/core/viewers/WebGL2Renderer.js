@@ -18,6 +18,7 @@
  */
 
 import { GeometryAttribute } from '../scene/GeometryAttribute.js';
+import { INHERITED } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { Color } from '../util/Color.js';
 import { Abstract2DRenderer } from './Abstract2DRenderer.js';
@@ -207,6 +208,16 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   /** @type {number} Debug: counts instanced render calls to limit logging */
   #instancedDebugCount = 0;
+
+  // Per-frame fog state (read from root appearance in _beginRendering)
+  #fogEnabled = false;
+  #fogColor = [0.78, 0.82, 0.86];
+  #fogFarColor = null;
+  #fogBegin = 1.0;
+  #fogEnd = 30.0;
+  #fogDensity = 0.08;
+  #fogCurve = 1;
+  #fogDistMetric = 0;
 
   /**
    * Create a new WebGL2 renderer
@@ -2290,6 +2301,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
     gl.clear(this.#hasDepthBuffer ? (gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) : gl.COLOR_BUFFER_BIT);
 
+    this.#readFogParams();
+
     // Apply rendering-hints state for the current effective appearance (defaults apply if unset).
     // This ensures transparency is consistently configured even before the first Appearance node is visited.
     this._applyAppearance();
@@ -2916,6 +2929,81 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     if (texMatLoc !== null) {
       gl.uniformMatrix4fv(texMatLoc, true, Rn.identityMatrix(4));
     }
+
+    this.#uploadFogUniforms(program);
+  }
+
+  /**
+   * Read fog parameters from the root appearance once per frame.
+   */
+  #readFogParams() {
+    this.#fogEnabled = false;
+    const sceneRoot = this._getViewer()?.getSceneRoot?.();
+    const rootApp = sceneRoot?.getAppearance?.();
+    if (!rootApp) return;
+
+    const ns = CommonAttributes.FOG_SHADER;
+    const attr = (name, fallback) => {
+      const v = rootApp.getAttribute(ns + '.' + name);
+      return (v !== undefined && v !== null && v !== INHERITED) ? v : fallback;
+    };
+
+    this.#fogEnabled = Boolean(attr(CommonAttributes.FOG_ENABLED, false));
+    if (!this.#fogEnabled) return;
+
+    const fogColorVal = attr(CommonAttributes.FOG_COLOR, null);
+    this.#fogColor = fogColorVal ? this.#toWebGLColor(fogColorVal) : [0.78, 0.82, 0.86];
+
+    const farColorVal = attr(CommonAttributes.FOG_FAR_COLOR, null);
+    this.#fogFarColor = farColorVal ? this.#toWebGLColor(farColorVal) : null;
+
+    this.#fogBegin = Number(attr(CommonAttributes.FOG_BEGIN, CommonAttributes.FOG_BEGIN_DEFAULT));
+    this.#fogEnd = Number(attr(CommonAttributes.FOG_END, CommonAttributes.FOG_END_DEFAULT));
+    this.#fogDensity = Number(attr(CommonAttributes.FOG_DENSITY, CommonAttributes.FOG_DENSITY_DEFAULT));
+    this.#fogCurve = Number(attr(CommonAttributes.FOG_CURVE, CommonAttributes.FOG_CURVE_DEFAULT));
+    this.#fogDistMetric = Number(attr(CommonAttributes.FOG_DISTANCE_METRIC, CommonAttributes.FOG_DISTANCE_METRIC_DEFAULT));
+  }
+
+  /**
+   * Upload cached fog uniforms to the given program.
+   * @param {WebGLProgram} program
+   */
+  #uploadFogUniforms(program) {
+    const gl = this.#gl;
+    const fogEnabledLoc = gl.getUniformLocation(program, 'u_fogEnabled');
+    if (fogEnabledLoc === null) return;
+
+    gl.uniform1f(fogEnabledLoc, this.#fogEnabled ? 1.0 : 0.0);
+    if (!this.#fogEnabled) return;
+
+    const colorLoc = gl.getUniformLocation(program, 'u_fogColor');
+    if (colorLoc !== null) {
+      gl.uniform3f(colorLoc, this.#fogColor[0], this.#fogColor[1], this.#fogColor[2]);
+    }
+
+    const hasFarLoc = gl.getUniformLocation(program, 'u_fogHasFarColor');
+    const farColorLoc = gl.getUniformLocation(program, 'u_fogFarColor');
+    if (hasFarLoc !== null) {
+      gl.uniform1f(hasFarLoc, this.#fogFarColor ? 1.0 : 0.0);
+    }
+    if (farColorLoc !== null && this.#fogFarColor) {
+      gl.uniform3f(farColorLoc, this.#fogFarColor[0], this.#fogFarColor[1], this.#fogFarColor[2]);
+    }
+
+    const beginLoc = gl.getUniformLocation(program, 'u_fogBegin');
+    if (beginLoc !== null) gl.uniform1f(beginLoc, this.#fogBegin);
+
+    const endLoc = gl.getUniformLocation(program, 'u_fogEnd');
+    if (endLoc !== null) gl.uniform1f(endLoc, this.#fogEnd);
+
+    const densityLoc = gl.getUniformLocation(program, 'u_fogDensity');
+    if (densityLoc !== null) gl.uniform1f(densityLoc, this.#fogDensity);
+
+    const curveLoc = gl.getUniformLocation(program, 'u_fogCurve');
+    if (curveLoc !== null) gl.uniform1i(curveLoc, this.#fogCurve);
+
+    const distMetricLoc = gl.getUniformLocation(program, 'u_fogDistMetric');
+    if (distMetricLoc !== null) gl.uniform1i(distMetricLoc, this.#fogDistMetric);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

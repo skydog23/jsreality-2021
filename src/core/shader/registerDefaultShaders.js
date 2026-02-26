@@ -15,22 +15,18 @@ import { DefaultPointShader } from './DefaultPointShader.js';
 import { DefaultLineShader } from './DefaultLineShader.js';
 import { DefaultPolygonShader } from './DefaultPolygonShader.js';
 import { ImplodePolygonShader } from './ImplodePolygonShader.js';
+import { DefaultFogShader } from './DefaultFogShader.js';
 
 /**
  * Register all default shaders in the ShaderRegistry.
  * This should be called once when the shader system is initialized.
  */
 export function registerDefaultShaders() {
-  // Register default shaders
   ShaderRegistry.registerPointShader('default', DefaultPointShader);
   ShaderRegistry.registerLineShader('default', DefaultLineShader);
   ShaderRegistry.registerPolygonShader('default', DefaultPolygonShader);
-  
-  // Register non-default polygon shaders
   ShaderRegistry.registerPolygonShader('implode', ImplodePolygonShader);
-  
-  // Future: register other shaders here
-  // ShaderRegistry.registerPolygonShader('twoSide', TwoSidePolygonShader);
+  ShaderRegistry.registerFogShader('default', DefaultFogShader);
 }
 
 // Auto-register on module load

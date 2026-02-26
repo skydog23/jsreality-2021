@@ -35,6 +35,9 @@ export class ShaderRegistry {
   /** @type {Map<string, Object>} Map of name → schema for polygon shaders */
   static #polygonShaders = new Map();
   
+  /** @type {Map<string, Object>} Map of name → schema for fog shaders */
+  static #fogShaders = new Map();
+  
   /**
    * Register a point shader implementation
    * @param {string} name - Shader name (e.g., 'default', 'custom')
@@ -63,6 +66,15 @@ export class ShaderRegistry {
   }
   
   /**
+   * Register a fog shader implementation
+   * @param {string} name - Shader name (e.g., 'default')
+   * @param {Object} schema - Shader schema object (e.g., DefaultFogShader)
+   */
+  static registerFogShader(name, schema) {
+    this.#fogShaders.set(name, schema);
+  }
+  
+  /**
    * Resolve a shader by type and name
    * @param {string} type - Shader type: 'point', 'line', or 'polygon'
    * @param {string} name - Shader name (e.g., 'default', 'implode')
@@ -79,6 +91,9 @@ export class ShaderRegistry {
         break;
       case 'polygon':
         registry = this.#polygonShaders;
+        break;
+      case 'fog':
+        registry = this.#fogShaders;
         break;
       default:
         throw new Error(`Unknown shader type: ${type}`);
@@ -110,6 +125,9 @@ export class ShaderRegistry {
       case 'polygon':
         registry = this.#polygonShaders;
         break;
+      case 'fog':
+        registry = this.#fogShaders;
+        break;
       default:
         return false;
     }
@@ -133,6 +151,9 @@ export class ShaderRegistry {
         break;
       case 'polygon':
         registry = this.#polygonShaders;
+        break;
+      case 'fog':
+        registry = this.#fogShaders;
         break;
       default:
         return [];

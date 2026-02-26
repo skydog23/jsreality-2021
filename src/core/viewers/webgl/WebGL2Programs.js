@@ -224,6 +224,17 @@ export function createMainProgram(gl) {
       uniform float u_pointEdgeFade;
       uniform float u_pointSize;
 
+      // Fog uniforms
+      uniform float u_fogEnabled;
+      uniform vec3  u_fogColor;
+      uniform vec3  u_fogFarColor;
+      uniform float u_fogHasFarColor;
+      uniform float u_fogBegin;
+      uniform float u_fogEnd;
+      uniform float u_fogDensity;
+      uniform int   u_fogCurve;
+      uniform int   u_fogDistMetric;
+
       void main() {
         float dist = abs(v_distance);
         float alpha = 1.0;
@@ -232,12 +243,10 @@ export function createMainProgram(gl) {
           alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
         }
 
-        // Optional: draw GL_POINTS as anti-aliased circles using gl_PointCoord.
-        // This is only meaningful for point primitives; for triangles/lines u_pointSize is typically 1.
         if (u_pointSprite > 0.5 && u_pointSize > 1.5 && u_lineHalfWidth <= 0.0) {
           vec2 pc = gl_PointCoord - vec2(0.5);
-          float r = length(pc);          // 0..~0.707
-          float radius = 0.5;            // circle inscribed in the square point
+          float r = length(pc);
+          float radius = 0.5;
           float aa = max(1.0 / max(u_pointSize, 1.0), 0.001);
           float edge = mix(aa, radius, clamp(u_pointEdgeFade, 0.0, 1.0));
           float mask = 1.0 - smoothstep(radius - edge, radius, r);
@@ -252,19 +261,39 @@ export function createMainProgram(gl) {
           if (u_flipNormals > 0.5) {
             N = -N;
           }
-          // Camera light at origin in view space: direction from point -> light is (-v_viewPos).
           vec3 L = normalize(-v_viewPos);
           lit = max(dot(N, L), 0.0);
           if (lit > 0.0 && u_specularCoefficient > 0.0) {
             vec3 V = normalize(-v_viewPos);
-            vec3 R = reflect(-L, N); // reflect incident (-L) about N
+            vec3 R = reflect(-L, N);
             spec = u_specularCoefficient * pow(max(dot(R, V), 0.0), u_specularExponent);
           }
         }
         vec3 ambient = u_ambientCoefficient * u_ambientColor;
         vec3 diffuse = u_diffuseCoefficient * lit * v_color.rgb;
         vec3 specular = spec * u_specularColor;
-        gl_FragColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
+        vec4 surfaceColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
+
+        if (u_fogEnabled > 0.5) {
+          float fogDist = (u_fogDistMetric == 0) ? length(v_viewPos) : abs(v_viewPos.z);
+          float f;
+          if (u_fogCurve == 0) {
+            f = (u_fogEnd - fogDist) / (u_fogEnd - u_fogBegin);
+          } else if (u_fogCurve == 1) {
+            f = 1.0 - smoothstep(u_fogBegin, u_fogEnd, fogDist);
+          } else if (u_fogCurve == 2) {
+            f = exp(-u_fogDensity * fogDist);
+          } else {
+            f = exp(-u_fogDensity * u_fogDensity * fogDist * fogDist);
+          }
+          f = clamp(f, 0.0, 1.0);
+          vec3 fogCol = (u_fogHasFarColor > 0.5)
+            ? mix(u_fogFarColor, u_fogColor, f)
+            : u_fogColor;
+          surfaceColor.rgb = mix(fogCol, surfaceColor.rgb, f);
+        }
+
+        gl_FragColor = surfaceColor;
       }
     `;
 
@@ -421,6 +450,17 @@ export function createUnifiedLitProgram(gl) {
       uniform int u_texApplyMode;     // 0=MODULATE, 1=REPLACE, 2=DECAL, 3=BLEND, 4=ADD
       uniform vec4 u_texBlendColor;   // blend color for BLEND mode
 
+      // Fog uniforms
+      uniform float u_fogEnabled;
+      uniform vec3  u_fogColor;
+      uniform vec3  u_fogFarColor;
+      uniform float u_fogHasFarColor;
+      uniform float u_fogBegin;
+      uniform float u_fogEnd;
+      uniform float u_fogDensity;
+      uniform int   u_fogCurve;
+      uniform int   u_fogDistMetric;
+
       out vec4 outColor;
 
       void main() {
@@ -431,7 +471,6 @@ export function createUnifiedLitProgram(gl) {
           alpha = 1.0 - smoothstep(fadeStart, u_lineHalfWidth, dist);
         }
 
-        // Optional: draw GL_POINTS as anti-aliased circles using gl_PointCoord.
         if (u_pointSprite > 0.5 && u_pointSize > 1.5 && u_lineHalfWidth <= 0.0) {
           vec2 pc = gl_PointCoord - vec2(0.5);
           float r = length(pc);
@@ -464,13 +503,6 @@ export function createUnifiedLitProgram(gl) {
         vec3 specular = spec * u_specularColor;
         vec4 surfaceColor = vec4(ambient + diffuse + specular, v_color.a * alpha);
 
-        // Apply texture if present.
-        // Texture apply modes correspond to Texture2D.ApplyMode:
-        //   0 = MODULATE: texColor * surfaceColor
-        //   1 = REPLACE:  texColor replaces surfaceColor entirely
-        //   2 = DECAL:    blend surface and texture using texture alpha
-        //   3 = BLEND:    mix surface with u_texBlendColor using texture as weight
-        //   4 = ADD:      surfaceColor + texColor (clamped)
         if (u_hasTexture > 0) {
           vec4 texColor = texture(u_texture, v_texCoord);
           if (u_texApplyMode == 0) {
@@ -485,6 +517,26 @@ export function createUnifiedLitProgram(gl) {
             surfaceColor = clamp(surfaceColor + texColor, 0.0, 1.0);
           }
         }
+
+        if (u_fogEnabled > 0.5) {
+          float fogDist = (u_fogDistMetric == 0) ? length(v_viewPos) : abs(v_viewPos.z);
+          float f;
+          if (u_fogCurve == 0) {
+            f = (u_fogEnd - fogDist) / (u_fogEnd - u_fogBegin);
+          } else if (u_fogCurve == 1) {
+            f = 1.0 - smoothstep(u_fogBegin, u_fogEnd, fogDist);
+          } else if (u_fogCurve == 2) {
+            f = exp(-u_fogDensity * fogDist);
+          } else {
+            f = exp(-u_fogDensity * u_fogDensity * fogDist * fogDist);
+          }
+          f = clamp(f, 0.0, 1.0);
+          vec3 fogCol = (u_fogHasFarColor > 0.5)
+            ? mix(u_fogFarColor, u_fogColor, f)
+            : u_fogColor;
+          surfaceColor.rgb = mix(fogCol, surfaceColor.rgb, f);
+        }
+
         outColor = surfaceColor;
       }
     `;

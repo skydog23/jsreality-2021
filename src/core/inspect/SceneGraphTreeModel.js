@@ -256,6 +256,8 @@ export class SceneGraphTreeModel {
         return '▲';
       case 'rootAppearance':
         return '🧱';
+      case 'fog':
+        return '🌫';
       default:
         return '•';
     }

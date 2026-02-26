@@ -41,15 +41,33 @@ export const BACKGROUND_COLORS_STRETCH_Y = "backgroundColorsStretchY";
 export const BACKGROUND_TEXTURE2D = "backgroundTexture2D";
 export const SKY_BOX = "skyBox";
 
-// Fog attributes
-export const FOG_ENABLED = "fogEnabled";
+// Fog shader namespace
+export const FOG_SHADER = "fogShader";
+
+// Fog attributes (namespaced under fogShader.*)
+export const FOG_ENABLED = "enabled";
 export const FOG_ENABLED_DEFAULT = false;
-export const FOG_COLOR = "fogColor";
-export const FOG_DENSITY = "fogDensity";
-export const FOG_BEGIN = "fogBegin";
-export const FOG_END = "fogEnd";
+export const FOG_COLOR = "color";
+export const FOG_FAR_COLOR = "farColor";
+export const FOG_DENSITY = "density";
+export const FOG_DENSITY_DEFAULT = 0.08;
+export const FOG_BEGIN = "begin";
+export const FOG_BEGIN_DEFAULT = 1.0;
+export const FOG_END = "end";
+export const FOG_END_DEFAULT = 30.0;
+export const FOG_CURVE = "curve";
+export const FOG_CURVE_DEFAULT = 1;
+export const FOG_DISTANCE_METRIC = "distanceMetric";
+export const FOG_DISTANCE_METRIC_DEFAULT = 0;
+export const FOG_HEIGHT_ENABLED = "heightEnabled";
+export const FOG_HEIGHT_ENABLED_DEFAULT = false;
+export const FOG_HEIGHT_ORIGIN = "heightOrigin";
+export const FOG_HEIGHT_ORIGIN_DEFAULT = 0.0;
+export const FOG_HEIGHT_FALLOFF = "heightFalloff";
+export const FOG_HEIGHT_FALLOFF_DEFAULT = 1.0;
+
+// Legacy aliases (flat namespace, kept for backward compatibility)
 export const FOG_MODE = "fogMode";
-export const FOG_DENSITY_DEFAULT = 0.1;
 export const FOG_MODE_DEFAULT = 0;
 
 // Rendering hints that have to be in the root appearance to take effect

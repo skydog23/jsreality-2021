@@ -10,7 +10,6 @@
 // JavaScript port of jReality's DefaultRootAppearance interface
 // Default root appearance shader attributes and default values
 
-import { Color } from '../util/Color.js';
 import * as CommonAttributes from './CommonAttributes.js';
 
 /**
@@ -32,12 +31,9 @@ import * as CommonAttributes from './CommonAttributes.js';
  * - `backgroundTexture2D` - Background texture (Texture2D object)
  * 
  * ### Fog
- * - `fogEnabled` - Whether fog is enabled
- * - `fogColor` - Color of the fog
- * - `fogDensity` - Fog density (for exponential fog)
- * - `fogBegin` - Starting distance for linear fog
- * - `fogEnd` - Ending distance for linear fog
- * - `fogMode` - Fog mode (0=linear, 1=exponential, 2=exponential squared)
+ * - `fogShader` - Name of the fog shader implementation (e.g. 'default')
+ *   Individual fog parameters are managed by the fog shader schema
+ *   (see DefaultFogShader) and stored under the `fogShader.*` namespace.
  * 
  * ### Rendering Options
  * - `renderS3` - Whether to render S3 (stereoscopic) mode
@@ -74,12 +70,7 @@ export const DefaultRootAppearance = {
     'backgroundColor',
     'backgroundColors',
     'backgroundTexture2D',
-    'fogEnabled',
-    'fogColor',
-    'fogDensity',
-    'fogBegin',
-    'fogEnd',
-    'fogMode',
+    'fogShader',
     'renderS3',
     'useGLSL'
   ],
@@ -102,40 +93,10 @@ export const DefaultRootAppearance = {
   BACKGROUND_COLORS_DEFAULT: null,
   
   /**
-   * Default fog enabled flag
-   * @type {boolean}
+   * Default fog shader name
+   * @type {string}
    */
-  FOG_ENABLED_DEFAULT: CommonAttributes.FOG_ENABLED_DEFAULT,
-  
-  /**
-   * Default fog color (light gray)
-   * @type {Color}
-   */
-  FOG_COLOR_DEFAULT: new Color(225, 225, 225),
-  
-  /**
-   * Default fog density (for exponential fog)
-   * @type {number}
-   */
-  FOG_DENSITY_DEFAULT: CommonAttributes.FOG_DENSITY_DEFAULT,
-  
-  /**
-   * Default fog begin distance (for linear fog)
-   * @type {number}
-   */
-  FOG_BEGIN_DEFAULT: 0.1,
-  
-  /**
-   * Default fog end distance (for linear fog)
-   * @type {number}
-   */
-  FOG_END_DEFAULT: 2.0,
-  
-  /**
-   * Default fog mode (0=linear, 1=exponential, 2=exponential squared)
-   * @type {number}
-   */
-  FOG_MODE_DEFAULT: CommonAttributes.FOG_MODE_DEFAULT,
+  FOG_SHADER_DEFAULT: 'default',
   
   /**
    * Default render S3 (stereoscopic) flag
@@ -170,13 +131,8 @@ export const DefaultRootAppearance = {
     return {
       backgroundColor: this.BACKGROUND_COLOR_DEFAULT,
       backgroundColors: this.BACKGROUND_COLORS_DEFAULT,
-      backgroundTexture2D: null, // Texture2D not yet implemented
-      fogEnabled: this.FOG_ENABLED_DEFAULT,
-      fogColor: this.FOG_COLOR_DEFAULT,
-      fogDensity: this.FOG_DENSITY_DEFAULT,
-      fogBegin: this.FOG_BEGIN_DEFAULT,
-      fogEnd: this.FOG_END_DEFAULT,
-      fogMode: this.FOG_MODE_DEFAULT,
+      backgroundTexture2D: null,
+      fogShader: this.FOG_SHADER_DEFAULT,
       renderS3: this.RENDER_S3_DEFAULT,
       useGLSL: this.USE_GLSL_DEFAULT
     };

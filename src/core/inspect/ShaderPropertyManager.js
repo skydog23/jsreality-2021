@@ -11,7 +11,7 @@
 
 import { Appearance, INHERITED } from '../scene/Appearance.js';
 import { Color } from '../util/Color.js';
-import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader, DefaultRenderingHintsShader, DefaultRootAppearance, ShaderRegistry, ShaderUtility } from '../shader/index.js';
+import { DefaultGeometryShader, DefaultPointShader, DefaultLineShader, DefaultPolygonShader, DefaultRenderingHintsShader, DefaultRootAppearance, DefaultFogShader, ShaderRegistry, ShaderUtility } from '../shader/index.js';
 import { ImplodePolygonShader } from '../shader/ImplodePolygonShader.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import { ShaderTreeNode } from './TreeViewManager.js';
@@ -224,6 +224,21 @@ export class ShaderPropertyManager {
         appearance,
         ''
       );
+
+      const fogNode = new ShaderTreeNode(
+        schemaTypeToDisplayName(DefaultFogShader.type),
+        'fog',
+        effective.resolveShaderAttributes(
+          DefaultFogShader,
+          CommonAttributes.FOG_SHADER,
+          DefaultFogShader.getAllDefaults?.() || {}
+        ),
+        DefaultFogShader,
+        appearance,
+        CommonAttributes.FOG_SHADER
+      );
+      rootAppearanceNode.addChild(fogNode);
+
       nodes.push(rootAppearanceNode);
     }
     
@@ -378,6 +393,40 @@ export class ShaderPropertyManager {
           getValue: () => {
             const v = appearance.getAttribute(fullKey);
             return typeof v === 'number' ? v : EUCLIDEAN;
+          },
+          setValue: (v) => onChange(Number(v))
+        };
+      }
+      if (attrName === 'curve') {
+        return {
+          key: `val-${fullKey}`,
+          type: DescriptorType.ENUM,
+          label: '',
+          options: [
+            { value: 0, label: 'Linear' },
+            { value: 1, label: 'Smooth' },
+            { value: 2, label: 'Exp' },
+            { value: 3, label: 'Exp2' }
+          ],
+          getValue: () => {
+            const v = appearance.getAttribute(fullKey);
+            return typeof v === 'number' ? v : 1;
+          },
+          setValue: (v) => onChange(Number(v))
+        };
+      }
+      if (attrName === 'distanceMetric') {
+        return {
+          key: `val-${fullKey}`,
+          type: DescriptorType.ENUM,
+          label: '',
+          options: [
+            { value: 0, label: 'Radial' },
+            { value: 1, label: 'Planar' }
+          ],
+          getValue: () => {
+            const v = appearance.getAttribute(fullKey);
+            return typeof v === 'number' ? v : 0;
           },
           setValue: (v) => onChange(Number(v))
         };
