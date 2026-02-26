@@ -11,8 +11,6 @@ import { MatrixBuilder } from '../../core/math/MatrixBuilder.js';
 import * as P3 from '../../core/math/P3.js';
 import * as Pn from '../../core/math/Pn.js';
 import * as Rn from '../../core/math/Rn.js';
-import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
-import { toDataList } from '../../core/scene/data/DataUtility.js';
 import { DiscreteGroup } from '../core/DiscreteGroup.js';
 import { DiscreteGroupElement } from '../core/DiscreteGroupElement.js';
 import { DiscreteGroupUtility } from '../core/DiscreteGroupUtility.js';
@@ -97,7 +95,7 @@ equations := [${BorromeanUtility.__POWERS__} [c*a*d*A,IdWord],[d*b*c*B,IdWord],[
       }
       ecolors[i] = BorromeanUtility.borromColors[index];
     }
-    we.setEdgeAttribute(GeometryAttribute.COLORS, toDataList(ecolors));
+    we.setEdgeColors(ecolors);
   }
 
   static colorFaces(we) {
@@ -114,7 +112,7 @@ equations := [${BorromeanUtility.__POWERS__} [c*a*d*A,IdWord],[d*b*c*B,IdWord],[
       }
       fcolors[i] = BorromeanUtility.borromColors[index];
     }
-    we.setFaceAttribute(GeometryAttribute.COLORS, toDataList(fcolors));
+    we.setFaceColors(fcolors);
   }
 
   static borromeanGenerators(order) {

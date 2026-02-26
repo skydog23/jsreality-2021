@@ -256,7 +256,7 @@ function createTestLines(parent) {
   const lineSet = new IndexedLineSet(4, 2);
   lineSet.setVertexCoordinates( vertices, 4);
   lineSet.setEdgeIndices(edges);
-  lineSet.setEdgeAttribute(GeometryAttribute.COLORS, toDataList(ecolors));
+  lineSet.setEdgeColors(ecolors);
   linesComponent.setGeometry(lineSet);
 
 
@@ -304,7 +304,7 @@ function createTestTriangle(parent) {
   faceSet.setVertexCoordinates(vertices, 4);
   faceSet.setFaceIndices(faces);
   faceSet.setEdgeIndices(edges);
-  faceSet.setFaceAttribute(GeometryAttribute.COLORS, toDataList(fcolors));
+  faceSet.setFaceColors(fcolors);
   triangleComponent.setGeometry(faceSet);
   const ap = triangleComponent.getAppearance();
   ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));

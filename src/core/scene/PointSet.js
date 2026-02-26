@@ -14,7 +14,7 @@
 import { Geometry, GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
 import { DataList } from './data/index.js';
-import { toDataList } from './data/DataUtility.js';
+import { toDataList, toColorDataList } from './data/DataUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -274,25 +274,14 @@ export class PointSet extends Geometry {
 
   /**
    * Set vertex colors for this point set.
-   * 
-   * Accepts multiple formats:
-   * - Color objects: [Color.RED, Color.GREEN, ...] → stored as int32 (0-255 range)
-   * - Numeric arrays: [[r, g, b, a], ...] → stored as float64 by default
-   * 
-   * NOTE: Color objects use 8-bit precision (0-255 range), which may not be sufficient
-   * for all applications (HDR rendering, color grading, scientific visualization).
-   * For higher precision, pass numeric arrays directly with normalized (0.0-1.0) or
-   * extended ranges, and use setVertexAttribute() with a DataList created using
-   * toDataList(colors, numChannels, 'float32') or 'float64'.
-   * 
-   * @param {Array<Color>|Array<Array<number>>} colors - Color data
-   * @param {number} [numChannels=null] - Number of color channels (3 for RGB, 4 for RGBA)
+   *
+   * Accepts Color[], float[3][], float[4][], or {r,g,b,a}[] objects.
+   * Always stored as RGBA float32 in [0,1] via toColorDataList().
+   *
+   * @param {Array<Color>|Array<Array<number>>} colors
    */
-  setVertexColors(colors, numChannels = null) {
-    // If numChannels is not provided and colors are Color objects, toDataList will auto-detect
-    // Otherwise, use the provided numChannels (defaults to 4 for RGBA if null and not Color objects)
-    const colorList = toDataList(colors, numChannels);
-    this.setVertexCountAndAttribute(GeometryAttribute.COLORS, colorList);
+  setVertexColors(colors) {
+    this.setVertexCountAndAttribute(GeometryAttribute.COLORS, toColorDataList(colors));
   }
 
   getVertexColors() {

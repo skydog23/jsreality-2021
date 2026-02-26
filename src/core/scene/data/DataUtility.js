@@ -486,6 +486,109 @@ export function toDataList(data, fiberLength = null, dataType = 'float64') {
  * // Handle null/undefined
  * const array = fromDataList(null); // Returns null
  */
+/**
+ * Convert color data into a canonical RegularDataList of RGBA float32 in [0,1].
+ *
+ * Accepted inputs:
+ *  - Color[]           -- 0..255 integers, normalized to 0..1
+ *  - number[][]        -- nested arrays with 3 (RGB) or 4 (RGBA) channels in [0,1]
+ *  - Float32Array      -- flat buffer, must have length divisible by 3 or 4
+ *  - DataList          -- if already shape [n,4] float32, returned as-is;
+ *                         otherwise re-packed to [n,4]
+ *
+ * Output is always RegularDataList with shape [n, 4] and dataType 'float32'.
+ *
+ * @param {Array|Float32Array|DataList} data
+ * @returns {RegularDataList}
+ */
+export function toColorDataList(data) {
+  if (data === null || data === undefined) return null;
+
+  if (data instanceof DataList) {
+    const shape = data.shape;
+    if (shape.length === 2 && shape[1] === 4 && data.dataType === 'float32') {
+      return data;
+    }
+    const flat = data.getFlatData();
+    const channels = shape.length >= 2 ? shape[shape.length - 1] : 1;
+    const n = flat.length / channels;
+    return _packToRGBA(flat, n, channels);
+  }
+
+  if (!Array.isArray(data) && !(data instanceof Float32Array) && !(data instanceof Float64Array)) {
+    throw new Error('toColorDataList: expected Color[], number[][], Float32Array, or DataList');
+  }
+
+  if (data.length === 0) {
+    return new RegularDataList(new Float32Array(0), [0, 4], 'float32');
+  }
+
+  // Flat typed array
+  if (data instanceof Float32Array || data instanceof Float64Array) {
+    const len = data.length;
+    if (len % 4 === 0) return _packToRGBA(data, len / 4, 4);
+    if (len % 3 === 0) return _packToRGBA(data, len / 3, 3);
+    throw new Error(`toColorDataList: flat array length ${len} not divisible by 3 or 4`);
+  }
+
+  const first = data[0];
+
+  // Color object array
+  if (first instanceof Color || (typeof first === 'object' && first !== null && 'r' in first)) {
+    const n = data.length;
+    const out = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const c = data[i];
+      const o = i * 4;
+      if (c instanceof Color) {
+        out[o]     = c.r / 255;
+        out[o + 1] = c.g / 255;
+        out[o + 2] = c.b / 255;
+        out[o + 3] = (c.a ?? 255) / 255;
+      } else {
+        out[o]     = Number(c.r ?? 0);
+        out[o + 1] = Number(c.g ?? 0);
+        out[o + 2] = Number(c.b ?? 0);
+        out[o + 3] = Number(c.a ?? 1);
+      }
+    }
+    return new RegularDataList(out, [n, 4], 'float32');
+  }
+
+  // Nested number arrays: [[r,g,b], ...] or [[r,g,b,a], ...]
+  if (Array.isArray(first)) {
+    const channels = first.length;
+    if (channels < 3 || channels > 4) {
+      throw new Error(`toColorDataList: expected 3 or 4 color channels, got ${channels}`);
+    }
+    const n = data.length;
+    return _packToRGBA(null, n, channels, data);
+  }
+
+  throw new Error('toColorDataList: unrecognized color data format');
+}
+
+function _packToRGBA(flat, n, srcChannels, nested = null) {
+  const out = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const oOut = i * 4;
+    if (nested) {
+      const row = nested[i];
+      out[oOut]     = Number(row[0] ?? 0);
+      out[oOut + 1] = Number(row[1] ?? 0);
+      out[oOut + 2] = Number(row[2] ?? 0);
+      out[oOut + 3] = srcChannels >= 4 ? Number(row[3] ?? 1) : 1.0;
+    } else {
+      const oIn = i * srcChannels;
+      out[oOut]     = flat[oIn];
+      out[oOut + 1] = flat[oIn + 1];
+      out[oOut + 2] = flat[oIn + 2];
+      out[oOut + 3] = srcChannels >= 4 ? flat[oIn + 3] : 1.0;
+    }
+  }
+  return new RegularDataList(out, [n, 4], 'float32');
+}
+
 export function fromDataList(dataList) {
   if (dataList === null || dataList === undefined) {
     return null;
@@ -508,6 +611,7 @@ export const DataUtility = {
   getFiberCount,
   validateDataArray,
   getDataList: toDataList,
+  toColorDataList,
   fromDataList
 };
 

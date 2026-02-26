@@ -8,7 +8,7 @@
 import { IndexedFaceSetUtility } from '../../core/geometry/IndexedFaceSetUtility.js';
 import { SphereUtility } from '../../core/geometry/SphereUtility.js';
 import { DescriptorType } from '../../core/inspect/descriptors/DescriptorTypes.js';
-import { toDataList, fromDataList } from '../../core/scene/data/DataUtility.js';
+import { fromDataList } from '../../core/scene/data/DataUtility.js';
 import { GeometryAttribute } from '../../core/scene/GeometryAttribute.js';
 import * as CommonAttributes from '../../core/shader/CommonAttributes.js';
 import { RotateTool } from '../../core/tools/RotateTool.js';
@@ -91,8 +91,7 @@ export class TessellatedSphereDemo extends JSRApp {
       let c = this._origFaceColors[i];
       satColors[i] = this.#saturateColor(c, white, this._saturate);
     }
-    const data = toDataList(satColors, null, 'float32');
-    this._ifs.setFaceAttribute(GeometryAttribute.COLORS, data);
+    this._ifs.setFaceColors(satColors);
   }
 
   #saturateColor(c, white, saturate) {

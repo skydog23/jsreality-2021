@@ -31,7 +31,7 @@ import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
 import { RegularDataList } from '../scene/data/RegularDataList.js';
 import { VariableDataList } from '../scene/data/VariableDataList.js';
-import { toDataList } from '../scene/data/DataUtility.js';
+import { toDataList, toColorDataList } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN } from '../math/Pn.js';
 
 export class IndexedLineSetFactory extends PointSetFactory {
@@ -204,23 +204,13 @@ export class IndexedLineSetFactory extends PointSetFactory {
     // ============================================================================
     
     /**
-     * Set edge colors. Accepts multiple formats:
-     * - DataList
-     * - Flat array: [r0,g0,b0,a0, r1,g1,b1,a1, ...]
-     * - 2D array: [[r0,g0,b0,a0], [r1,g1,b1,a1], ...]
-     * - Array of {r,g,b,a} objects
-     * 
-     * @param {DataList|number[]|number[][]|Object[]} data - Color data
-     * @param {number} [fiberLength=null] - Components per color (3 or 4), auto-detected if null
+     * Set edge colors. Accepts Color[], float[3][], float[4][], or {r,g,b,a}[].
+     * Always stored as RGBA float32 in [0,1] via toColorDataList().
+     *
+     * @param {DataList|number[]|number[][]|Color[]|Object[]} data
      */
-    setEdgeColors(data, fiberLength = null) {
-        // Handle color objects {r,g,b,a}
-        if (Array.isArray(data) && data.length > 0 && 
-            typeof data[0] === 'object' && data[0] !== null && 
-            'r' in data[0]) {
-            data = data.map(c => [c.r, c.g, c.b, c.a ?? 1.0]);
-        }
-        this._setEdgeAttribute(GeometryAttribute.COLORS, data, fiberLength);
+    setEdgeColors(data) {
+        this._setEdgeAttribute(GeometryAttribute.COLORS, toColorDataList(data));
     }
     
     // ============================================================================

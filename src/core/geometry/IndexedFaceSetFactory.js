@@ -33,7 +33,7 @@ import { GeometryAttribute } from '../scene/GeometryAttribute.js';
 import { DataList } from '../scene/data/DataList.js';
 import { RegularDataList } from '../scene/data/RegularDataList.js';
 import { VariableDataList } from '../scene/data/VariableDataList.js';
-import { toDataList, fromDataList } from '../scene/data/DataUtility.js';
+import { toDataList, toColorDataList, fromDataList } from '../scene/data/DataUtility.js';
 import { EUCLIDEAN, polarizePlane, setToLength, normalize as PnNormalize, dehomogenize } from '../math/Pn.js';
 import * as Rn from '../math/Rn.js';
 import * as P3 from '../math/P3.js';
@@ -211,13 +211,14 @@ export class IndexedFaceSetFactory extends IndexedLineSetFactory {
         this.#pendingFaceAttributes.set(GeometryAttribute.INDICES, dataList);
     }
     
-    setFaceColors(data, fiberLength = null) {
-        if (Array.isArray(data) && data.length > 0 && 
-            typeof data[0] === 'object' && data[0] !== null && 
-            'r' in data[0]) {
-            data = data.map(c => [c.r, c.g, c.b, c.a ?? 1.0]);
-        }
-        this._setFaceAttribute(GeometryAttribute.COLORS, data, fiberLength);
+    /**
+     * Set face colors. Accepts Color[], float[3][], float[4][], or {r,g,b,a}[].
+     * Always stored as RGBA float32 in [0,1] via toColorDataList().
+     *
+     * @param {DataList|number[]|number[][]|Color[]|Object[]} data
+     */
+    setFaceColors(data) {
+        this._setFaceAttribute(GeometryAttribute.COLORS, toColorDataList(data));
     }
     
     setFaceNormals(data, fiberLength = null) {

@@ -15,7 +15,7 @@ import { PointSet } from './PointSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
 import { DataList, RegularDataList, VariableDataList } from './data/index.js';
-import { toDataList } from './data/DataUtility.js';
+import { toDataList, toColorDataList } from './data/DataUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -278,6 +278,20 @@ export class IndexedLineSet extends PointSet {
    */
   getEdgeIndices() {
     return this.getEdgeAttribute(GeometryAttribute.INDICES);
+  }
+
+  /**
+   * Set edge colors. Accepts Color[], float[3][], float[4][], or {r,g,b,a}[].
+   * Always stored as RGBA float32 in [0,1] via toColorDataList().
+   *
+   * @param {Array<Color>|Array<Array<number>>} colors
+   */
+  setEdgeColors(colors) {
+    this.setEdgeCountAndAttribute(GeometryAttribute.COLORS, toColorDataList(colors));
+  }
+
+  getEdgeColors() {
+    return this.getEdgeAttribute(GeometryAttribute.COLORS);
   }
 
   /**

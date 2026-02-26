@@ -376,8 +376,7 @@ export class SphereUtility {
       ];
     }
     
-    const colorDataList = toDataList(colorArray);
-    ps.setVertexAttribute(GeometryAttribute.COLORS, colorDataList);
+    ps.setVertexColors(colorArray);
   }
   
   /**

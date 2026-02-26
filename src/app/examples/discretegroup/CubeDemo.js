@@ -18,6 +18,7 @@ import { Platycosm } from '../../../discretegroup/groups/Platycosm.js';
 import { RotateTool } from '../../../core/tools/RotateTool.js';
 import { Color } from '../../../core/util/Color.js';
 import { Appearance } from '../../../core/scene/Appearance.js';
+import { DescriptorType } from '../../../core/inspect/descriptors/DescriptorTypes.js';
 /**
  * Port of de.jtem.discretegroup.tutorial.CubeExample.
  */
@@ -26,12 +27,15 @@ export class CubeDemo extends JSRApp {
   _group = null;   // DiscreteGroup
   _representation = null; // DiscreteGroupSceneGraphRepresentation
   _root = null; // SceneGraphComponent
+  _numColors = 4;
+  _colorPicker = null;
 
   getContent() {
     console.log('DiscreteGroupCubeApp getContent 1');
     this._group = Platycosm.instanceOfGroup('c1');
     this._group.setConstraint(new DiscreteGroupSimpleConstraint(-1, -1,10000));
-    this._group.setColorPicker(new DiscreteGroupColorPicker.TranslationColorPicker(4));
+    this._colorPicker = new DiscreteGroupColorPicker.TranslationColorPicker(this._numColors);
+    this._group.setColorPicker(this._colorPicker);
     this._group.update();
 
     console.log('DiscreteGroupCubeApp getContent 2',this._group.getElementList().length);
@@ -60,39 +64,46 @@ export class CubeDemo extends JSRApp {
     return this._root;
   }
 
+  update() {
+    this._colorpicker = new DiscreteGroupColorPicker.TranslationColorPicker(this._numColors);
+    this._group.setColorPicker(this.colorpicker);
+    this._colorpicker.assignColorIndices(this._group.getElementList());
+    this._representation.update();
+    
+  }
+
   getAppList() {
-    const red = new Appearance();
-    red.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 0, 0));
-    red.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 255, 255));
-
-    const blue = new Appearance();
-    blue.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
-    blue.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-
-    const green = new Appearance();
-    green.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 255, 0));
-    green.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 0, 255));
-    const white = new Appearance();
-    white.setAttribute(
-      `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, Color.WHITE);
-    white.setAttribute(
-      `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 255));
-
-    return [white, red, blue, green];
+   const makeAppearance = (color) => {
+      const ap = new Appearance();
+      ap.setAttribute(
+        `polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, color);
+      ap.setAttribute(
+        `lineShader.${CommonAttributes.DIFFUSE_COLOR}`, color);
+      return ap;
+    }
+    const red = makeAppearance(new Color(255, 0, 0));
+    const blue = makeAppearance(new Color(0, 0, 255));
+    const green = makeAppearance(new Color(0, 255, 0));
+    const white = makeAppearance(Color.WHITE);
+    const purple = makeAppearance(Color.PURPLE);
+    const orange = makeAppearance(Color.ORANGE);
+    const yellow = makeAppearance(Color.YELLOW);
+    return [red, blue, yellow, purple, orange, green, white];
   }
 
   display() {
     this.setup3DCamera();
    
     super.display();
-     console.log('DiscreteGroupCubeApp display',this._group.getElementList().length);
+    console.log('DiscreteGroupCubeApp display',this._group.getElementList().length);
     const viewer = this.getViewer();
+    const ap = viewer.getSceneRoot().getAppearance();
+    ap.setAttribute(CommonAttributes.FOG_ENABLED, false);
+    ap.setAttribute(CommonAttributes.FOG_DENSITY, 0.05);
+    ap.setAttribute(CommonAttributes.FOG_COLOR, Color.WHITE);
+    ap.setAttribute(CommonAttributes.FOG_BEGIN, 10.0);
+    ap.setAttribute(CommonAttributes.FOG_END, 50.0);
+    
     // Match Java tutorial camera offset (avatar translated along +z).
     // MatrixBuilder.euclidean().translate(0, 0, 20).assignTo(CameraUtility.getCameraNode(viewer));
     //CameraUtility.encompass(viewer);
@@ -105,5 +116,26 @@ export class CubeDemo extends JSRApp {
   getHelpSummary() {
     return 'Platycosm c1 cube replicated by a Euclidean discrete group.';
   }
-}
+
+  getInspectorDescriptors() {
+    return [
+      {
+        type: DescriptorType.CONTAINER,
+        label: 'Cube Demo',
+        items: [
+          {
+            type: DescriptorType.INT,
+            min: 1,
+            max: 10,
+            label: 'Number of colors',
+            getValue: () => this._numColors,
+            setValue: (v) => { this._numColors = v; 
+              this.update();
+            },
+          },
+        ],
+      },
+    ];
+}}
+
 

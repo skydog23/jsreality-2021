@@ -15,7 +15,7 @@ import { IndexedLineSet } from './IndexedLineSet.js';
 import { GeometryCategory } from './Geometry.js';
 import { GeometryAttribute } from './GeometryAttribute.js';
 import { DataList, RegularDataList, VariableDataList } from './data/index.js';
-import { toDataList } from '../scene/data/DataUtility.js';
+import { toDataList, toColorDataList } from '../scene/data/DataUtility.js';
 
 /** @typedef {import('./SceneGraphVisitor.js').SceneGraphVisitor} SceneGraphVisitor */
 
@@ -272,6 +272,20 @@ export class IndexedFaceSet extends IndexedLineSet {
    */
   getFaceIndices() {
     return this.getFaceAttribute(GeometryAttribute.INDICES);
+  }
+
+  /**
+   * Set face colors. Accepts Color[], float[3][], float[4][], or {r,g,b,a}[].
+   * Always stored as RGBA float32 in [0,1] via toColorDataList().
+   *
+   * @param {Array<Color>|Array<Array<number>>} colors
+   */
+  setFaceColors(colors) {
+    this.setFaceCountAndAttribute(GeometryAttribute.COLORS, toColorDataList(colors));
+  }
+
+  getFaceColors() {
+    return this.getFaceAttribute(GeometryAttribute.COLORS);
   }
 
   /**

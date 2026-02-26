@@ -649,43 +649,24 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // When the geometry has no face/vertex colors, a_color is white (1,1,1,1) so the
     // instance color comes through unchanged.  When face colors are present they are
     // preserved and modulated by the instance tint.
-    const faceColorsDL = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS) || null;
-    const faceColorsFlat = faceColorsDL?.getFlatData?.() ?? null;
-    const faceColorsShape = faceColorsDL?.shape;
-    const faceColorChannels = Array.isArray(faceColorsShape) && faceColorsShape.length >= 2
-      ? faceColorsShape[faceColorsShape.length - 1] : 0;
-
-    const vertexColorsDL = geometry?.getVertexAttribute?.(GeometryAttribute.COLORS) || null;
-    const vertexColorsFlat = vertexColorsDL?.getFlatData?.() ?? null;
-    const vertexColorsShape = vertexColorsDL?.shape;
-    const vertexColorChannels = Array.isArray(vertexColorsShape) && vertexColorsShape.length >= 2
-      ? vertexColorsShape[vertexColorsShape.length - 1] : 0;
-
-    const hasFaceColors = Boolean(faceColorsFlat && faceColorChannels >= 3);
-    const hasVertexColors = Boolean(vertexColorsFlat && vertexColorChannels >= 3);
+    // Geometry colors are guaranteed RGBA float[4] in [0,1] by toColorDataList().
+    const faceColorsFlat = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS)?.getFlatData?.() ?? null;
+    const vertexColorsFlat = geometry?.getVertexAttribute?.(GeometryAttribute.COLORS)?.getFlatData?.() ?? null;
+    const hasFaceColors = Boolean(faceColorsFlat);
+    const hasVertexColors = Boolean(vertexColorsFlat);
 
     const WHITE = [1, 1, 1, 1];
     const getFaceColor = (faceIdx) => {
       if (hasFaceColors) {
-        const base = faceIdx * faceColorChannels;
-        return [
-          Number(faceColorsFlat[base] ?? 1),
-          Number(faceColorsFlat[base + 1] ?? 1),
-          Number(faceColorsFlat[base + 2] ?? 1),
-          faceColorChannels >= 4 ? Number(faceColorsFlat[base + 3] ?? 1) : 1.0
-        ];
+        const base = faceIdx * 4;
+        return [faceColorsFlat[base], faceColorsFlat[base + 1], faceColorsFlat[base + 2], faceColorsFlat[base + 3]];
       }
       return WHITE;
     };
     const getVertexColor = (vid) => {
       if (hasVertexColors) {
-        const base = vid * vertexColorChannels;
-        return [
-          Number(vertexColorsFlat[base] ?? 1),
-          Number(vertexColorsFlat[base + 1] ?? 1),
-          Number(vertexColorsFlat[base + 2] ?? 1),
-          vertexColorChannels >= 4 ? Number(vertexColorsFlat[base + 3] ?? 1) : 1.0
-        ];
+        const base = vid * 4;
+        return [vertexColorsFlat[base], vertexColorsFlat[base + 1], vertexColorsFlat[base + 2], vertexColorsFlat[base + 3]];
       }
       return null;
     };
@@ -2421,11 +2402,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const faceRows = Array.isArray(facesDL.rows) ? facesDL.rows : (typeof facesDL.toNestedArray === 'function' ? facesDL.toNestedArray() : null);
     if (!faceRows || faceRows.length === 0) return;
 
-    // Face colors (optional).
-    const faceColorsDL = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS) || null;
-    const faceColorsFlat = faceColorsDL && typeof faceColorsDL.getFlatData === 'function' ? faceColorsDL.getFlatData() : null;
-    const faceColorsShape = faceColorsDL?.shape;
-    const faceColorChannels = Array.isArray(faceColorsShape) && faceColorsShape.length >= 2 ? faceColorsShape[faceColorsShape.length - 1] : 0;
+    // Face colors (optional). Guaranteed RGBA float[4] in [0,1] by toColorDataList().
+    const faceColorsFlat = geometry?.getFaceAttribute?.(GeometryAttribute.COLORS)?.getFlatData?.() ?? null;
 
     // Normals (optional): prefer face normals for flat shading, else use vertex normals.
     const faceNormalsDL = geometry?.getFaceAttribute?.(GeometryAttribute.NORMALS) || null;
@@ -2462,16 +2440,11 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     // face colors are missing.
     this._beginPrimitiveGroup(CommonAttributes.POLYGON);
 
-    // Helper to read face color i -> normalized RGBA (DataList contract: float RGBA in [0,1])
-    const defaultColor = this.#currentColor; // already normalized 0..1
+    const defaultColor = this.#currentColor;
     const getFaceColor = (i) => {
-      if (!faceColorsFlat || !faceColorChannels) return defaultColor;
-      const base = i * faceColorChannels;
-      const r = Number(faceColorsFlat[base + 0] ?? defaultColor[0]);
-      const g = Number(faceColorsFlat[base + 1] ?? defaultColor[1]);
-      const b = Number(faceColorsFlat[base + 2] ?? defaultColor[2]);
-      const a = faceColorChannels >= 4 ? Number(faceColorsFlat[base + 3] ?? defaultColor[3]) : 1.0;
-      return [r, g, b, a];
+      if (!faceColorsFlat) return defaultColor;
+      const base = i * 4;
+      return [faceColorsFlat[base], faceColorsFlat[base + 1], faceColorsFlat[base + 2], faceColorsFlat[base + 3]];
     };
 
     // Resolve Texture2D from appearance (for this polygon group).
@@ -4331,11 +4304,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @returns {number[]}
    */
   #toRGBA(color) {
-    if (Array.isArray(color)) {
-      if (color.length === 4) return color;
-      if (color.length === 3) return [color[0], color[1], color[2], 1.0];
-    }
-    throw new Error(`WebGL2Renderer.#toRGBA: expected float[3|4] array (geometry color), got ${Object.prototype.toString.call(color)}`);
+    if (Array.isArray(color) && color.length === 4) return color;
+    throw new Error(`WebGL2Renderer.#toRGBA: expected float[4] array (geometry color), got ${Object.prototype.toString.call(color)} length=${color?.length}`);
   }
 }
 

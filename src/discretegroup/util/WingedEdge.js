@@ -150,7 +150,7 @@ export class WingedEdge extends IndexedFaceSet {
       const foo = this.faceList[i].tag >= 0 ? this.faceList[i].tag : 0;
       Rn.copy(cc[i], this.colormap[foo % this.colormap.length]);
     }
-    this.setFaceAttribute(GeometryAttribute.COLORS, toDataList(cc));
+    this.setFaceColors(cc);
   }
 
   update() {
