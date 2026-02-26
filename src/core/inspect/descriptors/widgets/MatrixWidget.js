@@ -59,8 +59,9 @@ export function matrixWidgetFactory(descriptor, context, createRow, formatNumber
   const wrapper = createRow(descriptor);
 
   const resolveMetric = () => {
-    const m = descriptor.metric;
-    return typeof m === 'function' ? m() : (m ?? Pn.EUCLIDEAN);
+    const raw = descriptor.metric;
+    const m = typeof raw === 'function' ? raw() : raw;
+    return (typeof m === 'number') ? m : Pn.EUCLIDEAN;
   };
 
   const metric = resolveMetric();

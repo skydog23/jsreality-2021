@@ -70,7 +70,6 @@ export const DefaultRootAppearance = {
     'backgroundColor',
     'backgroundColors',
     'backgroundTexture2D',
-    'fogShader',
     'renderS3',
     'useGLSL'
   ],
