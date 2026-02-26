@@ -7,7 +7,6 @@
  * Contributors retain copyright to their contributions.
  */
 
-import { Color } from '../util/Color.js';
 import * as CA from './CommonAttributes.js';
 
 /**
@@ -67,8 +66,8 @@ export const DefaultFogShader = {
   ],
 
   ENABLED_DEFAULT:       CA.FOG_ENABLED_DEFAULT,
-  COLOR_DEFAULT:         new Color(200, 210, 220),
-  FAR_COLOR_DEFAULT:     null,
+  COLOR_DEFAULT:         CA.FOG_COLOR_DEFAULT,
+  FAR_COLOR_DEFAULT:     CA.FOG_FAR_COLOR_DEFAULT,
   BEGIN_DEFAULT:         CA.FOG_BEGIN_DEFAULT,
   END_DEFAULT:           CA.FOG_END_DEFAULT,
   DENSITY_DEFAULT:       CA.FOG_DENSITY_DEFAULT,

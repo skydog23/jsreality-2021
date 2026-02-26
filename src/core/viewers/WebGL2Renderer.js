@@ -212,7 +212,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
   // Per-frame fog state (read from root appearance in _beginRendering)
   #fogEnabled = false;
-  #fogColor = [0.78, 0.82, 0.86];
+  #fogColor = CommonAttributes.FOG_COLOR_DEFAULT.toFloatArray();
   #fogFarColor = null;
   #fogBegin = 1.0;
   #fogEnd = 30.0;
@@ -2923,8 +2923,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     this.#fogEnabled = Boolean(attr(CommonAttributes.FOG_ENABLED, false));
     if (!this.#fogEnabled) return;
 
-    const fogColorVal = attr(CommonAttributes.FOG_COLOR, null);
-    this.#fogColor = fogColorVal ? this.#toWebGLColor(fogColorVal) : [0.78, 0.82, 0.86];
+    this.#fogColor = this.#toWebGLColor(attr(CommonAttributes.FOG_COLOR, CommonAttributes.FOG_COLOR_DEFAULT));
 
     const farColorVal = attr(CommonAttributes.FOG_FAR_COLOR, null);
     this.#fogFarColor = farColorVal ? this.#toWebGLColor(farColorVal) : null;
