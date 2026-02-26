@@ -207,8 +207,6 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   /** @type {Object|null} Pending instanced render data (set during visitComponent, consumed in visitAppearance) */
   #instancedRenderPending = null;
 
-  /** @type {number} Debug: counts instanced render calls to limit logging */
-  #instancedDebugCount = 0;
 
   // Per-frame fog state (read from root appearance in _beginRendering)
   #fogEnabled = false;
@@ -476,27 +474,17 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const instanceCount = appearance.getAttribute('instanceCount');
     const fundRegion = appearance.getAttribute('instanceFundamentalRegion');
 
-    const dbg = this.#instancedDebugCount < 3;
-    if (dbg) {
-      console.log('[INST visitComponent] DETECTED instancedGeometry on', component.getName?.());
-      console.log('  instanceCount:', instanceCount,
-        'hasTransforms:', !!instanceTransforms, 'transLen:', instanceTransforms?.length,
-        'hasColors:', !!instanceColors, 'colLen:', instanceColors?.length,
-        'hasFundRegion:', !!fundRegion, 'fundRegionName:', fundRegion?.getName?.());
-    }
-
     if (!instanceTransforms || !instanceCount || instanceCount <= 0 || !fundRegion) {
-      if (dbg) console.warn('[INST visitComponent] BAIL: missing data, falling back to normal traversal');
+      console.warn('[INST] Missing instanced rendering data on', component.getName?.(), '— falling back to normal traversal');
       return super.visitComponent(component);
     }
 
-    if (dbg) console.log('[INST visitComponent] Scheduling instanced render, skipping children');
     this.#instancedRenderPending = { instanceTransforms, instanceColors, instanceCount, fundRegion };
     this.#instancedSkipDepth++;
     super.visitComponent(component);
     this.#instancedSkipDepth--;
     if (this.#instancedRenderPending) {
-      if (dbg) console.warn('[INST visitComponent] WARNING: render was NOT consumed by visitAppearance!');
+      console.warn('[INST] Instanced render was NOT consumed by visitAppearance on', component.getName?.());
     }
     this.#instancedRenderPending = null;
   }
@@ -509,8 +497,6 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   visitAppearance(appearance) {
     super.visitAppearance(appearance);
     if (this.#instancedRenderPending) {
-      const dbg = this.#instancedDebugCount < 3;
-      if (dbg) console.log('[INST visitAppearance] Triggering instanced render now');
       const { instanceTransforms, instanceColors, instanceCount, fundRegion } = this.#instancedRenderPending;
       this.#instancedRenderPending = null;
       this.#renderInstancedGeometry(fundRegion, instanceTransforms, instanceColors, instanceCount);
@@ -524,24 +510,12 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * @private
    */
   #renderInstancedGeometry(fundRegion, instanceTransforms, instanceColors, instanceCount) {
-    const dbg = this.#instancedDebugCount < 3;
     const geometries = [];
     this.#collectGeometries(fundRegion, geometries, Rn.identityMatrix(4));
 
-    if (dbg) {
-      console.log('[INST renderInstancedGeometry] fundRegion:', fundRegion.getName?.(),
-        'childCount:', fundRegion.getChildComponentCount?.(),
-        'hasGeometry:', !!fundRegion.getGeometry?.(),
-        'collected geometries:', geometries.length);
-      for (let gi = 0; gi < geometries.length; gi++) {
-        const g = geometries[gi].geometry;
-        console.log(`  geom[${gi}]: faces=`, !!g.getFaceIndices?.(), 'edges=', !!g.getEdgeIndices?.(),
-          'verts=', g.getVertexCoordinates?.()?.shape);
-      }
-    }
-
-    if (geometries.length === 0 && dbg) {
-      console.warn('[INST renderInstancedGeometry] NO geometries found in fundamental region!');
+    if (geometries.length === 0) {
+      console.warn('[INST] No geometries found in fundamental region', fundRegion.getName?.());
+      return;
     }
 
     for (const { geometry, localTransform } of geometries) {
@@ -555,7 +529,6 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         this.#renderInstancedPoints(geometry, localTransform, instanceTransforms, instanceColors, instanceCount);
       }
     }
-    this.#instancedDebugCount++;
   }
 
   /**
@@ -563,8 +536,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
    * relative to the fundamental region root.
    * @private
    */
-  #collectGeometries(sgc, results, parentTransform, depth = 0) {
-    const dbg = this.#instancedDebugCount < 3;
+  #collectGeometries(sgc, results, parentTransform) {
     let localTransform = parentTransform;
     const t = sgc.getTransformation?.();
     if (t) {
@@ -573,18 +545,14 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
     const geom = sgc.getGeometry?.();
     if (geom) {
-      if (dbg) console.log(`${'  '.repeat(depth)}[INST collect] Found geometry on '${sgc.getName?.()}'`);
       results.push({ geometry: geom, localTransform });
     }
 
     const childCount = sgc.getChildComponentCount?.() ?? 0;
-    if (dbg && childCount > 0) console.log(`${'  '.repeat(depth)}[INST collect] '${sgc.getName?.()}' has ${childCount} children`);
     for (let i = 0; i < childCount; i++) {
       const child = sgc.getChildComponent(i);
       if (child?.isVisible?.()) {
-        this.#collectGeometries(child, results, localTransform, depth + 1);
-      } else if (dbg) {
-        console.log(`${'  '.repeat(depth + 1)}[INST collect] child '${child?.getName?.()}' not visible, skipping`);
+        this.#collectGeometries(child, results, localTransform);
       }
     }
   }
@@ -596,36 +564,23 @@ export class WebGL2Renderer extends Abstract2DRenderer {
   #renderInstancedFaces(geometry, localTransform, instanceTransforms, instanceColors, instanceCount) {
     const gl = this.#gl;
     const program = this.#unifiedProgram;
-    const dbg = this.#instancedDebugCount < 3;
-    if (!program) { if (dbg) console.warn('[INST faces] BAIL: no unified program'); return; }
+    if (!program) return;
 
     const showFaces = this.getBooleanAttribute?.(CommonAttributes.FACE_DRAW, true);
-    if (!showFaces) { if (dbg) console.warn('[INST faces] BAIL: FACE_DRAW=false'); return; }
+    if (!showFaces) return;
 
     const vertsDL = geometry.getVertexCoordinates?.();
     const facesDL = geometry.getFaceIndices?.();
-    if (!vertsDL || !facesDL) { if (dbg) console.warn('[INST faces] BAIL: no vertsDL or facesDL'); return; }
+    if (!vertsDL || !facesDL) return;
 
     const shape = vertsDL.shape;
     const fiber = Array.isArray(shape) && shape.length >= 2 ? shape[shape.length - 1] : 0;
     const positionSize = Math.min(Math.max(fiber || 3, 2), 4);
     const vertsFlat = typeof vertsDL.getFlatData === 'function' ? vertsDL.getFlatData() : null;
-    if (!vertsFlat || !fiber) { if (dbg) console.warn('[INST faces] BAIL: no vertsFlat, fiber=', fiber); return; }
+    if (!vertsFlat || !fiber) return;
 
     const faceRows = Array.isArray(facesDL.rows) ? facesDL.rows : (typeof facesDL.toNestedArray === 'function' ? facesDL.toNestedArray() : null);
-    if (!faceRows || faceRows.length === 0) { if (dbg) console.warn('[INST faces] BAIL: no faceRows'); return; }
-
-    if (dbg) {
-      console.log('[INST faces] positionSize:', positionSize, 'fiber:', fiber,
-        'nVerts:', vertsFlat.length / fiber, 'nFaces:', faceRows.length,
-        'instanceCount:', instanceCount);
-      console.log('  first 3 verts:', Array.from(vertsFlat.subarray(0, Math.min(12, vertsFlat.length))));
-      console.log('  first face:', faceRows[0]);
-      console.log('  first instance matrix:', Array.from(instanceTransforms.subarray(0, 16)));
-      console.log('  currentTransform:', this.getCurrentTransformation());
-      console.log('  hasFaceColors:', Boolean(geometry?.getFaceAttribute?.(GeometryAttribute.COLORS)),
-        'hasVertexColors:', Boolean(geometry?.getVertexAttribute?.(GeometryAttribute.COLORS)));
-    }
+    if (!faceRows || faceRows.length === 0) return;
 
     const faceNormalsDL = geometry.getFaceAttribute?.(GeometryAttribute.NORMALS) || null;
     const faceNormalsFlat = faceNormalsDL?.getFlatData?.() ?? null;
@@ -886,27 +841,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexArray, gl.DYNAMIC_DRAW);
     const indexType = supportsUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
 
-    if (dbg) {
-      console.log('[INST faces] DRAW: iOut=', iOut, 'instanceCount=', instanceCount,
-        'posLoc=', posLoc, 'instRow0Loc=', instRow0Loc, 'instColorLoc=', instColorLoc,
-        'u_mode set to 3, indexType=', indexType === gl.UNSIGNED_INT ? 'UINT32' : 'UINT16');
-      console.log('  row0[0..3]:', Array.from(row0.subarray(0, 4)));
-      console.log('  row1[0..3]:', Array.from(row1.subarray(0, 4)));
-      console.log('  row2[0..3]:', Array.from(row2.subarray(0, 4)));
-      console.log('  row3[0..3]:', Array.from(row3.subarray(0, 4)));
-      console.log('  instColors:', instanceColors instanceof Float32Array ? Array.from(instanceColors.subarray(0, 4)) : 'using effective color ' + Array.from(defaultColor));
-      const err = gl.getError();
-      if (err !== gl.NO_ERROR) console.error('[INST faces] GL error BEFORE draw:', err);
-    }
-
     gl.drawElementsInstanced(gl.TRIANGLES, iOut, indexType, 0, instanceCount);
     if (this.#debugGL) this.#debugGL.drawElements++;
-
-    if (dbg) {
-      const err = gl.getError();
-      if (err !== gl.NO_ERROR) console.error('[INST faces] GL error AFTER draw:', err);
-      else console.log('[INST faces] draw call completed (no GL error)');
-    }
 
     // Reset divisors AND disable instancing-specific attribute arrays.
     // Leaving a_instRow0..3 enabled (even with divisor=0) causes WebGL validation

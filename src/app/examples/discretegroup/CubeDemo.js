@@ -40,12 +40,13 @@ export class CubeDemo extends JSRApp {
 
     console.log('DiscreteGroupCubeApp getContent 2',this._group.getElementList().length);
     this._representation = new DiscreteGroupSceneGraphRepresentation(this._group, true, 'Cube');
-    this._representation.setPickConstraint(new DiscreteGroupSimpleConstraint(-1, -1,500));
+    this._representation.setPickConstraint(new DiscreteGroupSimpleConstraint(-1, -1,150));
     this._representation.setAppList(this.getAppList());
     const fundDom = SceneGraphUtility.createFullSceneGraphComponent('fundDomSGC');
     fundDom.setGeometry(Primitives.boxWithMetric(0.5, 0.6, 0.4, false, Pn.EUCLIDEAN));
     MatrixBuilder.euclidean().translate(0.1, 0.2, 0.3).assignTo(fundDom);
     this._representation.setWorldNode(fundDom);
+    console.log('DiscreteGroupCubeApp getContent 3', this._representation.copyCat);
     this._representation.update();
 
     this._root = this._representation.getRepresentationRoot();
