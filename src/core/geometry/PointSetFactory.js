@@ -324,6 +324,10 @@ export class PointSetFactory {
      * @private
      */
     _setVertexAttribute(attribute, data, fiberLength = null) {
+        if (data instanceof DataList) {
+            this.#pendingAttributes.set(attribute, data);
+            return;
+        }
         // Infer fiber length if not provided
         if (fiberLength === null) {
             // First, try to detect from array structure
