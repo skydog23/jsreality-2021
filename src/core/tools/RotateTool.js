@@ -300,8 +300,7 @@ export class RotateTool extends AbstractTool {
     // tc.getViewer().renderAsync();
   }
 
-  /**
-   * No animation support (yet). Keeps the signature for parity with Java.
+  /** 
    * @param {import('../scene/tool/ToolContext.js').ToolContext} tc
    */
   deactivate(tc) {
@@ -340,6 +339,7 @@ export class RotateTool extends AbstractTool {
  
     // Java: Matrix cen = new Matrix(center); SceneGraphComponent c = comp;
     this.#animCenter = new Matrix(this.center);
+    console.log('deactivate rotate tool: axis = ', aa.axis, 'angle = ', rotAngle);
     this.#animAxis = aa.axis;
     this.#animRotAngle = rotAngle;
     this.#animComp = this.comp;
@@ -369,24 +369,10 @@ export class RotateTool extends AbstractTool {
         this.#stopInertia();
         return;
       }
-
-      const before = currentTrafo.getMatrix(null);
-
-      // Java:
-      // MatrixBuilder m = MatrixBuilder.euclidean(c.getTransformation());
-      // m.times(cen);
-      // m.rotate(0.05*dt*rotAngle, axis);
-      // m.times(cen.getInverse());
-      // m.assignTo(c);
+    
       this.result.assignFrom(currentTrafo.getMatrix(null));
-      MatrixBuilder.euclidean(this.result)
-        .times(cen)
-        .rotate(dAngle, this.#animAxis)
-        .times(cen.getInverse());
-
-      if (!Rn.isNan(this.result.getArray())) {
-        currentTrafo.setMatrix(this.result.getArray());
-      }
+      MatrixBuilder.euclidean().rotate(dAngle, ...this.#animAxis).times(this.result).assignTo(this.result);
+      currentTrafo.setMatrix(this.result.getArray());
 
       this.#animRafId = requestAnimationFrame(step);
     };
