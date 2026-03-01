@@ -1085,7 +1085,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     const hPx = this.#canvas?.height ?? 0;
     if (!(wPx > 0 && hPx > 0)) return;
 
-    const halfWidthPx = Math.max(0.5, Number(lineWidth) * 0.5);
+    const dpr = this._getViewer()?._pixelRatio ?? 1;
+    const halfWidthPx = Math.max(0.5, Number(lineWidth) * dpr * 0.5);
     const T = this.getCurrentTransformation();
     const invWPx2 = 2.0 / wPx;
     const invHPx2 = 2.0 / hPx;
@@ -1457,8 +1458,9 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       const modeLoc = gl.getUniformLocation(program, 'u_mode');
       if (modeLoc !== null) gl.uniform1i(modeLoc, 0);
     }
+    const dprPt = this._getViewer()?._pixelRatio ?? 1;
     const pszLoc = gl.getUniformLocation(program, 'u_pointSize');
-    if (pszLoc !== null) gl.uniform1f(pszLoc, pointSizePx);
+    if (pszLoc !== null) gl.uniform1f(pszLoc, pointSizePx * 2 * dprPt);
 
     const posLoc = gl.getAttribLocation(program, 'a_position');
     const colorLoc = gl.getAttribLocation(program, 'a_color');
@@ -2993,11 +2995,11 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         CommonAttributes.TEXTURE_2D,
         null
       );
-      if (this.#debugFrame <= 3) {
-        console.log('[Texture2D resolve]', 'tex=', tex, 'instanceof=', tex instanceof Texture2D,
-          'hasImageSource=', tex?.hasImageSource?.(), 'image=', tex?.getImage?.(),
-          'extSrc=', tex?.getExternalSource?.());
-      }
+      // if (this.#debugFrame <= 3) {
+      //   console.log('[Texture2D resolve]', 'tex=', tex, 'instanceof=', tex instanceof Texture2D,
+      //     'hasImageSource=', tex?.hasImageSource?.(), 'image=', tex?.getImage?.(),
+      //     'extSrc=', tex?.getExternalSource?.());
+      // }
       if (tex instanceof Texture2D && tex.hasImageSource()) return tex;
     } catch (e) {
       console.warn('[Texture2D resolve] error:', e);
@@ -3485,7 +3487,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
     }
     if (totalSegments === 0) return;
 
-    const halfWidthPx = Math.max(0.5, Number(lineWidthPx) * 0.5);
+    const dprLine = this._getViewer()?._pixelRatio ?? 1;
+    const halfWidthPx = Math.max(0.5, Number(lineWidthPx) * dprLine * 0.5);
     const T = this.getCurrentTransformation();
     const defaultColor = this.#currentColor;
     const invWPx2 = 2.0 / wPx;
@@ -4018,14 +4021,15 @@ export class WebGL2Renderer extends Abstract2DRenderer {
       lightingHint && normals && normals.length > 0 && mode === this.#capabilities.TRIANGLES
     );
     const flipNormals = this.getBooleanAttribute?.(CommonAttributes.FLIP_NORMALS_ENABLED, false);
-    const pointSize =
-      (mode === this.#capabilities.POINTS)
+    const dprG = this._getViewer()?._pixelRatio ?? 1;
+    const rawPtSize = (mode === this.#capabilities.POINTS)
         ? Number(this.getAppearanceAttribute(
             CommonAttributes.POINT_SHADER,
             CommonAttributes.POINT_SIZE,
             CommonAttributes.POINT_SIZE_DEFAULT
           ))
         : 1.0;
+    const pointSize = (mode === this.#capabilities.POINTS) ? rawPtSize * 2 * dprG : rawPtSize;
     this.#updateUniforms(program, lineHalfWidth, pointSize, lightingEnabled, flipNormals);
 
     // -----------------------------------------------------------------------
