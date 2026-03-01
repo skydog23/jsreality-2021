@@ -168,13 +168,16 @@ export class DiscreteGroupSceneGraphRepresentation extends AbstractDGSGR {
         }
       }
 
-      const pc = this.copyCat ?  null : 
-           (this.pickConstraint ? this.pickConstraint : new DiscreteGroupSimpleConstraint(-1, -1, 500)) ;
-      // console.log('DiscreteGroupSceneGraphRepresentation.update pickConstraint', pc);
-
+      if (this.copyCat &&  !this.pickConstraint) {
+        this.pickConstraint = new DiscreteGroupSimpleConstraint(-1, -1, 50);
+      }
+ 
       // now process the visible elements.
       // It either comes from the full group, or when copyCat is true, from the pick constraint
-      const ellist= this.copyCat ? DiscreteGroupUtility.generateElements(this.theGroup, pc) : this.theGroup.getElementList();
+      const ellist= this.copyCat ? DiscreteGroupUtility.generateElements(this.theGroup, this.pickConstraint) : this.theGroup.getElementList();
+      console.log('DiscreteGroupSceneGraphRepresentation.update copyCat', this.copyCat);
+      console.log('DiscreteGroupSceneGraphRepresentation.update pickConstraint', this.pickConstraint);
+      console.log('DiscreteGroupSceneGraphRepresentation.update ellist', ellist.length);
       for (let i = 0; i < ellist.length; ++i) {
         const dge = ellist[i];
       

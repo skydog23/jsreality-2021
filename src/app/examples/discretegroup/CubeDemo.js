@@ -40,7 +40,7 @@ export class CubeDemo extends JSRApp {
 
     console.log('DiscreteGroupCubeApp getContent 2',this._group.getElementList().length);
     this._representation = new DiscreteGroupSceneGraphRepresentation(this._group, true, 'Cube');
-    this._representation.setPickConstraint(new DiscreteGroupSimpleConstraint(-1, -1,500));
+    this._representation.setPickConstraint(new DiscreteGroupSimpleConstraint(-1, -1,50));
     this._representation.setAppList(this.getAppList());
     const fundDom = SceneGraphUtility.createFullSceneGraphComponent('fundDomSGC');
     fundDom.setGeometry(Primitives.boxWithMetric(0.5, 0.6, 0.4, false, Pn.EUCLIDEAN));
