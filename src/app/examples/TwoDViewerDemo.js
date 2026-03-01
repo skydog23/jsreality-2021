@@ -37,7 +37,7 @@ export class TwoDViewerDemo extends JSRApp {
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.BLUE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.02);
-    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 5);
+    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 5.0);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, new Color(255, 165, 0));
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, false);
@@ -110,6 +110,7 @@ function initGridFactory(parent) {
     const ap = new Appearance();
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.01);
+    ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBES_DRAW, true);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     gridComponent.setAppearance(ap);
     

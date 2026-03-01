@@ -139,7 +139,7 @@ export const SPRITES_DRAW = "spritesDraw";
 export const SPHERES_DRAW = "spheresDraw";
 export const SPHERES_DRAW_DEFAULT = true;
 export const POINT_RADIUS = "pointRadius";
-export const POINT_RADIUS_DEFAULT = 0.0125;
+export const POINT_RADIUS_DEFAULT = 0.025;
 export const POINT_SIZE = "pointSize";
 export const POINT_SIZE_DEFAULT = 2.0;
 export const POINT_DIFFUSE_COLOR_DEFAULT = RED;
@@ -162,7 +162,7 @@ export const LINE_WIDTH = "lineWidth";
 export const LINE_WIDTH_DEFAULT = 1.0;
 // Screen-space line smoothing (used by WebGL quad-lines and similar techniques)
 export const EDGE_FADE = "edgeFade";
-export const EDGE_FADE_DEFAULT = 0.1;
+export const EDGE_FADE_DEFAULT = 0.2;
 // Backwards-compatible aliases (some code used these names)
 export const LINE_EDGE_FADE = EDGE_FADE;
 export const LINE_EDGE_FADE_DEFAULT = EDGE_FADE_DEFAULT;

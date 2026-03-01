@@ -144,12 +144,12 @@ export class PenroseCube extends JSRApp {
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute("lineShader." + CommonAttributes.TUBE_RADIUS, 0.004);
-    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 6.0);
+    ap.setAttribute("lineShader." + CommonAttributes.LINE_WIDTH, 3.0);
     ap.setAttribute("lineShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("lineShader." + CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute("lineShader." + CommonAttributes.EDGE_FADE, 0.25);
     ap.setAttribute("pointShader." + CommonAttributes.POINT_RADIUS, 0.003);
-    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 6.0);
+    ap.setAttribute("pointShader." + CommonAttributes.POINT_SIZE, 3.0);
     ap.setAttribute("pointShader." + CommonAttributes.DIFFUSE_COLOR, Color.WHITE);
     ap.setAttribute("pointShader." + CommonAttributes.SPHERES_DRAW, false);
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);

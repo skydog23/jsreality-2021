@@ -32,7 +32,7 @@ class TorusImmersion extends DefaultImmersion {
   }
 }
 
-export class GeometryGrabbagDemo extends JSRApp {
+export class GeometryGrabBagDemo extends JSRApp {
     _ucount = 15;
     _vcount = 15;
     _psf = null;
