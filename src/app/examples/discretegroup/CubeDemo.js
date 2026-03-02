@@ -46,6 +46,7 @@ export class CubeDemo extends JSRApp {
     fundDom.setGeometry(Primitives.boxWithMetric(0.5, 0.6, 0.4, false, Pn.EUCLIDEAN));
     MatrixBuilder.euclidean().translate(0.1, 0.2, 0.3).assignTo(fundDom);
     this._representation.setWorldNode(fundDom);
+    console.log('DiscreteGroupCubeApp getContent 3', this._representation.copyCat);
     this._representation.update();
 
     this._root = this._representation.getRepresentationRoot();
