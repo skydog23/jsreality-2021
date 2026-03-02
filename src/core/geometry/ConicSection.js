@@ -195,12 +195,13 @@ export class ConicSection {
         const sylvesterP = newSylvester.getP();
         const TP = Rn.transpose(null, sylvesterP);
         logger.fine(-1, 'name = ', this.name);
-        logger.fine(-1, 'sylvester.P = ', sylvesterP);
-        logger.fine(-1, 'Pt.Q.P = ', Rn.congruenceTransform(null, this.Q, TP));
-        logger.fine(-1, 'sylvester.D = ', newSylvester.getD());
-        logger.fine(-1, 'sylvester.signs = ', newSylvester.getSigns());
-        logger.fine(-1, 'sylvester.inertia = ', newSylvester.getInertia());
-        logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.getEigenvalues());
+        logger.info(-1, 'viewport = ', this.viewport);
+        // logger.fine(-1, 'sylvester.P = ', sylvesterP);
+        // logger.fine(-1, 'Pt.Q.P = ', Rn.congruenceTransform(null, this.Q, TP));
+        // logger.fine(-1, 'sylvester.D = ', newSylvester.getD());
+        // logger.fine(-1, 'sylvester.signs = ', newSylvester.getSigns());
+        // logger.fine(-1, 'sylvester.inertia = ', newSylvester.getInertia());
+        // logger.fine(-1, 'sylvester.eigenvalues = ', newSylvester.getEigenvalues());
         centerPoint = Pn.normalize(null, Rn.matrixTimesVector(null, sylvesterP, [0, 0, 1]), Pn.ELLIPTIC);
         if (Math.abs(centerPoint[2]) < 1e-4) {
             // logger.warn(-1, 'centerPoint[2] = ', centerPoint[2]);
@@ -252,7 +253,7 @@ export class ConicSection {
         } while (edges.length > 0 && pts3.length < 10000);  // in case things go crazy
         logger.fine(-1, '# points = ', pts3.length);
         // if (!this.ilsf) 
-        this.ilsf = new IndexedLineSetFactory();
+        if (this.ilsf === null) this.ilsf = new IndexedLineSetFactory();
         this.ilsf.setVertexCount(pts3.length);
         this.ilsf.setVertexCoordinates(pts3.map(pt => this.#processPoint(pt)));
         this.ilsf.setEdgeCount(newedges.length);

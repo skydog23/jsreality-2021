@@ -43,7 +43,7 @@ export class PenroseCube extends JSRApp {
     return 'Explore the space of Penrose 8-conic cubes.'
   }
   _colors = [Color.RED, Color.YELLOW, new Color(75, 75, 255)];
-  _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,128,0)];
+  _SjColors = [Color.GREEN, Color.PURPLE,new Color(255,70, 0)];
   _conic = null;
   _conics = new Array(8).fill(null);
   _S0ConicSGC = null;
@@ -184,7 +184,6 @@ export class PenroseCube extends JSRApp {
   }
 
   _animatedParameter = null;
-  
 
   display() {
     super.display();
@@ -219,12 +218,12 @@ export class PenroseCube extends JSRApp {
     this._animationPlugin.getAnimationPanel().setPlaybackFactor(.02);
     // this.animationPlugin.setAnimateSceneGraph(false);
     // this.animationPlugin.setAnimateCamera(false);
-    
+    console.log('# conics = ', this._conics.length);
 
     const vc = this.getViewer().getViewingComponent();
      if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
-        logger.fine(-1, 'size changed');
+        logger.info(-1, 'size changed');
         logger.fine(-1, 'width = ', vc.clientWidth, 'height = ', vc.clientHeight);
         logger.fine(-1, 'viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
         this._conics.map(conic => {
