@@ -166,12 +166,12 @@ export function createMainProgram(gl) {
 
       attribute vec4 a_position;
       attribute vec4 a_color;
-      attribute vec3 a_normal;
+      attribute vec4 a_normal;
       attribute float a_distance;
 
       uniform mat4 u_transform;
       uniform mat4 u_modelView;
-      uniform mat3 u_normalMatrix;
+      uniform mat4 u_normalMatrix;
       uniform float u_lightingEnabled;
       uniform float u_flipNormals;
       uniform float u_pointSize;
@@ -179,7 +179,7 @@ export function createMainProgram(gl) {
       varying vec4 v_color;
       varying float v_distance;
       varying vec3 v_viewPos;
-      varying vec3 v_viewNormal;
+      varying vec4 v_viewNormal;
 
       void main() {
         vec4 position = a_position;
@@ -206,7 +206,7 @@ export function createMainProgram(gl) {
       varying vec4 v_color;
       varying float v_distance;
       varying vec3 v_viewPos;
-      varying vec3 v_viewNormal;
+      varying vec4 v_viewNormal;
 
       uniform float u_lightingEnabled;
       uniform float u_flipNormals;
@@ -257,7 +257,7 @@ export function createMainProgram(gl) {
         float lit = 1.0;
         float spec = 0.0;
         if (u_lightingEnabled > 0.5) {
-          vec3 N = normalize(v_viewNormal);
+          vec3 N = normalize(v_viewNormal.xyz);
           if (u_flipNormals > 0.5) {
             N = -N;
           }
@@ -321,7 +321,7 @@ export function createUnifiedLitProgram(gl) {
 
       in vec4 a_position;
       in vec4 a_color;
-      in vec3 a_normal;
+      in vec4 a_normal;
       in float a_distance;
       in vec2 a_texCoord;
 
@@ -339,7 +339,7 @@ export function createUnifiedLitProgram(gl) {
 
       uniform mat4 u_transform;
       uniform mat4 u_modelView;
-      uniform mat3 u_normalMatrix;
+      uniform mat4 u_normalMatrix;
       uniform float u_lightingEnabled;
       uniform float u_flipNormals;
       uniform float u_pointSize;
@@ -353,17 +353,17 @@ export function createUnifiedLitProgram(gl) {
       out vec4 v_color;
       out float v_distance;
       out vec3 v_viewPos;
-      out vec3 v_viewNormal;
+      out vec4 v_viewNormal;
       out vec2 v_texCoord;
 
       void main() {
         vec4 position = a_position;
-        vec3 Nobj = a_normal;
+        vec4 Nobj = a_normal;
 
         if (u_mode == 1) {
           // Sphere: a_position is unit sphere vertex, a_center is per-instance center.
           position = vec4(a_center + u_pointRadius * a_position.xyz, 1.0);
-          Nobj = normalize(a_position.xyz);
+          Nobj = vec4(normalize(a_position.xyz), 0.0);
         } else if (u_mode == 2) {
           // Tube: a_position = (cx, cy, t) where (cx,cy) is unit circle, t in [0,1].
           // a_p0/a_p1 are segment endpoints in object space.
@@ -380,7 +380,7 @@ export function createUnifiedLitProgram(gl) {
           vec3 radial = u * c.x + v * c.y;
           vec3 along = mix(p0, p1, t);
           position = vec4(along + u_tubeRadius * radial, 1.0);
-          Nobj = normalize(radial);
+          Nobj = vec4(normalize(radial), 0.0);
         } else {
           // Polygon mesh: preserve legacy behavior (w==0 treated as 1).
           if (position.w == 0.0) {
@@ -397,7 +397,7 @@ export function createUnifiedLitProgram(gl) {
         if (u_mode == 3) {
           mat4 instMat = mat4(a_instRow0, a_instRow1, a_instRow2, a_instRow3);
           position = instMat * position;
-          Nobj = mat3(instMat) * Nobj;
+          Nobj = instMat * Nobj;
           v_color = a_color * a_instColor;
         }
 
@@ -425,7 +425,7 @@ export function createUnifiedLitProgram(gl) {
       in vec4 v_color;
       in float v_distance;
       in vec3 v_viewPos;
-      in vec3 v_viewNormal;
+      in vec4 v_viewNormal;
       in vec2 v_texCoord;
 
       uniform float u_lineHalfWidth;
@@ -485,7 +485,7 @@ export function createUnifiedLitProgram(gl) {
         float lit = 1.0;
         float spec = 0.0;
         if (u_lightingEnabled > 0.5) {
-          vec3 N = normalize(v_viewNormal);
+          vec3 N = normalize(v_viewNormal.xyz);
           if (u_flipNormals > 0.5) {
             N = -N;
           }
