@@ -104,16 +104,15 @@ function initGridFactory(parent) {
     factory.update();
     
     const gridIFS = factory.getIndexedLineSet();
-    const gridComponent = new SceneGraphComponent();
-    gridComponent.setName('grid');
-    gridComponent.setGeometry(gridIFS);
-    const ap = new Appearance();
+    const gridComponent = SceneGraphUtility.createFullSceneGraphComponent('grid');
+     gridComponent.setGeometry(gridIFS);
+    const ap = gridComponent.getAppearance();
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(50,50,50));
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, 0.01);
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBES_DRAW, true);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
-    gridComponent.setAppearance(ap);
     
+    MatrixBuilder.euclidean().translate(0,0,-.01).assignTo(gridComponent.getTransformation());
     parent.addChild(gridComponent);
   }
   
@@ -251,7 +250,8 @@ function initGridFactory(parent) {
     const ap = triangleComponent.getAppearance();
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.DIFFUSE_COLOR, new Color(0, 0, 120));
     ap.setAttribute(CommonAttributes.LINE_SHADER + '.' + CommonAttributes.TUBE_RADIUS, .02);
-  
+    ap.setAttribute(CommonAttributes.TRANSPARENCY_ENABLED, true);
+    ap.setAttribute(CommonAttributes.TRANSPARENCY, 0.2);
     // Position triangle to the right
     const transform = triangleComponent.getTransformation();
     const matrix = MatrixBuilder.euclidean().translate(2,0,0).getArray();
