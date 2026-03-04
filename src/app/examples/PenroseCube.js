@@ -223,7 +223,7 @@ export class PenroseCube extends JSRApp {
     const vc = this.getViewer().getViewingComponent();
      if (vc) {
       this._resizeObserver = new ResizeObserver(() => {
-        logger.info(-1, 'size changed');
+        logger.fine(-1, 'size changed');
         logger.fine(-1, 'width = ', vc.clientWidth, 'height = ', vc.clientHeight);
         logger.fine(-1, 'viewport = ', CameraUtility.getViewport(cam, vc.clientWidth / vc.clientHeight));
         this._conics.map(conic => {

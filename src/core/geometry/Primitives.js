@@ -626,7 +626,7 @@ export class Primitives {
       const angle = start + i * 2.0 * Math.PI / order;
       verts[i] = [Math.cos(angle), Math.sin(angle), 0.0, 1.0];
     }
-    console.log('regularPolygonVertices: verts', verts);
+    // console.log('regularPolygonVertices: verts', verts);
     return verts;
   }
   

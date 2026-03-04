@@ -56,8 +56,10 @@ export class TessellatedContent3DDemo extends TessellatedApp {
     const ap = repnRoot.getAppearance();
     ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
     ap.setAttribute(`pointShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 255, 0));
-    ap.setAttribute("pointShader."+CommonAttributes.POINT_RADIUS, 0.025);
-    ap.setAttribute("lineShader."+CommonAttributes.TUBE_RADIUS, 0.025);
+    ap.setAttribute("pointShader."+CommonAttributes.POINT_RADIUS, 0.015);
+    ap.setAttribute("lineShader."+CommonAttributes.TUBE_RADIUS, 0.015
+      
+    );
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
 

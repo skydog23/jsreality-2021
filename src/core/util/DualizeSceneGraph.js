@@ -136,7 +136,7 @@ export class DualizeSceneGraph {
 
   /**
    * @param {number[]|null} pt
-   * @param {number[]} line
+   * @param {number[]} line     Plücker line as 6-vector
    * @returns {number[]}
    */
   static dualizeLine2Point(pt, line) {
@@ -419,6 +419,7 @@ class DualizeVisitor extends SceneGraphVisitor {
    */
   visitComponent(c) {
     this.updateEAP();
+    console.log('visiting sgc = ', c.getName());
     if (!this.owner.dualize) return;
     c.childrenAccept(new DualizeVisitor(this.owner, this, c));
   }
@@ -448,6 +449,7 @@ class DualizeVisitor extends SceneGraphVisitor {
     const copied = /** @type {Appearance} */ (this.owner.copier.getCopy());
     let foo = copied.getAttribute('pointShader.diffuseColor');
     let bar = copied.getAttribute('lineShader.diffuseColor');
+    console.log('foo = ', foo, 'bar = ', bar);
     if (foo instanceof Color) {
       copied.setAttribute('lineShader.diffuseColor', foo);
       copied.setAttribute('pointShader.diffuseColor', INHERITED);

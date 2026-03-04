@@ -317,30 +317,6 @@ export class JSRApp extends JSRPlugin {
   }
 
   /**
-   * Attempt to wire the app into AnimationPlugin (Assignment.java parity).
-   * @param {import('./plugin/PluginContext.js').PluginContext} context
-   * @returns {boolean} true if wiring succeeded, else false
-   */
-  #wireAnimationSupport(context) {
-    const animationPlugin = context.getPlugin(PluginIds.ANIMATION);
-    if (!animationPlugin) return false;
-
-    this._animationPlugin = animationPlugin;
-    this._animationPanel = animationPlugin.getAnimationPanel?.() ?? null;
-
-    // Match Assignment.java behavior: default to animating this app instance,
-    // not the whole scene graph, unless a subclass/plugin opts in.
-    this._animationPlugin.setAnimateSceneGraph?.(false);
-
-    // Match Assignment.java: add the app itself to the Animated list so it
-    // receives startAnimation/endAnimation/setValueAtTime callbacks via
-    // AnimationPanelListenerImpl (installed by AnimationPlugin).
-    const animated = this._animationPlugin.getAnimated?.();
-    animated?.add?.(this);
-    return true;
-  }
-
-  /**
    * Register this app's inspector panel with the ShrinkPanelAggregator.
    * Similar to Assignment.java's install() method where it adds inspector to shrinkPanel.
    * 
@@ -466,7 +442,7 @@ export class JSRApp extends JSRPlugin {
     const ap = this.#jsrViewer.getViewer().getSceneRoot().getAppearance();
     ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(200, 175, 150));
     
-    const camNode =CameraUtility.getCameraNode(this.getViewer());
+   const camNode =CameraUtility.getCameraNode(this.getViewer());
     camNode.addTool(new FlyTool());
     this.getToolSystem()?.rediscoverSceneTools?.();
   }

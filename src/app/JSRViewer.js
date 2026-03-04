@@ -344,7 +344,8 @@ export class JSRViewer {
       // Create default appearance
       const rootAppearance = new Appearance('rootAppearance');
       rootAppearance.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(225, 225, 225));
-      rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, false);
+     
+      rootAppearance.setAttribute(CommonAttributes.VERTEX_DRAW, true);
       this.#sceneRoot.setAppearance(rootAppearance);
 
       // Create camera component
