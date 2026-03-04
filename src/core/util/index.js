@@ -14,6 +14,9 @@ export { CameraUtilityOverflow } from './CameraUtilityOverflow.js';
 export { Color } from './Color.js';
 export { SceneGraphUtility } from './SceneGraphUtility.js';
 export { CopyVisitor } from './CopyVisitor.js';
+export { PathCollector } from './PathCollector.js';
+export { LightCollector } from './LightCollector.js';
+export { ClippingPlaneCollector } from './ClippingPlaneCollector.js';
 export { DualizeSceneGraph } from './DualizeSceneGraph.js';
 export { DisposableCollection } from './Disposable.js';
 export { 

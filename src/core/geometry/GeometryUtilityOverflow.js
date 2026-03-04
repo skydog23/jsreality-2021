@@ -265,5 +265,61 @@ export class GeometryUtilityOverflow {
   static displayVertexNormals(pointSet, scale = 0.1, metric = Pn.EUCLIDEAN) {
     return PointSetUtility.displayVertexNormals(pointSet, scale, metric);
   }
+
+  static convert44To33(d) {
+    const d33 = new Array(9);
+    d33[0] = d[0];
+    d33[1] = d[1];
+    d33[2] = d[3];
+    d33[3] = d[4];
+    d33[4] = d[5];
+    d33[5] = d[7];
+    d33[6] = d[12];
+    d33[7] = d[13];
+    d33[8] = d[15];
+    return d33;
+  }
+
+  // NOTE: Java original has d44[12] = d[7] (likely a bug; should be d[6])
+  static convert33To44(d) {
+    const d44 = new Array(16).fill(0);
+    d44[0] = d[0];
+    d44[1] = d[1];
+    d44[3] = d[2];
+    d44[4] = d[3];
+    d44[5] = d[4];
+    d44[7] = d[5];
+    d44[10] = 1.0;
+    d44[12] = d[6];
+    d44[13] = d[7];
+    d44[15] = d[8];
+    console.log("d44", Rn.matrixToString(d44));
+    return d44;
+  }
+
+  static convert3To4(v4, d3) {
+    if (v4 == null) v4 = new Array(4);
+    v4[0] = d3[0];
+    v4[1] = d3[1];
+    v4[2] = 0.0;
+    v4[3] = d3[2];
+    return v4;
+  }
+
+  static convert4To3(v3, d4) {
+    if (v3 == null) v3 = new Array(3);
+    v3[0] = d4[0];
+    v3[1] = d4[1];
+    v3[2] = d4[3];
+    return v3;
+  }
+
+  static convert2dLineTo3d(line3, line2) {
+    if (line3 == null || line3.length !== 6) line3 = new Array(6).fill(0);
+    line3[2] = line2[2];
+    line3[4] = line2[0];
+    line3[5] = line2[1];
+    return line3;
+  }
 }
 

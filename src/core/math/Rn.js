@@ -8,15 +8,6 @@
  * Licensed under BSD 3-Clause License (see LICENSE file for full text)
  */
 
-/**
- * JavaScript port of jReality's Rn class.
- * 
- * Copyright (c) 2024, jsReality Contributors
- * Copyright (c) 2003-2006, jReality Group: Charles Gunn, Tim Hoffmann, Markus
- * Schmies, Steffen Weissmann.
- * 
- * Licensed under BSD 3-Clause License (see LICENSE file for full text)
- */
 
 // JavaScript port of jReality's Rn class (from Rn.java)
 // This file is auto-generated to match the Java version as closely as possible.
@@ -1162,40 +1153,6 @@ export function transpose(dst, src) {
   return dst;
 }
 
-// transposeD2F: transpose double to float
-/**
- * Transpose 4x4 double array to float-like array (JS numbers).
- * @param {number[]|null} dst length 16
- * @param {number[]} src length 16
- * @returns {number[]}
- */
-export function transposeD2F(dst, src) {
-  if (!dst) dst = new Array(16);
-  for (let i = 0; i < 4; ++i) {
-    for (let j = 0; j < 4; ++j) {
-      dst[i * 4 + j] = src[j * 4 + i];
-    }
-  }
-  return dst;
-}
-
-// transposeF2D: transpose float to double
-/**
- * Transpose 4x4 float-like array to double-like (JS numbers).
- * @param {number[]|null} dst length 16
- * @param {number[]} src length 16
- * @returns {number[]}
- */
-export function transposeF2D(dst, src) {
-  if (!dst) dst = new Array(16);
-  for (let i = 0; i < 4; ++i) {
-    for (let j = 0; j < 4; ++j) {
-      dst[i * 4 + j] = src[j * 4 + i];
-    }
-  }
-  return dst;
-}
-
 // _matrixTimesVectorSafe: internal matrix-vector multiplication
 function _matrixTimesVectorSafe(dst, m, src) {
   const sl = src.length;
@@ -1547,6 +1504,22 @@ export function adjugate(dst, src) {
   return dst;
 }
 
+/**
+ * Matrix inverse using classical adjugate method.
+ * @param {number[]|null} dst
+ * @param {number[]} m
+ * @returns {number[]}
+ */
+export function inverse2(dst, m) {
+  if (!dst) dst = new Array(m.length);
+  const adj = adjugate(null, m);
+  const det = determinant(adj);
+  if (det === 0) {
+    throw new Error('Matrix is singular');
+  }
+  const inv = times(dst, 1 / det, adj);
+  return dst;
+} 
 // inverse: matrix inverse using Gaussian pivoting
 /**
  * Matrix inverse via Gaussian elimination with partial pivoting.

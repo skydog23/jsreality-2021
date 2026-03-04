@@ -18,7 +18,7 @@
  * @typedef {number[]} number[]
  */
 
-import { innerProductN as RnInnerProductN, innerProduct as RnInnerProduct, normalize as RnNormalize } from './Rn.js';
+import { innerProductN as RnInnerProductN, normalize as RnNormalize } from './Rn.js';
 import * as Rn from './Rn.js';
 
 // Metric constants
@@ -93,8 +93,18 @@ export function angleBetween(u, v, metric) {
 //     }
 //   }
   
-export function dehomogenize(dst, src)	{
-    // assert dim checks
+export function dehomogenize(dst, src) {
+    // Vectorized overload: dehomogenize(double[][] dst, double[][] src)
+    if (Array.isArray(src[0])) {
+        const sl = src.length;
+        if (!dst) dst = new Array(sl).fill(0).map((_, i) => new Array(src[i].length - 1));
+        if (dst.length !== sl) {
+            throw new Error('Invalid dimensions');
+        }
+        for (let i = 0; i < sl; ++i) dehomogenize(dst[i], src[i]);
+        return dst;
+    }
+    // Single-vector overload: dehomogenize(double[] dst, double[] src)
     const sl = src.length;
     if (!dst) dst = new Array(src.length);
     const dl = dst.length;
@@ -124,14 +134,23 @@ export function dehomogenize(dst, src)	{
  * @returns {number[]} The homogenized coordinates
  */
 export function homogenize(dst, src) {
+    // Vectorized overload: homogenize(double[][] dst, double[][] src)
+    if (Array.isArray(src[0])) {
+        if (!dst) dst = new Array(src.length).fill(0).map((_, i) => new Array(src[i].length + 1));
+        const n = Math.min(dst.length, src.length);
+        for (let i = 0; i < n; ++i) homogenize(dst[i], src[i]);
+        return dst;
+    }
+    // Single-vector overload: homogenize(double[] dst, double[] src)
     const sl = src.length;
     if (!dst) dst = new Array(sl + 1);
-    
+    if (dst.length !== sl + 1) {
+        throw new Error('dst must be length (n+1)');
+    }
     for (let i = 0; i < sl; i++) {
         dst[i] = src[i];
     }
     dst[sl] = 1.0;
-    
     return dst;
 }
 
@@ -186,6 +205,21 @@ export function distanceBetween(p1, p2, metric) {
 }
 
 /**
+ * Return the coordinate z so that the point (0,0,z,1) lies a distance d
+ * from the origin (0,0,0,1) in the given metric.
+ * @param {number} d - Distance from origin
+ * @param {number} metric - Metric type
+ * @returns {number} The coordinate value
+ */
+export function coordForDistance(d, metric) {
+    switch (metric) {
+        case HYPERBOLIC: return Math.tanh(d);
+        case ELLIPTIC: return Math.tan(d);
+        case EUCLIDEAN: default: return d;
+    }
+}
+
+/**
  * Calculate the inner product of two vectors with respect to the given metric
  * @param {number[]} u - First vector
  * @param {number[]} v - Second vector
@@ -193,10 +227,26 @@ export function distanceBetween(p1, p2, metric) {
  * @returns {number} The inner product
  */
 export function innerProduct(u, v, metric) {
-    const n = Math.min(u.length, v.length) - 1;
-    let sum = RnInnerProductN(u, v, n);
-    return sum + metric * u[n] * v[n];
+    if (u.length !== v.length) {
+        throw new Error('Incompatible lengths');
+    }
+    const n = u.length;
+    let sum = 0;
+    for (let i = 0; i < n - 1; ++i) sum += u[i] * v[i];
+    const ff = u[n - 1] * v[n - 1];
 
+    switch (metric) {
+        case HYPERBOLIC:
+            sum -= ff;
+            break;
+        case EUCLIDEAN:
+            if (!(ff === 1.0 || ff === 0.0)) sum /= ff;
+            break;
+        case ELLIPTIC:
+            sum += ff;
+            break;
+    }
+    return sum;
 }
 
 /**
@@ -207,7 +257,11 @@ export function innerProduct(u, v, metric) {
  * @returns {number} The inner product
  */
 export function innerProductPlanes(u, v, metric) {
-    return innerProduct(u, v, metric);
+    if (metric !== EUCLIDEAN) return innerProduct(u, v, metric);
+    const n = u.length;
+    let sum = 0;
+    for (let i = 0; i < n - 1; ++i) sum += u[i] * v[i];
+    return sum;
 }
 
 /**
@@ -221,6 +275,17 @@ export function normSquared(src, metric) {
 }
 
 /**
+ * Calculate the norm of a vector in the given metric.
+ * Returns the absolute value since hyperbolic points can have imaginary norm.
+ * @param {number[]} src - Source vector
+ * @param {number} metric - Metric type
+ * @returns {number} The norm
+ */
+export function norm(src, metric) {
+    return Math.sqrt(Math.abs(innerProduct(src, src, metric)));
+}
+
+/**
  * Set a vector to a specific length
  * @param {number[]} dst - Destination array
  * @param {number[]} src - Source vector
@@ -229,16 +294,31 @@ export function normSquared(src, metric) {
  * @returns {number[]} The scaled vector
  */
 export function setToLength(dst, src, length, metric) {
-    if (!dst) dst = new Array(src.length);
-    
-    const norm = Math.sqrt(Math.abs(normSquared(src, metric)));
-    if (norm === 0) return dst;
-    
-    const scale = length / norm;
-    for (let i = 0; i < src.length; i++) {
-        dst[i] = scale * src[i];
+    // Vectorized overload: setToLength(double[][] dst, double[][] src, double d, int metric)
+    if (Array.isArray(src) && Array.isArray(src[0])) {
+        const sl = src.length;
+        if (!dst) dst = new Array(sl).fill(0).map((_, i) => new Array(src[i].length));
+        if (dst.length !== sl) {
+            throw new Error('Incompatible lengths');
+        }
+        for (let i = 0; i < sl; ++i) setToLength(dst[i], src[i], length, metric);
+        return dst;
     }
-    
+    // Single-vector overload: setToLength(double[] dst, double[] src, double length, int metric)
+    if (!dst) dst = new Array(src.length);
+    if (dst.length !== src.length) {
+        throw new Error('Incompatible lengths');
+    }
+    if (metric === EUCLIDEAN) {
+        dehomogenize(dst, src);
+    } else {
+        for (let i = 0; i < dst.length; ++i) dst[i] = src[i];
+    }
+
+    const ll = Math.sqrt(Math.abs(innerProduct(dst, dst, metric)));
+    if (ll === 0.0) return dst;
+    Rn.times(dst, length / ll, dst);
+    if (metric === EUCLIDEAN && dst[dst.length - 1] !== 0.0) dst[dst.length - 1] = 1.0;
     return dst;
 }
 
@@ -268,6 +348,23 @@ export function isValidCoordinate(v, dimOrMetric, metricMaybe) {
             if (!(innerProduct(v, v, metric) < 0)) return false;
         } else if (v.length === dim) {
             if (!(Rn.innerProduct(v, v) < 1)) return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Test whether two points are projectively equivalent (i.e. represent the
+ * same point in projective space) by checking that all 2x2 minors vanish.
+ * @param {number[]} p1 - First point
+ * @param {number[]} p2 - Second point
+ * @returns {boolean} True if projectively equivalent
+ */
+export function isEquivalentPoints(p1, p2) {
+    for (let j = 0; j < p1.length; ++j) {
+        for (let i = j + 1; i < p1.length; ++i) {
+            const det = p1[i] * p2[j] - p1[j] * p2[i];
+            if (Math.abs(det) > 1E-10) return false;
         }
     }
     return true;
@@ -505,18 +602,15 @@ export function midPlane(midp, pl1, pl2, metric) {
  * @returns {number[]} The projection
  */
 export function projectOnto(dst, master, victim, metric) {
-    if (!dst) dst = new Array(victim.length);
-    
-    const mm = innerProduct(master, master, metric);
-    if (mm === 0) return null;
-    
-    const mv = innerProduct(master, victim, metric);
-    const scale = mv / mm;
-    
-    for (let i = 0; i < dst.length; i++) {
-        dst[i] = scale * master[i];
+    if (master.length !== victim.length) {
+        throw new Error('Arguments must be same dimension');
     }
-    
+    const n = master.length;
+    if (!dst) dst = new Array(n);
+    let factor = innerProductPlanes(master, victim, metric);
+    const pp = innerProductPlanes(master, master, metric);
+    if (pp !== 0.0) factor = factor / pp;
+    Rn.times(dst, factor, master);
     return dst;
 }
 
@@ -529,16 +623,7 @@ export function projectOnto(dst, master, victim, metric) {
  * @returns {number[]} The projection
  */
 export function projectOntoComplement(dst, master, victim, metric) {
-    if (!dst) dst = new Array(victim.length);
-    
-    const proj = projectOnto(null, master, victim, metric);
-    if (!proj) return null;
-    
-    for (let i = 0; i < dst.length; i++) {
-        dst[i] = victim[i] - proj[i];
-    }
-    
-    return dst;
+    return Rn.subtract(dst, victim, projectOnto(null, master, victim, metric));
 }
 
 /**
@@ -549,8 +634,96 @@ export function projectOntoComplement(dst, master, victim, metric) {
  * @param {number} metric - Metric type
  * @returns {number[]} The projection
  */
-export function projectToTangentSpace(dst, point, vector, metric) {
-    return projectOntoComplement(dst, point, vector, metric);
+export function projectToTangentSpace(dst, point, tangentToBe, metric) {
+    const n = point.length;
+    if (!dst) dst = new Array(n);
+    if (metric === EUCLIDEAN) {
+        polarizePlane(dst, tangentToBe, metric);
+        return dst;
+    }
+    let factor = innerProduct(point, tangentToBe, metric);
+    const pp = innerProduct(point, point, metric);
+    if (pp !== 0.0) factor = factor / pp;
+    Rn.subtract(dst, tangentToBe, Rn.times(null, factor, point));
+    return dst;
+}
+
+/**
+ * Drag a tangent vector along a geodesic.
+ *
+ * Java overloads (collapsed per porting guideline 7):
+ * - dragTangentVector(dst, ddir, src, sdir, length, metric): move point src
+ *   with tangent sdir by distance length; return new point in dst and new
+ *   tangent in ddir.
+ * - dragTangentVector(dstTangent, sourcePoint, sourceTangent, dstPoint, metric):
+ *   parallel-transport sourceTangent from sourcePoint to dstPoint.
+ *
+ * Dispatch: 6 args → first form; 5 args → second form.
+ *
+ * @param {number[]|null} a - dst (6-arg) or dstTangent (5-arg)
+ * @param {number[]|null} b - ddir (6-arg) or sourcePoint (5-arg)
+ * @param {number[]} c - src (6-arg) or sourceTangent (5-arg)
+ * @param {number[]} d - sdir (6-arg) or dstPoint (5-arg)
+ * @param {number} e - length (6-arg) or metric (5-arg)
+ * @param {number} [f] - metric (6-arg only)
+ * @returns {number[]}
+ */
+export function dragTangentVector(a, b, c, d, e, f) {
+    if (typeof f === 'number') {
+        // 6-arg form: dragTangentVector(dst, ddir, src, sdir, length, metric)
+        const dst = a;
+        const ddir = b;
+        const src = c;
+        const sdir = d;
+        const length = /** @type {number} */ (e);
+        const metric = /** @type {number} */ (f);
+
+        const n = src.length;
+        if (n !== sdir.length) {
+            throw new Error('Invalid dimensions');
+        }
+        if (ddir != null && ddir.length !== n) {
+            throw new Error('Invalid dimensions');
+        }
+        let result = dst;
+        if (result == null) result = new Array(n);
+
+        switch (metric) {
+            case EUCLIDEAN: {
+                const tdir = setToLength(null, sdir, length, metric);
+                tdir[n - 1] = 0.0;
+                Rn.add(result, src, tdir);
+                if (ddir != null) Rn.copy(ddir, sdir);
+                break;
+            }
+            case HYPERBOLIC: {
+                const ch = cosh(length);
+                const sh = sinh(length);
+                Rn.linearCombination(result, ch, src, sh, sdir);
+                if (ddir != null) Rn.linearCombination(ddir, sh, src, ch, sdir);
+                break;
+            }
+            case ELLIPTIC: {
+                const co = Math.cos(length);
+                const si = Math.sin(length);
+                Rn.linearCombination(result, co, src, si, sdir);
+                if (ddir != null) Rn.linearCombination(ddir, -si, src, co, sdir);
+                break;
+            }
+        }
+        return result;
+    }
+    // 5-arg form: dragTangentVector(dstTangent, sourcePoint, sourceTangent, dstPoint, metric)
+    const dstTangent = a;
+    const sourcePoint = b;
+    const sourceTangent = c;
+    const dstPoint = d;
+    const metric = /** @type {number} */ (e);
+    const dist = distanceBetween(sourcePoint, dstPoint, metric);
+    let result = dstTangent;
+    if (result == null) result = new Array(sourcePoint.length);
+    dragTangentVector(null, result, sourcePoint, sourceTangent, dist, metric);
+    return result;
 }
 
 /**
@@ -563,44 +736,20 @@ export function projectToTangentSpace(dst, point, vector, metric) {
  * @returns {number[]} The dragged point
  */
 export function dragTowards(dst, p0, p1, length, metric) {
-    if (!dst) dst = new Array(p0.length);
-    
-    const np0 = normalize(null, p0, metric);
-    const np1 = normalize(null, p1, metric);
-    
+    const np0 = new Array(p0.length);
+    const np1 = new Array(p1.length);
     if (metric === EUCLIDEAN) {
-        const dp0 = dehomogenize(null, np0);
-        const dp1 = dehomogenize(null, np1);
-        const dir = new Array(dp0.length);
-        let norm = 0;
-        
-        for (let i = 0; i < dp0.length; i++) {
-            dir[i] = dp1[i] - dp0[i];
-            norm += dir[i] * dir[i];
-        }
-        norm = Math.sqrt(norm);
-        if (norm === 0) {
-            for (let i = 0; i < dp0.length; i++) dst[i] = dp0[i];
-            if (dst.length > 0) dst[dst.length - 1] = 1;
-            return dst;
-        }
-        
-        const scale = length / norm;
-        for (let i = 0; i < dp0.length; i++) {
-            dst[i] = dp0[i] + scale * dir[i];
-        }
-        dst[dst.length-1] = 1;
-        return dst;
+        const last = p0.length - 1;
+        normalize(np0, p0, metric);
+        normalize(np1, p1, metric);
+        if (np1[last] === 1 && np0[last] === 1) Rn.subtract(np1, np1, np0);
+        const norm = Rn.euclideanNorm(np1);
+        return Rn.add(dst, Rn.times(np1, length / norm, np1), np0);
     }
-    
-    const angle = angleBetween(np0, np1, metric);
-    if (angle === 0) {
-        for (let i = 0; i < np0.length; i++) dst[i] = np0[i];
-        return dst;
-    }
-    
-    const t = length / angle;
-    return linearInterpolation(dst, np0, np1, t, metric);
+    normalize(np0, p0, metric);
+    projectToTangentSpace(np1, np0, p1, metric);
+    normalize(np1, np1, metric);
+    return dragTangentVector(dst, null, np0, np1, length, metric);
 }
 
 /**
@@ -894,19 +1043,25 @@ export function copy(dst, src) {
  * @returns {number[]} The polar
  */
 export function polarize(polar, p, metric) {
+    // Vectorized overload: polarize(double[][] polar, double[][] p, int metric)
+    if (Array.isArray(p[0])) {
+        if (polar === null) polar = new Array(p.length);
+        if (polar.length !== p.length) throw new Error('dst has invalid length');
+        for (let i = 0; i < p.length; ++i) {
+            polar[i] = polarize(polar[i] || null, p[i], metric);
+        }
+        return polar;
+    }
+    // Single-vector overload: polarize(double[] polar, double[] p, int metric)
     if (polar === null) {
-        polar = [...p]; // Clone the array
+        polar = [...p];
     } else {
-        // Copy p to polar
         for (let i = 0; i < p.length; i++) {
             polar[i] = p[i];
         }
     }
-    
-    // Last element is multiplied by the metric!
     switch (metric) {
         case ELLIPTIC:
-            // self-polar!
             break;
         case EUCLIDEAN:
             polar[polar.length - 1] = 0.0;
@@ -956,4 +1111,118 @@ export function polarizePoint(dst, point, metric) {
     }
     return polarize(dst, point, metric);
 }
- 
+
+/**
+ * Calculate the projectivity that takes the standard basis to the basis
+ * given by dm and the unit point to the last entry of dm.
+ * @param {number[]|null} dst - Destination matrix (flat n*n) or null
+ * @param {number[][]} dm - Array of n+1 points each of length n
+ * @returns {number[]} The n*n projectivity matrix (flat)
+ */
+export function projectivityFromCanonical(dst, dm) {
+    const n = dm.length - 1;
+    if (dst == null || Math.round(Math.sqrt(dst.length)) !== n)
+        dst = new Array(n * n);
+    const std2dm = new Array(n * n);
+    for (let i = 0; i < n; ++i) {
+        for (let j = 0; j < n; ++j) {
+            std2dm[i + n * j] = dm[i][j];
+        }
+    }
+    const dm2std = Rn.inverse(null, std2dm);
+    // console.log("dm2std", dm2std);
+    const un = Rn.matrixTimesVector(null, dm2std, dm[n]);
+    for (let i = 0; i < n; ++i) {
+        for (let j = 0; j < n; ++j) {
+            dst[i + n * j] = un[i] * dm[i][j];
+        }
+    }
+    return dst;
+}
+
+/**
+ * Calculate the projectivity that maps the points in dm to the
+ * corresponding points in im.
+ * @param {number[]|null} dst - Destination matrix (flat n*n) or null
+ * @param {number[][]} dm - Domain: n+1 points each of length n
+ * @param {number[][]} im - Image: n+1 points each of length n
+ * @returns {number[]} The n*n projectivity matrix (flat)
+ */
+export function projectivity(dst, dm, im) {
+    const A = projectivityFromCanonical(null, dm);
+    const B = projectivityFromCanonical(null, im);
+    console.log("A", Rn.matrixToString(A));
+    console.log("B", Rn.matrixToString(B));
+    const C =   Rn.times(dst, B, Rn.inverse(null, A));
+    console.log("C", Rn.matrixToString(C));
+    return C;
+}
+
+/**
+ * Create a projectivity that leaves center C invariant (plane-wise), axis A
+ * invariant (point-wise) and otherwise moves a general point P along the
+ * line through P and the center depending on val.
+ *
+ * val = 1 gives identity, val = 0 gives projection onto axis,
+ * val = -1 gives the harmonic harmology.
+ *
+ * @param {number[]|null} dst - Destination matrix (flat n*n) or null
+ * @param {number[]} center - Center point (length n)
+ * @param {number[]} axis - Axis plane (length n)
+ * @param {number} val - Cross-ratio parameter
+ * @returns {number[]} The n*n projectivity matrix (flat)
+ */
+export function makeGeneralizedProjection(dst, center, axis, val) {
+    if (center.length !== axis.length)
+        throw new Error('center and axis must have same length');
+    const n = center.length;
+    if (dst == null) dst = new Array(n * n);
+    const f = 1.0 / Rn.innerProduct(center, axis);
+    const val1 = val - 1;
+    for (let i = 0; i < n; ++i) {
+        for (let j = 0; j < n; ++j) {
+            dst[n * i + j] = (i === j ? 1 : 0) + val1 * f * center[i] * axis[j];
+        }
+    }
+    return dst;
+}
+
+/**
+ * Construct a harmonic harmology with fixed point center and fixed plane axis.
+ * @param {number[]|null} dst - Destination matrix (flat n*n) or null
+ * @param {number[]} center - Center point
+ * @param {number[]} axis - Axis plane
+ * @returns {number[]} The n*n projectivity matrix (flat)
+ */
+export function makeHarmonicHarmology(dst, center, axis) {
+    return makeGeneralizedProjection(dst, center, axis, -1);
+}
+
+/**
+ * Construct a projection that maps all points onto the axis plane.
+ * @param {number[]|null} dst - Destination matrix (flat n*n) or null
+ * @param {number[]} center - Center point
+ * @param {number[]} axis - Axis plane
+ * @returns {number[]} The n*n projectivity matrix (flat)
+ */
+export function makeFlattenProjection(dst, center, axis) {
+    return makeGeneralizedProjection(dst, center, axis, 0);
+}
+
+/**
+ * Calculate the barycentric coordinates of the point unit with respect to
+ * the simplex defined by the rows of tri.
+ * @param {number[]|null} dst - Destination array or null
+ * @param {number[][]} tri - Simplex vertices (n points of length n)
+ * @param {number[]} unit - Point to express in barycentric coords
+ * @returns {number[]} The barycentric coordinates
+ */
+export function barycentricCoordinates(dst, tri, unit) {
+    const n = tri[0].length;
+    const mat = new Array(n * n);
+    for (let i = 0; i < n; ++i) {
+        for (let j = 0; j < n; ++j) mat[n * i + j] = tri[i][j];
+    }
+    const imat = Rn.inverse(null, Rn.transpose(null, mat));
+    return Rn.matrixTimesVector(dst, imat, unit);
+}

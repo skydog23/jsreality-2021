@@ -17,6 +17,10 @@ import { Transformation } from '../scene/Transformation.js';
 import { Appearance } from '../scene/Appearance.js';
 import * as CommonAttributes from '../shader/CommonAttributes.js';
 import * as Pn from '../math/Pn.js';
+import { CopyVisitor } from './CopyVisitor.js';
+import { PathCollector } from './PathCollector.js';
+import { LightCollector } from './LightCollector.js';
+import { ClippingPlaneCollector } from './ClippingPlaneCollector.js';
 
 /** @typedef {import('../scene/SceneGraphNode.js').SceneGraphNode} SceneGraphNode */
 /** @typedef {import('../scene/SceneGraphPath.js').SceneGraphPath} SceneGraphPath */
@@ -295,96 +299,85 @@ export class SceneGraphUtility {
     return selectedAppearance;
   }
 
-  // ========================================================================
-  // Methods requiring additional classes (commented out for Phase 2/3)
-  // ========================================================================
-
   /**
    * Return list of paths from rootNode to an instance of Light.
-   * Requires: LightCollector visitor class
    * @param {SceneGraphComponent} rootNode
    * @returns {SceneGraphPath[]}
    */
-  // static collectLights(rootNode) {
-  //   return new LightCollector(rootNode).visit();
-  // }
+  static collectLights(rootNode) {
+    return new LightCollector(rootNode).visit();
+  }
 
   /**
    * Return list of paths from rootNode to an instance of ClippingPlane.
-   * Requires: ClippingPlaneCollector visitor class, ClippingPlane class
    * @param {SceneGraphComponent} rootNode
    * @returns {SceneGraphPath[]}
    */
-  // static collectClippingPlanes(rootNode) {
-  //   return new ClippingPlaneCollector(rootNode).visit();
-  // }
+  static collectClippingPlanes(rootNode) {
+    return new ClippingPlaneCollector(rootNode).visit();
+  }
 
   /**
    * Get all paths between begin and end nodes.
-   * Requires: PathCollector visitor class
    * @param {SceneGraphComponent} begin
    * @param {SceneGraphNode} end
    * @returns {SceneGraphPath[]}
    */
-  // static getPathsBetween(begin, end) {
-  //   const matcher = (p) => p.getLastElement() === end;
-  //   return new PathCollector(matcher, begin).visit();
-  // }
+  static getPathsBetween(begin, end) {
+    const matcher = (p) => p.getLastElement() === end;
+    return new PathCollector(matcher, begin).visit();
+  }
 
   /**
    * Find and return all paths from root to node with given name.
-   * Requires: PathCollector visitor class
    * @param {SceneGraphComponent} root
    * @param {string} name
    * @returns {SceneGraphPath[]}
    */
-  // static getPathsToNamedNodes(root, name) {
-  //   const matcher = (p) => p.getLastElement().getName() === name;
-  //   return new PathCollector(matcher, root).visit();
-  // }
+  static getPathsToNamedNodes(root, name) {
+    const matcher = (p) => p.getLastElement().getName() === name;
+    return new PathCollector(matcher, root).visit();
+  }
 
   /**
    * Return a copy of the scene graph node template.
    * For a SceneGraphComponent, it does not include copies of the children.
-   * Requires: CopyVisitor class
    * @template {SceneGraphNode} T
    * @param {T} template
    * @returns {T} The copy
    */
-  // static copy(template) {
-  //   const cv = new CopyVisitor();
-  //   template.accept(cv);
-  //   return cv.getCopy();
-  // }
+  static copy(template) {
+    const cv = new CopyVisitor();
+    template.accept(cv);
+    return /** @type {T} */ (cv.getCopy());
+  }
 
   /**
    * Apply transformations recursively to all instances of PointSet and
    * produce a flat scene graph with no transformations.
    * This is a complex method requiring careful testing.
-   * Requires: Full data attribute system, Sphere class
+   * TODO: Implement — depends on full data attribute system (StorageModel,
+   * Attribute), P3.makeStretchMatrix, Matrix/MatrixBuilder.
    * @param {SceneGraphComponent} sgc
-   * @param {boolean} rejectInvis - If true, non-visible components are skipped
-   * @param {boolean} removeTform - If true, transformations are removed
+   * @param {boolean} [rejectInvis=false]
+   * @param {boolean} [removeTform=true]
    * @returns {SceneGraphComponent}
    */
-  // static flatten(sgc, rejectInvis = false, removeTform = true) {
-  //   // TODO: Implement in Phase 3
-  //   throw new Error('flatten() not yet implemented');
-  // }
+  static flatten(sgc, rejectInvis = false, removeTform = true) {
+    throw new Error('flatten() not yet implemented');
+  }
 
   /**
    * Remove all lights from the viewer's scene graph.
-   * Requires: Light class, collectLights()
    * @param {import('../scene/Viewer.js').Viewer} viewer
    */
-  // static removeLights(viewer) {
-  //   const root = viewer.getSceneRoot();
-  //   const lightPaths = SceneGraphUtility.collectLights(root);
-  //   for (const sgp of lightPaths) {
-  //     const light = sgp.getLastElement();
-  //     const lightNode = sgp.getLastComponent();
-  //     lightNode.setLight(null);
-  //   }
-  // }
+  static removeLights(viewer) {
+    const root = viewer.getSceneRoot();
+    const lightPaths = SceneGraphUtility.collectLights(root);
+    for (const sgp of lightPaths) {
+      const lightNode = sgp.getLastComponent();
+      lightNode.setLight(null);
+    }
+  }
 }
 
