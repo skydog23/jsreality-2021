@@ -44,7 +44,9 @@ export class TestAnimApp extends JSRApp {
 
     const lineSGC = SceneGraphUtility.createFullSceneGraphComponent('line');
     const pointRangeFactory = new PointRangeFactory();
-     pointRangeFactory.set2DLine([1,-1,0]);
+    pointRangeFactory.set2DLine([1,-1,0]);
+    pointRangeFactory.setFiniteSphere(true);
+    pointRangeFactory.setSphereRadius(400);
     pointRangeFactory.update();
     lineSGC.setGeometry(pointRangeFactory.getLine()); 
     let ap = lineSGC.getAppearance();
@@ -56,7 +58,8 @@ export class TestAnimApp extends JSRApp {
     const lpf  = new LinePencilFactory();
     lpf.setPoint([1,-1,0,1]);
     lpf.setPlane([0,0,1,0]);
-    lpf.setFiniteSphere(false);
+    lpf.setFiniteSphere(true);
+    lpf.setSphereRadius(400);
     lpf.update();
     pencilSGC.addChild(lpf.getPencil()); 
     ap = pencilSGC.getAppearance();

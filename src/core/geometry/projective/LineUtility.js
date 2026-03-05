@@ -121,8 +121,7 @@ export class LineUtility {
     let np1 = Rn.add(null, Rn.times(null,-a,p0), p1);
     np1 = Pn.normalize(null, np1, Pn.ELLIPTIC);
     const ip = Pn.innerProduct(p0, np1, Pn.ELLIPTIC);
-    console.log("ip", ip);
-
+    
     for (let i = 0; i < lim; ++i) {
       const foo = begin + i * angle;
       const  c = Math.cos(foo),

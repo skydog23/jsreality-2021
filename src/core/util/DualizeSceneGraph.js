@@ -68,7 +68,7 @@ export class DualizeSceneGraph {
   /** @type {number} */
   fanCount = 12;
   /** @type {boolean} */
-  finiteLines = false;
+  finiteLines = true;
   /** @type {boolean} */
   renderSphere = true;
   /** @type {boolean} */
@@ -401,7 +401,7 @@ class DualizeVisitor extends SceneGraphVisitor {
     for (let i = 0; i < numVerts; ++i) {
       const prf = new PointRangeFactory();
       prf.setPluckerLine(this.dualLines[i]);
-      prf.setFiniteSphere(true); //this.owner.finiteLines);
+      prf.setFiniteSphere(this.owner.finiteLines);
       prf.setSphereRadius(500.0);
       prf.update();
       prf.getLine().setName(`${p.getName()} dual line ${i}`);
