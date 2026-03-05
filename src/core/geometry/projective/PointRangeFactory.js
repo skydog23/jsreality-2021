@@ -130,6 +130,7 @@ export class PointRangeFactory extends Abstract1DExtentFactory {
     } else {
       this.samples = LineUtility.samplesOn1DExtent(this.samples, this.offset, this.numSegs, this.element0, this.element1, this.doubled);
       this.samples = this.samples.map(sample => Pn.dehomogenize(null, sample));
+      // console.log("samples", Rn.toStringArray(this.samples));
     }
 
     if (isValid && this.numSegs > 0) {

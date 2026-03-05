@@ -27,7 +27,7 @@ export class DualDecoration extends JSRApp {
   _tri = null;
   _patternCollectorSGC = null;
   _patternSGC = new Array(3).fill(null);
-  _numSteps = 6;
+  _numSteps = 12;
   _fanRadius = .2;
   _ilsfs = new Array(3).fill(null);
   _ap = new Appearance();
@@ -38,7 +38,9 @@ export class DualDecoration extends JSRApp {
     this._dualContainerSGC = SceneGraphUtility.createFullSceneGraphComponent("dual");
     this._triSGC = SceneGraphUtility.createFullSceneGraphComponent("tri");
     const triFactory = Primitives.regularPolygonFactory(3, 0);
-    const ecolors = [Color.RED, Color.GREEN, Color.BLUE];
+    const ecolors = [Color.RED, new Color(255, 255,0), Color.BLUE];
+    const vcolors = [ Color.PURPLE, new Color(255, 150, 0), Color.GREEN]
+    triFactory.setVertexColors(vcolors);
     triFactory.setEdgeCount(3);
     triFactory.setEdgeIndices([[0,1], [1,2], [2,0]]);
     triFactory.setEdgeColors(ecolors);
@@ -68,12 +70,12 @@ export class DualDecoration extends JSRApp {
     ap.setAttribute(CommonAttributes.FACE_DRAW, false);
     ap.setAttribute(CommonAttributes.SPHERES_DRAW, true);
     ap.setAttribute(CommonAttributes.TUBES_DRAW, true);
-    ap.setAttribute(CommonAttributes.TUBE_RADIUS, .006);
-    ap.setAttribute(CommonAttributes.POINT_RADIUS, .01);
+    ap.setAttribute(CommonAttributes.TUBE_RADIUS, .012);
+    ap.setAttribute(CommonAttributes.POINT_RADIUS, .025);
     ap.setAttribute(DualizeSceneGraph.FAN_RADIUS, this._fanRadius);
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     ap = this._standardSGC.getAppearance();
-    ap.setAttribute(DualizeSceneGraph.FAN_RADIUS, .2);
+    ap.setAttribute(DualizeSceneGraph.FAN_RADIUS, .3);
    this.update();
 
     this._triSGC.addTool(new DragPointTool());
@@ -81,6 +83,11 @@ export class DualDecoration extends JSRApp {
     return this._worldSGC;
   }
 
+  display() {
+    super.display();
+    const rootap = this.getViewer().getSceneRoot().getAppearance();
+    rootap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(180,180,180));
+  }
   update() {
     const verts = fromDataList(this._triSGC.getGeometry().getVertexCoordinates());
     for (let i = 0; i < 3; ++i) {
@@ -112,19 +119,20 @@ export class DualDecoration extends JSRApp {
     const triVerts3 = triVerts.map( v => [v[0], v[1], v[3]])
     triVerts3.push(Rn.average(null, triVerts3));
     const pathToTrilateral = SceneGraphUtility.getPathsToNamedNodes(this._dualSGC, "dual points")[0];
-    console.log("path to trilateral", pathToTrilateral.toString());
+    // console.log("path to trilateral", pathToTrilateral.toString());
     const dualTrilateral = pathToTrilateral.getLastComponent().getGeometry();
     let dualVerts = fromDataList(dualTrilateral.getVertexCoordinates());
-    const dualVerts3 = dualVerts.map( v => [v[0], v[1], v[3]]);
+    let dualVerts3 = dualVerts.map( v => [v[0], v[1], v[3]]);
+    dualVerts3 = [dualVerts3[1], dualVerts3[2], dualVerts3 [0]];
     dualVerts3.push(Rn.average(null, dualVerts3));
-    console.log("tri verts", Rn.toStringArray(triVerts3));
-    console.log("dual verts", Rn.toStringArray(dualVerts3));
+    // console.log("tri verts", Rn.toStringArray(triVerts3));
+    // console.log("dual verts", Rn.toStringArray(dualVerts3));
     const projectivity = Pn.projectivity(null, triVerts3, dualVerts3);
-    console.log("projectivity", Rn.matrixToString(projectivity));
+    // console.log("projectivity", Rn.matrixToString(projectivity));
     let projectivity4 = GeometryUtilityOverflow.convert33To44(projectivity);
-    console.log("projectivity4", Rn.matrixToString(projectivity4 ));
-   projectivity4 = Rn.inverse2(null, projectivity4);
-    console.log("projectivity4", Rn.matrixToString(projectivity4));
+    // console.log("projectivity4", Rn.matrixToString(projectivity4 ));
+   projectivity4 = Rn.transpose(null, Rn.adjugate(null, projectivity4));
+    // console.log("projectivity4", Rn.matrixToString(projectivity4));
     new Matrix(projectivity4).assignTo(this._dualContainerSGC);
   }
 

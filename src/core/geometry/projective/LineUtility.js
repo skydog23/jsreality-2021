@@ -117,8 +117,18 @@ export class LineUtility {
     const begin = (-angle * (lim / 2 + LineUtility.lineCoordOffset));
     const p0 = Pn.normalize(null, pt04, Pn.ELLIPTIC);
     const p1 = Pn.normalize(null, pt14, Pn.ELLIPTIC);
+    const a = Pn.innerProduct(p0, p1, Pn.ELLIPTIC);
+    let np1 = Rn.add(null, Rn.times(null,-a,p0), p1);
+    np1 = Pn.normalize(null, np1, Pn.ELLIPTIC);
+    const ip = Pn.innerProduct(p0, np1, Pn.ELLIPTIC);
+    console.log("ip", ip);
+
     for (let i = 0; i < lim; ++i) {
-      Pn.dragTowards(verts[offset + i], p0, p1, begin + i * angle, Pn.ELLIPTIC);
+      const foo = begin + i * angle;
+      const  c = Math.cos(foo),
+          s = Math.sin(foo);
+      Rn.linearCombination(verts[offset + i], c, p0, s, np1);
+      // Pn.dragTowards(verts[offset + i], p0, np1, begin + i * angle, Pn.ELLIPTIC);
       if (doubled) Rn.times(verts[offset + lim + i], -1.0, verts[offset + i]);
     }
     return verts;

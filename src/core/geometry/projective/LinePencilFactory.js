@@ -153,10 +153,11 @@ export class LinePencilFactory {
     let foo = 0;
     for (let i = 0; i < this.numLines; ++i) {
       foo = i * this.numberJoints;
-      if (this.finiteSphere) {
+      let dir = [this.pluckerLines[i][2], -this.pluckerLines[i][4], 0, 0];
+      dir = Pn.normalize(null, dir, Pn.ELLIPTIC);
+      if (this.finiteSphere) {  // optimize this 
         // do it by hand
-        let dir = [this.pluckerLines[i][2], -this.pluckerLines[i][4], 0, 0];
-        dir = Pn.normalize(null, dir, Pn.ELLIPTIC);
+       
         dir = Rn.times(null, this.sphereRadius, dir);
         verts[foo] = Rn.add(null, this.point, dir);
         verts[foo + 1] = Rn.subtract(null, this.point, dir);
@@ -167,9 +168,9 @@ export class LinePencilFactory {
         lf.setOffset(foo);
         lf.setVertices(verts);
         // TODO figure out why I do the following: looks like I should set the pluecker line OR the two elements.
-        lf.setPluckerLine(this.pluckerLines[i]);
-        // lf.setElement0(point);
-        // lf.setElement1(samples[i]);
+        // lf.setPluckerLine(this.pluckerLines[i]);
+        lf.setElement0(this.point);
+        lf.setElement1(dir);
         lf.setSphereRadius(10*this.sphereRadius);
         lf.setCenter(this.point);
         lf.setDoubled(!this.finiteSphere);
@@ -181,9 +182,11 @@ export class LinePencilFactory {
       }
 
     }
+    // const verts2 = verts.map(v => Pn.dehomogenize(null, v));
     const ifsf = new IndexedLineSetFactory();
     ifsf.setVertexCount(verts.length);
     ifsf.setVertexCoordinates(verts);
+    console.log("samples", Rn.toStringArray(verts));
     ifsf.setEdgeCount(indices.length);
     ifsf.setEdgeIndices(indices);
     ifsf.update();

@@ -33,7 +33,7 @@ export class TestAnimApp extends JSRApp {
   }
 
   isDraft() {
-    return true;
+    return false;
   }
 
   _worldSGC = null;
@@ -41,21 +41,13 @@ export class TestAnimApp extends JSRApp {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
     this.#tform = this._worldSGC.getTransformation();
 
-    const squareSGC = SceneGraphUtility.createFullSceneGraphComponent('square');
-
-   
-    squareSGC.setGeometry(Primitives.regularPolygon(4, 0));
-    let ap = squareSGC.getAppearance();
-    ap.setAttribute(CommonAttributes.EDGE_DRAW, false);
-    ap.setAttribute(CommonAttributes.VERTEX_DRAW, false);
-    ap.setAttribute(`polygonShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
 
     const lineSGC = SceneGraphUtility.createFullSceneGraphComponent('line');
     const pointRangeFactory = new PointRangeFactory();
      pointRangeFactory.set2DLine([1,-1,0]);
     pointRangeFactory.update();
     lineSGC.setGeometry(pointRangeFactory.getLine()); 
-    ap = lineSGC.getAppearance();
+    let ap = lineSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
     ap.setAttribute(CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(0, 0, 255));
@@ -64,15 +56,19 @@ export class TestAnimApp extends JSRApp {
     const lpf  = new LinePencilFactory();
     lpf.setPoint([1,-1,0,1]);
     lpf.setPlane([0,0,1,0]);
+    lpf.setFiniteSphere(false);
     lpf.update();
     pencilSGC.addChild(lpf.getPencil()); 
     ap = pencilSGC.getAppearance();
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
-    ap.setAttribute(CommonAttributes.TUBES_DRAW, true);
+    ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
+    ap.setAttribute(CommonAttributes.TUBES_DRAW, false);
     ap.setAttribute(`lineShader.${CommonAttributes.DIFFUSE_COLOR}`, new Color(255, 0, 255));
     ap.setAttribute(`lineShader.${CommonAttributes.TUBE_RADIUS}`, 0.02);
    this._worldSGC.addChildren(lineSGC, pencilSGC);
-    this.#squareSGC = squareSGC;
+   ap = this._worldSGC.getAppearance();
+   ap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(180,180,180));
+   ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     return this._worldSGC;
   }
 

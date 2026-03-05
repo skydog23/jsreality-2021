@@ -28,7 +28,7 @@ import { intersectionPoint, normalize as normalizePluecker, lineFromPoints } fro
 import { EffectiveAppearance } from '../shader/EffectiveAppearance.js';
 import { VERTEX_DRAW, EDGE_DRAW, DIFFUSE_COLOR } from '../shader/CommonAttributes.js';
 import { CopyVisitor } from './CopyVisitor.js';
-import { Color, RED, BLUE } from './Color.js';
+import { Color } from '../util/Color.js';
 import { SceneGraphUtility } from './SceneGraphUtility.js';
 import { fromDataList } from '../scene/data/DataUtility.js';
 
@@ -148,6 +148,14 @@ export class DualizeSceneGraph {
     return pt;
   }
 
+  isFiniteLines() {
+    return this.finiteLines;
+  }
+
+  setFiniteLines(finiteLines) {
+    this.finiteLines = finiteLines;
+  }
+
   /**
    * @param {number} m
    */
@@ -177,13 +185,7 @@ export class DualizeSceneGraph {
      return line;
   }
 
-  isFiniteLines() {
-    return this.finiteLines;
-  }
 
-  setFiniteLines(finiteLines) {
-    this.finiteLines = finiteLines;
-  }
 
   /**
    * @param {number[]} p1
@@ -217,9 +219,9 @@ export class DualizeSceneGraph {
     const segments = SceneGraphUtility.createFullSceneGraphComponent('segments');
     const fans = SceneGraphUtility.createFullSceneGraphComponent('fans');
     const trad = SceneGraphUtility.createFullSceneGraphComponent('trad');
-    segments.getAppearance().setAttribute(`pointShader.${DIFFUSE_COLOR}`, RED);
+    segments.getAppearance().setAttribute(`pointShader.${DIFFUSE_COLOR}`, Color.RED);
     segments.getAppearance().setAttribute('pointShader.pointRadius', 0.01);
-    fans.getAppearance().setAttribute(`lineShader.${DIFFUSE_COLOR}`, BLUE);
+    fans.getAppearance().setAttribute(`lineShader.${DIFFUSE_COLOR}`, Color.BLUE);
     fans.getAppearance().setAttribute('lineShader.tubeRadius', 0.005);
     fans.getAppearance().setAttribute(VERTEX_DRAW, false);
     const n = verts.length;
@@ -399,7 +401,7 @@ class DualizeVisitor extends SceneGraphVisitor {
     for (let i = 0; i < numVerts; ++i) {
       const prf = new PointRangeFactory();
       prf.setPluckerLine(this.dualLines[i]);
-      prf.setFiniteSphere(this.owner.finiteLines);
+      prf.setFiniteSphere(true); //this.owner.finiteLines);
       prf.setSphereRadius(500.0);
       prf.update();
       prf.getLine().setName(`${p.getName()} dual line ${i}`);

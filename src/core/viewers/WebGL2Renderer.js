@@ -926,21 +926,28 @@ export class WebGL2Renderer extends Abstract2DRenderer {
         const colorsDL = geometry?.getVertexColors?.() || null;
         const cached = this.#sphereInstanceCache.get(geometry);
         if (!cached || cached.coordsDL !== vertsDL || cached.colorsDL !== colorsDL || cached.count !== numPoints) {
-          const centers = new Float32Array(numPoints * 3);
-          const colors = new Float32Array(numPoints * 4);
-
-          // Centers: copy from vertex coords (xyz).
+          // Determine valid points: dehomogenize (x/w, y/w, z/w), skip w=0.
+          const validIndices = [];
           for (let i = 0; i < numPoints; i++) {
             const src = i * positionFiber;
-            const dst = i * 3;
-            centers[dst + 0] = Number(vertsFlat[src + 0] ?? 0);
-            centers[dst + 1] = Number(vertsFlat[src + 1] ?? 0);
-            centers[dst + 2] = Number(vertsFlat[src + 2] ?? 0);
+            const w = positionFiber >= 4 ? Number(vertsFlat[src + 3] ?? 1) : 1;
+            if (w !== 0) validIndices.push(i);
+          }
+          const validCount = validIndices.length;
+
+          const centers = new Float32Array(validCount * 3);
+          const colors = new Float32Array(validCount * 4);
+
+          for (let j = 0; j < validCount; j++) {
+            const i = validIndices[j];
+            const src = i * positionFiber;
+            const w = positionFiber >= 4 ? Number(vertsFlat[src + 3] ?? 1) : 1;
+            const dst = j * 3;
+            centers[dst + 0] = Number(vertsFlat[src + 0] ?? 0) / w;
+            centers[dst + 1] = Number(vertsFlat[src + 1] ?? 0) / w;
+            centers[dst + 2] = Number(vertsFlat[src + 2] ?? 0) / w;
           }
 
-          // Colors:
-          // With the updated DataList contract, color DataLists should already be packed float RGBA in [0,1].
-          // We keep a tiny legacy fallback for [n,3] normalized RGB by padding alpha=1.
           const defaultColor = this.#currentColor;
           if (colorsDL && typeof colorsDL.getFlatData === 'function') {
             const cFlat = colorsDL.getFlatData();
@@ -948,23 +955,22 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             const cFiber = Array.isArray(cShape) && cShape.length >= 2 ? cShape[cShape.length - 1] : 0;
             const cf = cFiber || 4;
 
-            if (cf === 4 && cFlat && cFlat.length >= numPoints * 4) {
-              // Fast path: packed RGBA.
-              colors.set(cFlat.subarray(0, numPoints * 4));
-            } else if (cf === 3 && cFlat && cFlat.length >= numPoints * 3) {
-              // Legacy normalized RGB: pad alpha=1.
-            for (let i = 0; i < numPoints; i++) {
-                const src = i * 3;
-              const dst = i * 4;
-                colors[dst + 0] = Number(cFlat[src + 0] ?? 0);
-                colors[dst + 1] = Number(cFlat[src + 1] ?? 0);
-                colors[dst + 2] = Number(cFlat[src + 2] ?? 0);
+            for (let j = 0; j < validCount; j++) {
+              const i = validIndices[j];
+              const dst = j * 4;
+              if (cf === 4 && cFlat && cFlat.length >= numPoints * 4) {
+                const csrc = i * 4;
+                colors[dst + 0] = Number(cFlat[csrc + 0] ?? 0);
+                colors[dst + 1] = Number(cFlat[csrc + 1] ?? 0);
+                colors[dst + 2] = Number(cFlat[csrc + 2] ?? 0);
+                colors[dst + 3] = Number(cFlat[csrc + 3] ?? 1);
+              } else if (cf === 3 && cFlat && cFlat.length >= numPoints * 3) {
+                const csrc = i * 3;
+                colors[dst + 0] = Number(cFlat[csrc + 0] ?? 0);
+                colors[dst + 1] = Number(cFlat[csrc + 1] ?? 0);
+                colors[dst + 2] = Number(cFlat[csrc + 2] ?? 0);
                 colors[dst + 3] = 1.0;
-              }
               } else {
-              // Unexpected layout: fall back to the shader diffuse color.
-              for (let i = 0; i < numPoints; i++) {
-                const dst = i * 4;
                 colors[dst + 0] = defaultColor[0];
                 colors[dst + 1] = defaultColor[1];
                 colors[dst + 2] = defaultColor[2];
@@ -972,8 +978,8 @@ export class WebGL2Renderer extends Abstract2DRenderer {
               }
             }
           } else {
-            for (let i = 0; i < numPoints; i++) {
-              const dst = i * 4;
+            for (let j = 0; j < validCount; j++) {
+              const dst = j * 4;
               colors[dst + 0] = defaultColor[0];
               colors[dst + 1] = defaultColor[1];
               colors[dst + 2] = defaultColor[2];
@@ -981,7 +987,7 @@ export class WebGL2Renderer extends Abstract2DRenderer {
             }
           }
 
-          this.#sphereInstanceCache.set(geometry, { coordsDL: vertsDL, colorsDL, centers, colors, count: numPoints });
+          this.#sphereInstanceCache.set(geometry, { coordsDL: vertsDL, colorsDL, centers, colors, count: numPoints, validCount });
         }
 
         const inst = this.#sphereInstanceCache.get(geometry);
@@ -1052,10 +1058,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
           // Draw instanced sphere
           gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
-          gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, numPoints);
+          gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, inst.validCount);
           if (this.#debugGL) this.#debugGL.drawElements++;
 
-          this._getViewer()?._incrementPointsRendered?.(numPoints);
+          this._getViewer()?._incrementPointsRendered?.(inst.validCount);
           this._endPrimitiveGroup();
           return;
         }
@@ -1105,10 +1111,10 @@ export class WebGL2Renderer extends Abstract2DRenderer {
 
         // draw instanced sphere
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereMesh.ibo);
-        gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, numPoints);
+        gl.drawElementsInstanced(gl.TRIANGLES, sphereMesh.indexCount, gl.UNSIGNED_SHORT, 0, inst.validCount);
 
         if (this.#debugGL) this.#debugGL.drawElements++;
-        this._getViewer()?._incrementPointsRendered?.(numPoints);
+        this._getViewer()?._incrementPointsRendered?.(inst.validCount);
         this._endPrimitiveGroup();
         return;
         }

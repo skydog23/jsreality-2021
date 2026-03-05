@@ -668,7 +668,8 @@ export function projectToTangentSpace(dst, point, tangentToBe, metric) {
  * @param {number} [f] - metric (6-arg only)
  * @returns {number[]}
  */
-export function dragTangentVector(a, b, c, d, e, f) {
+export function 
+dragTangentVector(a, b, c, d, e, f) {
     if (typeof f === 'number') {
         // 6-arg form: dragTangentVector(dst, ddir, src, sdir, length, metric)
         const dst = a;
@@ -1151,10 +1152,10 @@ export function projectivityFromCanonical(dst, dm) {
 export function projectivity(dst, dm, im) {
     const A = projectivityFromCanonical(null, dm);
     const B = projectivityFromCanonical(null, im);
-    console.log("A", Rn.matrixToString(A));
-    console.log("B", Rn.matrixToString(B));
+    // console.log("A", Rn.matrixToString(A));
+    // console.log("B", Rn.matrixToString(B));
     const C =   Rn.times(dst, B, Rn.inverse(null, A));
-    console.log("C", Rn.matrixToString(C));
+    // console.log("C", Rn.matrixToString(C));
     return C;
 }
 
