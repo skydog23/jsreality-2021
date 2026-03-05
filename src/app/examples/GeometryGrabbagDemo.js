@@ -39,6 +39,9 @@ export class GeometryGrabBagDemo extends JSRApp {
     _type = 1;
     _selectionSGC = null;
 
+    getHelpSummary() {
+      return 'Use the 1 key to cycle through the different geometry types.'
+    }
     getContent() {
         const surfaceSGC = SceneGraphUtility.createFullSceneGraphComponent('surface');
         this._selectionSGC = new SelectionComponent();

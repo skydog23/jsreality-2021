@@ -24,6 +24,10 @@ export class TubedTorusKnotDemo extends JSRApp {
     radius = .1;
     showFrames = false;
     surfaceSGC = SceneGraphUtility.createFullSceneGraphComponent('surface');
+
+    getHelpSummary() {
+      return 'Play with a 9-2 torus knot and explore the difference between parallel and Frenet frames.'
+    }
     getContent() {
         const geometrySGC = SceneGraphUtility.createFullSceneGraphComponent('geometry');
         this.getGeometry(this.surfaceSGC);

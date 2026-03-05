@@ -37,6 +37,9 @@ export class DualDecoration extends JSRApp {
   _ecolors = [new Color(255, 70, 70), new Color(255, 255,0), new Color(70, 70, 255)];
   _vcolors = [ new Color(255, 150, 75), new Color(50, 255, 50), Color.PURPLE];
    
+  getHelpSummary() {
+    return 'A dual decoration created with help of the dualize scene graph utility.'
+  }
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent("world");

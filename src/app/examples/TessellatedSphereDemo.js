@@ -30,6 +30,9 @@ export class TessellatedSphereDemo extends JSRApp {
   _world = SceneGraphUtility.createFullSceneGraphComponent("world");
   _normalSGC = SceneGraphUtility.createFullSceneGraphComponent("normal");
  
+  getHelpSummary() {
+    return 'A tessellated sphere demo with adjustable level of tessellation.'
+  }
   getContent() {
      this.updateSphere();
   

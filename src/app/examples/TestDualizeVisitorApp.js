@@ -45,6 +45,9 @@ export class TestDualizeVisitorApp extends JSRApp {
   /** @type {(e: KeyboardEvent) => void | null} */
   _keyHandler = null;
 
+  getHelpSummary() {
+    return 'A demonstration of the dualize scene graph utility applied to the complete graph on 12 vertices'
+  }
   getContent() {
     this._world = SceneGraphUtility.createFullSceneGraphComponent('world');
     this._standardSGC = SceneGraphUtility.createFullSceneGraphComponent('standard');

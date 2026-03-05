@@ -28,6 +28,9 @@ import {Appearance} from '../../core/scene/Appearance.js';
  */
 export class TwoDViewerDemo extends JSRApp {
 
+  getHelpSummary() {
+    return 'A test suite for comparing the different 2D viewers on a variety of geometry types and appearance options.'
+  }
   getContent() {
     const worldSGC = SceneGraphUtility.createFullSceneGraphComponent('world');
   

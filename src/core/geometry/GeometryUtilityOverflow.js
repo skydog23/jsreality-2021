@@ -293,7 +293,6 @@ export class GeometryUtilityOverflow {
     d44[12] = d[6];
     d44[13] = d[7];
     d44[15] = d[8];
-    console.log("d44", Rn.matrixToString(d44));
     return d44;
   }
 

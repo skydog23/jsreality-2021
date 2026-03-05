@@ -186,7 +186,7 @@ export class LinePencilFactory {
     const ifsf = new IndexedLineSetFactory();
     ifsf.setVertexCount(verts.length);
     ifsf.setVertexCoordinates(verts);
-    console.log("samples", Rn.toStringArray(verts));
+    // console.log("samples", Rn.toStringArray(verts));
     ifsf.setEdgeCount(indices.length);
     ifsf.setEdgeIndices(indices);
     ifsf.update();
