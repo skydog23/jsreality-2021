@@ -34,6 +34,9 @@ export class DualDecoration extends JSRApp {
   _fanRadius = .2;
   _ilsfs = new Array(3).fill(null);
   _ap = new Appearance();
+  _ecolors = [new Color(255, 70, 70), new Color(255, 255,0), new Color(70, 70, 255)];
+  _vcolors = [ new Color(255, 150, 75), new Color(50, 255, 50), Color.PURPLE];
+   
 
   getContent() {
     this._worldSGC = SceneGraphUtility.createFullSceneGraphComponent("world");
@@ -41,12 +44,10 @@ export class DualDecoration extends JSRApp {
     this._dualContainerSGC = SceneGraphUtility.createFullSceneGraphComponent("dual");
     this._triSGC = SceneGraphUtility.createFullSceneGraphComponent("tri");
     const triFactory = Primitives.regularPolygonFactory(3, 0);
-    const ecolors = [new Color(255, 70, 70), new Color(255, 255,0), new Color(70, 70, 255)];
-    const vcolors = [ new Color(255, 150, 75), new Color(50, 255, 50), Color.PURPLE];
-    triFactory.setVertexColors([ecolors[1],ecolors[2],ecolors[0]]);
+     triFactory.setVertexColors([this._ecolors[1],this._ecolors[2],this._ecolors[0]]);
     triFactory.setEdgeCount(3);
     triFactory.setEdgeIndices([[0,1], [1,2], [2,0]]);
-    triFactory.setEdgeColors(ecolors);
+    triFactory.setEdgeColors(this._ecolors);
     triFactory.update();
 
     this._triSGC.setGeometry(triFactory.getIndexedFaceSet());
@@ -57,39 +58,12 @@ export class DualDecoration extends JSRApp {
     // MatrixBuilder.euclidean().scale(.99,.99,1.0).assignTo(this._patternCollectorSGC);
     MatrixBuilder.euclidean().translate(0,0,.01).assignTo(this._triSGC);
     this._ap = this._worldSGC.getAppearance();
-    this._ap.setAttribute(CommonAttributes.FLIP_NORMALS_ENABLED, true);
-    
-    this._newPatternFactory = IndexedLineSetUtility.refineFactory(triFactory.getIndexedFaceSet(), this._numSteps);
-    this._newPatternSGC.setGeometry(this._newPatternFactory.getIndexedLineSet());
-    const nv = this._newPatternFactory.getVertexCount();
-    console.log("nv", nv);
-    const newIndices = new Array(nv).fill(null).map(() => [0,0]);
-    const newEdgeColors = new Array(nv).fill(null).map(() => Color.WHITE);
-    const newVertexColors = new Array(nv).fill(null).map(() => Color.WHITE);
-    const jump = nv/3;
-    console.log("jump", jump, "numSteps", this._numSteps);
-
-    for (let i = 0; i < nv; ++i) {
-      newIndices[i] = [i, (i+jump)%nv];
-      newEdgeColors[i] = vcolors[(Math.floor(i/jump))%3];
-      newVertexColors[i] = ecolors[(Math.floor(i/jump))%3];
-    }
-    this._newPatternFactory.setEdgeIndices(newIndices);
-    this._newPatternFactory.setEdgeColors(newEdgeColors);
-    this._newPatternFactory.setVertexColors(newVertexColors);
-    this._newPatternFactory.update();
+       
     let ap = this._newPatternSGC.getAppearance();
-    ap.setAttribute(CommonAttributes.TUBE_RADIUS, .004);
+    ap.setAttribute(CommonAttributes.TUBE_RADIUS, .007);
    
-    // for (let i = 0; i < 3; ++i) {
-    //   this._patternSGC[i] = SceneGraphUtility.createFullSceneGraphComponent("patternSGC" + i);
-    //    const ap = this._patternSGC[i].getAppearance();
-    //   ap.setAttribute();
-    //   ap.setAttribute("lineShader.diffuseColor", ecolors[i]);
-    //   this._patternCollectorSGC.addChild(this._patternSGC[i]);
-    //   this._ilsfs[i] = new IndexedLineSetFactory();
-    // }    
     ap =  this._worldSGC.getAppearance();
+    ap.setAttribute(CommonAttributes.FLIP_NORMALS_ENABLED, true);
     ap.setAttribute(GeometryUtility.BOUNDING_BOX, Rectangle3D.EMPTY_BOX);
     ap.setAttribute(CommonAttributes.VERTEX_DRAW, true);
     ap.setAttribute(CommonAttributes.EDGE_DRAW, true);
@@ -102,7 +76,8 @@ export class DualDecoration extends JSRApp {
     ap.setAttribute(CommonAttributes.LIGHTING_ENABLED, false);
     ap = this._standardSGC.getAppearance();
     ap.setAttribute(DualizeSceneGraph.FAN_RADIUS, .3);
-   this.update();
+   
+    this.update();
 
     this._triSGC.addTool(new DragPointTool());
     this._worldSGC.addChildren(this._standardSGC, this._dualContainerSGC);
@@ -114,29 +89,32 @@ export class DualDecoration extends JSRApp {
     const rootap = this.getViewer().getSceneRoot().getAppearance();
     rootap.setAttribute(CommonAttributes.BACKGROUND_COLOR, new Color(0,0,0));
   }
+
+  updatePattern() {
+    this._newPatternFactory = IndexedLineSetUtility.refineFactory(this._triSGC.getGeometry(), this._numSteps);
+    this._newPatternSGC.setGeometry(this._newPatternFactory.getIndexedLineSet());
+    const nv = this._newPatternFactory.getVertexCount();
+    console.log("nv", nv);
+    const newIndices = new Array(nv).fill(null).map(() => [0,0]);
+    const newEdgeColors = new Array(nv).fill(null).map(() => Color.WHITE);
+    const newVertexColors = new Array(nv).fill(null).map(() => Color.WHITE);
+    const jump = nv/3;
+    console.log("jump", jump, "numSteps", this._numSteps);
+
+    for (let i = 0; i < nv; ++i) {
+      newIndices[i] = [i, (i+jump)%nv];
+      newEdgeColors[i] = this._vcolors[(Math.floor(i/jump))%3];
+      newVertexColors[i] = this._ecolors[(Math.floor(i/jump))%3];
+    }
+    this._newPatternFactory.setEdgeIndices(newIndices);
+    this._newPatternFactory.setEdgeColors(newEdgeColors);
+    this._newPatternFactory.setVertexColors(newVertexColors);
+    this._newPatternFactory.update();
+  }
   update() {
-    const verts = fromDataList(this._triSGC.getGeometry().getVertexCoordinates());
-    // for (let i = 0; i < 3; ++i) {
-    //   this._ilsfs[i].setVertexCount((this._numSteps)*2);
-    //   this._ilsfs[i].setEdgeCount(this._numSteps);
-    //   this._ilsfs[i].setEdgeIndices(new Array(this._numSteps).fill(null).map((_,i) => [i, i+this._numSteps]));
-    //   // this._patternSGC[i].setGeometry(this
-    //   const j = (i+1)%3;
-    //   const m = (i+2)%3;
-    //   const p0 = verts[i];
-    //   const p1 = verts[j];
-    //   const p2 = verts[m];
-    //   const pts4 = new Array(this._numSteps*2).fill([0,0,0,1]);
-    //   for (let k = 0; k < this._numSteps; ++k) {
-    //     const t = k/(this._numSteps-1);
-    //     pts4[k] = AnimationUtility.linearInterpolationArray(t, 0, 1, p0, p1);
-    //     pts4[this._numSteps+k] = AnimationUtility.linearInterpolationArray(t, 0, 1, p1, p2);
-        
-    //   }
-    //   this._ilsfs[i].setVertexCoordinates(pts4);
-    //   this._ilsfs[i].update();
-    //   this._patternSGC[i].setGeometry(this._ilsfs[i].getIndexedLineSet());
-    // }
+
+    this.updatePattern();
+    
     this._dualContainerSGC.removeAllChildren();
     this._dualSGC = DualizeSceneGraph.dualize(this._standardSGC);
     this._dualContainerSGC.addChild(this._dualSGC);
