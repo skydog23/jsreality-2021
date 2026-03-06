@@ -55,7 +55,12 @@ export const DescriptorType = Object.freeze({
    * that sets a default value. When explicit, the inner descriptor's widget is
    * shown alongside a "Clear" button that resets to INHERITED.
    */
-  INHERITABLE: 'inheritable'
+  INHERITABLE: 'inheritable',
+  /**
+   * Multi-line text area for code or long-form text input.
+   * Renders a <textarea> with monospace font.
+   */
+  TEXTAREA: 'textarea'
 });
 
 /**
@@ -84,6 +89,16 @@ export const DescriptorType = Object.freeze({
  *   getValue: () => string,
  *   setValue?: (value: string) => void
  * }} TextDescriptor
+ */
+
+/**
+ * @typedef {DescriptorCommon & {
+ *   type: typeof DescriptorType.TEXTAREA,
+ *   getValue: () => string,
+ *   setValue?: (value: string) => void,
+ *   rows?: number,
+ *   placeholder?: string
+ * }} TextareaDescriptor
  */
 
 /**

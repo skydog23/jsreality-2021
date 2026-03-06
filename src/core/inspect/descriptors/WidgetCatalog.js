@@ -74,6 +74,7 @@ export class WidgetCatalog {
     catalog.register(DescriptorType.TOGGLE, toggleFactory);
     catalog.register(DescriptorType.COLOR, colorFactory);
     catalog.register(DescriptorType.TEXT, textFactory);
+    catalog.register(DescriptorType.TEXTAREA, textareaFactory);
     catalog.register(DescriptorType.BUTTON, buttonFactory);
     catalog.register(DescriptorType.LABEL, labelFactory);
     catalog.register(DescriptorType.LIVE_LABEL, liveLabelFactory);
@@ -311,6 +312,40 @@ function textFactory(descriptor) {
     descriptor.setValue(input.value);
   });
   wrapper.value.appendChild(input);
+  return wrapper.root;
+}
+
+function textareaFactory(descriptor) {
+  const wrapper = createRow(descriptor);
+  const textarea = document.createElement('textarea');
+  textarea.className = 'inspector-input inspector-input--textarea';
+  textarea.value = descriptor.getValue?.() ?? '';
+  textarea.rows = descriptor.rows ?? 12;
+  textarea.placeholder = descriptor.placeholder || descriptor.description || '';
+  textarea.disabled = descriptor.readonly || descriptor.disabled || !descriptor.setValue;
+  textarea.spellcheck = false;
+  textarea.style.fontFamily = 'monospace';
+  textarea.style.fontSize = '12px';
+  textarea.style.lineHeight = '1.4';
+  textarea.style.resize = 'vertical';
+  textarea.style.width = '100%';
+  textarea.style.tabSize = '2';
+  textarea.style.whiteSpace = 'pre';
+  textarea.style.overflowWrap = 'normal';
+  textarea.addEventListener('change', () => {
+    if (!descriptor.setValue) return;
+    descriptor.setValue(textarea.value);
+  });
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + 2;
+    }
+  });
+  wrapper.value.appendChild(textarea);
   return wrapper.root;
 }
 
